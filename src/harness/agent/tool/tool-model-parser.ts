@@ -1,4 +1,4 @@
-import type { ToolCallModel, ToolStatus } from "./types";
+import type { ToolCallModel, ToolStatus } from "../../../components/coding/ToolCall";
 
 export type ToolPart = {
   type: string;

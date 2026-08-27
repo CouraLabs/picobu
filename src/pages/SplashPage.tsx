@@ -9,6 +9,7 @@ An autonomous coding agent that runs inside your terminal.
 - Press **return** to start a run; the agent reads, plans and edits your project, step by step.
 - **tab** / **shift+tab** switch between the Ask, Plan and Coder agents and cycle thinking depth.
 - **ctrl+m** opens the model picker.
+- **ctrl+v** pastes an image from the clipboard into the prompt.
 - Switch to home any time — an in-flight run keeps going in the background.
 - **ctrl+c** exits.
 

@@ -1,4 +1,4 @@
-import { createCliRenderer } from "@opentui/core";
+import { ConsolePosition, createCliRenderer } from "@opentui/core";
 import { createRoot, useTerminalDimensions } from "@opentui/react";
 import { useSelector } from "@xstate/store-react";
 import { themeStore } from "./stores/theme-store";
@@ -9,7 +9,7 @@ import { SplashPage } from "./pages/SplashPage";
 import { Footer } from "./components/Footer";
 import { Header } from "./components/Header";
 import { logo } from "./components/symbols/logo";
-import { CodingSessionProvider } from "./components/coding/session";
+import { CodingSessionProvider } from "./providers/session-provider";
 import { bindExit } from "./harness/commands";
 
 registerSpinner();
@@ -18,6 +18,9 @@ const opentui = await createCliRenderer({
   maxFps: 30,
   useMouse: true,
   exitOnCtrlC: true,
+  consoleOptions: {
+    position: ConsolePosition.RIGHT
+  },
   onDestroy() {
     console.log("")
     console.log(logo())

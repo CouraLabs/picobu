@@ -25,9 +25,14 @@ export function createLoop(getConfig: () => LoopConfig): Loop {
   const toolSet = buildToolSet();
   const initialConfig = getConfig();
 
+  // System prompts are deterministic per (agent, tool set): build once so the
+  // prompt-cache prefix stays byte-stable and we skip recomputing every turn.
+  const systemCache: Record<string, string> = {};
   const buildSystem = (agentId: string): string => {
+    const cached = systemCache[agentId];
+    if (cached !== undefined) return cached;
     const agent = getAgent(agentId);
-    return generateSystemMessage({
+    const built = generateSystemMessage({
       appName: options.app.name,
       cwd: options.app.cwd,
       os: options.app.os,
@@ -35,6 +40,8 @@ export function createLoop(getConfig: () => LoopConfig): Loop {
       agentPrompt: agent.prompt,
       toolsInfo: toolsInfo(toolSet.getTools(agent.tools)),
     }).map((s) => `<${s.key}>${s.content}</${s.key}>`).join("\n");
+    systemCache[agentId] = built;
+    return built;
   };
 
   const agent = new ToolLoopAgent({
@@ -50,6 +57,12 @@ export function createLoop(getConfig: () => LoopConfig): Loop {
         activeTools: agentDef.tools.length ? agentDef.tools : undefined,
         instructions: buildSystem(config.agentId),
         reasoning: config.thinking as AiReasoningEffort,
+        // Explicit ephemeral cache breakpoint (Anthropic): pins the prompt prefix
+        // with a 1h TTL instead of the default 5m auto-cache. Non-Anthropic
+        // providers ignore this namespaced option.
+        providerOptions: {
+          anthropic: { cacheControl: { type: "ephemeral", ttl: "1h" } },
+        },
         ...(agentDef.temperature !== undefined ? { temperature: agentDef.temperature } : {}),
         ...(agentDef.topP !== undefined ? { topP: agentDef.topP } : {}),
         ...(agentDef.topK !== undefined ? { topK: agentDef.topK } : {}),
@@ -69,7 +82,8 @@ export function createLoop(getConfig: () => LoopConfig): Loop {
             usage: {
               inputTokens: opts.part.totalUsage.inputTokens,
               outputTokens: opts.part.totalUsage.outputTokens,
-              cacheTokens: opts.part.totalUsage.inputTokenDetails?.cacheReadTokens ?? 0,
+              cacheReadTokens: opts.part.totalUsage.inputTokenDetails?.cacheReadTokens ?? 0,
+              cacheWriteTokens: opts.part.totalUsage.inputTokenDetails?.cacheWriteTokens ?? 0,
             },
           }
         : undefined,

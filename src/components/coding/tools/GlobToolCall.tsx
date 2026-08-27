@@ -2,9 +2,16 @@ import { useSelector } from "@xstate/store-react";
 import { themeStore } from "../../../stores/theme-store";
 import { ScrollableOutput } from "../ScrollableOutput";
 import { ToolCallShell } from "../ToolCallShell";
-import type { GlobToolCallProps } from "../types";
+import type { ToolStatus } from "../ToolCall";
 
-export const GlobToolCall = ({ pattern, status, output, error }: GlobToolCallProps) => {
+export type GlobToolCallProps = {
+  status: ToolStatus;
+  pattern: string;
+  output?: string;
+  error?: string;
+};
+
+export const GlobToolCall = ({ pattern, status, output, error, copyText }: GlobToolCallProps & { copyText: string }) => {
   const theme = useSelector(themeStore, (s) => s.context.theme);
 
   return (
@@ -12,7 +19,8 @@ export const GlobToolCall = ({ pattern, status, output, error }: GlobToolCallPro
       name="Glob"
       status={status}
       error={error}
-      header={<text selectable={false} fg={theme.textMuted}>{pattern}</text>}
+      copyText={copyText}
+      header={(hovered) => <text selectable={false} fg={hovered ? theme.accent : theme.textMuted}>{pattern}</text>}
     >
       {output?.trim() ? (
         <ScrollableOutput>

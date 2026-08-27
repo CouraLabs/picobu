@@ -4,15 +4,21 @@ type RunPart = {
   type: string;
   state?: string;
   text?: string;
+  id?: string;
 };
 
 type RunMessage = {
+  id?: string;
   role: string;
   parts: RunPart[];
   metadata?: unknown;
 };
 
-export type RunUsage = { inputTokens?: number; outputTokens?: number; cacheTokens?: number };
+export type RunUsage = { inputTokens?: number; outputTokens?: number; cacheReadTokens?: number; cacheWriteTokens?: number };
+
+/** Stable key for a reasoning part so its timing survives renders across the run. */
+export const thinkingPartKey = (messageId: string, partIndex: number, partId?: string): string =>
+  `${messageId}:${partId ?? partIndex}`;
 
 export type RunMetrics = {
   markPromptSent: () => void;
@@ -20,22 +26,26 @@ export type RunMetrics = {
   elapsedSec: number;
   ttftMs: number | null;
   streamMs: number | null;
-  thinkingMs: number | null;
+  thinkingTimes: Record<string, number>;
   tokensPerSec: number | null;
   inputTokens: number | null;
   outputTokens: number | null;
-  cacheTokens: number | null;
+  cacheReadTokens: number | null;
+  cacheWriteTokens: number | null;
   usage: RunUsage | undefined;
 };
 
 /**
- * Session/run timing for a coding chat. `markPromptSent()` is called when the
- * user submits the first prompt; the session timer then runs continuously (even
- * between runs) until remount. We also track time-to-first-token, total stream,
- * the time spent streaming the model's reasoning (thinking), token throughput
- * and the running session timer.
+ * Session/run timing for a coding chat. `markPromptSent()` is called on each
+ * user-submitted prompt; the session timer then runs continuously (even between
+ * runs) until remount. We also track time-to-first-token, total stream, the time
+ * spent streaming the model's reasoning (thinking), token throughput and the
+ * running session timer.
  *
- * All milestone refs are set with `??=` so updates are idempotent across renders.
+ * Reasoning is timed per part (keyed by message/part identity) rather than as a
+ * single scalar, so each reasoning block in a multi-run session shows its own
+ * duration. Per-run scalar milestones (ttft, stream) are reset in
+ * `markPromptSent()`; within a run they are set with `??=` idempotently.
  */
 export const useRunMetrics = ({
   status,
@@ -47,11 +57,11 @@ export const useRunMetrics = ({
   const [now, setNow] = useState(() => Date.now());
 
   const sessionStartAtRef = useRef<number | null>(null);
+  const runStartAtRef = useRef<number | null>(null);
   const firstTokenAtRef = useRef<number | null>(null);
   const streamStartAtRef = useRef<number | null>(null);
   const finishedAtRef = useRef<number | null>(null);
-  const thinkingStartAtRef = useRef<number | null>(null);
-  const thinkingDoneAtRef = useRef<number | null>(null);
+  const thinkingRef = useRef<Map<string, { startAt: number; doneAt: number | null }>>(new Map());
   const lastUsageRef = useRef<RunUsage | null>(null);
 
   const [hasSession, setHasSession] = useState(false);
@@ -75,6 +85,12 @@ export const useRunMetrics = ({
       setNow(sessionStartAtRef.current);
       setHasSession(true);
     }
+    // Reset per-run milestones so each run measures its own ttft and stream
+    // duration instead of carrying over the previous run's values.
+    runStartAtRef.current = Date.now();
+    firstTokenAtRef.current = null;
+    streamStartAtRef.current = null;
+    finishedAtRef.current = null;
   };
 
   // ---- timing milestone updates (idempotent, safe to run every render) ----
@@ -95,26 +111,24 @@ export const useRunMetrics = ({
       firstTokenAtRef.current = now;
     }
   }
-  // Thinking (reasoning) timing: capture when the reasoning part starts emitting
-  // tokens and, once it stops streaming, when it finished — that duration is the
-  // time the model spent streaming its thoughts.
-  if (thinkingStartAtRef.current === null && status === "streaming") {
-    const lastAssistant = [...messages].reverse().find((m) => m.role === "assistant");
-    if (lastAssistant?.parts.some(
-      (p) => p.type === "reasoning" && p.state === "streaming" && (p.text ?? "").trim().length > 0
-    )) {
-      thinkingStartAtRef.current = now;
-    }
-  }
-  if (thinkingStartAtRef.current !== null && thinkingDoneAtRef.current === null && status === "streaming") {
-    const lastAssistant = [...messages].reverse().find((m) => m.role === "assistant");
-    if (
-      lastAssistant &&
-      lastAssistant.parts.some((p) => p.type === "reasoning") &&
-      !lastAssistant.parts.some((p) => p.type === "reasoning" && p.state === "streaming")
-    ) {
-      thinkingDoneAtRef.current = now;
-    }
+  // Reasoning timing, per part: each reasoning part streams independently, so key
+  // start/done by message + part identity rather than a session-wide scalar.
+  for (const m of messages) {
+    if (m.role !== "assistant") continue;
+    m.parts.forEach((p, i) => {
+      if (p.type !== "reasoning") return;
+      const key = thinkingPartKey(m.id ?? "", i, p.id);
+      const rec = thinkingRef.current.get(key);
+      if (!rec) {
+        if (p.state === "streaming" && (p.text ?? "").trim().length > 0) {
+          thinkingRef.current.set(key, { startAt: now, doneAt: null });
+        }
+        return;
+      }
+      if (rec.doneAt === null && p.state === "done") {
+        rec.doneAt = now;
+      }
+    });
   }
 
   // usage comes from the last assistant message's message-metadata.
@@ -126,7 +140,8 @@ export const useRunMetrics = ({
   const keptUsage = usage ?? lastUsageRef.current;
   const inputTokens = keptUsage?.inputTokens ?? null;
   const outputTokens = keptUsage?.outputTokens ?? null;
-  const cacheTokens = keptUsage?.cacheTokens ?? null;
+  const cacheReadTokens = keptUsage?.cacheReadTokens ?? null;
+  const cacheWriteTokens = keptUsage?.cacheWriteTokens ?? null;
 
   // ---- derived (render-time) ----
   const sessionStartAt = sessionStartAtRef.current;
@@ -134,15 +149,15 @@ export const useRunMetrics = ({
   const streamStartAt = streamStartAtRef.current;
   const finishedAt = finishedAtRef.current;
   const ttftMs =
-    firstTokenAtRef.current !== null && sessionStartAt !== null
-      ? firstTokenAtRef.current - sessionStartAt
+    firstTokenAtRef.current !== null && runStartAtRef.current !== null
+      ? firstTokenAtRef.current - runStartAtRef.current
       : null;
   const streamMs = streamStartAt !== null && finishedAt !== null ? finishedAt - streamStartAt : null;
-  const thinkingMs =
-    thinkingStartAtRef.current !== null && thinkingDoneAtRef.current !== null
-      ? thinkingDoneAtRef.current - thinkingStartAtRef.current
-      : null;
+  const thinkingTimes: Record<string, number> = {};
+  for (const [key, rec] of thinkingRef.current) {
+    if (rec.doneAt !== null) thinkingTimes[key] = rec.doneAt - rec.startAt;
+  }
   const tokensPerSec = outputTokens && streamMs ? (1000 * outputTokens) / streamMs : null;
 
-  return { markPromptSent, hasSession, elapsedSec, ttftMs, streamMs, thinkingMs, tokensPerSec, inputTokens, outputTokens, cacheTokens, usage: keptUsage ?? undefined };
+  return { markPromptSent, hasSession, elapsedSec, ttftMs, streamMs, thinkingTimes, tokensPerSec, inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens, usage: keptUsage ?? undefined };
 };

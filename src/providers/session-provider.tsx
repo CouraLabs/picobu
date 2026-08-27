@@ -1,33 +1,29 @@
-import { createContext, useContext, useMemo, type ReactNode } from "react";
+import { createContext, useMemo, type ReactNode } from "react";
 import { useChat } from "@ai-sdk/react";
 import { lastAssistantMessageIsCompleteWithToolCalls, type UIMessage } from "ai";
 import { z } from "zod";
-import { loopStore } from "../../stores/loop-store";
-import { createLoop } from "../../harness/agent/factory/loop/create-loop";
-import { useRunMetrics } from "../../hooks/useRunMetrics";
-import { resolveCommandPrompt } from "../../harness/commands";
-import { useRunCompletionNotification } from "../../hooks/useRunCompletionNotification";
+import { loopStore } from "../stores/loop-store";
+import { createLoop } from "../harness/agent/factory/loop/create-loop";
+import { useRunMetrics } from "../hooks/useRunMetrics";
+import { resolveCommandPrompt } from "../harness/commands";
+import { useRunCompletionNotification } from "../hooks/useRunCompletionNotification";
+import type { PromptFile } from "../libs/embeds";
 
 export type CodingSession = {
   messages: UIMessage[];
   streaming: boolean;
-  onPrompt: (text?: string) => void;
+  onPrompt: (text?: string, files?: PromptFile[]) => void;
   elapsedSec: number;
   ttftMs: number | null;
-  thinkingMs: number | null;
+  thinkingTimes: Record<string, number>;
   tokensPerSec: number | null;
   inputTokens: number | null;
   outputTokens: number | null;
-  cacheTokens: number | null;
+  cacheReadTokens: number | null;
+  cacheWriteTokens: number | null;
 };
 
-const CodingSessionContext = createContext<CodingSession | null>(null);
-
-export const useCodingSession = (): CodingSession => {
-  const ctx = useContext(CodingSessionContext);
-  if (!ctx) throw new Error("useCodingSession must be used within <CodingSessionProvider>");
-  return ctx;
-};
+export const CodingSessionContext = createContext<CodingSession | null>(null);
 
 /**
  * Owns the live coding loop (transport + chat + metrics) so it survives page
@@ -43,7 +39,8 @@ export const CodingSessionProvider = ({ children }: { children: ReactNode }) => 
       usage: z.object({
         inputTokens: z.number().optional(),
         outputTokens: z.number().optional(),
-        cacheTokens: z.number().optional(),
+        cacheReadTokens: z.number().optional(),
+        cacheWriteTokens: z.number().optional(),
       }).optional(),
       finishReason: z.string().optional(),
     }),
@@ -57,32 +54,38 @@ export const CodingSessionProvider = ({ children }: { children: ReactNode }) => 
     hasSession,
     elapsedSec,
     ttftMs,
-    thinkingMs,
+    thinkingTimes,
     tokensPerSec,
     inputTokens,
     outputTokens,
-    cacheTokens,
+    cacheReadTokens,
+    cacheWriteTokens,
   } = useRunMetrics({ status, messages });
 
   useRunCompletionNotification(streaming, hasSession);
 
-  const submit = (text: string) => {
+  const submit = (text: string, files: PromptFile[]) => {
     markPromptSent();
-    sendMessage({ text });
+    if (files.length) sendMessage({ text, files });
+    else sendMessage({ text });
   };
 
-  const onPrompt = (text?: string) => {
-    if (!text) return;
+  const onPrompt = (text?: string, files: PromptFile[] = []) => {
+    if (!text && files.length === 0) return;
+    if (!text) {
+      submit("", files);
+      return;
+    }
     if (!text.startsWith("/")) {
-      submit(text);
+      submit(text, files);
       return;
     }
     void resolveCommandPrompt(text).then((res) => {
       if (res.handled) {
-        if (res.prompt !== undefined) submit(res.prompt);
+        if (res.prompt !== undefined) submit(res.prompt, files);
         return;
       }
-      submit(text); // unknown command / "/ " prompt -> passthrough
+      submit(text, files); // unknown command / "/ " prompt -> passthrough
     });
   };
 
@@ -92,11 +95,12 @@ export const CodingSessionProvider = ({ children }: { children: ReactNode }) => 
     onPrompt,
     elapsedSec,
     ttftMs,
-    thinkingMs,
+    thinkingTimes,
     tokensPerSec,
     inputTokens,
     outputTokens,
-    cacheTokens,
+    cacheReadTokens,
+    cacheWriteTokens,
   };
 
   return <CodingSessionContext.Provider value={value}>{children}</CodingSessionContext.Provider>;

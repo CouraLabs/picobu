@@ -3,14 +3,16 @@ import { AssistantMessage } from "./AssistantMessage";
 import { ThinkingMessage } from "./ThinkingMessage";
 import { UserMessage } from "./UserMessage";
 import { ToolCall } from "./ToolCall";
-import { toolPartToModel, type ToolPart } from "./toolPartToModel";
+import { toolPartToModel, type ToolPart } from "../../harness/agent/tool/tool-model-parser";
+import { partCopyText } from "../../hooks/useClipboard";
+import { thinkingPartKey } from "../../hooks/useRunMetrics";
 
 export type ChatMessagesProps = {
   messages: UIMessage[];
-  thinkingMs: number | null;
+  thinkingTimes: Record<string, number>;
 };
 
-export const ChatMessages = ({ messages, thinkingMs }: ChatMessagesProps) =>
+export const ChatMessages = ({ messages, thinkingTimes }: ChatMessagesProps) =>
   messages.flatMap((m) =>
     m.parts.map((part, i) => {
       if (m.role === "user" && part.type === "text") {
@@ -20,10 +22,10 @@ export const ChatMessages = ({ messages, thinkingMs }: ChatMessagesProps) =>
           case "text":
             return <AssistantMessage key={`${m.id}-${i}`} markdown={part.text} isStreaming={part.state === "streaming"} />;
           case "reasoning":
-            return <ThinkingMessage key={`${m.id}-${i}`} markdown={part.text} isStreaming={part.state === "streaming"} time={thinkingMs ?? 0} />;
+            return <ThinkingMessage key={`${m.id}-${i}`} markdown={part.text} isStreaming={part.state === "streaming"} time={thinkingTimes[thinkingPartKey(m.id, i, part.id)] ?? 0} />;
           default:
             const tool = toolPartToModel(part as ToolPart);
-            if (tool) return <ToolCall key={`${m.id}-${tool.name}-${i}`} model={tool} />;
+            if (tool) return <ToolCall key={`${m.id}-${tool.name}-${i}`} model={tool} copyText={partCopyText(part)} />;
             break;
         }
       }

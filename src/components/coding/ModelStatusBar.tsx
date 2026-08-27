@@ -15,7 +15,8 @@ export type ModelStatusBarProps = {
   thinking: string;
   inputTokens: number | null;
   outputTokens: number | null;
-  cacheTokens: number | null;
+  cacheReadTokens: number | null;
+  cacheWriteTokens: number | null;
   elapsedSec: number;
   ttftMs: number | null;
   tokensPerSec: number | null;
@@ -80,7 +81,8 @@ export const ModelStatusBar = ({
   thinking,
   inputTokens,
   outputTokens,
-  cacheTokens,
+  cacheReadTokens,
+  cacheWriteTokens,
   elapsedSec,
   ttftMs,
   tokensPerSec,
@@ -88,15 +90,23 @@ export const ModelStatusBar = ({
   const theme = useSelector(themeStore, (s) => s.context.theme);
   const { branch, additions, deletions, isRepo } = useGitStatus();
   const input = inputTokens ?? 0;
-  const output = outputTokens ?? 0
+  const output = outputTokens ?? 0;
+  const cacheRead = cacheReadTokens ?? 0;
+  const cacheWrite = cacheWriteTokens ?? 0;
+  const uncached = Math.max(0, input - cacheRead - cacheWrite);
   const contextUsed = input + output;
-  const cachePct = input > 0 && cacheTokens ? Math.round((cacheTokens / input) * 100) : 0;
-  const cacheText = cacheTokens !== null ? `${toK(cacheTokens)} (${cachePct}%)` : "0";
+  const cachePct = input > 0 ? Math.round((cacheRead / input) * 100) : 0;
+  const cacheText = cacheReadTokens !== null ? `${toK(cacheRead)} (${cachePct}%)` : "0";
   const ttftValue = ttftMs !== null ? `${(ttftMs / 1000).toFixed(2)}s` : "0s";
   const tpsValue = tokensPerSec !== null ? `${tokensPerSec.toFixed(1)}` : "0t/s";
   const timeValue = formatTimer(elapsedSec);
   const billing = resolvedModel.modelMeta.billing;
-  const cost = billing ? ((input * (billing.input ?? 0) + output * (billing.output ?? 0) + (cacheTokens ?? 0) * (billing.cacheRead ?? 0)) / 1_000_000) * (billing.multiplier ?? 1) : 0;
+  const cost = billing
+    ? ((uncached * (billing.input ?? 0)
+      + output * (billing.output ?? 0)
+      + cacheRead * (billing.cacheRead ?? 0)
+      + cacheWrite * (billing.cacheWrite ?? 0)) / 1_000_000) * (billing.multiplier ?? 1)
+    : 0;
   const costValue = `${cost.toFixed(2)}`;
   const folder = `/${basename(options.app.cwd)}`;
   const repoText = isRepo ? `${icons.git} ${branch}` : "no git repo";
@@ -113,7 +123,7 @@ export const ModelStatusBar = ({
         <text selectable={false} fg={theme.textMuted} attributes={TextAttributes.DIM}>·</text>
         <text selectable={false} fg={contextFg}>{icons.context} {toK(contextUsed)}/{toK(resolvedModel.modelMeta.context)}</text>
         <text selectable={false} fg={theme.textMuted} attributes={TextAttributes.DIM}>·</text>
-        <text selectable={false} fg={theme.success}>{icons.arrows.up} {toK(input - (cacheTokens ?? 0))}</text>
+        <text selectable={false} fg={theme.success}>{icons.arrows.up} {toK(uncached)}</text>
         <text selectable={false} fg={theme.textMuted} attributes={TextAttributes.DIM}>·</text>
         <text selectable={false} fg={theme.info}>{icons.arrows.down} {toK(output)}</text>
         <text selectable={false} fg={theme.textMuted} attributes={TextAttributes.DIM}>·</text>

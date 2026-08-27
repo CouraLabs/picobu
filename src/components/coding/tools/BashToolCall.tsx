@@ -2,9 +2,17 @@ import { useSelector } from "@xstate/store-react";
 import { themeStore } from "../../../stores/theme-store";
 import { ScrollableOutput } from "../ScrollableOutput";
 import { ToolCallShell } from "../ToolCallShell";
-import type { BashToolCallProps } from "../types";
+import type { ToolStatus } from "../ToolCall";
 
-export const BashToolCall = ({ command, cwd, status, output, error }: BashToolCallProps) => {
+export type BashToolCallProps = {
+  status: ToolStatus;
+  command: string;
+  cwd?: string;
+  output?: string;
+  error?: string;
+};
+
+export const BashToolCall = ({ command, cwd, status, output, error, copyText }: BashToolCallProps & { copyText: string }) => {
   const theme = useSelector(themeStore, (s) => s.context.theme);
 
   return (
@@ -12,13 +20,14 @@ export const BashToolCall = ({ command, cwd, status, output, error }: BashToolCa
       name="Bash"
       status={status}
       error={error}
-      header={
+      copyText={copyText}
+      header={(hovered) => (
         <>
-          <text selectable={false} fg={theme.textMuted}>$</text>
-          <text selectable={false} fg={theme.text}>{command}</text>
-          {cwd ? <text selectable={false} fg={theme.textMuted}>{cwd}</text> : null}
+          <text selectable={false} fg={hovered ? theme.accent : theme.textMuted}>$</text>
+          <text selectable={false} fg={hovered ? theme.accent : theme.text}>{command}</text>
+          {cwd ? <text selectable={false} fg={hovered ? theme.accent : theme.textMuted}>{cwd}</text> : null}
         </>
-      }
+      )}
     >
       <ScrollableOutput>
         <text selectable={false} fg={theme.textMuted}>{output}</text>

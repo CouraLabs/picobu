@@ -12,14 +12,14 @@ import { ModelPicker } from "../components/coding/ModelPicker";
 import { CommandPicker } from "../components/coding/CommandPicker";
 import { EffortPicker } from "../components/coding/EffortPicker";
 import { ModelStatusBar } from "../components/coding/ModelStatusBar";
-import { useCodingSession } from "../components/coding/session";
+import { useSession } from "../hooks/useSession";
 
 export const CodingPage = ({ sessionId }: { sessionId?: string }) => {
   const theme = useSelector(themeStore, (s) => s.context.theme);
   const { agentId, modelKey, thinking, modelPickerOpen, commandOpen, effortOpen } =
     useSelector(loopStore, (s) => s.context);
 
-  const { messages, streaming, onPrompt, elapsedSec, ttftMs, thinkingMs, tokensPerSec, inputTokens, outputTokens, cacheTokens } = useCodingSession();
+  const { messages, streaming, onPrompt, elapsedSec, ttftMs, thinkingTimes, tokensPerSec, inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens } = useSession();
 
   useLoopKeybinds(streaming);
 
@@ -39,7 +39,7 @@ export const CodingPage = ({ sessionId }: { sessionId?: string }) => {
         stickyScroll
         stickyStart="bottom"
         contentOptions={{ justifyContent: 'flex-end', gap: 1 }}>
-        <ChatMessages messages={messages} thinkingMs={thinkingMs} />
+        <ChatMessages messages={messages} thinkingTimes={thinkingTimes} />
       </scrollbox>
       <box flexDirection="column" marginTop={1}>
         {streaming && (
@@ -59,7 +59,8 @@ export const CodingPage = ({ sessionId }: { sessionId?: string }) => {
           thinking={thinking}
           inputTokens={inputTokens}
           outputTokens={outputTokens}
-          cacheTokens={cacheTokens}
+          cacheReadTokens={cacheReadTokens}
+          cacheWriteTokens={cacheWriteTokens}
           elapsedSec={elapsedSec}
           ttftMs={ttftMs}
           tokensPerSec={tokensPerSec}

@@ -5,9 +5,11 @@ import { themeStore } from "../../stores/theme-store";
 import { loopStore } from "../../stores/loop-store";
 import { icons } from "../symbols/icons";
 import { bindCommandAccept, filterCommands } from "../../harness/commands";
+import { usePromptClipboard } from "../../hooks/usePromptClipboard";
+import type { PromptFile } from "../../libs/embeds";
 
 export type PromptProps = {
-  onSubmit: (text?: string) => void;
+  onSubmit: (text: string, files: PromptFile[]) => void;
 };
 
 export const Prompt = ({ onSubmit }: PromptProps) => {
@@ -15,6 +17,7 @@ export const Prompt = ({ onSubmit }: PromptProps) => {
   const modelPickerOpen = useSelector(loopStore, (s) => s.context.modelPickerOpen);
   const commandOpen = useSelector(loopStore, (s) => s.context.commandOpen);
   const textareaRef = useRef<TextareaRenderable>(null);
+  const { embedSyntax, handleContentChange, resolveAndClear } = usePromptClipboard(textareaRef);
 
   // Focus the input on mount, and return focus to it once the model picker
   // closes (open-tui needs a tick before the textarea accepts focus).
@@ -31,6 +34,7 @@ export const Prompt = ({ onSubmit }: PromptProps) => {
     const ta = textareaRef.current;
     if (!ta) return;
     ta.onContentChange = () => {
+      handleContentChange();
       const t = textareaRef.current?.plainText ?? "";
       const inCommand = t.startsWith("/") && !t.slice(1).includes(" ");
       if (inCommand) {
@@ -48,11 +52,12 @@ export const Prompt = ({ onSubmit }: PromptProps) => {
       }
       loopStore.trigger.closeCommand();
     });
-  }, []);
+  }, [handleContentChange]);
 
   const submit = () => {
     if (textareaRef.current?.plainText.trim() === "/") return; // bare slash: just the picker
-    onSubmit(textareaRef.current?.plainText);
+    const resolved = resolveAndClear();
+    onSubmit(resolved.text, resolved.files);
     textareaRef.current?.clear();
   };
 
@@ -77,6 +82,7 @@ export const Prompt = ({ onSubmit }: PromptProps) => {
           placeholderColor={theme.textMuted}
           cursorColor={theme.accent}
           textColor={theme.text}
+          syntaxStyle={embedSyntax}
           onSubmit={submit}
           keyBindings={[
             { name: "return", action: "submit" },
