@@ -1,0 +1,20 @@
+export const icons = {
+  arrows: {
+    up: '↑',
+    down: '↓',
+    left: '←',
+    right: '→',
+    blockRight: '⊳',
+    blockLeft: '⊲',
+    rightChevron: '›',
+    rightDoubleChevron: '»',
+  },
+  context: '⑆',
+  thinking: '⚼',
+  cache: '⛁',
+  time: '⌛',
+  speed: '↯',
+  tool: '⯿',
+  git: '⑂',
+  prompt: '❱'
+}

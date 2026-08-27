@@ -1,0 +1,7 @@
+import type { Command } from "../types";
+import { effort } from "./effort";
+import { models } from "./models";
+import { quit } from "./quit";
+
+/** Built-in system commands, ordered by first-found precedence. */
+export const SYSTEM_COMMANDS: Command[] = [quit, models, effort];
