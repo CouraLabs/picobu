@@ -16,31 +16,31 @@
   "theme": {
     "primary": {
       "dark": "#FFC799",
-      "light": "#FFC799"
+      "light": "#C7461A"
     },
     "secondary": {
       "dark": "#99FFE4",
-      "light": "#99FFE4"
+      "light": "#12806A"
     },
     "accent": {
       "dark": "#FFC799",
-      "light": "#FFC799"
+      "light": "#C7461A"
     },
     "error": {
       "dark": "vesperError",
-      "light": "vesperError"
+      "light": "#C84242"
     },
     "warning": {
       "dark": "vesperWarning",
-      "light": "vesperWarning"
+      "light": "#C7461A"
     },
     "success": {
       "dark": "vesperSuccess",
-      "light": "vesperSuccess"
+      "light": "#12806A"
     },
     "info": {
       "dark": "#FFC799",
-      "light": "#FFC799"
+      "light": "#C7461A"
     },
     "text": {
       "dark": "vesperFg",
@@ -48,7 +48,7 @@
     },
     "textMuted": {
       "dark": "vesperMuted",
-      "light": "vesperMuted"
+      "light": "#6E6E6E"
     },
     "background": {
       "dark": "vesperBg",
@@ -68,7 +68,7 @@
     },
     "borderActive": {
       "dark": "#FFC799",
-      "light": "#FFC799"
+      "light": "#C7461A"
     },
     "borderSubtle": {
       "dark": "#1C1C1C",
@@ -76,11 +76,11 @@
     },
     "diffAdded": {
       "dark": "vesperSuccess",
-      "light": "vesperSuccess"
+      "light": "#12806A"
     },
     "diffRemoved": {
       "dark": "vesperError",
-      "light": "vesperError"
+      "light": "#C84242"
     },
     "diffContext": {
       "dark": "vesperMuted",
@@ -96,7 +96,7 @@
     },
     "diffHighlightRemoved": {
       "dark": "vesperError",
-      "light": "vesperError"
+      "light": "#C84242"
     },
     "diffAddedBg": {
       "dark": "#0d2818",
@@ -128,19 +128,19 @@
     },
     "markdownHeading": {
       "dark": "#FFC799",
-      "light": "#FFC799"
+      "light": "#C7461A"
     },
     "markdownLink": {
       "dark": "#FFC799",
-      "light": "#FFC799"
+      "light": "#C7461A"
     },
     "markdownLinkText": {
       "dark": "vesperMuted",
-      "light": "vesperMuted"
+      "light": "#777777"
     },
     "markdownCode": {
       "dark": "vesperMuted",
-      "light": "vesperMuted"
+      "light": "#12806A"
     },
     "markdownBlockQuote": {
       "dark": "vesperFg",
@@ -168,11 +168,11 @@
     },
     "markdownImage": {
       "dark": "#FFC799",
-      "light": "#FFC799"
+      "light": "#C7461A"
     },
     "markdownImageText": {
       "dark": "vesperMuted",
-      "light": "vesperMuted"
+      "light": "#777777"
     },
     "markdownCodeBlock": {
       "dark": "vesperFg",
@@ -184,11 +184,11 @@
     },
     "syntaxKeyword": {
       "dark": "vesperKeyword",
-      "light": "vesperKeyword"
+      "light": "#777777"
     },
     "syntaxFunction": {
       "dark": "vesperFunction",
-      "light": "vesperFunction"
+      "light": "#C7461A"
     },
     "syntaxVariable": {
       "dark": "vesperFg",
@@ -196,19 +196,19 @@
     },
     "syntaxString": {
       "dark": "vesperString",
-      "light": "vesperString"
+      "light": "#12806A"
     },
     "syntaxNumber": {
       "dark": "vesperNumber",
-      "light": "vesperNumber"
+      "light": "#C7461A"
     },
     "syntaxType": {
       "dark": "vesperFunction",
-      "light": "vesperFunction"
+      "light": "#C7461A"
     },
     "syntaxOperator": {
       "dark": "vesperKeyword",
-      "light": "vesperKeyword"
+      "light": "#777777"
     },
     "syntaxPunctuation": {
       "dark": "vesperFg",

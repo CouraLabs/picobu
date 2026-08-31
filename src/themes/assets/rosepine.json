@@ -40,7 +40,7 @@
     },
     "accent": {
       "dark": "rose",
-      "light": "#d7827e"
+      "light": "#B25642"
     },
     "error": {
       "dark": "love",
@@ -48,7 +48,7 @@
     },
     "warning": {
       "dark": "gold",
-      "light": "#ea9d34"
+      "light": "#B37516"
     },
     "success": {
       "dark": "pine",
@@ -212,7 +212,7 @@
     },
     "syntaxString": {
       "dark": "gold",
-      "light": "#ea9d34"
+      "light": "#B37516"
     },
     "syntaxNumber": {
       "dark": "iris",

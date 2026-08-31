@@ -1,4 +1,5 @@
-import type { ToolCallModel, ToolStatus } from "../../../components/coding/ToolCall";
+import type { ToolCallModel, ToolStatus } from "../../../components/session/ToolCall";
+import type { TodoItem } from "../../../components/session/tools/TodoToolCall";
 
 export type ToolPart = {
   type: string;
@@ -82,6 +83,63 @@ export function toolPartToModel(part: ToolPart): ToolCallModel | null {
       };
     case "glob":
       return { name: "glob", status, error, pattern: String(input.pattern ?? ""), output: outputText };
+    case "todo": {
+      // Flow tool: the output is the full todo list, rendered as a phase tree.
+      const todoOutput =
+        part.state === "output-available"
+          ? (part.output as { items?: unknown } | undefined)
+          : undefined;
+      const rawItems = Array.isArray(todoOutput?.items) ? (todoOutput!.items as unknown[]) : [];
+      const items: TodoItem[] = rawItems.map((raw) => {
+        const it = (raw ?? {}) as Record<string, unknown>;
+        return {
+          phase: String(it.phase ?? ""),
+          title: String(it.title ?? ""),
+          prompt: String(it.prompt ?? ""),
+          done: it.done === true,
+        };
+      });
+      return { name: "todo", status, error, items };
+    }
+    case "websearch": {
+      // External tool: the output carries the result list rendered by the UI.
+      const searchOutput =
+        part.state === "output-available"
+          ? (part.output as { results?: unknown } | undefined)
+          : undefined;
+      const rawResults = Array.isArray(searchOutput?.results) ? (searchOutput!.results as unknown[]) : [];
+      const results = rawResults.map((raw) => {
+        const r = (raw ?? {}) as Record<string, unknown>;
+        return {
+          title: String(r.title ?? ""),
+          url: String(r.url ?? ""),
+          snippet: String(r.snippet ?? ""),
+          content: typeof r.content === "string" ? r.content : null,
+        };
+      });
+      return {
+        name: "websearch",
+        status,
+        error,
+        query: String(input.query ?? ""),
+        deepness: typeof input.deepness === "number" ? input.deepness : undefined,
+        results,
+      };
+    }
+    case "webfetch": {
+      const fetchOutput =
+        part.state === "output-available"
+          ? (part.output as { contentType?: string; content?: string } | undefined)
+          : undefined;
+      return {
+        name: "webfetch",
+        status,
+        error,
+        url: String(input.url ?? ""),
+        contentType: typeof fetchOutput?.contentType === "string" ? fetchOutput.contentType : undefined,
+        output: fetchOutput?.content,
+      };
+    }
     default:
       return null;
   }

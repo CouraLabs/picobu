@@ -1,16 +1,18 @@
 {
   "name": "picobu",
-  "module": "src/index.tsx",
+  "module": "src/cli.ts",
   "type": "module",
   "private": true,
   "scripts": {
-    "dev": "bun run --watch src/index.tsx",
+    "dev": "bun run --watch src/cli.ts",
+    "web": "bun run src/cli.ts --web",
     "tsc": "tsc -noEmit"
   },
   "devDependencies": {
     "@types/bun": "latest",
     "@types/node": "^26.3.0",
-    "@types/react": "^19.2.18"
+    "@types/react": "^19.2.18",
+    "@types/turndown": "^5.0.6"
   },
   "peerDependencies": {
     "typescript": "^5"
@@ -21,15 +23,23 @@
     "@ai-sdk/openai-compatible": "^3.0.37",
     "@ai-sdk/provider": "^4.0.8",
     "@ai-sdk/react": "^4.0.82",
-    "@opentui/core": "^0.5.6",
-    "@opentui/react": "^0.5.6",
+    "@opentui/core": "^0.5.9",
+    "@opentui/react": "^0.5.9",
+    "@opentui/three": "^0.5.9",
     "@vscode/ripgrep": "^1.18.0",
     "@whiskeysockets/baileys": "^7.0.0-rc14",
     "@xstate/store-react": "^2.0.0",
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/xterm": "^6.0.0",
     "ai": "^7.0.79",
+    "bun-webgpu": "0.1.7",
+    "commander": "^15.0.0",
     "diff": "^9.0.0",
     "opentui-spinner": "^0.0.7",
+    "puppeteer": "^25.9.0",
     "react": "^19.2.6",
+    "three": "0.177.0",
+    "turndown": "^7.2.4",
     "zod": "^4.4.3"
   }
 }

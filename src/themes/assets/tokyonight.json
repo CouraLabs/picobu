@@ -73,7 +73,7 @@
     },
     "textMuted": {
       "dark": "darkStep11",
-      "light": "lightStep11"
+      "light": "#6A7290"
     },
     "background": {
       "dark": "darkStep1",
@@ -205,7 +205,7 @@
     },
     "syntaxComment": {
       "dark": "darkStep11",
-      "light": "lightStep11"
+      "light": "#6A7290"
     },
     "syntaxKeyword": {
       "dark": "darkPurple",

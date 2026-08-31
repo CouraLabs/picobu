@@ -2,6 +2,19 @@ import { SyntaxStyle, RGBA, type TerminalColors } from "@opentui/core"
 import aura from "./assets/aura.json" with { type: "json" }
 import ayu from "./assets/ayu.json" with { type: "json" }
 import carbonfox from "./assets/carbonfox.json" with { type: "json" }
+import oneDarker from "./assets/one-darker.json" with { type: "json" }
+import one from "./assets/one.json" with { type: "json" }
+import catppuccinLatte from "./assets/catppuccin-latte.json" with { type: "json" }
+import rosePineMoon from "./assets/rose-pine-moon.json" with { type: "json" }
+import rosePineDawn from "./assets/rose-pine-dawn.json" with { type: "json" }
+import tokyoNightStorm from "./assets/tokyo-night-storm.json" with { type: "json" }
+import ayuLight from "./assets/ayu-light.json" with { type: "json" }
+import doomOne from "./assets/doom-one.json" with { type: "json" }
+import vitesseDarker from "./assets/vitesse-darker.json" with { type: "json" }
+import vitesse from "./assets/vitesse.json" with { type: "json" }
+import horizonDarker from "./assets/horizon-darker.json" with { type: "json" }
+import horizon from "./assets/horizon.json" with { type: "json" }
+import blulocoDark from "./assets/bluloco-dark.json" with { type: "json" }
 import catppuccinFrappe from "./assets/catppuccin-frappe.json" with { type: "json" }
 import catppuccinMacchiato from "./assets/catppuccin-macchiato.json" with { type: "json" }
 import catppuccin from "./assets/catppuccin.json" with { type: "json" }
@@ -20,7 +33,6 @@ import mercury from "./assets/mercury.json" with { type: "json" }
 import monokai from "./assets/monokai.json" with { type: "json" }
 import nightowl from "./assets/nightowl.json" with { type: "json" }
 import nord from "./assets/nord.json" with { type: "json" }
-import onedark from "./assets/one-dark.json" with { type: "json" }
 import orng from "./assets/orng.json" with { type: "json" }
 import osakaJade from "./assets/osaka-jade.json" with { type: "json" }
 import palenight from "./assets/palenight.json" with { type: "json" }
@@ -97,16 +109,14 @@ export function selectedForeground(theme: Theme, bg?: RGBA): RGBA {
     return theme.selectedListItemText
   }
 
-  // For transparent backgrounds, calculate contrast based on the actual bg (or fallback to primary)
-  if (theme.background.a === 0) {
-    const targetColor = bg ?? theme.primary
-    const { r, g, b } = targetColor
-    const luminance = 0.299 * r + 0.587 * g + 0.114 * b
-    return luminance > 0.5 ? RGBA.fromInts(0, 0, 0) : RGBA.fromInts(255, 255, 255)
-  }
-
-  // Fall back to background color
-  return theme.background
+  // Pick the surface the ink sits on: the caller-provided badge background, the
+  // primary when the app background is transparent (terminal-controlled), or
+  // the panel. Snap to black/white ink by luminance so the foreground can
+  // never collapse into the background it is drawn over.
+  const surface = bg ?? (theme.background.a === 0 ? theme.primary : theme.backgroundPanel)
+  const { r, g, b } = surface
+  const luminance = 0.299 * r + 0.587 * g + 0.114 * b
+  return luminance > 0.5 ? RGBA.fromInts(0, 0, 0) : RGBA.fromInts(255, 255, 255)
 }
 
 type HexColor = `#${string}`
@@ -147,7 +157,6 @@ export const DEFAULT_THEMES: Record<string, ThemeJson> = {
   monokai,
   nightowl,
   nord,
-  ["one-dark"]: onedark,
   ["osaka-jade"]: osakaJade,
   orng,
   ["lucent-orng"]: lucentOrng,
@@ -159,6 +168,19 @@ export const DEFAULT_THEMES: Record<string, ThemeJson> = {
   vesper,
   zenburn,
   carbonfox,
+  ["one-darker"]: oneDarker,
+  one,
+  ["catppuccin-latte"]: catppuccinLatte,
+  ["rose-pine-moon"]: rosePineMoon,
+  ["rose-pine-dawn"]: rosePineDawn,
+  ["tokyo-night-storm"]: tokyoNightStorm,
+  ["ayu-light"]: ayuLight,
+  ["doom-one"]: doomOne,
+  ["vitesse-darker"]: vitesseDarker,
+  vitesse,
+  ["horizon-darker"]: horizonDarker,
+  horizon,
+  ["bluloco-dark"]: blulocoDark,
 }
 
 const pluginThemes: Record<string, ThemeJson> = {}
@@ -269,14 +291,18 @@ export function resolveTheme(theme: ThemeJson, mode: "dark" | "light") {
       }),
   ) as Partial<Record<ThemeColor, RGBA>>
 
-  // Handle selectedListItemText separately since it's optional
+  // Handle selectedListItemText separately since it's optional. Selection rows
+  // are rendered as text on the panel surface (the select highlight is
+  // transparent), so the fallback must contrast with the panel instead of
+  // reusing the background color — background-colored selection text collapsed
+  // into the panel and made the highlighted option invisible.
   const hasSelectedListItemText = theme.theme.selectedListItemText !== undefined
   if (hasSelectedListItemText) {
     resolved.selectedListItemText = resolveColor(theme.theme.selectedListItemText!)
   } else {
-    // Backward compatibility: if selectedListItemText is not defined, use background color
-    // This preserves the current behavior for all existing themes
-    resolved.selectedListItemText = resolved.background
+    const surface = resolved.backgroundPanel ?? resolved.background ?? RGBA.fromInts(20, 20, 26)
+    const luminance = 0.299 * surface.r + 0.587 * surface.g + 0.114 * surface.b
+    resolved.selectedListItemText = luminance > 0.5 ? RGBA.fromInts(20, 20, 26) : RGBA.fromInts(242, 242, 245)
   }
 
   // Handle backgroundMenu - optional with fallback to backgroundElement

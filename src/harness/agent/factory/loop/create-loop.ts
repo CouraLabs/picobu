@@ -1,9 +1,10 @@
-import { DirectChatTransport, ToolLoopAgent } from "ai";
+import { DirectChatTransport, ToolLoopAgent, isStepCount, type InferUITools, type UIMessage } from "ai";
 import { buildToolSet, toolsInfo } from "../../tool/toolset";
 import { getAgent } from "../agent/registry";
 import { resolveModel } from "../provider-resolver";
 import { generateSystemMessage } from "../../prompts/system";
 import { options, type ProviderModelReasoningEffort } from "../../../../libs/options";
+import { folderKeyFor, sessionTodoFilePath } from "../../../../libs/sessions";
 
 /** The AI SDK's `reasoning` union. The project's `ProviderModelReasoningEffort`
  * adds `"max"` (used by configured providers) but omits `"minimal"` /
@@ -14,16 +15,35 @@ export type LoopConfig = {
   agentId: string;
   modelKey: string;
   thinking: ProviderModelReasoningEffort;
+  /** `persistent` runs each prompt as a fresh, tool-less 10-step session. */
+  sessionMode?: "chat" | "persistent";
+  /** Session id: enables session-scoped flow tools (the `todo` list). */
+  sessionId?: string;
 };
+
+/** Options forwarded to the agent loop per call (visible in `prepareCall`). */
+type LoopCallOptions = { sessionMode?: "chat" | "persistent" };
+
+/** The UI message type the loop's chat transport carries: data-part-free, with
+ * tool names resolved from the tool set at runtime. */
+export type LoopMessage = UIMessage<unknown, never, InferUITools<any>>;
 
 export type Loop = {
   agent: ToolLoopAgent<any, any, any, any>;
-  transport: DirectChatTransport;
+  transport: DirectChatTransport<any, any, any, any, LoopMessage>;
 };
 
 export function createLoop(getConfig: () => LoopConfig): Loop {
-  const toolSet = buildToolSet();
   const initialConfig = getConfig();
+  const isPersistent = initialConfig.sessionMode === "persistent";
+  // Flow tools are session-scoped: the todo list lives in the session folder
+  // (`<folder>/<sessionId>/session-todo.json`) and is only registered when the
+  // loop knows its session id.
+  const toolSet = buildToolSet({
+    todoFilePath: initialConfig.sessionId
+      ? sessionTodoFilePath(folderKeyFor(options.app.cwd), initialConfig.sessionId)
+      : undefined,
+  });
 
   // System prompts are deterministic per (agent, tool set): build once so the
   // prompt-cache prefix stays byte-stable and we skip recomputing every turn.
@@ -44,18 +64,19 @@ export function createLoop(getConfig: () => LoopConfig): Loop {
     return built;
   };
 
-  const agent = new ToolLoopAgent({
+  const agent = new ToolLoopAgent<LoopCallOptions, any, any, any>({
     model: resolveModel(initialConfig.modelKey).model,
     tools: toolSet.getToolSet(), // full set; activeTools narrows per agent below
     prepareCall: ({ options, ...rest }) => {
+      const persistent = options?.sessionMode === "persistent";
       const config = getConfig();
-      const agentDef = getAgent(config.agentId);
+      const agentDef = getAgent(persistent ? "persistent" : config.agentId);
       const resolved = resolveModel(config.modelKey);
-      return {
+      const base = {
         ...rest,
         model: resolved.model,
         activeTools: agentDef.tools.length ? agentDef.tools : undefined,
-        instructions: buildSystem(config.agentId),
+        instructions: buildSystem(persistent ? "persistent" : config.agentId),
         reasoning: config.thinking as AiReasoningEffort,
         // Explicit ephemeral cache breakpoint (Anthropic): pins the prompt prefix
         // with a 1h TTL instead of the default 5m auto-cache. Non-Anthropic
@@ -67,11 +88,23 @@ export function createLoop(getConfig: () => LoopConfig): Loop {
         ...(agentDef.topP !== undefined ? { topP: agentDef.topP } : {}),
         ...(agentDef.topK !== undefined ? { topK: agentDef.topK } : {}),
       };
+      // Persistent mode: every prompt is a fresh context — send only the latest
+      // user message and cap the run at 10 agent steps.
+      if (!persistent) return base;
+      const lastUser = Array.isArray(rest.prompt)
+        ? rest.prompt.filter((m) => m.role === "user").at(-1)
+        : undefined;
+      return {
+        ...base,
+        prompt: lastUser ? [lastUser] : rest.prompt,
+        stopWhen: isStepCount(10),
+      };
     },
   });
 
   const transport = new DirectChatTransport({
     agent,
+    options: { sessionMode: isPersistent ? "persistent" : "chat" },
     sendFinish: true,
     sendReasoning: true,
     sendSources: true,

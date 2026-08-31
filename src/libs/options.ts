@@ -92,12 +92,27 @@ export type ThemePrefs = {
   variant: "dark" | "light";
 };
 
-type OptionsExternal = {
+/** Web server (xterm.js) binding, read by `bun run web`. */
+export type WebServerOptions = {
+  host: string;
+  port: number;
+};
+
+/** Defaults applied when the `web` block is missing or partially set. */
+export const DEFAULT_WEB_OPTIONS: WebServerOptions = {
+  host: "0.0.0.0",
+  port: 8080,
+};
+
+export type OptionsExternal = {
   providers?: ProviderOptions[];
   /** Optional on disk; normalized to required once loaded. */
   harness?: HarnessOptionsInput;
   /** Optional on disk; defaults to `{ key: "tacos", variant: "dark" }` when unset. */
   theme?: ThemePrefs;
+  /** Optional on disk; defaults to `{ host: "0.0.0.0", port: 8080 }` when unset. */
+  web?: WebServerOptions;
+
 }
 
 export type GlobalOptions = {
@@ -116,6 +131,8 @@ export type Options = GlobalOptions & {
   providers: ProviderOptions[];
   harness: HarnessOptions;
   theme: ThemePrefs;
+  web: WebServerOptions;
+
 };
 
 const globals: GlobalOptions = {
@@ -178,15 +195,6 @@ export function resolveModelRole(
 export const loadOptions = async (): Promise<Options> => {
   const externalOpts = await readExternalOptions();
 
-  if (externalOpts.providers) {
-    externalOpts.providers.forEach((provider) => {
-      if (provider && provider.apiKey && provider.apiKey.includes("env:")) {
-        const envKey = provider.apiKey.replace("env:", "");
-        provider.apiKey = process.env[envKey];
-      }
-    })
-  }
-
   // `defaultModel` is optional on load so importing `options` never fails on a
   // model-less config (the Theme UI / Splash page stay usable). Model resolution
   // throws in `resolveModel`/`resolveModelRole` only once a model is actually
@@ -196,6 +204,8 @@ export const loadOptions = async (): Promise<Options> => {
     providers: externalOpts.providers ?? [],
     harness: externalOpts.harness as HarnessOptions,
     theme: externalOpts.theme ?? { key: "tacos", variant: "dark" },
+    web: { ...DEFAULT_WEB_OPTIONS, ...externalOpts.web },
+
   } satisfies Options;
 };
 
@@ -231,11 +241,13 @@ async function readExternalOptions(): Promise<OptionsExternal> {
 
 /**
  * Merge a partial settings patch into `<systemDir>/options.json` under the file
- * lock, then return the merged options. `harness` and `theme` are shallow-merged
+ * lock, then return the merged options. `harness`, `theme`, and `web` are shallow-merged
+
  * so partial role overrides / variant changes survive writes.
  */
 export const updateSettings = async (
-  patch: Partial<Pick<OptionsExternal, "providers" | "harness" | "theme">>,
+  patch: Partial<Pick<OptionsExternal, "providers" | "harness" | "theme" | "web">>,
+
 ): Promise<Options> => {
   const systemDir = globals.app.systemDir;
   mkdirSync(systemDir, { recursive: true });
@@ -262,6 +274,11 @@ export const updateSettings = async (
         ...current.theme,
         ...patch.theme,
       } as ThemePrefs,
+      web: {
+        ...DEFAULT_WEB_OPTIONS,
+        ...current.web,
+        ...patch.web,
+      } as WebServerOptions,
     };
     await Bun.write(externalOptsPath, JSON.stringify(next, null, 2));
     return { ...globals, ...next } as Options;

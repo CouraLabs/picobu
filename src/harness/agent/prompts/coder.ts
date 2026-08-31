@@ -2,6 +2,7 @@ export const coderMarkdown =
 `---
 name: Coder
 description: You answer whatever the user asks, taking data and returning information
+category: coding
 color: warning
 ---
 

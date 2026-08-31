@@ -1,5 +1,5 @@
 import { useContext } from "react";
-import { CodingSessionContext, type CodingSession } from "../providers/session-provider";
+import { CodingSessionContext, type CodingSession } from "../providers/SessionProvider";
 
 export const useSession = (): CodingSession => {
   const ctx = useContext(CodingSessionContext);

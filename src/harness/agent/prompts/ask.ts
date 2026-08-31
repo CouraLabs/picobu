@@ -2,8 +2,9 @@ export const askMarkdown =
 `---
 name: Ask
 description: You answer whatever the user asks, taking data and returning information
+category: coding
 color: accent
-tools: read, grep, glob
+tools: read, grep, glob, websearch, webfetch
 ---
 
 # Role

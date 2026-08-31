@@ -1,7 +1,7 @@
 import { createStore } from "@xstate/store-react";
 import { allThemes, generateSubtleSyntax, generateSyntax, resolveTheme } from "../themes";
 import type { SyntaxStyle } from "@opentui/core";
-import { options, updateSettings, type ThemePrefs } from "../libs/options";
+import { options } from "../libs/options";
 
 const themes = allThemes();
 const themeKeys = Object.keys(themes);
@@ -28,11 +28,10 @@ export type ThemeState = {
   themes: typeof themes
 }
 
-/** Persist the selected theme pref to options.json (fire-and-forget). */
+/** Persist the selected theme pref to options.json (fire-and-forget) via settings store. */
 const persistTheme = (key: string | number, variant: "dark" | "light") => {
-  void updateSettings({ theme: { key: String(key), variant } }).catch(() => {
-    // Non-fatal: theme still applies for the session even if persistence fails.
-  });
+  const patch = { theme: { key: String(key), variant } };
+  void import("./settings-store").then(({ saveSettings }) => saveSettings(patch)).catch(() => {});
 };
 
 export const themeStore = createStore({
@@ -47,7 +46,20 @@ export const themeStore = createStore({
     variant: initialVariant
   } as ThemeState,
   on: {
-    prev: (state, event) => {
+    hydrate: (state, event: { key: string; variant: "dark" | "light" }) => {
+      const resolved = resolveTheme(themes[event.key] ?? themes[themeKeys[0]!]!, event.variant);
+      return {
+        ...state,
+        key: event.key,
+        prev: themeKeys[themeKeys.indexOf(event.key) - 1] ?? themeKeys[themesLength - 1],
+        next: themeKeys[themeKeys.indexOf(event.key) + 1] ?? themeKeys[0],
+        theme: resolved,
+        syntax: generateSyntax(resolved),
+        syntaxMuted: generateSubtleSyntax(resolved),
+        variant: event.variant,
+      } as ThemeState;
+    },
+    prev: (state) => {
       const prevKey = themeKeys[themeKeys.indexOf(state.prev) - 1];
       const nextKey = themeKeys[themeKeys.indexOf(state.prev) + 1];
       const nextTheme = resolveTheme(themes[state.prev]!, state.variant);
@@ -63,7 +75,7 @@ export const themeStore = createStore({
         syntaxMuted: generateSubtleSyntax(nextTheme)
       } as ThemeState
     },
-    next: (state, event) => {
+    next: (state) => {
       const prevKey = themeKeys[themeKeys.indexOf(state.next) - 1];
       const nextKey = themeKeys[themeKeys.indexOf(state.next) + 1];
       const nextTheme = resolveTheme(themes[state.next]!, state.variant);
@@ -79,7 +91,7 @@ export const themeStore = createStore({
         syntaxMuted: generateSubtleSyntax(nextTheme)
       } as ThemeState
     },
-    variant: (state, event) => {
+    variant: (state) => {
       const nextVariant: "dark" | "light" = state.variant === "dark" ? "light" : "dark";
       const nextTheme = resolveTheme(themes[state.key]!, nextVariant);
 

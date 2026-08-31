@@ -42,7 +42,7 @@
     },
     "warning": {
       "dark": "yellow",
-      "light": "#ff9800"
+      "light": "#B26A00"
     },
     "success": {
       "dark": "green",
@@ -135,7 +135,7 @@
     },
     "markdownHeading": {
       "dark": "yellow",
-      "light": "#ff9800"
+      "light": "#B26A00"
     },
     "markdownLink": {
       "dark": "blue",
@@ -195,7 +195,7 @@
     },
     "syntaxFunction": {
       "dark": "yellow",
-      "light": "#ff9800"
+      "light": "#B26A00"
     },
     "syntaxVariable": {
       "dark": "foreground",

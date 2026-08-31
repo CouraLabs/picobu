@@ -71,7 +71,7 @@
     },
     "textMuted": {
       "dark": "darkStep11",
-      "light": "lightStep11"
+      "light": "#7C877C"
     },
     "background": {
       "dark": "darkStep1",
@@ -107,11 +107,11 @@
     },
     "diffContext": {
       "dark": "#828bb8",
-      "light": "#7086b5"
+      "light": "#7C877C"
     },
     "diffHunkHeader": {
       "dark": "#828bb8",
-      "light": "#7086b5"
+      "light": "#7C877C"
     },
     "diffHighlightAdded": {
       "dark": "#b8db87",
@@ -203,7 +203,7 @@
     },
     "syntaxComment": {
       "dark": "darkStep11",
-      "light": "lightStep11"
+      "light": "#7C877C"
     },
     "syntaxKeyword": {
       "dark": "#d699b6",
@@ -227,7 +227,7 @@
     },
     "syntaxType": {
       "dark": "darkYellow",
-      "light": "lightYellow"
+      "light": "#A87A00"
     },
     "syntaxOperator": {
       "dark": "darkCyan",

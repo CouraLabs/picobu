@@ -78,8 +78,8 @@
       "light": "lightStep11"
     },
     "selectedListItemText": {
-      "dark": "#0a0a0a",
-      "light": "#ffffff"
+      "dark": "darkAccent",
+      "light": "lightAccent"
     },
     "background": {
       "dark": "darkStep1",

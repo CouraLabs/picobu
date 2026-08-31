@@ -1,0 +1,98 @@
+import { useSelector } from "@xstate/store-react";
+import { useMemo } from "react";
+import { useTheme } from "../hooks/useTheme";
+import { loopStore } from "../stores/loop-store";
+import { useLoopKeybinds } from "../hooks/useLoopKeybinds";
+import { resolveModel } from "../harness/agent/factory/provider-resolver";
+import { getAgent } from "../harness/agent/factory/agent/registry";
+import { resolveAgentColor } from "../harness/agent/factory/agent/color";
+import { ChatMessages } from "../components/session/ChatMessages";
+import { Prompt } from "../components/session/Prompt";
+import { ModelPicker } from "../components/session/ModelPicker";
+import { CommandPicker } from "../components/session/CommandPicker";
+import { EffortPicker } from "../components/session/EffortPicker";
+import { ModelStatusBar } from "../components/session/ModelStatusBar";
+import { ThinkingIndicator } from "../components/session/ThinkingIndicator";
+import { SessionTabs, type CodingTabId } from "../components/Tabs";
+import { useSession } from "../hooks/useSession";
+import { usePersistentSession } from "../hooks/usePersistentSession";
+import { TopStatusBar } from "../components/session/TopStatusBar";
+import { SessionsPicker } from "../components/session/SessionsPicker";
+import { sessionTitleStore } from "../stores/session-title-store";
+
+export type SessionPageProps = {
+  sessionTab: CodingTabId;
+  onCodingTabChange: (tab: CodingTabId) => void;
+};
+
+export const SessionPage = ({ sessionTab, onCodingTabChange }: SessionPageProps) => {
+  const { theme } = useTheme();
+  const { agentId, modelKey, thinking, modelPickerOpen, commandOpen, effortOpen, sessionsOpen } =
+    useSelector(loopStore, (s) => s.context);
+
+  const chat = useSession();
+  const persistent = usePersistentSession();
+  // One tab body is mounted at a time, so the active session drives the keybinds
+  // (ESC ESC interrupt) and the status bar. Agent cycling only visits agents of
+  // the active tab's category.
+  const active = sessionTab === "coding" ? chat : persistent;
+  const agentCategory = sessionTab === "coding" ? "coding" : "persistent";
+
+  useLoopKeybinds(active.streaming, active.stop, agentCategory);
+
+  // The generated session title for the active mode (SESSION_TITLE slot).
+  const sessionTitle = useSelector(sessionTitleStore, (s) =>
+    sessionTab === "coding" ? s.context.coding : s.context.persistent,
+  );
+
+  const resolvedModel = useMemo(() => resolveModel(modelKey), [modelKey]);
+  const agent = useMemo(
+    () => (sessionTab === "coding" ? getAgent(agentId) : getAgent("persistent")),
+    [sessionTab, agentId],
+  );
+  const agentName = agent.name;
+  const agentColor = useMemo(() => resolveAgentColor(agent, theme), [agent, theme]);
+
+  return (
+    <box id="sessions-page" flexDirection="column">
+      <box flexDirection="row" justifyContent="space-between">
+        {sessionTab === 'coding' ? <TopStatusBar /> : <text></text>}
+        {<text fg={theme.secondary}>{sessionTitle ?? ""}</text>}
+        <SessionTabs current={sessionTab} onChange={onCodingTabChange} />
+      </box>
+      <scrollbox
+        flexGrow={1}
+        flexShrink={1}
+        flexBasis={0}
+        marginTop={1}
+        scrollY
+        overflow="hidden"
+        stickyScroll
+        stickyStart="bottom"
+        contentOptions={{ justifyContent: 'flex-end', gap: 1 }}>
+        <ChatMessages messages={active.messages} thinkingTimes={active.thinkingTimes} />
+      </scrollbox>
+      <box flexDirection="column" marginTop={1}>
+        {active.streaming && <ThinkingIndicator />}
+        {modelPickerOpen && <ModelPicker />}
+        {commandOpen && <CommandPicker kind={agentCategory} />}
+        {effortOpen && <EffortPicker />}
+        {sessionsOpen && <SessionsPicker />}
+        <Prompt onSubmit={active.onPrompt} kind={agentCategory} />
+        <ModelStatusBar
+          agentName={agentName}
+          agentColor={agentColor}
+          resolvedModel={resolvedModel}
+          thinking={thinking}
+          inputTokens={active.inputTokens}
+          outputTokens={active.outputTokens}
+          cacheReadTokens={active.cacheReadTokens}
+          cacheWriteTokens={active.cacheWriteTokens}
+          elapsedSec={active.elapsedSec}
+          ttftMs={active.ttftMs}
+          tokensPerSec={active.tokensPerSec}
+        />
+      </box>
+    </box>
+  );
+};

@@ -14,14 +14,25 @@ export type ResolvedModel = {
   modelMeta: ProviderModelOptions;
 };
 
+/**
+ * Resolve an `env:VAR` apiKey reference to the environment value at client
+ * construction time, so the raw reference (not the secret) stays in the
+ * settings store and UI. Non-reference values pass through unchanged.
+ */
+export const resolveApiKey = (apiKey?: string): string | undefined => {
+  if (!apiKey) return undefined;
+  return apiKey.startsWith("env:") ? process.env[apiKey.slice(4)] : apiKey;
+};
+
 export const createModelInstance = (provider: ProviderOptions, modelId: string) => {
+  const apiKey = resolveApiKey(provider.apiKey);
   switch (provider.type) {
     case "anthropic":
-      return createAnthropic({ baseURL: provider.baseUrl, apiKey: provider.apiKey, headers: provider.headers })(modelId);
+      return createAnthropic({ baseURL: provider.baseUrl, apiKey, headers: provider.headers })(modelId);
     case "openai-compatible":
-      return createOpenAICompatible({ baseURL: provider.baseUrl, name: provider.name, apiKey: provider.apiKey, headers: provider.headers })(modelId);
+      return createOpenAICompatible({ baseURL: provider.baseUrl, name: provider.name, apiKey, headers: provider.headers })(modelId);
     case "openai-responses":
-      return createOpenResponses({ url: provider.baseUrl, name: provider.name, apiKey: provider.apiKey, headers: provider.headers })(modelId);
+      return createOpenResponses({ url: provider.baseUrl, name: provider.name, apiKey, headers: provider.headers })(modelId);
     default:
       throw new Error(`Unsupported provider type: ${provider.type}. Available provider types: anthropic, openai-compatible, openai-responses`);
   }

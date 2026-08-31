@@ -68,8 +68,8 @@
       "light": "#eee8d5"
     },
     "border": {
-      "dark": "base02",
-      "light": "base2"
+      "dark": "#175C67",
+      "light": "#CBC4B2"
     },
     "borderActive": {
       "dark": "base01",

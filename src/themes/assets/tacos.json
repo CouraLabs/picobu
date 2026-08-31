@@ -90,7 +90,7 @@
       "light": "lightGray200"
     },
     "border": {
-      "dark": "gray200",
+      "dark": "gray300",
       "light": "lightGray200"
     },
     "borderActive": {
@@ -227,7 +227,7 @@
     },
     "syntaxNumber": {
       "dark": "amber900",
-      "light": "amber700"
+      "light": "#C77B00"
     },
     "syntaxType": {
       "dark": "teal900",

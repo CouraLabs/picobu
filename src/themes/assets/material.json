@@ -49,11 +49,11 @@
     },
     "warning": {
       "dark": "darkYellow",
-      "light": "lightYellow"
+      "light": "#B37900"
     },
     "success": {
       "dark": "darkGreen",
-      "light": "lightGreen"
+      "light": "#5E7D33"
     },
     "info": {
       "dark": "darkOrange",
@@ -93,7 +93,7 @@
     },
     "diffAdded": {
       "dark": "darkGreen",
-      "light": "lightGreen"
+      "light": "#5E7D33"
     },
     "diffRemoved": {
       "dark": "darkRed",
@@ -213,7 +213,7 @@
     },
     "syntaxString": {
       "dark": "darkGreen",
-      "light": "lightGreen"
+      "light": "#5E7D33"
     },
     "syntaxNumber": {
       "dark": "darkOrange",
@@ -221,7 +221,7 @@
     },
     "syntaxType": {
       "dark": "darkYellow",
-      "light": "lightYellow"
+      "light": "#B37900"
     },
     "syntaxOperator": {
       "dark": "darkCyan",

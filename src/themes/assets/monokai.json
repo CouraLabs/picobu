@@ -19,7 +19,7 @@
   "theme": {
     "primary": {
       "dark": "cyan",
-      "light": "blue"
+      "light": "#0089A8"
     },
     "secondary": {
       "dark": "purple",
@@ -27,7 +27,7 @@
     },
     "accent": {
       "dark": "green",
-      "light": "green"
+      "light": "#4E8C22"
     },
     "error": {
       "dark": "red",
@@ -35,15 +35,15 @@
     },
     "warning": {
       "dark": "yellow",
-      "light": "orange"
+      "light": "#C26608"
     },
     "success": {
       "dark": "green",
-      "light": "green"
+      "light": "#4E8C22"
     },
     "info": {
       "dark": "orange",
-      "light": "orange"
+      "light": "#C26608"
     },
     "text": {
       "dark": "foreground",
@@ -71,7 +71,7 @@
     },
     "borderActive": {
       "dark": "cyan",
-      "light": "blue"
+      "light": "#0089A8"
     },
     "borderSubtle": {
       "dark": "#1e1f1c",
@@ -79,7 +79,7 @@
     },
     "diffAdded": {
       "dark": "green",
-      "light": "green"
+      "light": "#4E8C22"
     },
     "diffRemoved": {
       "dark": "red",
@@ -95,7 +95,7 @@
     },
     "diffHighlightAdded": {
       "dark": "green",
-      "light": "green"
+      "light": "#4E8C22"
     },
     "diffHighlightRemoved": {
       "dark": "red",
@@ -135,7 +135,7 @@
     },
     "markdownLink": {
       "dark": "cyan",
-      "light": "blue"
+      "light": "#0089A8"
     },
     "markdownLinkText": {
       "dark": "purple",
@@ -151,11 +151,11 @@
     },
     "markdownEmph": {
       "dark": "yellow",
-      "light": "orange"
+      "light": "#C26608"
     },
     "markdownStrong": {
       "dark": "orange",
-      "light": "orange"
+      "light": "#C26608"
     },
     "markdownHorizontalRule": {
       "dark": "comment",
@@ -163,7 +163,7 @@
     },
     "markdownListItem": {
       "dark": "cyan",
-      "light": "blue"
+      "light": "#0089A8"
     },
     "markdownListEnumeration": {
       "dark": "purple",
@@ -171,7 +171,7 @@
     },
     "markdownImage": {
       "dark": "cyan",
-      "light": "blue"
+      "light": "#0089A8"
     },
     "markdownImageText": {
       "dark": "purple",
@@ -191,7 +191,7 @@
     },
     "syntaxFunction": {
       "dark": "green",
-      "light": "green"
+      "light": "#4E8C22"
     },
     "syntaxVariable": {
       "dark": "foreground",
@@ -199,7 +199,7 @@
     },
     "syntaxString": {
       "dark": "yellow",
-      "light": "orange"
+      "light": "#C26608"
     },
     "syntaxNumber": {
       "dark": "purple",
@@ -207,7 +207,7 @@
     },
     "syntaxType": {
       "dark": "cyan",
-      "light": "blue"
+      "light": "#0089A8"
     },
     "syntaxOperator": {
       "dark": "pink",

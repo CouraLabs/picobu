@@ -1,15 +1,14 @@
-import { useSelector } from "@xstate/store-react";
-import { Tab } from "./Tab";
-import { themeStore } from "../stores/theme-store";
+import { NavTabs, type PageId } from "./Tabs";
+import { useTheme } from "../hooks/useTheme";
 import { Theme } from "./Theme";
 
 export type HeaderProps = {
-  page: string;
-  onPageChange: (page: string) => void;
+  page: PageId;
+  onPageChange: (page: PageId) => void;
 };
 
 export const Header = ({ page, onPageChange }: HeaderProps) => {
-  const theme = useSelector(themeStore, (s) => s.context.theme);
+  const { theme } = useTheme();
 
   return (
     <box
@@ -18,12 +17,10 @@ export const Header = ({ page, onPageChange }: HeaderProps) => {
       flexDirection="row"
       alignItems="center"
       justifyContent="space-between"
-      border={['top', 'bottom']}
-      borderColor={theme.border}
-      paddingX={1}
-      marginX={1}
+      border={["bottom"]}
+      borderColor={theme.text}
     >
-      <Tab current={page} onChange={onPageChange} />
+      <NavTabs current={page} onChange={onPageChange} />
       <Theme />
     </box>
   );
