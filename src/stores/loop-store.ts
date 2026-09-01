@@ -24,6 +24,12 @@ export type LoopState = {
   effortOpen: boolean;
   sessionsOpen: boolean;
   sessionsSelected: number;
+  /** WhatsApp contacts picker (`/wwp:contacts`). */
+  contactsOpen: boolean;
+  /** OAuth provider picker (`/login` / `/logout`). */
+  authPickerOpen: boolean;
+  /** Picker purpose: log in to or log out of a provider. */
+  authPickerMode: "login" | "logout";
   /** Prompt-queue mode (ctrl+q): prompts submitted mid-run run after it finishes. */
   queueMode: boolean;
   /** Prompt-steering mode (ctrl+w): the next prompt stops the current run and takes over. */
@@ -42,6 +48,9 @@ export const loopStore = createStore({
     effortOpen: false,
     sessionsOpen: false,
     sessionsSelected: 0,
+    contactsOpen: false,
+    authPickerOpen: false,
+    authPickerMode: "login",
     queueMode: false,
     steeringMode: false,
   } as LoopState,
@@ -98,6 +107,14 @@ export const loopStore = createStore({
       ...state,
       sessionsSelected: event.index,
     }),
+    openContactsPicker: (state) => ({ ...state, contactsOpen: true }),
+    closeContactsPicker: (state) => ({ ...state, contactsOpen: false }),
+    openAuthPicker: (state, event: { mode: "login" | "logout" }) => ({
+      ...state,
+      authPickerOpen: true,
+      authPickerMode: event.mode,
+    }),
+    closeAuthPicker: (state) => ({ ...state, authPickerOpen: false }),
     // Queue and steering are mutually exclusive — enabling one disables the other.
     toggleQueueMode: (state) =>
       state.queueMode ? { ...state, queueMode: false } : { ...state, queueMode: true, steeringMode: false },

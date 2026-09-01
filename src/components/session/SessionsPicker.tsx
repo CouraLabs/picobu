@@ -48,7 +48,8 @@ export const SessionsPicker = () => {
       ) : (
         <select
           ref={selectRef}
-          height={rows.length * 2}
+          height={Math.min(rows.length, 5) * 2}
+          showScrollIndicator
           options={rows.map((r) => ({
             name: `${r.id}  ·  ${relTime(r.mtimeMs)} ago`,
             description: r.firstPrompt,

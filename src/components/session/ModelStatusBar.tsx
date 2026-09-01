@@ -11,7 +11,7 @@ import type { ResolvedModel } from "../../harness/agent/factory/provider-resolve
 export type ModelStatusBarProps = {
   agentName: string;
   agentColor: RGBA;
-  resolvedModel: ResolvedModel;
+  resolvedModel: ResolvedModel | null;
   thinking: string;
   inputTokens: number | null;
   outputTokens: number | null;
@@ -99,6 +99,17 @@ export const ModelStatusBar = ({
   const ttftValue = ttftMs !== null ? `${(ttftMs / 1000).toFixed(2)}s` : "0s";
   const tpsValue = tokensPerSec !== null ? `${tokensPerSec.toFixed(1)}` : "0t/s";
   const timeValue = formatTimer(elapsedSec);
+
+  if (!resolvedModel) {
+    return (
+      <box flexDirection="row" paddingX={1} gap={1}>
+        <text selectable={false} fg={agentColor} attributes={TextAttributes.BOLD}>{agentName}</text>
+        <text selectable={false} fg={theme.textMuted} attributes={TextAttributes.DIM}>·</text>
+        <text selectable={false} fg={theme.error}>model unavailable — run /login or pick one in /models</text>
+      </box>
+    );
+  }
+
   const billing = resolvedModel.modelMeta.billing;
   const cost = billing
     ? ((uncached * (billing.input ?? 0)

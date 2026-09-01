@@ -42,7 +42,13 @@ export const ThinkingMessage = ({ markdown, isStreaming, time }: ThinkingMessage
           onMouseOut={copy.onMouseOut}
           onMouseDown={copy.onMouseDown}
         >
-          <code flexGrow={1} flexShrink={1} syntaxStyle={isStreaming ? undefined as unknown as SyntaxStyle : syntaxMuted} attributes={TextAttributes.DIM} conceal={true} filetype="markdown" content={isStreaming ? markdown : markdown.trim()} streaming={isStreaming}/> 
+          {isStreaming ? <text fg={theme.textMuted}>{markdown}</text> : <markdown
+            flexGrow={1}
+            flexShrink={1}
+            syntaxStyle={syntaxMuted}
+            conceal
+            content={markdown}
+          />}
         </box> : null
       }
     </box>

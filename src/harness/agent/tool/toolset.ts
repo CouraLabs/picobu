@@ -9,10 +9,11 @@ import { createBashTool } from "./filesystem/bash/bash";
 import { createTodoTool } from "./flow/todo/todo";
 import { websearchTool } from "./external/websearch/websearch";
 import { webfetchTool } from "./external/webfetch/webfetch";
+import { wwpTools } from "./integration/wwp";
 import { options } from "../../../libs/options";
 
-/** Tool families: `filesystem` (file I/O), `flow` (session workflow state), and `external` (web). */
-export type ToolKind = "filesystem" | "flow" | "external";
+/** Tool families: `filesystem` (file I/O), `flow` (session workflow state), `external` (web), and `integration` (WhatsApp ops). */
+export type ToolKind = "filesystem" | "flow" | "external" | "integration";
 
 export type AgentTool = {
   name: string;
@@ -48,6 +49,7 @@ export function buildToolSet(ctx: ToolSetContext = {}) {
     wrapTool(createBashTool(options.app.shell)),
     wrapTool(websearchTool),
     wrapTool(webfetchTool),
+    ...wwpTools.map(wrapTool),
     ...(ctx.todoFilePath ? [wrapTool(createTodoTool(ctx.todoFilePath))] : []),
   ];
 

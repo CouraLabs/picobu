@@ -11,6 +11,7 @@ import { generateSessionTitle } from "../libs/session-title";
 import { sessionTitleStore } from "../stores/session-title-store";
 import { options } from "../libs/options";
 import { commandModeFor } from "../harness/commands";
+import { ensureOAuthTokens } from "../auth";
 import {
   folderKeyFor,
   dropUnansweredPrompt,
@@ -159,8 +160,11 @@ export const CodingSessionProvider = ({ children }: { children: ReactNode }) => 
   }, [chatStop, setMessages]);
 
   const sendNow = useCallback(
-    (text: string, files: PromptFile[]) => {
+    async (text: string, files: PromptFile[]) => {
       markPromptSent();
+      // Refresh OAuth tokens (a cached pass) so the sync per-step model
+      // resolution never sees a stale auth-ref token mid-run.
+      await ensureOAuthTokens().catch(() => {});
       if (files.length) sendMessage({ text, files });
       else sendMessage({ text });
     },

@@ -45,6 +45,28 @@ const costLabel = (billing?: ProviderModelBilling): string => {
   return parts.join(" · ");
 };
 
+const PRICE_KEYS = ["cacheRead", "output", "input"] as const;
+
+/** Order models cheapest-first: cache read, then output, then input, then name.
+ *  Models missing a given price (or billing entirely) sort to the end.
+ *  When no cache-read price is set, a cache-write price is used as the cache price. */
+const sortByPrice = (a: ModelEntry, b: ModelEntry): number => {
+  const price = (m: ModelEntry, key: (typeof PRICE_KEYS)[number]): number => {
+    if (key === "cacheRead") {
+      const cr = m.billing?.cacheRead;
+      const cw = m.billing?.cacheWrite;
+      // Prefer an explicit read price; fall back to the write price when read is unset.
+      return (cr ?? cw) ?? Infinity;
+    }
+    return m.billing?.[key] ?? Infinity;
+  };
+  for (const key of PRICE_KEYS) {
+    const diff = price(a, key) - price(b, key);
+    if (diff !== 0) return diff;
+  }
+  return a.modelName.localeCompare(b.modelName);
+};
+
 const describe = (m: ModelEntry): string => {
   const parts: string[] = [];
   const caps = m.supports.length ? m.supports.join(", ") : "";
@@ -62,7 +84,7 @@ export const ModelPicker = () => {
 
   // Fresh each render: the options singleton is hydrated after settings saves,
   // so a module-level snapshot would keep listing removed/renamed models.
-  const models = listModels();
+  const models = listModels().slice().sort(sortByPrice);
 
   const options = models.map((m) => ({
     name: `${m.providerName} ${m.modelName}`,
@@ -80,14 +102,15 @@ export const ModelPicker = () => {
     <box border borderStyle="single" title=" Models " titleColor={theme.text} borderColor={theme.border}>
       <select
         ref={selectRef}
-        height={models.length * 2}
+        height={Math.min(models.length, 5) * 2}
+        showScrollIndicator
         options={options}
         selectedIndex={selectedIndex}
         textColor={theme.text}
         focusedTextColor={theme.text}
-        selectedTextColor={theme.selectedListItemText}
+        selectedTextColor={theme.accent}
         descriptionColor={theme.textMuted}
-        selectedDescriptionColor={theme.textMuted}
+        selectedDescriptionColor={theme.accent}
         backgroundColor="transparent"
         focusedBackgroundColor="transparent"
         selectedBackgroundColor="transparent"

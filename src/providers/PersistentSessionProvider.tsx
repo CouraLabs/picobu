@@ -16,6 +16,7 @@ import {
   SessionSaver,
 } from "../libs/sessions";
 import type { PromptFile } from "../libs/embeds";
+import { subscribeInbound, type InboundEvent } from "../integrations/whatsapp/bus";
 
 export type PersistentSession = {
   messages: UIMessage[];
@@ -42,6 +43,7 @@ export const PersistentSessionContext = createContext<PersistentSession | null>(
  * `~/.picobu/sessions/persitent/<timestamp>-<turn>.jsonl`. No queue/steering
  * here: `onPrompt` always submits (deferred until the current run ends).
  */
+
 export const PersistentSessionProvider = ({ children }: { children: ReactNode }) => {
   const bindings = useSessionBindings();
   const { transport } = useMemo(
@@ -167,6 +169,29 @@ export const PersistentSessionProvider = ({ children }: { children: ReactNode })
   useEffect(() => () => {
     void saverRef.current?.flush();
   }, []);
+
+  // Bridge inbound integration events (WhatsApp messages, cron prompt
+  // actions) into the persistent session. Events arriving while this provider
+  // is unmounted queue in the bus and drain on the next mount. WhatsApp
+  // messages carry a single-line origin header that instructs the agent to
+  // answer via the `wwp-msg` tool; cron prompts keep the two-line label.
+  // Routed through `submitOrDefer` (not `startTurn` directly) so an event
+  // arriving mid-run interrupts and defers like any manual prompt. The ref
+  // keeps the always-mounted subscription from capturing a stale `streaming`.
+  const submitRef = useRef(submitOrDefer);
+  submitRef.current = submitOrDefer;
+  useEffect(
+    () =>
+      subscribeInbound((event) =>
+        submitRef.current(
+          event.source === "whatsapp"
+            ? `[${event.title}] ${event.text}`
+            : `[${event.title}]\n${event.text}`,
+          [],
+        ),
+      ),
+    [],
+  );
 
   const value: PersistentSession = {
     messages,

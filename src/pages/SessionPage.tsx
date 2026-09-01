@@ -4,6 +4,7 @@ import { useTheme } from "../hooks/useTheme";
 import { loopStore } from "../stores/loop-store";
 import { useLoopKeybinds } from "../hooks/useLoopKeybinds";
 import { resolveModel } from "../harness/agent/factory/provider-resolver";
+import type { ResolvedModel } from "../harness/agent/factory/provider-resolver";
 import { getAgent } from "../harness/agent/factory/agent/registry";
 import { resolveAgentColor } from "../harness/agent/factory/agent/color";
 import { ChatMessages } from "../components/session/ChatMessages";
@@ -18,6 +19,9 @@ import { useSession } from "../hooks/useSession";
 import { usePersistentSession } from "../hooks/usePersistentSession";
 import { TopStatusBar } from "../components/session/TopStatusBar";
 import { SessionsPicker } from "../components/session/SessionsPicker";
+import { ContactsPicker } from "../components/session/ContactsPicker";
+import { AuthPicker } from "../components/session/AuthPicker";
+import { AuthStatusDialog } from "../components/session/AuthStatusDialog";
 import { sessionTitleStore } from "../stores/session-title-store";
 
 export type SessionPageProps = {
@@ -27,7 +31,7 @@ export type SessionPageProps = {
 
 export const SessionPage = ({ sessionTab, onCodingTabChange }: SessionPageProps) => {
   const { theme } = useTheme();
-  const { agentId, modelKey, thinking, modelPickerOpen, commandOpen, effortOpen, sessionsOpen } =
+  const { agentId, modelKey, thinking, modelPickerOpen, commandOpen, effortOpen, sessionsOpen, contactsOpen, authPickerOpen } =
     useSelector(loopStore, (s) => s.context);
 
   const chat = useSession();
@@ -45,7 +49,15 @@ export const SessionPage = ({ sessionTab, onCodingTabChange }: SessionPageProps)
     sessionTab === "coding" ? s.context.coding : s.context.persistent,
   );
 
-  const resolvedModel = useMemo(() => resolveModel(modelKey), [modelKey]);
+  const resolvedModel = useMemo<ResolvedModel | null>(() => {
+    try {
+      return resolveModel(modelKey);
+    } catch {
+      // E.g. a logout left the active model dangling, or no provider/auth is
+      // configured yet. The status bar degrades instead of crashing the page.
+      return null;
+    }
+  }, [modelKey]);
   const agent = useMemo(
     () => (sessionTab === "coding" ? getAgent(agentId) : getAgent("persistent")),
     [sessionTab, agentId],
@@ -78,6 +90,9 @@ export const SessionPage = ({ sessionTab, onCodingTabChange }: SessionPageProps)
         {commandOpen && <CommandPicker kind={agentCategory} />}
         {effortOpen && <EffortPicker />}
         {sessionsOpen && <SessionsPicker />}
+        {contactsOpen && <ContactsPicker />}
+        {authPickerOpen && <AuthPicker />}
+        <AuthStatusDialog />
         <Prompt onSubmit={active.onPrompt} kind={agentCategory} />
         <ModelStatusBar
           agentName={agentName}

@@ -7,6 +7,7 @@ import { GlobToolCall, type GlobToolCallProps } from "./tools/GlobToolCall";
 import { TodoToolCall, type TodoToolCallProps } from "./tools/TodoToolCall";
 import { WebsearchToolCall, type WebsearchToolCallProps } from "./tools/WebsearchToolCall";
 import { WebfetchToolCall, type WebfetchToolCallProps } from "./tools/WebfetchToolCall";
+import { WwpToolCall, type WwpToolCallProps } from "./tools/WwpToolCall";
 
 export type ToolStatus = "success" | "error";
 
@@ -20,7 +21,8 @@ export type ToolCallModel =
   | ({ name: "glob" } & GlobToolCallProps)
   | ({ name: "todo" } & TodoToolCallProps)
   | ({ name: "websearch" } & WebsearchToolCallProps)
-  | ({ name: "webfetch" } & WebfetchToolCallProps);
+  | ({ name: "webfetch" } & WebfetchToolCallProps)
+  | ({ name: "wwp"; tool: string; summary: string; status: ToolStatus; error?: string; output?: string });
 
 /** Compile-time exhaustiveness guard for `ToolCallModel` (asserted `never`). */
 const assertNever = (value: never): never => {
@@ -54,6 +56,8 @@ export const ToolCall = ({ model, copyText }: ToolCallProps) => {
       return <WebsearchToolCall {...model} copyText={copyText} />;
     case "webfetch":
       return <WebfetchToolCall {...model} copyText={copyText} />;
+    case "wwp":
+      return <WwpToolCall {...model} copyText={copyText} />;
     default: {
       // Exhaustiveness guard: the `ToolCallModel` union is closed over exactly
       // the cases above; `toolPartToModel` returns `null` for anything else, so

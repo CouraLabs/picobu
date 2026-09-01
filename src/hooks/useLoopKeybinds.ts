@@ -106,10 +106,15 @@ export const useLoopKeybinds = (
         key.stopPropagation();
         loopStore.trigger.closeSessionsPicker();
       }
+      if (state.contactsOpen) {
+        key.preventDefault();
+        key.stopPropagation();
+        loopStore.trigger.closeContactsPicker();
+      }
       return;
     }
     // Pickers trap keys: the focused select handles up/down/return, esc handled above.
-    if (state.modelPickerOpen || state.effortOpen || state.sessionsOpen) return;
+    if (state.modelPickerOpen || state.effortOpen || state.sessionsOpen || state.contactsOpen) return;
     if (key.ctrl && key.name === "q") {
       key.preventDefault();
       key.stopPropagation();

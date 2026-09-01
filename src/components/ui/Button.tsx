@@ -23,7 +23,7 @@ export const Button = ({
 
   const textColor = () => {
     switch(variant) {
-      case "default": return theme.backgroundElement;
+      case "default": return theme.text;
       case "success": return theme.success;
       case "error": return theme.error;
       case "info": return theme.info;
@@ -33,7 +33,10 @@ export const Button = ({
 
   const borderStuff = () => {
     if(bordered) {
-      return { border: true, borderStyle: "rounded", borderColor: hover ? theme.borderActive : textColor() } as Partial<BoxProps>
+      return { 
+        border: true, 
+        borderStyle: "rounded", 
+        borderColor: hover ? theme.borderActive : textColor() } as Partial<BoxProps>
     }
 
     return {
@@ -50,7 +53,7 @@ export const Button = ({
       {...borderStuff()}
       {...props}
     >
-      <text fg={textColor()} attributes={hover ? TextAttributes.UNDERLINE : TextAttributes.BOLD}>
+      <text fg={textColor()} attributes={hover ? TextAttributes.BOLD : TextAttributes.DIM}>
         {children}
       </text>
     </box>

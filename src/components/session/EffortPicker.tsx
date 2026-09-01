@@ -44,7 +44,8 @@ export const EffortPicker = () => {
     <box border borderStyle="single" title=" Effort " titleColor={theme.text} borderColor={theme.border}>
       <select
         ref={selectRef}
-        height={THINKING_LEVELS.length * 2}
+        height={Math.min(THINKING_LEVELS.length, 5) * 2}
+        showScrollIndicator
         options={options}
         selectedIndex={selectedIndex}
         textColor={theme.text}

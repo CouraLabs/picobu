@@ -1,4 +1,5 @@
-import { DirectChatTransport, ToolLoopAgent, isStepCount, type InferUITools, type UIMessage } from "ai";
+import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
+import { DirectChatTransport, ToolLoopAgent, isStepCount, type InferUITools, type LanguageModel, type UIMessage } from "ai";
 import { buildToolSet, toolsInfo } from "../../tool/toolset";
 import { getAgent } from "../agent/registry";
 import { resolveModel } from "../provider-resolver";
@@ -33,6 +34,22 @@ export type Loop = {
   transport: DirectChatTransport<any, any, any, any, LoopMessage>;
 };
 
+/**
+ * Initial model for the loop. `prepareCall` re-resolves the model every step,
+ * so when the configured (e.g. OAuth) model can't be built yet — a missing
+ * login, offline at mount — a harmless placeholder keeps the transport/loop
+ * constructible instead of crashing the app; the real model lands on the
+ * first prepared call.
+ */
+const initialModel = (modelKey: string): LanguageModel => {
+  try {
+    return resolveModel(modelKey).model;
+  } catch (error) {
+    console.error("picobu: initial model resolution failed:", error);
+    return createOpenAICompatible({ name: "unconfigured", apiKey: "pending", baseURL: "https://api.openai.com/v1" })("no-model");
+  }
+};
+
 export function createLoop(getConfig: () => LoopConfig): Loop {
   const initialConfig = getConfig();
   const isPersistent = initialConfig.sessionMode === "persistent";
@@ -65,7 +82,7 @@ export function createLoop(getConfig: () => LoopConfig): Loop {
   };
 
   const agent = new ToolLoopAgent<LoopCallOptions, any, any, any>({
-    model: resolveModel(initialConfig.modelKey).model,
+    model: initialModel(initialConfig.modelKey),
     tools: toolSet.getToolSet(), // full set; activeTools narrows per agent below
     prepareCall: ({ options, ...rest }) => {
       const persistent = options?.sessionMode === "persistent";

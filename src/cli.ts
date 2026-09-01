@@ -1,10 +1,10 @@
 #!/usr/bin/env bun
 import { Command } from "commander";
 import { existsSync } from "node:fs";
-import { startServer } from "./server";
-import { startTui } from "./tui";
 import { folderKeyFor, listSessions, sessionFilePath } from "./libs/sessions";
 import { options } from "./libs/options";
+import { autoloadLlmProviders } from "./harness/agent/factory/llm-providers/registry";
+import { ensureOAuthTokens } from "./auth";
 
 const program = new Command();
 program
@@ -33,6 +33,10 @@ program
 // `--web`, `--session`). Commander 15 exits with help when a program that has
 // subcommands is invoked without one and has no action handler, so the routing
 // lives here.
+// Top-level action routes the non-subcommand invocations (bare `picobu`,
+// `--web`, `--session`). Commander 15 exits with help when a program that has
+// subcommands is invoked without one and has no action handler, so the routing
+// lives here.
 program.action(() => {
   const opts = program.opts<{ web?: boolean; session?: string }>();
   if (opts.web && opts.session) {
@@ -49,14 +53,30 @@ program.action(() => {
       console.error(`error: session "${opts.session}" not found for this folder.`);
       process.exit(1); // spec: discard, do NOT open the app
     }
-    void startTui({ sessionId: opts.session });
+  }
+  void bootstrap(opts);
+});
+
+// The entry module loads after provider discovery: the global stores resolve
+// their default model at import time, so any env-gated custom provider must
+// already be merged into options.json by then.
+const bootstrap = async (opts: { web?: boolean; session?: string }): Promise<void> => {
+  await autoloadLlmProviders();
+  // Load auth.json + refresh expired OAuth tokens so synchronous model
+  // resolution during the run can read valid access tokens.
+  await ensureOAuthTokens();
+  if (opts.session !== undefined) {
+    const { startTui } = await import("./tui");
+    await startTui({ sessionId: opts.session });
     return;
   }
   if (opts.web) {
+    const { startServer } = await import("./server");
     startServer();
     return;
   }
-  void startTui({});
-});
+  const { startTui } = await import("./tui");
+  await startTui({});
+};
 
 program.parse(process.argv);

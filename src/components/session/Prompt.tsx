@@ -20,13 +20,14 @@ export type PromptProps = {
 };
 
 export const Prompt = ({ onSubmit, kind }: PromptProps) => {
-  const { bindCommandAccept, frontend } = useSessionBindings();
+  const { bindCommandAccept, bindInsertPrompt, frontend } = useSessionBindings();
   const dialog = useDialog();
   const { theme } = useTheme();
   const modelPickerOpen = useSelector(loopStore, (s) => s.context.modelPickerOpen);
   const commandOpen = useSelector(loopStore, (s) => s.context.commandOpen);
   const effortOpen = useSelector(loopStore, (s) => s.context.effortOpen);
   const sessionsOpen = useSelector(loopStore, (s) => s.context.sessionsOpen);
+  const contactsOpen = useSelector(loopStore, (s) => s.context.contactsOpen);
   const queueMode = useSelector(loopStore, (s) => s.context.queueMode);
   const steeringMode = useSelector(loopStore, (s) => s.context.steeringMode);
   const textareaRef = useRef<TextareaRenderable>(null);
@@ -38,10 +39,10 @@ export const Prompt = ({ onSubmit, kind }: PromptProps) => {
   // (open-tui needs a tick before the textarea accepts focus). While a picker
   // is open it owns the keyboard, so the textarea never steals focus back.
   useEffect(() => {
-    if (modelPickerOpen || effortOpen || sessionsOpen) return;
+    if (modelPickerOpen || effortOpen || sessionsOpen || contactsOpen) return;
     const id = setTimeout(() => textareaRef.current?.focus(), 0);
     return () => clearTimeout(id);
-  }, [modelPickerOpen, effortOpen, sessionsOpen]);
+  }, [modelPickerOpen, effortOpen, sessionsOpen, contactsOpen]);
 
   // Live slash-command filtering: opening `/` starts command mode, while a
   // space (args) or a deleted `/` closes it and reverts to a normal prompt.
@@ -83,6 +84,17 @@ export const Prompt = ({ onSubmit, kind }: PromptProps) => {
         target.focus();
       }
       loopStore.trigger.closeCommand();
+    });
+    // Pickers that stage a command into the prompt (contacts picker) overwrite
+    // the textarea content and hand focus back.
+    bindInsertPrompt((text) => {
+      const target = textareaRef.current;
+      if (target) {
+        target.setText(text);
+        target.focus();
+      }
+      loopStore.trigger.closeCommand();
+      loopStore.trigger.closeContactsPicker();
     });
   }, [handleContentChange, notifyEdit]);
 

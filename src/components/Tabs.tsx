@@ -1,13 +1,18 @@
 import { TextAttributes } from "@opentui/core";
 import { useState } from "react";
+import { useSelector } from "@xstate/store-react";
 import { useTheme } from "../hooks/useTheme";
+import { formatPomodoroLabel, pomodoroStore } from "../stores/pomodoro-store";
 
 /** Top navigation pages (Header). */
-export type PageId = "SESSIONS" | "CONFIG" | "3D";
+export type PageId = "SESSIONS" | "WHATSAPP" | "POMODORO" | "CRONS" | "3D";
 
+/** Header nav labels; `POMODORO` gets a live countdown suffix (see NavTabs). */
 export const NAV_TABS: { id: PageId; label: string }[] = [
   { id: "SESSIONS", label: "SESSIONS" },
-  { id: "CONFIG", label: "CONFIG" },
+  { id: "WHATSAPP", label: "WHATSAPP" },
+  { id: "POMODORO", label: "POMODORO" },
+  { id: "CRONS", label: "CRONS" },
   { id: "3D", label: "3D" },
 ];
 
@@ -80,10 +85,18 @@ export const Tabs = <T extends string>({ id, items, current, onChange, variant =
   );
 };
 
-/** Top page navigation (Header). */
-export const NavTabs = ({ current, onChange }: { current: PageId; onChange: (page: PageId) => void }) => (
-  <Tabs id="tabs" items={NAV_TABS} current={current} onChange={onChange} variant="nav" />
-);
+/** Top page navigation (Header). The POMODORO tab shows the live timer countdown. */
+export const NavTabs = ({ current, onChange }: { current: PageId; onChange: (page: PageId) => void }) => {
+  // The pomodoro tick runs in the module store even when this view is not
+  // rendered, so the tab label keeps counting while the user is elsewhere.
+  const { phase, timeLeft } = useSelector(pomodoroStore, (s) => s.context);
+  const items = NAV_TABS.map((t) =>
+    t.id === "POMODORO" && phase !== "IDLE" && timeLeft > 0
+      ? { ...t, label: `POMODORO (${formatPomodoroLabel(timeLeft)})` }
+      : t,
+  );
+  return <Tabs id="tabs" items={items} current={current} onChange={onChange} variant="nav" />;
+};
 
 /** Inner coding/persistent session switcher (SessionPage). */
 export const SessionTabs = ({

@@ -39,7 +39,7 @@ export type ProviderModelOptions = {
 export type ProviderOptions = {
   id: string;
   name: string;
-  type: "openai-compatible" | "openai-responses" | "anthropic" | (string & {});
+  type: "openai" | "openai-compatible" | "openai-responses" | "anthropic" | (string & {});
   baseUrl: string;
   apiKey?: string;
   headers?: Record<string, string>;
@@ -98,6 +98,25 @@ export type WebServerOptions = {
   port: number;
 };
 
+/** WhatsApp (Baileys) integration options. */
+export type WhatsAppOptions = {
+  /** Master switch: auto-connect at startup and process inbound messages. */
+  enabled: boolean;
+  /**
+   * Phone numbers (bare digits, E.164 without `+`, e.g. "15551234567") allowed
+   * to talk to the agent over WhatsApp. Empty = nobody (outbound sending via
+   * /wwp:msg still works).
+   */
+  allowedNumbers: string[];
+};
+
+/** Defaults applied when the `whatsapp` block is missing or partially set. */
+export const DEFAULT_WHATSAPP_OPTIONS: WhatsAppOptions = {
+  enabled: false,
+  allowedNumbers: [],
+};
+
+
 /** Defaults applied when the `web` block is missing or partially set. */
 export const DEFAULT_WEB_OPTIONS: WebServerOptions = {
   host: "0.0.0.0",
@@ -112,7 +131,8 @@ export type OptionsExternal = {
   theme?: ThemePrefs;
   /** Optional on disk; defaults to `{ host: "0.0.0.0", port: 8080 }` when unset. */
   web?: WebServerOptions;
-
+  /** Optional on disk; defaults to `{ enabled: false, allowedNumbers: [] }` when unset. */
+  whatsapp?: WhatsAppOptions;
 }
 
 export type GlobalOptions = {
@@ -132,7 +152,7 @@ export type Options = GlobalOptions & {
   harness: HarnessOptions;
   theme: ThemePrefs;
   web: WebServerOptions;
-
+  whatsapp: WhatsAppOptions;
 };
 
 const globals: GlobalOptions = {
@@ -205,7 +225,7 @@ export const loadOptions = async (): Promise<Options> => {
     harness: externalOpts.harness as HarnessOptions,
     theme: externalOpts.theme ?? { key: "tacos", variant: "dark" },
     web: { ...DEFAULT_WEB_OPTIONS, ...externalOpts.web },
-
+    whatsapp: { ...DEFAULT_WHATSAPP_OPTIONS, ...externalOpts.whatsapp },
   } satisfies Options;
 };
 
@@ -246,8 +266,7 @@ async function readExternalOptions(): Promise<OptionsExternal> {
  * so partial role overrides / variant changes survive writes.
  */
 export const updateSettings = async (
-  patch: Partial<Pick<OptionsExternal, "providers" | "harness" | "theme" | "web">>,
-
+  patch: Partial<Pick<OptionsExternal, "providers" | "harness" | "theme" | "web" | "whatsapp">>,
 ): Promise<Options> => {
   const systemDir = globals.app.systemDir;
   mkdirSync(systemDir, { recursive: true });
@@ -279,6 +298,11 @@ export const updateSettings = async (
         ...current.web,
         ...patch.web,
       } as WebServerOptions,
+      whatsapp: {
+        ...DEFAULT_WHATSAPP_OPTIONS,
+        ...current.whatsapp,
+        ...patch.whatsapp,
+      } as WhatsAppOptions,
     };
     await Bun.write(externalOptsPath, JSON.stringify(next, null, 2));
     return { ...globals, ...next } as Options;

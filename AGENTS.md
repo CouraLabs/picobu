@@ -25,8 +25,8 @@ State split: global singleton XState stores (`loopStore`, `themeStore`, `setting
 - `src/integrations/whatsapp-integration.ts` — empty (0-byte) stub.
 - `src/providers/` — `session-provider.tsx` (CodingSessionContext: loop + useChat + metrics + notifications), `session-bindings.tsx`.
 - `src/hooks/` — `useRunMetrics`, `useLoopKeybinds` (swallows all keys mid-stream), `useGitStatus`, `useClipboard`/`usePromptClipboard`, `useCopyToClipboard` (OSC 52), `useCopyableMessage`, `useSession`, `useRunCompletionNotification`, `useHeartbeatColor`.
-- `src/pages/` — `CodingPage` (chat + pickers + ModelStatusBar), `SplashPage`, `SettingsPage` (tabs: providers/harness/theme/web).
-- `src/components/` — `Header`/`Tab`/`Footer`/`Theme`; `coding/` (ChatMessages, Prompt, ToolCall + per-tool renderers, pickers, ThinkingMessage); `settings/` (ProviderSettings + ~17KB ProviderForm, Harness/Theme/WebSettings); `ui/` (Button, InputField, DropdownField); `symbols/` (icons, logo).
+- `src/pages/` — `SessionPage` (coding + persistent tabs) and the other routed pages (WhatsApp/Pomodoro/Crons/3D).
+- `src/components/` — `Header`/`Tab`/`Footer`/`Theme`; `coding/` (ChatMessages, Prompt, ToolCall + per-tool renderers, pickers, ThinkingMessage); `ui/` (Button, InputField); `symbols/` (icons, logo).
 - `src/themes/` — `index.ts` (~1115 lines): 44 JSON palettes in `assets/`, `Theme` type (~90 RGBA fields), contrast-aware `resolveTheme`/`generateSyntax` (selection ink derived from panel luminance), persisted `{key, variant}`.
 - `web/` — `index.html`: xterm.js browser host served by `server.ts`.
 

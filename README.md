@@ -110,6 +110,32 @@ Agents run on three model roles, each with its own default thinking level:
 
 While the agent is streaming, all keys except `esc esc` are swallowed so the run can't be interrupted mid-step. Dialogs close on `esc` or by clicking their backdrop.
 
+## WhatsApp
+
+The WHATSAPP tab runs the Baileys integration (unofficial WhatsApp Web API). It is configured under the `whatsapp` options block: `enabled` auto-connects at startup, and `allowedNumbers` lists the phone numbers allowed to talk to the agent (empty = nobody; outbound sending still works). Pair once via the QR rendered on the WhatsApp tab, or — if the terminal is too small for the QR (~53+ rows needed) — click Connect, type your phone number (digits, with country code) and click "Pair with code", then enter the code in WhatsApp → Linked devices → "Link with phone number". Credentials persist under `~/.picobu/whatsapp/auth`, so later launches reconnect without a QR. The synced contact book (plus anyone you exchange messages with) feeds `/wwp:contacts`. Messages from allowed numbers are submitted to the persistent session, which can reply and act using the `wwp-*` tools. Agent-sent texts (the `wwp-*` tools and WhatsApp cron alerts) are prefixed with an invisible zero-width-space sentinel; when that outbound message echoes back into the socket (`fromMe` upsert), it is recognized by the sentinel and dropped, so agent replies never re-enter the persistent session as new turns.
+
+### WhatsApp commands
+
+- `/wwp:contacts` — list known contacts; pick one to stage `/wwp:msg <phone>|` into the prompt
+- `/wwp:msg <phone>|<msg>` — send a WhatsApp text
+- `/wwp:alert <phone>|<msg>|<level>|<HH:MM>` — daily alert; level 1 = plain message, 2 = + desktop notification, 3+ = urgent delivery
+- `/wwp:list-alerts` — list active alerts with IDs
+- `/wwp:rm-alert <alert-id>` — remove an alert
+- `/wwp:today <todo-text>` — add a task to today's list
+- `/wwp:reminder <frequency>|<description>|<HH:MM>` — recurring reminder (fires a desktop notification)
+- `/wwp:list-reminders <reminders|today|all>` — list reminders and/or today's tasks
+- `/wwp:rm-reminder <id>` — remove a reminder or today task
+
+The same operations are exposed to the persistent agent as tools (`wwp-msg`, `wwp-alert`, `wwp-list-alerts`, `wwp-rm-alert`, `wwp-today`, `wwp-reminder`, `wwp-list-reminders`, `wwp-rm-reminder`), so the agent can send messages and manage alerts, reminders, and tasks itself.
+
+## Pomodoro
+
+The POMODORO tab runs the classic state machine: IDLE → WORK (25m) → SHORT_BREAK (5m) / LONG_BREAK (15m after every 4th pomodoro). The countdown is deadline-based and lives in a module-level store, so it keeps running (and fires a desktop notification + terminal bell) no matter which tab is open; the header tab shows the live time left as `POMODORO (23m21s)`. The big countdown renders as block-style ASCII art (`<ascii-font>`), and each phase duration is adjustable on the page with −/+ steppers (5–90 min, 5-min steps) — picks apply from the next timer onward and survive resets. Controls: Start / Pause / Resume / Reset / Skip, plus an auto-start toggle. Resetting or skipping during a WORK session does not count toward the completed total.
+
+## Crons
+
+The CRONS tab lists every persisted job (`~/.picobu/crons.json`) with an enable/disable toggle. Jobs run only while the app is open, evaluated on a 30s sweep; each job carries a schedule (interval or daily `HH:MM`) and an action — a WhatsApp message, a desktop notification, or a prompt to the persistent agent. Alerts (`/wwp:alert`) and reminders (`/wwp:reminder`) appear here automatically.
+
 ## Sessions
 
 Every run is saved incrementally (per message) to `~/.picobu/sessions/<folder>/<id>.jsonl` — `<folder>` is the sanitized name of the working directory, `<id>` the 16-hex session id shown on exit. A session is only saved **after its first prompt** — an untouched session leaves no file behind. Resume with `picobu --session <id>` (also listed by `picobu sessions`), or in-app via `/sessions`. The coding page has a second tab, "persistent session": each prompt runs as a fresh, tool-less, 10-step-max session saved to `~/.picobu/sessions/persitent/<timestamp>-<turn>.jsonl`.
@@ -120,11 +146,27 @@ Every run is saved incrementally (per message) to `~/.picobu/sessions/<folder>/<
 - `/effort [level]` — set thinking effort directly (`/effort high`) or open the picker
 - `/new` (`/cls`, `/clear`) — start a fresh session; the current one stays saved on disk
 - `/sessions` — list saved sessions for the current folder and load one into the coding tab
+- `/login [provider]` — OAuth login for subscription providers (see below)
+- `/logout [provider]` — remove a provider login (credential + registered provider/models)
 - `/quit` — graceful exit
 
-Commands declare the session modes they are available in via flags: `code` (coding tab), `persitent` (persistent tab), and `web` (browser client). Commands default to all three; `/quit`, `/new`, and `/sessions` omit `web`, and `/new` + `/sessions` also omit `persitent` — invoking a command outside its modes shows a footer toast instead of running.
+Commands declare the session modes they are available in via flags: `code` (coding tab), `persitent` (persistent tab), and `web` (browser client). Commands default to all three; `/quit`, `/new`, and `/sessions` omit `web`; `/new`, `/sessions`, `/login`, and `/logout` also omit `persitent` — invoking a command outside its modes shows a footer toast instead of running.
 
 Commands are also discovered from markdown files in `.agents/skills`, `.agents/workflows`, `.agents/prompts`, and `.agents/commands` — checked in your project, `~/.picobu`, and home, in that precedence order.
+
+### Login & OAuth
+
+`/login` authenticates a subscription provider OAuth — **OpenAI** (ChatGPT), **Anthropic** (Claude Pro/Max), or **GitHub Copilot** — so you can run models without API keys. With no argument it opens a provider picker; `/login openai`, `/login anthropic`, and `/login copilot [enterprise-domain]` start the flow directly. A status dialog shows the auth URL / device code and opens the browser; progress, success, and errors land there (Cancel aborts the flow).
+
+On success the OAuth credential is stored in `~/.picobu/auth.json` (never in `options.json`), and the provider is registered into `~/.picobu/options.json` the same way env-gated providers are (`apiKey: "auth:<id>"`, models from the models.dev catalog via `@opencode-ai/models`):
+
+| Provider | `type` | Notes |
+| --- | --- | --- |
+| `openai` | `openai` | ChatGPT browser OAuth (PKCE, local callback); models from the models.dev `openai` catalog |
+| `anthropic` | `anthropic` | Claude browser OAuth (PKCE, local callback); models from the models.dev `anthropic` catalog |
+| `github-copilot` | `openai-compatible` | Device-code flow; base URL and usable models depend on the account/token (fetched from `/models`) |
+
+Credentials auto-refresh at startup and before every run; if a provider is first-time-logged-in it also becomes `harness.defaultModel`. `/logout` removes the credential from `auth.json`, the provider (and its models) from `options.json`, and repoints any harness/session model selectors at a remaining provider.
 
 ## Agents
 
@@ -165,7 +207,7 @@ src/
 ├── harness/           # Agent runtime: providers, agent factory, loop, prompts, toolset, commands
 ├── hooks/             # Run metrics, git status, keybinds, completion notifications
 ├── libs/              # options, lock, shell, sessions, prompt history, session title, notify, text stats, filetype
-├── pages/             # SessionPage (coding + persistent tabs), SettingsPage, ThreeDPage (empty)
+├── pages/             # SessionPage (coding + persistent tabs), ThreeDPage (empty)
 ├── providers/         # CodingSession + PersistentSession contexts
 ├── stores/            # XState stores: loop, theme, coding, session titles
 └── themes/            # Theme definitions + 44 JSON color assets

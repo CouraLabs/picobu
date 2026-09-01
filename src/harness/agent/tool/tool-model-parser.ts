@@ -140,6 +140,29 @@ export function toolPartToModel(part: ToolPart): ToolCallModel | null {
         output: fetchOutput?.content,
       };
     }
+    case "wwp-msg":
+    case "wwp-alert":
+    case "wwp-list-alerts":
+    case "wwp-rm-alert":
+    case "wwp-today":
+    case "wwp-reminder":
+    case "wwp-list-reminders":
+    case "wwp-rm-reminder":
+      // Integration tools render generically: name + args summary + output.
+      return {
+        name: "wwp",
+        tool: name,
+        status,
+        error,
+        summary: Object.entries(input)
+          .map(([k, v]) => `${k}: ${typeof v === "object" ? JSON.stringify(v) : String(v)}`)
+          .join(" · "),
+        output:
+          part.state === "output-available"
+            ? ((part.output as { message?: string })?.message ??
+              (part.output ? JSON.stringify(part.output) : "done"))
+            : undefined,
+      };
     default:
       return null;
   }

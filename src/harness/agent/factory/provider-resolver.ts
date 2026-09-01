@@ -1,8 +1,11 @@
 import { createAnthropic } from "@ai-sdk/anthropic";
+import { createOpenAI } from "@ai-sdk/openai";
 import { createOpenResponses } from "@ai-sdk/open-responses";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import type { LanguageModel } from "ai";
 import { options, type ProviderModelBilling, type ProviderModelCapability, type ProviderModelOptions, type ProviderOptions } from "../../../libs/options";
+import { oauthAuthById } from "../../../auth";
+import { getCredential } from "../../../auth/store";
 import { initLockDir } from "../../../libs/lock";
 
 initLockDir(options.app.systemDir);
@@ -24,21 +27,52 @@ export const resolveApiKey = (apiKey?: string): string | undefined => {
   return apiKey.startsWith("env:") ? process.env[apiKey.slice(4)] : apiKey;
 };
 
+/**
+ * Resolve a provider's request auth synchronously. `auth:<id>` refs (written
+ * by `/login`) read the stored OAuth credential; the async `ensureOAuthTokens`
+ * pass before each run keeps those fresh. A missing credential throws (the
+ * run path surfaces it as a friendly guidance error); a *stale* credential is
+ * handed over best-effort so app mount / status rendering never crashes on an
+ * offline box — the next run-start refresh retries, and a truly expired token
+ * surfaces as a provider 401 instead. Everything else falls back to
+ * `resolveApiKey` (`env:` refs / literal keys).
+ */
+export const resolveAuth = (provider: ProviderOptions): { apiKey?: string; baseUrl?: string } => {
+  const ref = provider.apiKey;
+  if (!ref?.startsWith("auth:")) return { apiKey: resolveApiKey(ref) };
+  const id = ref.slice("auth:".length);
+  const credential = getCredential(id);
+  if (!credential) {
+    throw new Error(`No saved login for "${id}". Run /login ${id} to authenticate.`);
+  }
+  const auth = oauthAuthById(id);
+  return auth ? auth.toAuth(credential) : { apiKey: credential.access };
+};
+
 export const createModelInstance = (provider: ProviderOptions, modelId: string) => {
-  const apiKey = resolveApiKey(provider.apiKey);
+  const auth = resolveAuth(provider);
+  const apiKey = auth.apiKey;
+  // Copilot's base URL is account/token-dependent (derived by `toAuth`);
+  // everything else uses the static provider config.
+  const baseUrl = auth.baseUrl ?? provider.baseUrl;
   switch (provider.type) {
+    case "openai":
+      return createOpenAI({ baseURL: baseUrl, apiKey, headers: provider.headers })(modelId);
     case "anthropic":
-      return createAnthropic({ baseURL: provider.baseUrl, apiKey, headers: provider.headers })(modelId);
+      return createAnthropic({ baseURL: baseUrl, apiKey, headers: provider.headers })(modelId);
     case "openai-compatible":
-      return createOpenAICompatible({ baseURL: provider.baseUrl, name: provider.name, apiKey, headers: provider.headers })(modelId);
+      return createOpenAICompatible({ baseURL: baseUrl, name: provider.name, apiKey, headers: provider.headers })(modelId);
     case "openai-responses":
-      return createOpenResponses({ url: provider.baseUrl, name: provider.name, apiKey, headers: provider.headers })(modelId);
+      return createOpenResponses({ url: baseUrl, name: provider.name, apiKey, headers: provider.headers })(modelId);
     default:
-      throw new Error(`Unsupported provider type: ${provider.type}. Available provider types: anthropic, openai-compatible, openai-responses`);
+      throw new Error(`Unsupported provider type: ${provider.type}. Available provider types: openai, anthropic, openai-compatible, openai-responses`);
   }
 }
 
-export const resolveModel = (modelKey?: string): ResolvedModel => {
+/** Resolve `<providerId>/<modelId>` (and metadata) without constructing a
+ *  model client, so import-time default-model resolution can never touch the
+ *  auth layer or an apiKey. */
+export const resolveModelRef = (modelKey?: string): Omit<ResolvedModel, "model"> => {
   const target = modelKey ?? options.harness?.defaultModel;
   const slash = target?.indexOf("/") ?? -1;
   const targetProviderId = target && slash > 0 ? target.slice(0, slash) : undefined;
@@ -61,15 +95,21 @@ export const resolveModel = (modelKey?: string): ResolvedModel => {
     throw new Error(`No model metadata found for provider "${selectedProvider.id}" model "${modelId}"`);
   }
 
-  return {
-    provider: selectedProvider,
-    modelId,
-    model: createModelInstance(selectedProvider, modelId),
-    modelMeta,
-  };
+  return { provider: selectedProvider, modelId, modelMeta };
+};
+
+export const resolveModel = (modelKey?: string): ResolvedModel => {
+  const ref = resolveModelRef(modelKey);
+  return { ...ref, model: createModelInstance(ref.provider, ref.modelId) };
 };
 
 export const resolveDefaultModel = (): ResolvedModel => resolveModel(options.harness?.defaultModel);
+
+/** Default-model key without constructing a client (safe at import time). */
+export const resolveDefaultModelKey = (): string => {
+  const ref = resolveModelRef(options.harness?.defaultModel);
+  return `${ref.provider.id}/${ref.modelId}`;
+};
 
 export type ModelEntry = {
   key: string;        // `<providerId>/<modelId>`
@@ -98,8 +138,3 @@ export function listModels(): ModelEntry[] {
     })),
   );
 }
-
-export const resolveDefaultModelKey = (): string => {
-  const r = resolveDefaultModel();
-  return `${r.provider.id}/${r.modelId}`;
-};
