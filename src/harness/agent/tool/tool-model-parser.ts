@@ -1,5 +1,6 @@
 import type { ToolCallModel, ToolStatus } from "../../../components/session/ToolCall";
 import type { TodoItem } from "../../../components/session/tools/TodoToolCall";
+import type { AskQuestion } from "../../../stores/interaction-store";
 
 export type ToolPart = {
   type: string;
@@ -10,8 +11,49 @@ export type ToolPart = {
   errorText?: string;
 };
 
+/** Context the renderer passes for interrupt flow tools (ask / plan-write). */
+export type ToolPartContext = {
+  /** Stable part key (`<messageId>-<toolName>-<index>`) keying UI-side state. */
+  partKey?: string;
+  /** True when this is the last `ask` part in the message list (the live one). */
+  isPendingAsk?: boolean;
+  /** True when this is the last `plan-write` part in the message list (the live one). */
+  isPendingPlanWrite?: boolean;
+  /** True when a user message follows the assistant message that contains this part. */
+  hasFollowingUserMessage?: boolean;
+};
+
+/** Coerce raw ask input into renderable questions, skipping malformed entries. */
+const normalizeAskQuestions = (input: Record<string, unknown>): AskQuestion[] => {
+  const raw = Array.isArray(input.questions) ? (input.questions as unknown[]) : [];
+  return raw.flatMap((r) => {
+    const q = (r ?? {}) as Record<string, unknown>;
+    if (typeof q.title !== "string" || typeof q.question !== "string") return [];
+    const options = Array.isArray(q.options)
+      ? (q.options as unknown[]).flatMap((o) => {
+          const oo = (o ?? {}) as Record<string, unknown>;
+          if (typeof oo.answer !== "string" || !oo.answer.trim()) return [];
+          return [
+            {
+              answer: oo.answer,
+              answerDescription: typeof oo.answerDescription === "string" ? oo.answerDescription : "",
+            },
+          ];
+        })
+      : [];
+    return [
+      {
+        title: q.title,
+        question: q.question,
+        type: q.type === "multiple" ? "multiple" : "single",
+        options,
+      },
+    ];
+  });
+};
+
 /** Extract a renderable tool-call model from a tool part, parsing input (args) and output/error. */
-export function toolPartToModel(part: ToolPart): ToolCallModel | null {
+export function toolPartToModel(part: ToolPart, ctx: ToolPartContext = {}): ToolCallModel | null {
   const name: string =
     part.type === "dynamic-tool" ? (part.toolName ?? "") : part.type.replace(/^tool-/, "");
 
@@ -163,6 +205,45 @@ export function toolPartToModel(part: ToolPart): ToolCallModel | null {
               (part.output ? JSON.stringify(part.output) : "done"))
             : undefined,
       };
+    case "ask": {
+      // Flow tool: the questions are the tool input; rendering is interactive.
+      return {
+        name: "ask",
+        status,
+        error,
+        questions: normalizeAskQuestions(input),
+        partKey: ctx.partKey ?? "",
+        isPending: ctx.isPendingAsk ?? false,
+        hasFollowingUserMessage: ctx.hasFollowingUserMessage ?? false,
+      };
+    }
+    case "plan-write": {
+      // Flow tool: the submitted plan is the tool input; a review dialog opens
+      // when this part is the pending (last) plan-write submission.
+      return {
+        name: "plan-write",
+        status,
+        error,
+        plan: String((input as Record<string, unknown>).plan ?? ""),
+        partKey: ctx.partKey ?? "",
+        isPending: ctx.isPendingPlanWrite ?? false,
+        hasFollowingUserMessage: ctx.hasFollowingUserMessage ?? false,
+      };
+    }
+    case "plan-exit": {
+      // Flow tool: Plan -> Coder handoff, rendered from its output message.
+      const exitOutput =
+        part.state === "output-available"
+          ? (part.output as { switchedTo?: string; message?: string } | undefined)
+          : undefined;
+      return {
+        name: "plan-exit",
+        status,
+        error,
+        switchedTo: typeof exitOutput?.switchedTo === "string" ? exitOutput.switchedTo : undefined,
+        message: typeof exitOutput?.message === "string" ? exitOutput.message : undefined,
+      };
+    }
     default:
       return null;
   }

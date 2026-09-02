@@ -91,6 +91,8 @@ Agents run on three model roles, each with its own default thinking level:
 | `flash` | default workhorse (ask + coder agents) | model's `defaultEffort` |
 | `heavy` | deep reasoning (plan-code agent) | model's `defaultEffort` (`heavyThinkingLevel` → `high`) |
 
+Assign a model to a role with the **`/model-roles`** command (aliases: `/roles`): it lists each role with its current assignment (falling back to `defaultModel`) and lets you pick any configured model. The selection is persisted to `harness.modelRoles` and applied to the runtime: switching agents applies that agent's role model, and assigning a role that the active agent runs on updates the live loop immediately. Roles without a thinking override (`flash`/`heavy` inherit the model's `defaultEffort`) leave your current thinking level untouched; `/effort` and `shift+tab` remain explicit overrides after a switch.
+
 ## Usage
 
 | Key | Action |
@@ -144,6 +146,7 @@ Every run is saved incrementally (per message) to `~/.picobu/sessions/<folder>/<
 
 - `/models` — open the model picker (same as `ctrl+m`)
 - `/effort [level]` — set thinking effort directly (`/effort high`) or open the picker
+- `/model-roles` (`/roles`) — show the harness model roles and assign a model to each (persisted to `harness.modelRoles`)
 - `/new` (`/cls`, `/clear`) — start a fresh session; the current one stays saved on disk
 - `/sessions` — list saved sessions for the current folder and load one into the coding tab
 - `/login [provider]` — OAuth login for subscription providers (see below)
@@ -179,12 +182,18 @@ Each agent has a `category` that binds it to a session mode: `coding` agents app
 | `plan-code` | coding | Deep planning + implementation, runs on the `heavy` role |
 | `persistent` | persistent | Fresh, stateless 10-step runs per prompt |
 
+Coding runs are capped at **20 steps** as a safety limit (each tool call round-trip is a step; the `ask`/`plan-write` interrupts pause before a new step starts). The persistent session keeps its own 10-step cap per prompt.
+
 ## Tools
 
 Tools are grouped in families:
 
 - **filesystem** — `read` / `write` / `edit` (file I/O with diffs), `glob` / `grep` (search, ripgrep-backed), `bash` (shell execution using your detected shell)
-- **flow** — session workflow state. Currently `todo`: one todo list per session, persisted at `<folder>/<sessionId>/session-todo.json` and fully rewritten on every call. Actions: `ins` (append items), `upd` (replace by index), `del` (remove by index). Rendered in the chat as a phase tree with `[x]` / `[ ]` per item.
+- **flow** — session workflow state.
+  - `todo`: one todo list per session, persisted at `<folder>/<sessionId>/session-todo.json` and fully rewritten on every call. Actions: `ins` (append items), `upd` (replace by index), `del` (remove by index). Rendered in the chat as a phase tree with `[x]` / `[ ]` per item.
+  - `ask` (interrupting): asks the user up to 5 structured questions. Each question renders as a tab with clickable radios (`single`) / checkboxes (`multiple`) plus an automatic custom-answer field; once all questions are answered the answers are sent back as a new prompt. Available to the ask/coder/plan agents.
+  - `plan-exit` (non-interrupting): handoff tool that switches the running loop from the Plan agent to the Coder agent mid-run so the approved plan is implemented immediately. The handoff is session-scoped: it never touches other sessions' or the global agent picker, and is cleared when you manually pick an agent again.
+  - `plan-write` (interrupting): submits the finished plan for review. The run pauses and a dialog opens with the plan rendered line by line — click a line to add a comment below it. "Not satisfied" sends the comments back as a revision prompt (the plan agent revises and resubmits until approved); "Confirm" sends an approval prompt and the agent calls `plan-exit` so the Coder implements with the comments in hand.
 - **external** — web access via headless Chrome (Puppeteer), so JavaScript-rendered pages are captured correctly; requests carry a real-Chrome identity (UA + client hints, `navigator.webdriver` scrubbed) to avoid bot-protection blocks. `websearch` queries DuckDuckGo's HTML endpoint — `query` plus `deepness` (result pages, 1–5), paginated via the `s` offset; every link found across those pages is fetched and its content attached as Markdown. `webfetch` fetches a URL and returns its contents as Markdown (HTML pages are converted with turndown; other content types pass through verbatim).
 
 Every tool carries a JSON Schema rendered into the system prompt, and calls are rendered live in the chat as expandable tool cards.

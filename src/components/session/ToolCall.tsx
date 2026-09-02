@@ -8,6 +8,9 @@ import { TodoToolCall, type TodoToolCallProps } from "./tools/TodoToolCall";
 import { WebsearchToolCall, type WebsearchToolCallProps } from "./tools/WebsearchToolCall";
 import { WebfetchToolCall, type WebfetchToolCallProps } from "./tools/WebfetchToolCall";
 import { WwpToolCall, type WwpToolCallProps } from "./tools/WwpToolCall";
+import { AskToolCall, type AskToolCallProps } from "./tools/AskToolCall";
+import { PlanExitToolCall, type PlanExitToolCallProps } from "./tools/PlanExitToolCall";
+import { PlanWriteToolCall, type PlanWriteToolCallProps } from "./tools/PlanWriteToolCall";
 
 export type ToolStatus = "success" | "error";
 
@@ -22,7 +25,10 @@ export type ToolCallModel =
   | ({ name: "todo" } & TodoToolCallProps)
   | ({ name: "websearch" } & WebsearchToolCallProps)
   | ({ name: "webfetch" } & WebfetchToolCallProps)
-  | ({ name: "wwp"; tool: string; summary: string; status: ToolStatus; error?: string; output?: string });
+  | ({ name: "wwp"; tool: string; summary: string; status: ToolStatus; error?: string; output?: string })
+  | ({ name: "ask" } & AskToolCallProps)
+  | ({ name: "plan-exit" } & PlanExitToolCallProps)
+  | ({ name: "plan-write" } & PlanWriteToolCallProps);
 
 /** Compile-time exhaustiveness guard for `ToolCallModel` (asserted `never`). */
 const assertNever = (value: never): never => {
@@ -58,6 +64,12 @@ export const ToolCall = ({ model, copyText }: ToolCallProps) => {
       return <WebfetchToolCall {...model} copyText={copyText} />;
     case "wwp":
       return <WwpToolCall {...model} copyText={copyText} />;
+    case "ask":
+      return <AskToolCall {...model} copyText={copyText} />;
+    case "plan-exit":
+      return <PlanExitToolCall {...model} copyText={copyText} />;
+    case "plan-write":
+      return <PlanWriteToolCall {...model} copyText={copyText} />;
     default: {
       // Exhaustiveness guard: the `ToolCallModel` union is closed over exactly
       // the cases above; `toolPartToModel` returns `null` for anything else, so

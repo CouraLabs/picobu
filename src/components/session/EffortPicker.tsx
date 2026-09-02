@@ -22,7 +22,8 @@ const EFFORT_DESCRIPTIONS: Record<string, string> = {
  */
 export const EffortPicker = () => {
   const theme = useSelector(themeStore, (s) => s.context.theme);
-  const { effortOpen, thinking } = useSelector(loopStore, (s) => s.context);
+  const effortOpen = useSelector(loopStore, (s) => s.context.effortOpen);
+  const thinking = useSelector(loopStore, (s) => s.context.thinking);
   const selectRef = useRef<SelectRenderable>(null);
 
   const options = THINKING_LEVELS.map((level) => ({

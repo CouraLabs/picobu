@@ -16,7 +16,8 @@ const fail = (e: unknown): string => (e instanceof Error ? e.message : String(e)
  */
 export const AuthPicker = () => {
   const theme = useSelector(themeStore, (s) => s.context.theme);
-  const { authPickerOpen, authPickerMode } = useSelector(loopStore, (s) => s.context);
+  const authPickerOpen = useSelector(loopStore, (s) => s.context.authPickerOpen);
+  const authPickerMode = useSelector(loopStore, (s) => s.context.authPickerMode);
   const selectRef = useRef<SelectRenderable>(null);
 
   useEffect(() => {

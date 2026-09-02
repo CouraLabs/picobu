@@ -7,6 +7,9 @@ import { globTool } from "./filesystem/glob/glob";
 import { grepTool } from "./filesystem/grep/grep";
 import { createBashTool } from "./filesystem/bash/bash";
 import { createTodoTool } from "./flow/todo/todo";
+import { createAskTool } from "./flow/ask/ask";
+import { createPlanExitTool } from "./flow/plan-exit/plan-exit";
+import { createPlanWriteTool } from "./flow/plan-write/plan-write";
 import { websearchTool } from "./external/websearch/websearch";
 import { webfetchTool } from "./external/webfetch/webfetch";
 import { wwpTools } from "./integration/wwp";
@@ -29,6 +32,11 @@ export type AgentTool = {
 export type ToolSetContext = {
   /** Absolute path of this session's todo file; registers the `todo` flow tool. */
   todoFilePath?: string;
+  /**
+   * Session id. Registers the interactive flow tools (`ask`, `plan-exit`,
+   * `plan-write`), which key their interaction state by session.
+   */
+  sessionId?: string;
 };
 
 /**
@@ -51,6 +59,13 @@ export function buildToolSet(ctx: ToolSetContext = {}) {
     wrapTool(webfetchTool),
     ...wwpTools.map(wrapTool),
     ...(ctx.todoFilePath ? [wrapTool(createTodoTool(ctx.todoFilePath))] : []),
+    ...(ctx.sessionId
+      ? [
+          wrapTool(createAskTool()),
+          wrapTool(createPlanExitTool(ctx.sessionId)),
+          wrapTool(createPlanWriteTool()),
+        ]
+      : []),
   ];
 
   const getTools = (names?: string[]): AgentTool[] =>

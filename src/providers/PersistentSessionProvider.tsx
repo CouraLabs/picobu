@@ -113,36 +113,41 @@ export const PersistentSessionProvider = ({ children }: { children: ReactNode })
     setMessages((msgs) => sanitizeMessages(dropUnansweredPrompt(msgs)));
   }, [chatStop, setMessages]);
 
-  const onPrompt = (text?: string, files: PromptFile[] = []) => {
-    if (!text && files.length === 0) return;
-    const t = text ?? "";
-    // Slash commands resolve in the persistent mode: commands flagged
-    // `code`-only (e.g. /new, /sessions) are consumed with a toast.
-    if (t.startsWith("/")) {
-      void resolveCommandPrompt(
-        t,
-        bindings,
-        commandModeFor("persistent", bindings.frontend === "web"),
-      ).then((res) => {
-        if (res.handled) {
-          if (res.prompt !== undefined) submitOrDefer(res.prompt, files);
-          return;
-        }
-        submitOrDefer(t, files); // unknown command / "/ " prompt -> passthrough
-      });
-      return;
-    }
-    submitOrDefer(t, files);
-  };
+  const submitOrDefer = useCallback(
+    (t: string, files: PromptFile[]) => {
+      if (streaming) {
+        stop();
+        pendingRef.current = { text: t, files };
+        return;
+      }
+      startTurn(t, files);
+    },
+    // `startTurn` reads refs + setState only; `streaming`/`stop` are the live deps.
+    [streaming, stop],
+  );
 
-  const submitOrDefer = (t: string, files: PromptFile[]) => {
-    if (streaming) {
-      stop();
-      pendingRef.current = { text: t, files };
-      return;
-    }
-    startTurn(t, files);
-  };
+  const onPrompt = useCallback(
+    (text?: string, files: PromptFile[] = []) => {
+      if (!text && files.length === 0) return;
+      const t = text ?? "";
+      // Slash commands resolve in the persistent mode: commands flagged
+      // `code`-only (e.g. /new, /sessions) are consumed with a toast.
+      if (t.startsWith("/")) {
+        void resolveCommandPrompt(t, bindings, commandModeFor("persistent", bindings.frontend === "web")).then(
+          (res) => {
+            if (res.handled) {
+              if (res.prompt !== undefined) submitOrDefer(res.prompt, files);
+              return;
+            }
+            submitOrDefer(t, files); // unknown command / "/ " prompt -> passthrough
+          },
+        );
+        return;
+      }
+      submitOrDefer(t, files);
+    },
+    [submitOrDefer, bindings],
+  );
 
   // Deferred send: a prompt submitted while streaming interrupts the run, then
   // starts once the stream settles.
@@ -177,9 +182,13 @@ export const PersistentSessionProvider = ({ children }: { children: ReactNode })
   // answer via the `wwp-msg` tool; cron prompts keep the two-line label.
   // Routed through `submitOrDefer` (not `startTurn` directly) so an event
   // arriving mid-run interrupts and defers like any manual prompt. The ref
-  // keeps the always-mounted subscription from capturing a stale `streaming`.
+  // keeps the always-mounted subscription from capturing a stale `streaming`;
+  // it is synced in an effect (never during render) so a discarded concurrent
+  // render can't leave a torn value behind.
   const submitRef = useRef(submitOrDefer);
-  submitRef.current = submitOrDefer;
+  useEffect(() => {
+    submitRef.current = submitOrDefer;
+  });
   useEffect(
     () =>
       subscribeInbound((event) =>
@@ -193,20 +202,36 @@ export const PersistentSessionProvider = ({ children }: { children: ReactNode })
     [],
   );
 
-  const value: PersistentSession = {
-    messages,
-    streaming,
-    onPrompt,
-    stop,
-    elapsedSec,
-    ttftMs,
-    thinkingTimes,
-    tokensPerSec,
-    inputTokens,
-    outputTokens,
-    cacheReadTokens,
-    cacheWriteTokens,
-  };
+  const value: PersistentSession = useMemo(
+    () => ({
+      messages,
+      streaming,
+      onPrompt,
+      stop,
+      elapsedSec,
+      ttftMs,
+      thinkingTimes,
+      tokensPerSec,
+      inputTokens,
+      outputTokens,
+      cacheReadTokens,
+      cacheWriteTokens,
+    }),
+    [
+      messages,
+      streaming,
+      onPrompt,
+      stop,
+      elapsedSec,
+      ttftMs,
+      thinkingTimes,
+      tokensPerSec,
+      inputTokens,
+      outputTokens,
+      cacheReadTokens,
+      cacheWriteTokens,
+    ],
+  );
 
   return <PersistentSessionContext.Provider value={value}>{children}</PersistentSessionContext.Provider>;
 };

@@ -18,6 +18,8 @@ export type ExpandableToolHeaderProps = {
   defaultCollapsed?: boolean;
   /** Whether clicking the header toggles the body; `false` pins the body open/closed. */
   collapsible?: boolean;
+  /** Whether the body is a click-to-copy target; `false` for interactive bodies. */
+  copyable?: boolean;
 };
 
 /**
@@ -29,7 +31,7 @@ export type ExpandableToolHeaderProps = {
  * `theme.accent`. The body is a copy target: hover highlights it in
  * `theme.backgroundElement` and clicking copies the full tool result.
  */
-export const ExpandableToolHeader = ({ name, status, header, body, borderColor, copyText, defaultCollapsed = true, collapsible = true }: ExpandableToolHeaderProps) => {
+export const ExpandableToolHeader = ({ name, status, header, body, borderColor, copyText, defaultCollapsed = true, collapsible = true, copyable = true }: ExpandableToolHeaderProps) => {
   const theme = useSelector(themeStore, (s) => s.context.theme);
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
   const [hovered, setHovered] = useState(false);
@@ -63,10 +65,14 @@ export const ExpandableToolHeader = ({ name, status, header, body, borderColor, 
           border={["left"]}
           borderColor={accent}
           paddingX={1}
-          backgroundColor={copy.backgroundColor}
-          onMouseOver={copy.onMouseOver}
-          onMouseOut={copy.onMouseOut}
-          onMouseDown={copy.onMouseDown}
+          {...(copyable
+            ? {
+                backgroundColor: copy.backgroundColor,
+                onMouseOver: copy.onMouseOver,
+                onMouseOut: copy.onMouseOut,
+                onMouseDown: copy.onMouseDown,
+              }
+            : {})}
         >
           {body}
         </box>

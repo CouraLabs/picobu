@@ -1,6 +1,5 @@
 import { useSelector } from "@xstate/store-react";
 import { themeStore } from "../../stores/theme-store";
-import { useHeartbeatColor } from "../../hooks/useHeartbeatColor";
 import { icons } from "../symbols/icons";
 import { TextAttributes, type SyntaxStyle } from "@opentui/core";
 import { useState } from "react";
@@ -19,7 +18,9 @@ export const ThinkingMessage = ({ markdown, isStreaming, time }: ThinkingMessage
   const copy = useCopyableMessage(markdown);
   const theme = useSelector(themeStore, (s) => s.context.theme);
   const syntaxMuted = useSelector(themeStore, (s) => s.context.syntaxMuted);
-  const borderColor = useHeartbeatColor(theme.secondary, theme.textMuted, isStreaming);
+  // Streaming borders pulse via the secondary voice color; settled messages
+  // sit muted below the user/assistant voices.
+  const borderColor = isStreaming ? theme.secondary : theme.textMuted;
   const timeCalc = time > 1000 ? `${time/1000}s` : `${time}ms`;
 
   return (

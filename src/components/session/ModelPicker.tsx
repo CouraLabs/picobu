@@ -50,7 +50,7 @@ const PRICE_KEYS = ["cacheRead", "output", "input"] as const;
 /** Order models cheapest-first: cache read, then output, then input, then name.
  *  Models missing a given price (or billing entirely) sort to the end.
  *  When no cache-read price is set, a cache-write price is used as the cache price. */
-const sortByPrice = (a: ModelEntry, b: ModelEntry): number => {
+export const sortByPrice = (a: ModelEntry, b: ModelEntry): number => {
   const price = (m: ModelEntry, key: (typeof PRICE_KEYS)[number]): number => {
     if (key === "cacheRead") {
       const cr = m.billing?.cacheRead;
@@ -67,7 +67,7 @@ const sortByPrice = (a: ModelEntry, b: ModelEntry): number => {
   return a.modelName.localeCompare(b.modelName);
 };
 
-const describe = (m: ModelEntry): string => {
+export const describe = (m: ModelEntry): string => {
   const parts: string[] = [];
   const caps = m.supports.length ? m.supports.join(", ") : "";
   if (caps) parts.push(caps);

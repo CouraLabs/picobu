@@ -1,8 +1,8 @@
 import { createStore } from "@xstate/store-react";
 import { resolveDefaultModelKey } from "../harness/agent/factory/provider-resolver";
-import { listAgents } from "../harness/agent/factory/agent/registry";
+import { DEFAULT_AGENT_ROLE, listAgents } from "../harness/agent/factory/agent/registry";
+import { options, resolveModelRole, type ProviderModelReasoningEffort } from "../libs/options";
 import type { AgentCategory } from "../harness/agent/types/agent-type";
-import type { ProviderModelReasoningEffort } from "../libs/options";
 
 export const THINKING_LEVELS: ProviderModelReasoningEffort[] = [
   "none",
@@ -34,6 +34,29 @@ export type LoopState = {
   queueMode: boolean;
   /** Prompt-steering mode (ctrl+w): the next prompt stops the current run and takes over. */
   steeringMode: boolean;
+  /** Model-role assignment picker (`/model-roles`). */
+  rolePickerOpen: boolean;
+};
+
+/**
+ * Model + thinking config for an agent's bound model role, applied whenever
+ * the active agent changes so `harness.modelRoles` actually drives the run.
+ * A role without an explicit thinking override (`flash`/`heavy` inherit the
+ * model's default effort) leaves `thinking` unset so the current effort stays.
+ * Empty when the agent has no bound role or the harness has no usable
+ * `defaultModel` (resolution throws) — the current values stay in that case.
+ */
+export const agentRoleConfig = (agentId: string): { modelKey?: string; thinking?: ProviderModelReasoningEffort } => {
+  const role = DEFAULT_AGENT_ROLE[agentId];
+  if (!role) return {};
+  try {
+    const { modelKey, thinking } = resolveModelRole(options.harness, role);
+    // `thinking` must be omitted (not `undefined`) when unset: spreading it
+    // would clobber the user's current effort and crash the status bar.
+    return { modelKey, ...(thinking !== undefined ? { thinking } : {}) };
+  } catch {
+    return {};
+  }
 };
 
 export const loopStore = createStore({
@@ -53,6 +76,7 @@ export const loopStore = createStore({
     authPickerMode: "login",
     queueMode: false,
     steeringMode: false,
+    rolePickerOpen: false,
   } as LoopState,
   on: {
     nextAgent: (state, event: { category?: AgentCategory }) => {
@@ -60,10 +84,10 @@ export const loopStore = createStore({
       const ids = listAgents(event.category).map((a) => a.id);
       const i = ids.indexOf(state.agentId);
       if (!ids.length) return state;
-      return {
-        ...state,
-        agentId: ids[(i + 1 + ids.length) % ids.length] ?? state.agentId,
-      };
+      const agentId = ids[(i + 1 + ids.length) % ids.length] ?? state.agentId;
+      // Switching agents applies the agent's model role (documented defaults);
+      // /models remains an explicit override after the switch.
+      return { ...state, agentId, ...agentRoleConfig(agentId) };
     },
     nextThinking: (state) => {
       const i = THINKING_LEVELS.indexOf(state.thinking);
@@ -77,6 +101,11 @@ export const loopStore = createStore({
     setModel: (state, event: { modelKey: string }) => ({
       ...state,
       modelKey: event.modelKey,
+    }),
+    setAgent: (state, event: { agentId: string }) => ({
+      ...state,
+      agentId: event.agentId,
+      ...agentRoleConfig(event.agentId),
     }),
     openModelPicker: (state) => ({ ...state, modelPickerOpen: true }),
     closeModelPicker: (state) => ({ ...state, modelPickerOpen: false }),
@@ -115,6 +144,8 @@ export const loopStore = createStore({
       authPickerMode: event.mode,
     }),
     closeAuthPicker: (state) => ({ ...state, authPickerOpen: false }),
+    openRolePicker: (state) => ({ ...state, rolePickerOpen: true }),
+    closeRolePicker: (state) => ({ ...state, rolePickerOpen: false }),
     // Queue and steering are mutually exclusive — enabling one disables the other.
     toggleQueueMode: (state) =>
       state.queueMode ? { ...state, queueMode: false } : { ...state, queueMode: true, steeringMode: false },

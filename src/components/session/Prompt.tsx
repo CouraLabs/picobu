@@ -28,6 +28,7 @@ export const Prompt = ({ onSubmit, kind }: PromptProps) => {
   const effortOpen = useSelector(loopStore, (s) => s.context.effortOpen);
   const sessionsOpen = useSelector(loopStore, (s) => s.context.sessionsOpen);
   const contactsOpen = useSelector(loopStore, (s) => s.context.contactsOpen);
+  const rolePickerOpen = useSelector(loopStore, (s) => s.context.rolePickerOpen);
   const queueMode = useSelector(loopStore, (s) => s.context.queueMode);
   const steeringMode = useSelector(loopStore, (s) => s.context.steeringMode);
   const textareaRef = useRef<TextareaRenderable>(null);
@@ -39,10 +40,10 @@ export const Prompt = ({ onSubmit, kind }: PromptProps) => {
   // (open-tui needs a tick before the textarea accepts focus). While a picker
   // is open it owns the keyboard, so the textarea never steals focus back.
   useEffect(() => {
-    if (modelPickerOpen || effortOpen || sessionsOpen || contactsOpen) return;
+    if (modelPickerOpen || effortOpen || sessionsOpen || contactsOpen || rolePickerOpen) return;
     const id = setTimeout(() => textareaRef.current?.focus(), 0);
     return () => clearTimeout(id);
-  }, [modelPickerOpen, effortOpen, sessionsOpen, contactsOpen]);
+  }, [modelPickerOpen, effortOpen, sessionsOpen, contactsOpen, rolePickerOpen]);
 
   // Live slash-command filtering: opening `/` starts command mode, while a
   // space (args) or a deleted `/` closes it and reverts to a normal prompt.
@@ -96,7 +97,9 @@ export const Prompt = ({ onSubmit, kind }: PromptProps) => {
       loopStore.trigger.closeCommand();
       loopStore.trigger.closeContactsPicker();
     });
-  }, [handleContentChange, notifyEdit]);
+    // `dialog`/bindings functions are stable context values; `kind`/`frontend`
+    // select the command mode, so the bindings must re-register if they change.
+  }, [handleContentChange, notifyEdit, kind, frontend, dialog, bindCommandAccept, bindInsertPrompt]);
 
   const submit = () => {
     if (textareaRef.current?.plainText.trim() === "/") return; // bare slash: just the picker

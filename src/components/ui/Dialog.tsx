@@ -9,10 +9,10 @@ export type DialogSize = 'small' | 'medium' | 'large';
 export type DialogProviderType = {
   open: () => void;
   close: () => void;
-  replace: (node: ReactNode, size: DialogSize, title?: string) => void;
+  replace: (node: ReactNode, size: DialogSize, title?: string, footer?: ReactNode) => void;
 };
 
-export const Dialog = ({ children, size, close, title }: { children: ReactNode; size: DialogSize; close: () => void; title?: string; }) => {
+export const Dialog = ({ children, size, close, title, footer }: { children: ReactNode; size: DialogSize; close: () => void; title?: string; footer?: ReactNode }) => {
   const theme = useSelector(themeStore, a => a.context.theme);
   const getSize = (): { size: `${number}%`; borders: `${number}%`; } => {
     switch (size) {
@@ -51,7 +51,7 @@ export const Dialog = ({ children, size, close, title }: { children: ReactNode; 
             {children}
           </scrollbox>
           <box flexDirection="row" justifyContent="flex-end">
-            <Button variant="error" bordered={false} onPress={close}>close</Button>
+            {footer ?? <Button variant="error" bordered={false} onPress={close}>close</Button>}
           </box>
         </box>
       </box>

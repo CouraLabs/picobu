@@ -16,10 +16,12 @@ type ToolCallShellProps = {
   defaultCollapsed?: boolean;
   /** Whether the header click toggles the body (enabled by default). */
   collapsible?: boolean;
+  /** Whether the body is a click-to-copy target (enabled by default). */
+  copyable?: boolean;
 };
 
 /** Shared wrapper for a tool execution: colored border, name/status header row, and error-or-content body. */
-export const ToolCallShell = ({ name, status, error, header, children, copyText, defaultCollapsed, collapsible }: ToolCallShellProps) => {
+export const ToolCallShell = ({ name, status, error, header, children, copyText, defaultCollapsed, collapsible, copyable }: ToolCallShellProps) => {
   const theme = useSelector(themeStore, (s) => s.context.theme);
   const borderColor = error ? theme.error : theme.success;
 
@@ -32,6 +34,7 @@ export const ToolCallShell = ({ name, status, error, header, children, copyText,
       copyText={copyText}
       defaultCollapsed={defaultCollapsed}
       collapsible={collapsible}
+      copyable={copyable}
       body={
         error ? (
           <text selectable={false} fg={theme.error}>{error}</text>

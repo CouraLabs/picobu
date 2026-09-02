@@ -22,6 +22,7 @@ import { SessionsPicker } from "../components/session/SessionsPicker";
 import { ContactsPicker } from "../components/session/ContactsPicker";
 import { AuthPicker } from "../components/session/AuthPicker";
 import { AuthStatusDialog } from "../components/session/AuthStatusDialog";
+import { ModelRolesPicker } from "../components/session/ModelRolesPicker";
 import { sessionTitleStore } from "../stores/session-title-store";
 
 export type SessionPageProps = {
@@ -31,8 +32,16 @@ export type SessionPageProps = {
 
 export const SessionPage = ({ sessionTab, onCodingTabChange }: SessionPageProps) => {
   const { theme } = useTheme();
-  const { agentId, modelKey, thinking, modelPickerOpen, commandOpen, effortOpen, sessionsOpen, contactsOpen, authPickerOpen } =
-    useSelector(loopStore, (s) => s.context);
+  const agentId = useSelector(loopStore, (s) => s.context.agentId);
+  const modelKey = useSelector(loopStore, (s) => s.context.modelKey);
+  const thinking = useSelector(loopStore, (s) => s.context.thinking);
+  const modelPickerOpen = useSelector(loopStore, (s) => s.context.modelPickerOpen);
+  const commandOpen = useSelector(loopStore, (s) => s.context.commandOpen);
+  const effortOpen = useSelector(loopStore, (s) => s.context.effortOpen);
+  const sessionsOpen = useSelector(loopStore, (s) => s.context.sessionsOpen);
+  const contactsOpen = useSelector(loopStore, (s) => s.context.contactsOpen);
+  const authPickerOpen = useSelector(loopStore, (s) => s.context.authPickerOpen);
+  const rolePickerOpen = useSelector(loopStore, (s) => s.context.rolePickerOpen);
 
   const chat = useSession();
   const persistent = usePersistentSession();
@@ -69,7 +78,7 @@ export const SessionPage = ({ sessionTab, onCodingTabChange }: SessionPageProps)
     <box id="sessions-page" flexDirection="column">
       <box flexDirection="row" justifyContent="space-between">
         {sessionTab === 'coding' ? <TopStatusBar /> : <text></text>}
-        {<text fg={theme.secondary}>{sessionTitle ?? ""}</text>}
+        <text fg={theme.secondary}>{sessionTitle ?? ""}</text>
         <SessionTabs current={sessionTab} onChange={onCodingTabChange} />
       </box>
       <scrollbox
@@ -92,6 +101,7 @@ export const SessionPage = ({ sessionTab, onCodingTabChange }: SessionPageProps)
         {sessionsOpen && <SessionsPicker />}
         {contactsOpen && <ContactsPicker />}
         {authPickerOpen && <AuthPicker />}
+        {rolePickerOpen && <ModelRolesPicker />}
         <AuthStatusDialog />
         <Prompt onSubmit={active.onPrompt} kind={agentCategory} />
         <ModelStatusBar

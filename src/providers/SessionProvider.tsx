@@ -1,5 +1,6 @@
 import { createContext, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useChat } from "@ai-sdk/react";
+import { useSelector } from "@xstate/store-react";
 import { lastAssistantMessageIsCompleteWithToolCalls, type UIMessage } from "ai";
 import { z } from "zod";
 import { loopStore } from "../stores/loop-store";
@@ -22,6 +23,7 @@ import {
 } from "../libs/sessions";
 import type { PromptFile } from "../libs/embeds";
 import { useSessionBindings } from "./SessionBindings";
+import { getAgentOverride, interactionStore } from "../stores/interaction-store";
 
 
 export type CodingSession = {
@@ -54,15 +56,37 @@ export const CodingSessionContext = createContext<CodingSession | null>(null);
 export const CodingSessionProvider = ({ children }: { children: ReactNode }) => {
   const bindings = useSessionBindings();
   // Session id flows into the loop so session-scoped flow tools (todo) resolve
-  // to this session's folder.
+  // to this session's folder. A flow-tool handoff (`plan-exit`) writes a
+  // per-session agent override that supersedes the global picker for this
+  // session until the user manually picks an agent again. `getConfig` runs per
+  // step, so a handoff written mid-run applies from the very next step.
+  const globalAgentId = useSelector(loopStore, (s) => s.context.agentId);
   const { transport } = useMemo(
     () =>
-      createLoop(() => ({
-        ...loopStore.getSnapshot().context,
-        sessionId: bindings.sessionId,
-      })),
+      createLoop(() => {
+        const base = loopStore.getSnapshot().context;
+        const override = getAgentOverride(bindings.sessionId);
+        return {
+          ...base,
+          sessionId: bindings.sessionId,
+          ...(override
+            ? {
+                agentId: override.agentId,
+                modelKey: override.modelKey ?? base.modelKey,
+                thinking: override.thinking ?? base.thinking,
+              }
+            : {}),
+        };
+      }),
     [bindings.sessionId],
   );
+
+  // A manual agent selection supersedes any automatic plan-exit handoff.
+  useEffect(() => {
+    if (getAgentOverride(bindings.sessionId)) {
+      interactionStore.trigger.clearAgentOverride({ sessionId: bindings.sessionId });
+    }
+  }, [globalAgentId, bindings.sessionId]);
 
   const { messages, sendMessage, status, stop: chatStop, setMessages } = useChat({
     transport,
@@ -113,11 +137,14 @@ export const CodingSessionProvider = ({ children }: { children: ReactNode }) => 
 
   // Session title: reset per session (a /new or /sessions switch gets a clean
   // slot), then generated once from the first user prompt via the tiny role
-  // model (best-effort, fire-and-forget).
+  // model (best-effort, fire-and-forget). The outgoing session's interaction
+  // records (answers, plan reviews, handoff overrides) are pruned on switch.
   const titleRequestedRef = useRef(false);
   useEffect(() => {
     titleRequestedRef.current = false;
     sessionTitleStore.trigger.setCodingTitle({ title: null });
+    const sid = bindings.sessionId;
+    return () => interactionStore.trigger.clearSession({ sessionId: sid });
   }, [bindings.sessionId]);
   useEffect(() => {
     if (titleRequestedRef.current) return;
@@ -176,19 +203,25 @@ export const CodingSessionProvider = ({ children }: { children: ReactNode }) => 
   // Prompt-steering mode: the latest mid-run prompt interrupts and replaces the run.
   const [pendingSteer, setPendingSteer] = useState<{ text: string; files: PromptFile[] } | null>(null);
 
-  const submit = (text: string, files: PromptFile[]) => {
-    const s = loopStore.getSnapshot().context;
-    if (s.steeringMode && streaming) {
-      setPendingSteer({ text, files });
-      stop();
-      return;
-    }
-    if (s.queueMode && streaming) {
-      setQueue((q) => [...q, { text, files }]);
-      return;
-    }
-    sendNow(text, files);
-  };
+  // Stable identities: these flow into the session context, so a fresh function
+  // per render would re-render every consumer (and re-fire effects listing
+  // `onPrompt` as a dep) on every stream chunk.
+  const submit = useCallback(
+    (text: string, files: PromptFile[]) => {
+      const s = loopStore.getSnapshot().context;
+      if (s.steeringMode && streaming) {
+        setPendingSteer({ text, files });
+        stop();
+        return;
+      }
+      if (s.queueMode && streaming) {
+        setQueue((q) => [...q, { text, files }]);
+        return;
+      }
+      sendNow(text, files);
+    },
+    [streaming, stop, sendNow],
+  );
 
   // Drain the queue FIFO regardless of whether queueMode is still on (accepted
   // prompts always run).
@@ -211,43 +244,62 @@ export const CodingSessionProvider = ({ children }: { children: ReactNode }) => 
     }
   }, [streaming, pendingSteer, sendNow]);
 
-  const onPrompt = (text?: string, files: PromptFile[] = []) => {
-    if (!text && files.length === 0) return;
-    if (!text) {
-      submit("", files);
-      return;
-    }
-    if (!text.startsWith("/")) {
-      submit(text, files);
-      return;
-    }
-    void resolveCommandPrompt(
-      text,
-      bindings,
-      commandModeFor("coding", bindings.frontend === "web"),
-    ).then((res) => {
-      if (res.handled) {
-        if (res.prompt !== undefined) submit(res.prompt, files);
+  const onPrompt = useCallback(
+    (text?: string, files: PromptFile[] = []) => {
+      if (!text && files.length === 0) return;
+      if (!text) {
+        submit("", files);
         return;
       }
-      submit(text, files); // unknown command / "/ " prompt -> passthrough
-    });
-  };
+      if (!text.startsWith("/")) {
+        submit(text, files);
+        return;
+      }
+      void resolveCommandPrompt(
+        text,
+        bindings,
+        commandModeFor("coding", bindings.frontend === "web"),
+      ).then((res) => {
+        if (res.handled) {
+          if (res.prompt !== undefined) submit(res.prompt, files);
+          return;
+        }
+        submit(text, files); // unknown command / "/ " prompt -> passthrough
+      });
+    },
+    [submit, bindings],
+  );
 
-  const value: CodingSession = {
-    messages,
-    streaming,
-    onPrompt,
-    stop,
-    elapsedSec,
-    ttftMs,
-    thinkingTimes,
-    tokensPerSec,
-    inputTokens,
-    outputTokens,
-    cacheReadTokens,
-    cacheWriteTokens,
-  };
+  const value: CodingSession = useMemo(
+    () => ({
+      messages,
+      streaming,
+      onPrompt,
+      stop,
+      elapsedSec,
+      ttftMs,
+      thinkingTimes,
+      tokensPerSec,
+      inputTokens,
+      outputTokens,
+      cacheReadTokens,
+      cacheWriteTokens,
+    }),
+    [
+      messages,
+      streaming,
+      onPrompt,
+      stop,
+      elapsedSec,
+      ttftMs,
+      thinkingTimes,
+      tokensPerSec,
+      inputTokens,
+      outputTokens,
+      cacheReadTokens,
+      cacheWriteTokens,
+    ],
+  );
 
   return <CodingSessionContext.Provider value={value}>{children}</CodingSessionContext.Provider>;
 };

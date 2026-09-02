@@ -1,5 +1,5 @@
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
-import { DirectChatTransport, ToolLoopAgent, isStepCount, type InferUITools, type LanguageModel, type UIMessage } from "ai";
+import { DirectChatTransport, ToolLoopAgent, hasToolCall, isStepCount, type InferUITools, type LanguageModel, type UIMessage } from "ai";
 import { buildToolSet, toolsInfo } from "../../tool/toolset";
 import { getAgent } from "../agent/registry";
 import { resolveModel } from "../provider-resolver";
@@ -60,6 +60,7 @@ export function createLoop(getConfig: () => LoopConfig): Loop {
     todoFilePath: initialConfig.sessionId
       ? sessionTodoFilePath(folderKeyFor(options.app.cwd), initialConfig.sessionId)
       : undefined,
+    sessionId: initialConfig.sessionId,
   });
 
   // System prompts are deterministic per (agent, tool set): build once so the
@@ -95,6 +96,11 @@ export function createLoop(getConfig: () => LoopConfig): Loop {
         activeTools: agentDef.tools.length ? agentDef.tools : undefined,
         instructions: buildSystem(persistent ? "persistent" : config.agentId),
         reasoning: config.thinking as AiReasoningEffort,
+        // Interactive flow tools interrupt the run once their (stub) result is
+        // in: `ask` (questions) and `plan-write` (plan submission) pause for the
+        // user. `plan-exit` stays non-interrupting so the loop continues as the
+        // Coder agent.
+        stopWhen: [isStepCount(20), hasToolCall("ask", "plan-write")],
         // Explicit ephemeral cache breakpoint (Anthropic): pins the prompt prefix
         // with a 1h TTL instead of the default 5m auto-cache. Non-Anthropic
         // providers ignore this namespaced option.
