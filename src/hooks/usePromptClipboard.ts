@@ -35,13 +35,20 @@ export const usePromptClipboard = (
   const theme = useSelector(themeStore, (s) => s.context.theme);
   const { addText, addFile, remove, clear } = useClipboard();
   const extmarkIds = useRef(new Map<string, number>());
+  /** Extmarks styling `@path` file links (real text, accent-colored). */
+  const linkExtmarkIds = useRef(new Set<number>());
   const reconciling = useRef(false);
 
   const embedSyntax = useMemo(
-    () => SyntaxStyle.fromStyles({ promptEmbed: { fg: theme.primary } }),
-    [theme.primary],
+    () =>
+      SyntaxStyle.fromStyles({
+        promptEmbed: { fg: theme.primary },
+        promptLink: { fg: theme.accent },
+      }),
+    [theme.primary, theme.accent],
   );
   const embedStyleId = useMemo(() => embedSyntax.getStyleId("promptEmbed") ?? 0, [embedSyntax]);
+  const linkStyleId = useMemo(() => embedSyntax.getStyleId("promptLink") ?? 0, [embedSyntax]);
   useEffect(() => () => embedSyntax.destroy(), [embedSyntax]);
 
   const insertEmbed = (ta: TextareaRenderable, key: string, label: string): void => {
@@ -111,6 +118,32 @@ export const usePromptClipboard = (
     embedClipboardImage();
   });
 
+  /**
+   * Insert a `@path` file link at the cursor and accent-style it with a
+   * non-virtual extmark: the text stays real (it ships in the prompt so the
+   * model sees the reference) and edits adjust the extmark range with it. A
+   * trailing space keeps the next keystroke off the token.
+   */
+  const insertFileLink = useCallback(
+    (path: string): void => {
+      const ta = textareaRef.current;
+      if (!ta) return;
+      const label = `@${path}`;
+      const start = ta.editorView.getVisualCursor().offset;
+      ta.insertText(label + " ");
+      const end = ta.editorView.getVisualCursor().offset;
+      const id = ta.extmarks.create({
+        start,
+        end: end - 1, // exclude the trailing space
+        virtual: false,
+        styleId: linkStyleId,
+      });
+      linkExtmarkIds.current.add(id);
+      ta.focus();
+    },
+    [textareaRef, linkStyleId],
+  );
+
   const handleContentChange = useCallback(() => {
     if (reconciling.current) return;
     const ta = textareaRef.current;
@@ -118,6 +151,14 @@ export const usePromptClipboard = (
 
     reconciling.current = true;
     try {
+      // File links are real text whose extmark range follows edits; drop the
+      // styling once the link text is damaged (no store entry to clear).
+      for (const id of [...linkExtmarkIds.current]) {
+        const ext = ta.extmarks.get(id);
+        if (!ext || !ta.getTextRange(ext.start, ext.end).startsWith("@")) {
+          linkExtmarkIds.current.delete(id);
+        }
+      }
       for (const [key, id] of [...extmarkIds.current.entries()]) {
         const ext = ta.extmarks.get(id);
         // Atomically removed by the virtual-extmark delete behavior.
@@ -154,5 +195,5 @@ export const usePromptClipboard = (
     return resolved;
   }, [textareaRef, clear]);
 
-  return { embedSyntax, handleContentChange, resolveAndClear };
+  return { embedSyntax, handleContentChange, resolveAndClear, insertFileLink };
 };

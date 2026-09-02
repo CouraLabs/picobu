@@ -53,21 +53,9 @@ describe("interactionStore", () => {
     interactionStore.trigger.clearSession({ sessionId });
   });
 
-  test("agentOverride is set, replaced and cleared per session", () => {
-    interactionStore.trigger.setAgentOverride({ sessionId, override: { agentId: "coder" } });
-    expect(interactionStore.getSnapshot().context.agentOverride[sessionId]?.agentId).toBe("coder");
-    interactionStore.trigger.setAgentOverride({
-      sessionId,
-      override: { agentId: "coder", modelKey: "openai/gpt-5.2", thinking: "high" },
-    });
-    expect(interactionStore.getSnapshot().context.agentOverride[sessionId]?.modelKey).toBe("openai/gpt-5.2");
-    interactionStore.trigger.clearAgentOverride({ sessionId });
-    expect(interactionStore.getSnapshot().context.agentOverride[sessionId]).toBeUndefined();
-  });
-
   test("clearSession drops every record for the session but keeps others", () => {
     const other = "interaction-test-other";
-    interactionStore.trigger.setAgentOverride({ sessionId: other, override: { agentId: "coder" } });
+    interactionStore.trigger.markAskAnswered({ sessionId: other, partKey: "k", answers: [], summaryText: "s" });
     interactionStore.trigger.markAskAnswered({ sessionId, partKey: "k", answers: [], summaryText: "s" });
     interactionStore.trigger.markPlanWriteOpen({ sessionId, partKey: "k" });
     interactionStore.trigger.setPlanWriteComments({ sessionId, partKey: "k", comments: [] });
@@ -78,7 +66,7 @@ describe("interactionStore", () => {
     expect(ctx.answeredAsk[sessionId]).toBeUndefined();
     expect(ctx.planWriteStatus[sessionId]).toBeUndefined();
     expect(ctx.planWriteComments[sessionId]).toBeUndefined();
-    expect(ctx.agentOverride[other]?.agentId).toBe("coder");
+    expect(ctx.answeredAsk[other]?.["k"]?.summaryText).toBe("s");
     interactionStore.trigger.clearSession({ sessionId: other });
   });
 });

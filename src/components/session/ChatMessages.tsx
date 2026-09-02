@@ -1,3 +1,4 @@
+import { memo, type ReactNode } from "react";
 import type { UIMessage } from "ai";
 import { AssistantMessage } from "./AssistantMessage";
 import { ThinkingMessage } from "./ThinkingMessage";
@@ -56,35 +57,68 @@ const messageFlags = (messages: UIMessage[]): MessageFlags => {
  * live while they are the *last* such part in the list AND no user message
  * follows the assistant message containing them (a follow-up means the user
  * already answered/commented). `toolPartToModel` receives those flags.
+ *
+ * Memoized so metrics-only ticks (tokens/cost/elapsed) don't walk the list;
+ * the message components themselves are memoized too, so streaming ticks only
+ * re-render the parts whose text actually changed. Consecutive tool calls are
+ * wrapped in one column box so the scrollbox gap separates groups, not tools.
  */
-export const ChatMessages = ({ messages, thinkingTimes }: ChatMessagesProps) => {
+export const ChatMessages = memo(({ messages, thinkingTimes }: ChatMessagesProps) => {
   const { lastAskKey, lastPlanWriteKey, userAfter } = messageFlags(messages);
 
-  return messages.flatMap((m, mi) =>
-    m.parts.map((part, i) => {
+  // Consecutive tool calls are grouped into a single column box so the
+  // scrollbox's content `gap: 1` only separates groups (thinking/assistant/
+  // user messages) and not individual tool calls within a run.
+  const out: ReactNode[] = [];
+  let toolRun: ReactNode[] = [];
+  let toolRunKey: string | null = null;
+  const flushToolRun = () => {
+    if (toolRun.length > 0 && toolRunKey) {
+      out.push(
+        <box key={`tool-group-${toolRunKey}`} flexDirection="column" flexShrink={1}>
+          {toolRun}
+        </box>,
+      );
+    }
+    toolRun = [];
+    toolRunKey = null;
+  };
+
+  messages.forEach((m, mi) => {
+    m.parts.forEach((part, i) => {
       if (m.role === "user" && part.type === "text") {
-        return <UserMessage key={`${m.id}-${i}`} text={part.text} />;
-      } else if (m.role === "assistant") {
-        switch (part.type) {
-          case "text":
-            return <AssistantMessage key={`${m.id}-${i}`} markdown={part.text} isStreaming={part.state === "streaming"} />;
-          case "reasoning":
-            return <ThinkingMessage key={`${m.id}-${i}`} markdown={part.text} isStreaming={part.state === "streaming"} time={thinkingTimes[thinkingPartKey(m.id, i, part.id)] ?? 0} />;
-          default: {
-            const name = toolNameOf(part as ToolPart);
-            const key = `${m.id}-${name}-${i}`;
-            const tool = toolPartToModel(part as ToolPart, {
-              partKey: key,
-              isPendingAsk: name === "ask" && key === lastAskKey,
-              isPendingPlanWrite: name === "plan-write" && key === lastPlanWriteKey,
-              hasFollowingUserMessage: userAfter[mi],
-            });
-            if (tool) return <ToolCall key={key} model={tool} copyText={partCopyText(part)} />;
-            break;
+        flushToolRun();
+        out.push(<UserMessage key={`${m.id}-${i}`} text={part.text} />);
+        return;
+      }
+      if (m.role !== "assistant") return;
+      switch (part.type) {
+        case "text":
+          flushToolRun();
+          out.push(<AssistantMessage key={`${m.id}-${i}`} markdown={part.text} isStreaming={part.state === "streaming"} />);
+          return;
+        case "reasoning":
+          flushToolRun();
+          out.push(<ThinkingMessage key={`${m.id}-${i}`} markdown={part.text} isStreaming={part.state === "streaming"} time={thinkingTimes[thinkingPartKey(m.id, i, part.id)] ?? 0} />);
+          return;
+        default: {
+          const name = toolNameOf(part as ToolPart);
+          const key = `${m.id}-${name}-${i}`;
+          const tool = toolPartToModel(part as ToolPart, {
+            partKey: key,
+            isPendingAsk: name === "ask" && key === lastAskKey,
+            isPendingPlanWrite: name === "plan-write" && key === lastPlanWriteKey,
+            hasFollowingUserMessage: userAfter[mi],
+          });
+          if (tool) {
+            if (!toolRunKey) toolRunKey = key;
+            toolRun.push(<ToolCall key={key} model={tool} copyText={partCopyText(part)} />);
           }
         }
       }
-      return null;
-    }),
-  );
-};
+    });
+  });
+  flushToolRun();
+
+  return out;
+});

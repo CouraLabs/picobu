@@ -14,24 +14,26 @@ export type DialogProviderType = {
 
 export const Dialog = ({ children, size, close, title, footer }: { children: ReactNode; size: DialogSize; close: () => void; title?: string; footer?: ReactNode }) => {
   const theme = useSelector(themeStore, a => a.context.theme);
-  const getSize = (): { size: `${number}%`; borders: `${number}%`; } => {
+  const getSize = (): { 
+    width: `${number}%`, height: `${number}%`, vertical: `${number}%`, horizontal: `${number}%`
+  } => {
     switch (size) {
-      case "large": return { size: '80%', borders: '10%' };
-      case "medium": return { size: '60%', borders: '20%' };
-      case "small": return { size: '40%', borders: '30%' };
+      case "large": return { width: '90%', height: '80%', vertical: '10%', horizontal: '5%' };
+      case "medium": return { width: '70%', height: '60%', vertical: '20%', horizontal: '15%' };
+      case "small": return { width: '50%', height: '40%', vertical: '30%', horizontal: '25%' };
     }
   };
 
   return (
     <box position="absolute" top={0} left={0} bottom={0} right={0} onMouseDown={close}>
       <box
-        width={getSize().size}
-        height={getSize().size}
+        width={getSize().width}
+        height={getSize().height}
         position="absolute"
-        top={getSize().borders}
-        left={getSize().borders}
-        bottom={getSize().borders}
-        right={getSize().borders}
+        top={getSize().vertical}
+        bottom={getSize().vertical}
+        left={getSize().horizontal}
+        right={getSize().horizontal}
         backgroundColor={theme.backgroundPanel}
         onMouseDown={(e) => e.stopPropagation()}
         onKeyDown={(e) => {

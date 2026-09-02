@@ -16,5 +16,13 @@ export const icons = {
   speed: '↯',
   tool: '⯿',
   git: '⑂',
-  prompt: '❱'
+  prompt: '❱',
+  check: '✓',
+  edit: '✎',
+  play: '⏵',
+  collapse: '┏',
+  tree: {
+    branch: '├─',
+    last: '└─',
+  },
 }

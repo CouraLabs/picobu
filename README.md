@@ -25,6 +25,32 @@ picobu --session <id> # resume a saved session
 
 Type-check with `bun run tsc`.
 
+## Install
+
+Requires [git](https://git-scm.com) and [Bun](https://bun.sh) ≥ 1.x. The script clones the repo into `~/.picobu/install`, builds a standalone executable with `bun build --compile`, drops it in `~/.picobu/bin`, and adds that folder to your PATH.
+
+```bash
+# Linux / macOS
+curl -fsSL https://raw.githubusercontent.com/CouraLabs/picobu/main/scripts/install.sh | bash
+```
+
+```powershell
+# Windows (PowerShell)
+powershell -c "irm https://raw.githubusercontent.com/CouraLabs/picobu/main/scripts/install.ps1|iex"
+```
+
+To uninstall, which removes everything under `~/.picobu` including saved sessions, settings and OAuth credentials:
+
+```bash
+# Linux / macOS (add -y to skip the confirmation)
+curl -fsSL https://raw.githubusercontent.com/CouraLabs/picobu/main/scripts/uninstall.sh | bash -s -- -y
+```
+
+```powershell
+# Windows (PowerShell)
+powershell -c "irm https://raw.githubusercontent.com/CouraLabs/picobu/main/scripts/uninstall.ps1|iex"
+```
+
 ## Configuration
 
 Everything lives in `~/.picobu/options.json` (auto-created as `{}` on first run). Four top-level blocks:
@@ -102,6 +128,7 @@ Assign a model to a role with the **`/model-roles`** command (aliases: `/roles`)
 | `tab` | Cycle agents: ask → coder → plan-code |
 | `shift+tab` | Cycle thinking levels: none → low → medium → high → xhigh → max |
 | `ctrl+m` | Open the model picker |
+| `ctrl+t` | Open the file-tree picker to link a file into the prompt as an accent-colored `@path` token |
 | `/` | Live command palette (fuzzy list of system + discovered commands) |
 | `esc` | Close an open picker or dialog |
 | `ctrl+?` | Open the help dialog with all shortcuts (typing `?` as the prompt's first character works too) |
@@ -142,13 +169,21 @@ The CRONS tab lists every persisted job (`~/.picobu/crons.json`) with an enable/
 
 Every run is saved incrementally (per message) to `~/.picobu/sessions/<folder>/<id>.jsonl` — `<folder>` is the sanitized name of the working directory, `<id>` the 16-hex session id shown on exit. A session is only saved **after its first prompt** — an untouched session leaves no file behind. Resume with `picobu --session <id>` (also listed by `picobu sessions`), or in-app via `/sessions`. The coding page has a second tab, "persistent session": each prompt runs as a fresh, tool-less, 10-step-max session saved to `~/.picobu/sessions/persitent/<timestamp>-<turn>.jsonl`.
 
+### Session compaction
+
+When a session's used context (input + output tokens, the same metric the status bar renders) reaches **80% of the current model's context window**, the session is compacted automatically after the run settles: the whole conversation is sent to the **currently running model** with a compactor prompt, and the resulting summary becomes the first message of a **new session** the app switches to. The original session stays fully saved on disk. Compaction can also be triggered manually with `/compact`. Failures degrade to a footer toast and leave the session unchanged.
+
 ### Slash commands
 
 - `/models` — open the model picker (same as `ctrl+m`)
+- `/cd [directory]` — change the working directory (absolute, relative, or `~/...`) and start a fresh session (sessions are stored per folder); with no args it opens a directory-tree picker (`return` walks in, the `.` row confirms). The status bar, tools, and system prompt all follow the new cwd for the rest of the app's lifetime
 - `/effort [level]` — set thinking effort directly (`/effort high`) or open the picker
 - `/model-roles` (`/roles`) — show the harness model roles and assign a model to each (persisted to `harness.modelRoles`)
 - `/new` (`/cls`, `/clear`) — start a fresh session; the current one stays saved on disk
+- `/compact` — compact the session into a summary and continue in a new session (also runs automatically at 80% context)
 - `/sessions` — list saved sessions for the current folder and load one into the coding tab
+
+Commands that mutate the run's flow or context (`/cd`, `/compact`) are idle-only: while the agent is streaming they are hidden from the command picker and rejected with a footer toast.
 - `/login [provider]` — OAuth login for subscription providers (see below)
 - `/logout [provider]` — remove a provider login (credential + registered provider/models)
 - `/quit` — graceful exit
@@ -182,7 +217,7 @@ Each agent has a `category` that binds it to a session mode: `coding` agents app
 | `plan-code` | coding | Deep planning + implementation, runs on the `heavy` role |
 | `persistent` | persistent | Fresh, stateless 10-step runs per prompt |
 
-Coding runs are capped at **20 steps** as a safety limit (each tool call round-trip is a step; the `ask`/`plan-write` interrupts pause before a new step starts). The persistent session keeps its own 10-step cap per prompt.
+Coding runs are capped at **100 steps** as a safety limit (each tool call round-trip is a step; the `ask`/`plan-write` interrupts pause before a new step starts). The persistent session keeps its own 10-step cap per prompt.
 
 ## Tools
 
@@ -192,9 +227,9 @@ Tools are grouped in families:
 - **flow** — session workflow state.
   - `todo`: one todo list per session, persisted at `<folder>/<sessionId>/session-todo.json` and fully rewritten on every call. Actions: `ins` (append items), `upd` (replace by index), `del` (remove by index). Rendered in the chat as a phase tree with `[x]` / `[ ]` per item.
   - `ask` (interrupting): asks the user up to 5 structured questions. Each question renders as a tab with clickable radios (`single`) / checkboxes (`multiple`) plus an automatic custom-answer field; once all questions are answered the answers are sent back as a new prompt. Available to the ask/coder/plan agents.
-  - `plan-exit` (non-interrupting): handoff tool that switches the running loop from the Plan agent to the Coder agent mid-run so the approved plan is implemented immediately. The handoff is session-scoped: it never touches other sessions' or the global agent picker, and is cleared when you manually pick an agent again.
+  - `plan-exit` (non-interrupting): handoff tool that switches the running loop from the Plan agent to the Coder agent mid-run so the approved plan is implemented immediately. It flips the active agent exactly like a manual picker change (tab): the picker visibly shows Coder and the coder's `flash` role config applies from the next step.
   - `plan-write` (interrupting): submits the finished plan for review. The run pauses and a dialog opens with the plan rendered line by line — click a line to add a comment below it. "Not satisfied" sends the comments back as a revision prompt (the plan agent revises and resubmits until approved); "Confirm" sends an approval prompt and the agent calls `plan-exit` so the Coder implements with the comments in hand.
-- **external** — web access via headless Chrome (Puppeteer), so JavaScript-rendered pages are captured correctly; requests carry a real-Chrome identity (UA + client hints, `navigator.webdriver` scrubbed) to avoid bot-protection blocks. `websearch` queries DuckDuckGo's HTML endpoint — `query` plus `deepness` (result pages, 1–5), paginated via the `s` offset; every link found across those pages is fetched and its content attached as Markdown. `webfetch` fetches a URL and returns its contents as Markdown (HTML pages are converted with turndown; other content types pass through verbatim).
+- **external** — web access via headless Chrome (Puppeteer), so JavaScript-rendered pages are captured correctly; requests carry a real-Chrome identity (UA + client hints, `navigator.webdriver` scrubbed) to avoid bot-protection blocks. `websearch` queries DuckDuckGo's HTML endpoint — `query` plus `deepness` (result pages, 1–5), paginated via the `s` offset; every link found across those pages is fetched and its content attached as Markdown. `webfetch` fetches a URL and returns its contents as Markdown (HTML pages are converted with turndown; other content types pass through verbatim). Both stream live progress to the UI (spinner + a running status in the tool header: search pages found, results fetched so far).
 
 Every tool carries a JSON Schema rendered into the system prompt, and calls are rendered live in the chat as expandable tool cards.
 

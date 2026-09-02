@@ -2,9 +2,9 @@ import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { DirectChatTransport, ToolLoopAgent, hasToolCall, isStepCount, type InferUITools, type LanguageModel, type UIMessage } from "ai";
 import { buildToolSet, toolsInfo } from "../../tool/toolset";
 import { getAgent } from "../agent/registry";
-import { resolveModel } from "../provider-resolver";
+import { resolveModel, resolveModelRef } from "../provider-resolver";
 import { generateSystemMessage } from "../../prompts/system";
-import { options, type ProviderModelReasoningEffort } from "../../../../libs/options";
+import { options, type ProviderModelBilling, type ProviderModelReasoningEffort } from "../../../../libs/options";
 import { folderKeyFor, sessionTodoFilePath } from "../../../../libs/sessions";
 
 /** The AI SDK's `reasoning` union. The project's `ProviderModelReasoningEffort`
@@ -28,6 +28,41 @@ type LoopCallOptions = { sessionMode?: "chat" | "persistent" };
 /** The UI message type the loop's chat transport carries: data-part-free, with
  * tool names resolved from the tool set at runtime. */
 export type LoopMessage = UIMessage<unknown, never, InferUITools<any>>;
+
+/** Token usage attached to assistant-message metadata (AI SDK's usage union). */
+export type LoopUsage = {
+  inputTokens?: number;
+  outputTokens?: number;
+  cacheReadTokens?: number;
+  cacheWriteTokens?: number;
+};
+
+/** Assistant-message metadata carried through the UI stream: per-step usage
+ * updates arrive mid-run (`finish-step`); the last step's usage — the current
+ * context size — is the final value (see the `messageMetadata` note below). */
+export type LoopMessageMetadata = {
+  usage?: LoopUsage;
+  finishReason?: string;
+  /** USD cost derived from the resolved model's `billing` (no SDK cost field). */
+  cost?: number;
+};
+
+/**
+ * USD cost for a usage record, mirroring the status-bar formula: uncached
+ * input at the input rate, cached tokens at their own rates, scaled by the
+ * provider multiplier. `undefined` when the model has no billing metadata.
+ */
+export const computeCost = (usage: LoopUsage, billing?: ProviderModelBilling): number | undefined => {
+  if (!billing) return undefined;
+  const uncached = Math.max(0, (usage.inputTokens ?? 0) - (usage.cacheReadTokens ?? 0) - (usage.cacheWriteTokens ?? 0));
+  return (
+    (
+      uncached * (billing.input ?? 0)
+      + (usage.outputTokens ?? 0) * (billing.output ?? 0)
+      + (usage.cacheReadTokens ?? 0) * (billing.cacheRead ?? 0)
+      + (usage.cacheWriteTokens ?? 0) * (billing.cacheWrite ?? 0)
+    ) / 1_000_000) * (billing.multiplier ?? 1);
+};
 
 export type Loop = {
   agent: ToolLoopAgent<any, any, any, any>;
@@ -63,11 +98,14 @@ export function createLoop(getConfig: () => LoopConfig): Loop {
     sessionId: initialConfig.sessionId,
   });
 
-  // System prompts are deterministic per (agent, tool set): build once so the
-  // prompt-cache prefix stays byte-stable and we skip recomputing every turn.
+  // System prompts are deterministic per (agent, tool set, cwd): build once so
+  // the prompt-cache prefix stays byte-stable and we skip recomputing every
+  // turn. The cwd is part of the key so `/cd` rebuilds instead of serving a
+  // stale prompt.
   const systemCache: Record<string, string> = {};
   const buildSystem = (agentId: string): string => {
-    const cached = systemCache[agentId];
+    const cacheKey = `${agentId}:${options.app.cwd}`;
+    const cached = systemCache[cacheKey];
     if (cached !== undefined) return cached;
     const agent = getAgent(agentId);
     const built = generateSystemMessage({
@@ -78,7 +116,7 @@ export function createLoop(getConfig: () => LoopConfig): Loop {
       agentPrompt: agent.prompt,
       toolsInfo: toolsInfo(toolSet.getTools(agent.tools)),
     }).map((s) => `<${s.key}>${s.content}</${s.key}>`).join("\n");
-    systemCache[agentId] = built;
+    systemCache[cacheKey] = built;
     return built;
   };
 
@@ -100,7 +138,7 @@ export function createLoop(getConfig: () => LoopConfig): Loop {
         // in: `ask` (questions) and `plan-write` (plan submission) pause for the
         // user. `plan-exit` stays non-interrupting so the loop continues as the
         // Coder agent.
-        stopWhen: [isStepCount(20), hasToolCall("ask", "plan-write")],
+        stopWhen: [isStepCount(100), hasToolCall("ask", "plan-write")],
         // Explicit ephemeral cache breakpoint (Anthropic): pins the prompt prefix
         // with a 1h TTL instead of the default 5m auto-cache. Non-Anthropic
         // providers ignore this namespaced option.
@@ -132,17 +170,38 @@ export function createLoop(getConfig: () => LoopConfig): Loop {
     sendReasoning: true,
     sendSources: true,
     sendStart: true,
-    messageMetadata: (opts) =>
-      opts.part.type === "finish"
-        ? {
-            usage: {
-              inputTokens: opts.part.totalUsage.inputTokens,
-              outputTokens: opts.part.totalUsage.outputTokens,
-              cacheReadTokens: opts.part.totalUsage.inputTokenDetails?.cacheReadTokens ?? 0,
-              cacheWriteTokens: opts.part.totalUsage.inputTokenDetails?.cacheWriteTokens ?? 0,
-            },
-          }
-        : undefined,
+    // Usage metadata flows live: returning a value for any stream part makes
+    // the SDK emit a `message-metadata` chunk, so each step's `finish-step`
+    // updates tokens/cost in the status bar mid-run (not only at the end).
+    // `finish` deliberately reports no usage: the SDK's `totalUsage` sums the
+    // usage of every step, and each step re-sends the whole conversation, so
+    // summing double-counts the shared prefix. The last `finish-step` usage —
+    // which survives the merge because `finish` adds none — is the true
+    // current context size the status bar and auto-compaction key on.
+    messageMetadata: (opts) => {
+      const build = (usage: LoopUsage, extra?: Omit<LoopMessageMetadata, "usage" | "cost">): LoopMessageMetadata => {
+        // Billing comes from the live model config (no client construction).
+        let billing: ProviderModelBilling | undefined;
+        try {
+          billing = resolveModelRef(getConfig().modelKey).modelMeta.billing;
+        } catch {
+          billing = undefined; // unconfigured model — status bar shows tokens only
+        }
+        return { usage, cost: computeCost(usage, billing), ...extra };
+      };
+      if (opts.part.type === "finish-step") {
+        return build({
+          inputTokens: opts.part.usage.inputTokens,
+          outputTokens: opts.part.usage.outputTokens,
+          cacheReadTokens: opts.part.usage.inputTokenDetails?.cacheReadTokens ?? 0,
+          cacheWriteTokens: opts.part.usage.inputTokenDetails?.cacheWriteTokens ?? 0,
+        });
+      }
+      if (opts.part.type === "finish") {
+        return { finishReason: opts.part.finishReason };
+      }
+      return undefined;
+    },
   });
 
   return { agent, transport };

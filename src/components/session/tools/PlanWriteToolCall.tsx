@@ -2,13 +2,12 @@ import { useEffect, useRef } from "react";
 import { useSelector } from "@xstate/store-react";
 import { interactionStore } from "../../../stores/interaction-store";
 import { themeStore } from "../../../stores/theme-store";
-import { ToolCallShell } from "../ToolCallShell";
-import { usePlanComments } from "../use-plan-comments";
+import { ToolCallShell } from "./ToolCallShell";
+import { usePlanComments } from "../../../hooks/usePlanComments";
 import { useSession } from "../../../hooks/useSession";
 import { useSessionBindings } from "../../../providers/SessionBindings";
 import { useDialog } from "../../../hooks/useDialog";
-import { PlanReviewDialog, PlanReviewFooter } from "../PlanReviewDialog";
-import type { PromptFile } from "../../../libs/embeds";
+import { PlanReviewDialog, PlanReviewFooter } from "../../dialogs/PlanReviewDialog";
 import type { ToolStatus } from "../ToolCall";
 
 export type PlanWriteToolCallProps = {

@@ -1,7 +1,8 @@
 import { useSelector } from "@xstate/store-react";
 import { TextAttributes } from "@opentui/core";
 import { themeStore } from "../../../stores/theme-store";
-import { ToolCallShell } from "../ToolCallShell";
+import { icons } from "../../symbols/icons";
+import { ToolCallShell } from "./ToolCallShell";
 import type { ToolStatus } from "../ToolCall";
 
 export type TodoItem = {
@@ -68,7 +69,7 @@ export const TodoToolCall = ({ status, items, error, copyText }: TodoToolCallPro
               {phase}
             </text>
             {phaseItems.map((item, itemIndex) => {
-              const branch = itemIndex === phaseItems.length - 1 ? "└─" : "├─";
+              const branch = itemIndex === phaseItems.length - 1 ? icons.tree.last : icons.tree.branch;
               const check = item.done ? "[x]" : "[ ]";
               return (
                 <text

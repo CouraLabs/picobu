@@ -1,6 +1,5 @@
 import { createContext, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useChat } from "@ai-sdk/react";
-import { useSelector } from "@xstate/store-react";
 import { lastAssistantMessageIsCompleteWithToolCalls, type UIMessage } from "ai";
 import { z } from "zod";
 import { loopStore } from "../stores/loop-store";
@@ -19,27 +18,20 @@ import {
   loadSession,
   sanitizeMessages,
   sessionFilePath,
+  generateSessionId,
   SessionSaver,
 } from "../libs/sessions";
+import { compactSession, shouldCompact } from "../libs/compactor";
+import { resolveModelRef } from "../harness/agent/factory/provider-resolver";
+import { compactionStore } from "../stores/compaction-store";
+import { footerToastStore } from "../stores/footer-toast-store";
+import { messageMetadataSchema, makeStop, type RunSession } from "./session-run";
 import type { PromptFile } from "../libs/embeds";
 import { useSessionBindings } from "./SessionBindings";
-import { getAgentOverride, interactionStore } from "../stores/interaction-store";
+import { interactionStore } from "../stores/interaction-store";
 
 
-export type CodingSession = {
-  messages: UIMessage[];
-  streaming: boolean;
-  onPrompt: (text?: string, files?: PromptFile[]) => void;
-  stop: () => void;
-  elapsedSec: number;
-  ttftMs: number | null;
-  thinkingTimes: Record<string, number>;
-  tokensPerSec: number | null;
-  inputTokens: number | null;
-  outputTokens: number | null;
-  cacheReadTokens: number | null;
-  cacheWriteTokens: number | null;
-};
+export type CodingSession = RunSession;
 
 export const CodingSessionContext = createContext<CodingSession | null>(null);
 
@@ -56,49 +48,23 @@ export const CodingSessionContext = createContext<CodingSession | null>(null);
 export const CodingSessionProvider = ({ children }: { children: ReactNode }) => {
   const bindings = useSessionBindings();
   // Session id flows into the loop so session-scoped flow tools (todo) resolve
-  // to this session's folder. A flow-tool handoff (`plan-exit`) writes a
-  // per-session agent override that supersedes the global picker for this
-  // session until the user manually picks an agent again. `getConfig` runs per
-  // step, so a handoff written mid-run applies from the very next step.
-  const globalAgentId = useSelector(loopStore, (s) => s.context.agentId);
+  // to this session's folder. `getConfig` runs per step, so any config change
+  // (picker, plan-exit handoff) applies from the very next step.
   const { transport } = useMemo(
     () =>
       createLoop(() => {
         const base = loopStore.getSnapshot().context;
-        const override = getAgentOverride(bindings.sessionId);
         return {
           ...base,
           sessionId: bindings.sessionId,
-          ...(override
-            ? {
-                agentId: override.agentId,
-                modelKey: override.modelKey ?? base.modelKey,
-                thinking: override.thinking ?? base.thinking,
-              }
-            : {}),
         };
       }),
     [bindings.sessionId],
   );
 
-  // A manual agent selection supersedes any automatic plan-exit handoff.
-  useEffect(() => {
-    if (getAgentOverride(bindings.sessionId)) {
-      interactionStore.trigger.clearAgentOverride({ sessionId: bindings.sessionId });
-    }
-  }, [globalAgentId, bindings.sessionId]);
-
   const { messages, sendMessage, status, stop: chatStop, setMessages } = useChat({
     transport,
-    messageMetadataSchema: z.object({
-      usage: z.object({
-        inputTokens: z.number().optional(),
-        outputTokens: z.number().optional(),
-        cacheReadTokens: z.number().optional(),
-        cacheWriteTokens: z.number().optional(),
-      }).optional(),
-      finishReason: z.string().optional(),
-    }),
+    messageMetadataSchema,
     sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls,
   });
 
@@ -131,6 +97,8 @@ export const CodingSessionProvider = ({ children }: { children: ReactNode }) => 
     outputTokens,
     cacheReadTokens,
     cacheWriteTokens,
+    cost,
+    usage,
   } = useRunMetrics({ status, messages });
 
   useRunCompletionNotification(streaming, hasSession);
@@ -138,7 +106,7 @@ export const CodingSessionProvider = ({ children }: { children: ReactNode }) => 
   // Session title: reset per session (a /new or /sessions switch gets a clean
   // slot), then generated once from the first user prompt via the tiny role
   // model (best-effort, fire-and-forget). The outgoing session's interaction
-  // records (answers, plan reviews, handoff overrides) are pruned on switch.
+  // records (answers, plan reviews) are pruned on switch.
   const titleRequestedRef = useRef(false);
   useEffect(() => {
     titleRequestedRef.current = false;
@@ -177,14 +145,90 @@ export const CodingSessionProvider = ({ children }: { children: ReactNode }) => 
     void saverRef.current.flush();
   }, []);
 
-  // Interrupt: abort the active response (partial tokens stay; status -> ready),
-  // strip any dangling tool-call parts so the interrupted message is safe
-  // to re-send and to save, and drop the prompt entirely when it never
-  // produced a response (nothing but the user message / a bare assistant stub).
-  const stop = useCallback(() => {
-    chatStop();
-    setMessages((msgs) => sanitizeMessages(dropUnansweredPrompt(msgs)));
-  }, [chatStop, setMessages]);
+  // Interrupt: see `makeStop` in session-run.ts.
+  const stop = makeStop(chatStop, setMessages);
+
+  // ---- session compaction (auto at 80% context, manual via /compact) ----
+  // Refs mirror the live values so `runCompaction` (subscribed once / fired
+  // from effects) never captures a stale conversation mid-run.
+  const messagesRef = useRef(messages);
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+  const streamingRef = useRef(streaming);
+  useEffect(() => {
+    streamingRef.current = streaming;
+  }, [streaming]);
+  const usageRef = useRef(usage);
+  useEffect(() => {
+    usageRef.current = usage;
+  }, [usage]);
+  const compactingRef = useRef(false);
+
+  const runCompaction = useCallback(async () => {
+    // Re-entrancy and mid-run guards: compaction is best-effort; a streaming
+    // run or an in-flight compaction simply skips the request.
+    if (compactingRef.current || streamingRef.current) return;
+    const source = messagesRef.current;
+    if (!source.length) return;
+    compactingRef.current = true;
+    const usedTokens =
+      (usageRef.current?.inputTokens ?? 0) + (usageRef.current?.outputTokens ?? 0);
+    footerToastStore.trigger.show({ message: "Compacting session…" });
+    try {
+      const config = loopStore.getSnapshot().context;
+      const { messages: compacted } = await compactSession({
+        messages: source,
+        modelKey: config.modelKey,
+        thinking: config.thinking,
+      });
+      // The new session file must exist before the switch: the old session is
+      // already fully persisted (incremental saver), and the remount below
+      // loads the compacted file from disk.
+      const newId = generateSessionId();
+      const saver = new SessionSaver(sessionFilePath(folderKeyFor(options.app.cwd), newId));
+      await saver.save(compacted as unknown as LoopMessage[]);
+      await saver.flush();
+      const pct = Math.min(100, Math.round((usedTokens / Math.max(1, resolveModelRef(config.modelKey).modelMeta.context)) * 100));
+      bindings.switchSession(newId);
+      footerToastStore.trigger.show({
+        message: `Session compacted (was ~${pct}% context) — continuing in a new session`,
+      });
+    } catch (error) {
+      console.error("picobu: session compaction failed:", error);
+      footerToastStore.trigger.show({
+        message: "Compaction failed — the session was left unchanged",
+      });
+    } finally {
+      compactingRef.current = false;
+    }
+  }, [bindings]);
+
+  // Manual trigger: `/compact` bumps the store's requestId from anywhere
+  // (system commands have no session access); the provider reacts here.
+  const runCompactionRef = useRef(runCompaction);
+  useEffect(() => {
+    runCompactionRef.current = runCompaction;
+  });
+  useEffect(() => {
+    const subscription = compactionStore.subscribe(() => void runCompactionRef.current());
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // Auto trigger: after a run settles, when used context (input + output of
+  // the last step — the current conversation size, matching the status-bar
+  // metric) reaches 80% of the model's window.
+  useEffect(() => {
+    if (streaming || !usage) return;
+    let contextWindow = 0;
+    try {
+      contextWindow = resolveModelRef(loopStore.getSnapshot().context.modelKey).modelMeta.context;
+    } catch {
+      return; // unconfigured model — nothing to measure against
+    }
+    const used = (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0);
+    if (shouldCompact(used, contextWindow)) void runCompaction();
+  }, [streaming, usage, runCompaction]);
 
   const sendNow = useCallback(
     async (text: string, files: PromptFile[]) => {
@@ -258,7 +302,9 @@ export const CodingSessionProvider = ({ children }: { children: ReactNode }) => 
       void resolveCommandPrompt(
         text,
         bindings,
-        commandModeFor("coding", bindings.frontend === "web"),
+        // `streamingRef` (not the state) keeps `onPrompt` identity stable
+        // across stream chunks; idle-only commands gate on the live value.
+        commandModeFor("coding", bindings.frontend === "web", streamingRef.current),
       ).then((res) => {
         if (res.handled) {
           if (res.prompt !== undefined) submit(res.prompt, files);
@@ -284,6 +330,7 @@ export const CodingSessionProvider = ({ children }: { children: ReactNode }) => 
       outputTokens,
       cacheReadTokens,
       cacheWriteTokens,
+      cost,
     }),
     [
       messages,
@@ -298,6 +345,7 @@ export const CodingSessionProvider = ({ children }: { children: ReactNode }) => 
       outputTokens,
       cacheReadTokens,
       cacheWriteTokens,
+      cost,
     ],
   );
 

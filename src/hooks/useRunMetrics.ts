@@ -16,6 +16,10 @@ type RunMessage = {
 
 export type RunUsage = { inputTokens?: number; outputTokens?: number; cacheReadTokens?: number; cacheWriteTokens?: number };
 
+/** Rough tokens/sec numerator heuristic while streaming: ~4 characters of
+ * streamed text per output token. Replaced by real usage at step finish. */
+const CHARS_PER_TOKEN = 4;
+
 /** Stable key for a reasoning part so its timing survives renders across the run. */
 export const thinkingPartKey = (messageId: string, partIndex: number, partId?: string): string =>
   `${messageId}:${partId ?? partIndex}`;
@@ -32,6 +36,7 @@ export type RunMetrics = {
   outputTokens: number | null;
   cacheReadTokens: number | null;
   cacheWriteTokens: number | null;
+  cost: number | null;
   usage: RunUsage | undefined;
 };
 
@@ -161,20 +166,27 @@ export const useRunMetrics = ({
     });
   }, [messages]);
 
-  // usage comes from the last assistant message's message-metadata.
+  // usage (and the derived cost) come from the last assistant message's
+  // message-metadata, which now updates per step (`finish-step`), not only at
+  // the end of the run.
   const usageMsg = [...messages].reverse().find((m) => m.role === "assistant");
-  const usage = (usageMsg?.metadata as { usage?: RunUsage } | undefined)?.usage;
-  // Keep the last known usage so token counts don't flash to zero while a fresh
-  // request streams before its finish-metadata arrives.
+  const usageMeta = usageMsg?.metadata as { usage?: RunUsage; cost?: number } | undefined;
+  const usage = usageMeta?.usage;
+  const metaCost = usageMeta?.cost ?? null;
+  // Keep the last known usage/cost so token counts don't flash to zero while a
+  // fresh request streams before its finish-metadata arrives.
   const [lastUsage, setLastUsage] = useState<RunUsage | null>(null);
+  const [lastCost, setLastCost] = useState<number | null>(null);
   useEffect(() => {
     if (usage) setLastUsage(usage);
-  }, [usage]);
+    if (metaCost !== null) setLastCost(metaCost);
+  }, [usage, metaCost]);
   const keptUsage = usage ?? lastUsage;
   const inputTokens = keptUsage?.inputTokens ?? null;
   const outputTokens = keptUsage?.outputTokens ?? null;
   const cacheReadTokens = keptUsage?.cacheReadTokens ?? null;
   const cacheWriteTokens = keptUsage?.cacheWriteTokens ?? null;
+  const cost = metaCost ?? lastCost;
 
   // ---- derived (render-time, pure) ----
   const elapsedSec = sessionStartAt === null ? 0 : (now - sessionStartAt) / 1000;
@@ -186,7 +198,24 @@ export const useRunMetrics = ({
     milestones.firstTokenAt !== null && runStartAt !== null
       ? milestones.firstTokenAt - runStartAt
       : null;
-  const tokensPerSec = outputTokens && streamMs ? (1000 * outputTokens) / streamMs : null;
+  // Live throughput while streaming: estimate output tokens from the streamed
+  // text/reasoning characters of the in-flight message (real usage only exists
+  // at step boundaries); fall back to the exact usage/stream-duration once the
+  // run settles.
+  const liveStreamSec =
+    status === "streaming" && milestones.firstTokenAt !== null ? (now - milestones.firstTokenAt) / 1000 : null;
+  const streamedChars = liveStreamSec !== null
+    ? [...messages].reverse().find((m) => m.role === "assistant")?.parts.reduce(
+        (n, p) => n + (p.type === "text" || p.type === "reasoning" ? (p.text ?? "").length : 0),
+        0,
+      ) ?? 0
+    : 0;
+  const tokensPerSec =
+    liveStreamSec !== null && liveStreamSec > 0.5 && streamedChars > 0
+      ? streamedChars / CHARS_PER_TOKEN / liveStreamSec
+      : outputTokens && streamMs
+        ? (1000 * outputTokens) / streamMs
+        : null;
 
-  return { markPromptSent, hasSession, elapsedSec, ttftMs, streamMs, thinkingTimes, tokensPerSec, inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens, usage: keptUsage ?? undefined };
+  return { markPromptSent, hasSession, elapsedSec, ttftMs, streamMs, thinkingTimes, tokensPerSec, inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens, cost, usage: keptUsage ?? undefined };
 };

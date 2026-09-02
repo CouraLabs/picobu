@@ -116,10 +116,29 @@ export const useLoopKeybinds = (
         key.stopPropagation();
         loopStore.trigger.closeRolePicker();
       }
+      if (state.cwdPickerOpen) {
+        key.preventDefault();
+        key.stopPropagation();
+        loopStore.trigger.closeCwdPicker();
+      }
+      if (state.filePickerOpen) {
+        key.preventDefault();
+        key.stopPropagation();
+        loopStore.trigger.closeFilePicker();
+      }
       return;
     }
     // Pickers trap keys: the focused select handles up/down/return, esc handled above.
-    if (state.modelPickerOpen || state.effortOpen || state.sessionsOpen || state.contactsOpen || state.rolePickerOpen) return;
+    if (
+      state.modelPickerOpen ||
+      state.effortOpen ||
+      state.sessionsOpen ||
+      state.contactsOpen ||
+      state.rolePickerOpen ||
+      state.cwdPickerOpen ||
+      state.filePickerOpen
+    )
+      return;
     if (key.ctrl && key.name === "q") {
       key.preventDefault();
       key.stopPropagation();
@@ -148,6 +167,12 @@ export const useLoopKeybinds = (
       key.preventDefault();
       key.stopPropagation();
       loopStore.trigger.openModelPicker();
+      return;
+    }
+    if (key.ctrl && key.name === "t") {
+      key.preventDefault();
+      key.stopPropagation();
+      loopStore.trigger.openFilePicker();
     }
   });
 };

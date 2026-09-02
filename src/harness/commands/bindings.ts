@@ -23,6 +23,12 @@ export type SessionBindings = {
    */
   insertPromptText: (text: string) => void;
   bindInsertPrompt: (fn: (text: string) => void) => void;
+  /**
+   * Insert a file link (`@path`) at the prompt cursor without disturbing the
+   * rest of the text (used by the ctrl+t file picker).
+   */
+  insertPromptLink: (text: string) => void;
+  bindInsertLink: (fn: (text: string) => void) => void;
   fireExit: () => void;
   /**
    * Point this session at another (or a brand-new) session id. Notifies
@@ -43,6 +49,7 @@ export const createSessionBindings = ({
   let exitHandler: (() => void) | undefined;
   let acceptHandler: ((name: string) => void) | undefined;
   let insertHandler: ((text: string) => void) | undefined;
+  let insertLinkHandler: ((text: string) => void) | undefined;
   const changeHandlers = new Set<(sessionId: string) => void>();
 
   const api: SessionBindings = {
@@ -62,6 +69,12 @@ export const createSessionBindings = ({
     },
     bindInsertPrompt: (fn) => {
       insertHandler = fn;
+    },
+    insertPromptLink: (text) => {
+      insertLinkHandler?.(text);
+    },
+    bindInsertLink: (fn) => {
+      insertLinkHandler = fn;
     },
     fireExit: () => {
       exitHandler?.();

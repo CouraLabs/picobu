@@ -7,7 +7,7 @@ import { loopStore } from "../../stores/loop-store";
 import { icons } from "../symbols/icons";
 import { filterCommands, commandModeFor } from "../../harness/commands";
 import { useSessionBindings } from "../../providers/SessionBindings";
-import { HelpDialog } from "../HelpDialog";
+import { HelpDialog } from "../dialogs/HelpDialog";
 
 import { usePromptClipboard } from "../../hooks/usePromptClipboard";
 import { usePromptHistory } from "../../hooks/usePromptHistory";
@@ -20,7 +20,7 @@ export type PromptProps = {
 };
 
 export const Prompt = ({ onSubmit, kind }: PromptProps) => {
-  const { bindCommandAccept, bindInsertPrompt, frontend } = useSessionBindings();
+  const { bindCommandAccept, bindInsertPrompt, bindInsertLink, frontend } = useSessionBindings();
   const dialog = useDialog();
   const { theme } = useTheme();
   const modelPickerOpen = useSelector(loopStore, (s) => s.context.modelPickerOpen);
@@ -29,10 +29,13 @@ export const Prompt = ({ onSubmit, kind }: PromptProps) => {
   const sessionsOpen = useSelector(loopStore, (s) => s.context.sessionsOpen);
   const contactsOpen = useSelector(loopStore, (s) => s.context.contactsOpen);
   const rolePickerOpen = useSelector(loopStore, (s) => s.context.rolePickerOpen);
+  const cwdPickerOpen = useSelector(loopStore, (s) => s.context.cwdPickerOpen);
+  const filePickerOpen = useSelector(loopStore, (s) => s.context.filePickerOpen);
   const queueMode = useSelector(loopStore, (s) => s.context.queueMode);
   const steeringMode = useSelector(loopStore, (s) => s.context.steeringMode);
   const textareaRef = useRef<TextareaRenderable>(null);
-  const { embedSyntax, handleContentChange, resolveAndClear } = usePromptClipboard(textareaRef);
+  const { embedSyntax, handleContentChange, resolveAndClear, insertFileLink } =
+    usePromptClipboard(textareaRef);
   // Persistent prompt history (last 10, stored in <systemDir>/prompt-history.json).
   const { notifyEdit, commitPrompt } = usePromptHistory(textareaRef);
 
@@ -40,10 +43,11 @@ export const Prompt = ({ onSubmit, kind }: PromptProps) => {
   // (open-tui needs a tick before the textarea accepts focus). While a picker
   // is open it owns the keyboard, so the textarea never steals focus back.
   useEffect(() => {
-    if (modelPickerOpen || effortOpen || sessionsOpen || contactsOpen || rolePickerOpen) return;
+    if (modelPickerOpen || effortOpen || sessionsOpen || contactsOpen || rolePickerOpen || cwdPickerOpen || filePickerOpen)
+      return;
     const id = setTimeout(() => textareaRef.current?.focus(), 0);
     return () => clearTimeout(id);
-  }, [modelPickerOpen, effortOpen, sessionsOpen, contactsOpen, rolePickerOpen]);
+  }, [modelPickerOpen, effortOpen, sessionsOpen, contactsOpen, rolePickerOpen, cwdPickerOpen, filePickerOpen]);
 
   // Live slash-command filtering: opening `/` starts command mode, while a
   // space (args) or a deleted `/` closes it and reverts to a normal prompt.
@@ -97,9 +101,14 @@ export const Prompt = ({ onSubmit, kind }: PromptProps) => {
       loopStore.trigger.closeCommand();
       loopStore.trigger.closeContactsPicker();
     });
+    // The ctrl+t file picker links `@path` tokens at the cursor in place.
+    bindInsertLink((path) => {
+      insertFileLink(path);
+      loopStore.trigger.closeFilePicker();
+    });
     // `dialog`/bindings functions are stable context values; `kind`/`frontend`
     // select the command mode, so the bindings must re-register if they change.
-  }, [handleContentChange, notifyEdit, kind, frontend, dialog, bindCommandAccept, bindInsertPrompt]);
+  }, [handleContentChange, notifyEdit, kind, frontend, dialog, bindCommandAccept, bindInsertPrompt, bindInsertLink, insertFileLink]);
 
   const submit = () => {
     if (textareaRef.current?.plainText.trim() === "/") return; // bare slash: just the picker

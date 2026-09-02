@@ -9,20 +9,22 @@ import { getAgent } from "../harness/agent/factory/agent/registry";
 import { resolveAgentColor } from "../harness/agent/factory/agent/color";
 import { ChatMessages } from "../components/session/ChatMessages";
 import { Prompt } from "../components/session/Prompt";
-import { ModelPicker } from "../components/session/ModelPicker";
-import { CommandPicker } from "../components/session/CommandPicker";
-import { EffortPicker } from "../components/session/EffortPicker";
-import { ModelStatusBar } from "../components/session/ModelStatusBar";
+import { ModelPicker } from "../components/session/pickers/ModelPicker";
+import { CommandPicker } from "../components/session/pickers/CommandPicker";
+import { EffortPicker } from "../components/session/pickers/EffortPicker";
+import { ModelStatusBar } from "../components/session/status-bars/ModelStatusBar";
 import { ThinkingIndicator } from "../components/session/ThinkingIndicator";
-import { SessionTabs, type CodingTabId } from "../components/Tabs";
+import { SessionTabs, type CodingTabId } from "../components/layout/Tabs";
 import { useSession } from "../hooks/useSession";
 import { usePersistentSession } from "../hooks/usePersistentSession";
-import { TopStatusBar } from "../components/session/TopStatusBar";
-import { SessionsPicker } from "../components/session/SessionsPicker";
-import { ContactsPicker } from "../components/session/ContactsPicker";
-import { AuthPicker } from "../components/session/AuthPicker";
-import { AuthStatusDialog } from "../components/session/AuthStatusDialog";
-import { ModelRolesPicker } from "../components/session/ModelRolesPicker";
+import { TopStatusBar } from "../components/session/status-bars/TopStatusBar";
+import { SessionsPicker } from "../components/session/pickers/SessionsPicker";
+import { ContactsPicker } from "../components/session/pickers/ContactsPicker";
+import { AuthPicker } from "../components/session/pickers/AuthPicker";
+import { AuthStatusDialog } from "../components/dialogs/AuthStatusDialog";
+import { ModelRolesPicker } from "../components/session/pickers/ModelRolesPicker";
+import { DirectoryPicker } from "../components/session/pickers/DirectoryPicker";
+import { FilePicker } from "../components/session/pickers/FilePicker";
 import { sessionTitleStore } from "../stores/session-title-store";
 
 export type SessionPageProps = {
@@ -42,6 +44,8 @@ export const SessionPage = ({ sessionTab, onCodingTabChange }: SessionPageProps)
   const contactsOpen = useSelector(loopStore, (s) => s.context.contactsOpen);
   const authPickerOpen = useSelector(loopStore, (s) => s.context.authPickerOpen);
   const rolePickerOpen = useSelector(loopStore, (s) => s.context.rolePickerOpen);
+  const cwdPickerOpen = useSelector(loopStore, (s) => s.context.cwdPickerOpen);
+  const filePickerOpen = useSelector(loopStore, (s) => s.context.filePickerOpen);
 
   const chat = useSession();
   const persistent = usePersistentSession();
@@ -102,6 +106,8 @@ export const SessionPage = ({ sessionTab, onCodingTabChange }: SessionPageProps)
         {contactsOpen && <ContactsPicker />}
         {authPickerOpen && <AuthPicker />}
         {rolePickerOpen && <ModelRolesPicker />}
+        {cwdPickerOpen && <DirectoryPicker />}
+        {filePickerOpen && <FilePicker />}
         <AuthStatusDialog />
         <Prompt onSubmit={active.onPrompt} kind={agentCategory} />
         <ModelStatusBar
@@ -113,6 +119,7 @@ export const SessionPage = ({ sessionTab, onCodingTabChange }: SessionPageProps)
           outputTokens={active.outputTokens}
           cacheReadTokens={active.cacheReadTokens}
           cacheWriteTokens={active.cacheWriteTokens}
+          cost={active.cost}
           elapsedSec={active.elapsedSec}
           ttftMs={active.ttftMs}
           tokensPerSec={active.tokensPerSec}

@@ -4,6 +4,7 @@ import { Button } from "../components/ui/Button";
 import { useTheme } from "../hooks/useTheme";
 import { cronStore, setCronEnabled, loadCrons } from "../cron/cron-store";
 import { formatLocalTime, scheduleLabel } from "../cron/schedule";
+import { icons } from "../components/symbols/icons";
 
 /** Lists every persisted cron job with an enable/disable toggle. */
 export const CronsPage = () => {
@@ -37,7 +38,7 @@ export const CronsPage = () => {
             <box flexDirection="column" flexGrow={1}>
               <text fg={theme.text}>{job.name}</text>
               <text fg={theme.textMuted} selectable={false}>
-                {scheduleLabel(job.schedule)} · {job.action.type === "whatsapp" ? `WhatsApp → +${job.action.phone}` : job.action.type === "notification" ? "Desktop notification" : "Agent prompt"} · fired {job.runCount}×{job.lastRunAt > 0 ? ` · last ${formatLocalTime(job.lastRunAt)}` : ""}
+                {scheduleLabel(job.schedule)} · {job.action.type === "whatsapp" ? `WhatsApp ${icons.arrows.right} +${job.action.phone}` : job.action.type === "notification" ? "Desktop notification" : "Agent prompt"} · fired {job.runCount}×{job.lastRunAt > 0 ? ` · last ${formatLocalTime(job.lastRunAt)}` : ""}
               </text>
             </box>
             <Button

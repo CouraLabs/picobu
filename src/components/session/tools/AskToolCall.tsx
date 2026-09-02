@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { useSelector } from "@xstate/store-react";
 import { TextAttributes, type InputRenderable } from "@opentui/core";
+import { useTerminalDimensions } from "@opentui/react";
 import { Button } from "../../ui/Button";
+import { icons } from "../../symbols/icons";
 import { interactionStore, type AskAnswer, type AskQuestion } from "../../../stores/interaction-store";
 import { themeStore } from "../../../stores/theme-store";
-import { ToolCallShell } from "../ToolCallShell";
+import { MarqueeText } from "../../ui/MarqueeText";
+import { ToolCallShell } from "./ToolCallShell";
 import { useSession } from "../../../hooks/useSession";
 import { useSessionBindings } from "../../../providers/SessionBindings";
 import type { ToolStatus } from "../ToolCall";
@@ -21,7 +24,16 @@ export type AskToolCallProps = {
 /** The UI appends a "custom answer" option past every model-provided option. */
 const customIndex = (q: AskQuestion): number => q.options.length;
 
+/** Width of a question tab's inner title (box `paddingX` eats 2 more). */
+const TAB_TITLE_WIDTH = 14;
+
 const clip = (s: string, n: number): string => (s.length > n ? s.slice(0, n - 1) + "…" : s);
+
+/**
+ * Chrome around the question title line, in cells: app `paddingX` (4), the
+ * tool body's left border + `paddingX` (3), and one safety cell.
+ */
+const QUESTION_CHROME = 8;
 
 /** Resolve selected option indices + custom text into renderable/sendable answers. */
 const answerFor = (
@@ -129,7 +141,7 @@ export const AskToolCall = ({ questions, status, error, partKey, isPending, hasF
       )}
     >
       {interactive ? (
-        <box flexDirection="column" gap={1}>
+        <box flexDirection="column">
           <box id="ask-tabs" flexDirection="row" gap={1}>
             {questions.map((q, qi) => (
               <box
@@ -137,17 +149,16 @@ export const AskToolCall = ({ questions, status, error, partKey, isPending, hasF
                 onMouseDown={() => setActiveTab(qi)}
                 onMouseOver={() => setHover(`tab-${qi}`)}
                 onMouseOut={() => setHover(null)}
-                border={activeTab === qi ? ["bottom"] : []}
-                borderColor={activeTab === qi ? theme.accent : theme.border}
+                border={["bottom"]}
+                borderColor={activeTab === qi ? theme.accent : theme.textMuted}
                 paddingX={1}
               >
-                <text
-                  selectable={false}
+                <MarqueeText
+                  text={q.title}
+                  width={TAB_TITLE_WIDTH}
                   attributes={activeTab === qi ? TextAttributes.BOLD : TextAttributes.DIM}
                   fg={hover === `tab-${qi}` ? theme.accent : activeTab === qi ? theme.text : theme.textMuted}
-                >
-                  {clip(q.title, 14)}
-                </text>
+                />
               </box>
             ))}
             <box
@@ -155,8 +166,8 @@ export const AskToolCall = ({ questions, status, error, partKey, isPending, hasF
               onMouseDown={() => setActiveTab(questions.length)}
               onMouseOver={() => setHover("tab-answers")}
               onMouseOut={() => setHover(null)}
-              border={activeTab === questions.length ? ["bottom"] : []}
-              borderColor={activeTab === questions.length ? theme.accent : theme.border}
+              border={["bottom"]}
+              borderColor={activeTab === questions.length ? theme.accent : theme.textMuted}
               paddingX={1}
             >
               <text
@@ -268,6 +279,7 @@ type QuestionBodyProps = {
 };
 
 const QuestionBody = ({ q, chosen, custom, hover, theme, onToggle, onCustom, inputRef, setHover }: QuestionBodyProps) => {
+  const dims = useTerminalDimensions();
   const ci = customIndex(q);
   const marker = (idx: number): string => {
     const active = chosen.includes(idx);
@@ -277,9 +289,12 @@ const QuestionBody = ({ q, chosen, custom, hover, theme, onToggle, onCustom, inp
 
   return (
     <box key={`q-${q.title}`} flexDirection="column">
-      <text selectable={false} fg={theme.text} attributes={TextAttributes.BOLD}>
-        {q.title} - {q.question}
-      </text>
+      <MarqueeText
+        text={`${q.title} - ${q.question}`}
+        width={Math.max(8, dims.width - QUESTION_CHROME)}
+        fg={theme.text}
+        attributes={TextAttributes.BOLD}
+      />
       {q.options.map((opt, oi) => (
         <box
           key={`opt-${oi}`}
@@ -314,7 +329,7 @@ const QuestionBody = ({ q, chosen, custom, hover, theme, onToggle, onCustom, inp
       >
         <text selectable={false} fg={chosen.includes(ci) ? theme.accent : theme.textMuted}>
           {q.type === "single" ? (chosen.includes(ci) ? "(•)" : "( )") : chosen.includes(ci) ? "[x]" : "[ ]"}
-          {" ✎"}
+          {" " + icons.edit}
         </text>
         <text selectable={false} fg={chosen.includes(ci) ? theme.text : theme.textMuted}>
           Custom answer
@@ -323,7 +338,7 @@ const QuestionBody = ({ q, chosen, custom, hover, theme, onToggle, onCustom, inp
       {chosen.includes(ci) && (
         <box flexDirection="column" gap={0} paddingLeft={1}>
           <text selectable={false} fg={theme.textMuted} attributes={TextAttributes.DIM}>
-            {`✎ Your answer (${clip(q.question, 60)})`}
+            {`${icons.edit} Your answer (${clip(q.question, 60)})`}
           </text>
           <input
             ref={inputRef}

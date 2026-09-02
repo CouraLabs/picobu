@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { useSelector } from "@xstate/store-react";
 import { themeStore } from "../../stores/theme-store";
 import { useCopyableMessage } from "../../hooks/useCopyableMessage";
@@ -7,7 +8,9 @@ export type AssistantMessageProps = {
   isStreaming: boolean;
 };
 
-export const AssistantMessage = ({ markdown, isStreaming }: AssistantMessageProps) => {
+// Memoized: all props are primitives, so per-token parent re-renders skip the
+// settled `<markdown>` (no re-parse/re-conceal flicker across the transcript).
+export const AssistantMessage = memo(({ markdown, isStreaming }: AssistantMessageProps) => {
   const theme = useSelector(themeStore, (s) => s.context.theme);
   const syntax = useSelector(themeStore, (s) => s.context.syntax);
   const copy = useCopyableMessage(markdown);
@@ -26,13 +29,14 @@ export const AssistantMessage = ({ markdown, isStreaming }: AssistantMessageProp
       onMouseOut={copy.onMouseOut}
       onMouseDown={copy.onMouseDown}
     >
-      {isStreaming ? <text fg={theme.text}>{markdown}</text> : <markdown
+      <markdown
         flexGrow={1}
         flexShrink={1}
         syntaxStyle={syntax}
-        conceal
+        conceal={false}
         content={markdown}
-      />}
+        streaming={true}
+      />
     </box>
   );
-};
+});

@@ -26,6 +26,12 @@ export type Command = {
   path: string;
   /** Session modes / surfaces where the command is available; all when omitted. */
   flags?: CommandFlag[];
+  /**
+   * True when the command mutates the run's flow or context (`/cd`, `/compact`)
+   * and must not run while the agent is streaming. Hidden from the command
+   * picker and rejected with a toast until the run settles.
+   */
+  requiresIdle?: boolean;
   /** System-only; receives the raw params string (e.g. "high" for /effort high). */
   handler?: (args: string, bindings: SessionBindings) => void | Promise<void>;
 };

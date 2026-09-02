@@ -79,18 +79,84 @@ const ANTI_DETECTION_SCRIPT = `
 
 /** Shared headless Chrome instance: launched lazily on first render and reused
  * for every web tool call afterwards (launching Chrome per call is too slow).
- * Closed best-effort when the process exits.
+ * Closed best-effort when the process exits or is signaled.
  */
 let browser: Browser | null = null;
 
-async function getBrowser(): Promise<Browser> {
-  if (!browser || !browser.connected) {
-    browser = await puppeteer.launch({ headless: true, args: LAUNCH_ARGS });
-    process.once("exit", () => {
-      void browser?.close();
+/** In-flight launch, so parallel first calls share one Chrome instead of each
+ * racing `puppeteer.launch()` (every loser would leak a full Chrome process
+ * tree — the module-level `browser` only keeps the last winner). */
+let launching: Promise<Browser> | null = null;
+
+/** Close the shared browser (idempotent). The singleton is dropped first so a
+ * later `getBrowser()` relaunches instead of returning a corpse. */
+function closeBrowser(): void {
+  const instance = browser;
+  browser = null;
+  launching = null;
+  if (instance) void instance.close().catch(() => {});
+}
+
+async function launchBrowser(): Promise<Browser> {
+  const instance = await puppeteer.launch({ headless: true, args: LAUNCH_ARGS });
+  browser = instance;
+  // `exit` fires on process.exit() and natural exit (TUI quit path), but NOT
+  // on default-disposition signals (web server Ctrl+C, kills) — so the common
+  // termination signals get their own handler. In the TUI, OpenTUI registers
+  // its own SIGINT listener first (renderer teardown -> process.exit), so this
+  // handler only matters when nothing else handles the signal.
+  process.once("exit", closeBrowser);
+  // Conventional signal -> exit codes (128 + signal number).
+  const SIGNAL_CODES: Record<string, number> = { SIGINT: 130, SIGTERM: 143, SIGHUP: 129 };
+  for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"] as const) {
+    process.once(signal, () => {
+      closeBrowser();
+      // Re-raise the default disposition: terminate with the conventional
+      // 128+signal exit code so external supervisors see the same outcome.
+      process.exit(SIGNAL_CODES[signal]);
     });
   }
-  return browser;
+  return instance;
+}
+
+async function getBrowser(): Promise<Browser> {
+  if (browser?.connected) return browser;
+  if (!launching) {
+    launching = launchBrowser().finally(() => {
+      launching = null;
+    });
+  }
+  return launching;
+}
+
+/**
+ * Page concurrency cap: every render opens a tab in the shared Chrome, and
+ * parallel tool calls (two websearches + a few webfetches) can otherwise load
+ * a dozen heavy pages at once, starving the machine and stalling every
+ * navigation. The limiter keeps at most `PAGE_LIMIT` pages in flight; callers
+ * queue for a slot.
+ */
+const PAGE_LIMIT = 4;
+let pagesOpen = 0;
+const waiters: (() => void)[] = [];
+
+async function acquirePageSlot(): Promise<void> {
+  if (pagesOpen < PAGE_LIMIT) {
+    pagesOpen++;
+    return;
+  }
+  // Slot is handed over directly by `releasePageSlot` (the open-page count is
+  // not decremented on transfer), so the cap can never be exceeded.
+  await new Promise<void>((resolve) => waiters.push(resolve));
+}
+
+function releasePageSlot(): void {
+  const wake = waiters.shift();
+  if (wake) {
+    wake(); // transfer the slot to the queued caller; count stays the same
+    return;
+  }
+  pagesOpen--;
 }
 
 export type RenderedPage = {
@@ -116,7 +182,14 @@ export async function renderPage(
   { timeout = 30_000 }: { timeout?: number } = {},
 ): Promise<RenderedPage> {
   const instance = await getBrowser();
-  const page = await instance.newPage();
+  await acquirePageSlot();
+  let page: Awaited<ReturnType<Browser["newPage"]>>;
+  try {
+    page = await instance.newPage();
+  } catch (error) {
+    releasePageSlot();
+    throw error;
+  }
   try {
     await page.setUserAgent(USER_AGENT);
     await page.setExtraHTTPHeaders(BROWSER_HEADERS);
@@ -131,5 +204,6 @@ export async function renderPage(
     return { url: page.url(), contentType, status: response.status(), body };
   } finally {
     await page.close();
+    releasePageSlot();
   }
 }

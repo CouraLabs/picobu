@@ -51,10 +51,19 @@ export function sanitizeMessages<M extends UIMessage>(messages: M[]): M[] {
     // AI SDK tool parts are `tool-<name>` (typed tools) or `dynamic-tool`.
     const parts = m.parts.filter((part) => {
       if (part.type !== "dynamic-tool" && !part.type.startsWith("tool-")) return true;
+      // Preliminary outputs are mid-stream progress snapshots (streaming tools
+      // like websearch); the final result is appended in a later message
+      // version, so a partial one must never be kept as the tool result.
+      if (isPreliminaryToolPart(part)) return false;
       return "state" in part && KEEP_TOOL_STATES.has(part.state ?? "");
     });
     return parts.length ? [{ ...m, parts }] : [];
   });
+}
+
+/** True when a tool part carries a streaming (non-final) output snapshot. */
+function isPreliminaryToolPart(part: unknown): boolean {
+  return typeof part === "object" && part !== null && "preliminary" in part && part.preliminary === true;
 }
 
 /**
@@ -67,6 +76,7 @@ export function hasVisibleResponse(m: UIMessage): boolean {
   return m.parts.some((part) => {
     if (part.type === "text") return part.text.trim().length > 0;
     if (part.type === "dynamic-tool" || part.type.startsWith("tool-")) {
+      if (isPreliminaryToolPart(part)) return false;
       return "state" in part && KEEP_TOOL_STATES.has(part.state ?? "");
     }
     return false;

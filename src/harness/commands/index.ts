@@ -11,22 +11,29 @@ const catalog: Command[] = await loadCommandCatalog();
 export const listCommands = (): Command[] => catalog;
 
 /**
- * The session mode a command is resolved in: which tab (`kind`) and which
- * surface (`web`). Commands without the matching flag are unavailable.
+ * The session mode a command is resolved in: which tab (`kind`), which
+ * surface (`web`), and whether a run is currently streaming. Commands without
+ * the matching flags are unavailable.
  */
-export type CommandMode = { kind: "code" | "persitent"; web: boolean };
+export type CommandMode = { kind: "code" | "persitent"; web: boolean; streaming?: boolean };
 
 /** True when `command` may run in `mode` (no flags = everywhere). */
 export const commandAvailable = (c: Command, mode?: CommandMode): boolean => {
   if (!mode) return true;
+  if (mode.streaming && c.requiresIdle) return false;
   const flags = c.flags ?? ["code", "web", "persitent"];
   return flags.includes(mode.kind) && (!mode.web || flags.includes("web"));
 };
 
 /** Map an agent/session tab category onto command flags vocabulary. */
-export const commandModeFor = (tab: "coding" | "persistent", web: boolean): CommandMode => ({
+export const commandModeFor = (
+  tab: "coding" | "persistent",
+  web: boolean,
+  streaming = false,
+): CommandMode => ({
   kind: tab === "coding" ? "code" : "persitent",
   web,
+  streaming,
 });
 
 const sortKey = (c: Command): string => {
@@ -77,6 +84,12 @@ export const resolveCommandPrompt = async (
   const args = m[2] ?? "";
   const cmd = findCommand(token);
   if (!cmd) return { handled: false };
+  if (mode?.streaming && cmd.requiresIdle) {
+    footerToastStore.trigger.show({
+      message: `/${cmd.name} is not available while the agent is streaming`,
+    });
+    return { handled: true };
+  }
   if (!commandAvailable(cmd, mode)) {
     footerToastStore.trigger.show({
       message: `/${cmd.name} is not available in this session mode`,

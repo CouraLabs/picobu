@@ -1,7 +1,5 @@
 import { createContext, useCallback, useEffect, useMemo, useRef, type ReactNode } from "react";
 import { useChat } from "@ai-sdk/react";
-import type { UIMessage } from "ai";
-import { z } from "zod";
 import { loopStore } from "../stores/loop-store";
 import { createLoop } from "../harness/agent/factory/loop/create-loop";
 import { useRunMetrics } from "../hooks/useRunMetrics";
@@ -9,31 +7,14 @@ import { generateSessionTitle } from "../libs/session-title";
 import { sessionTitleStore } from "../stores/session-title-store";
 import { resolveCommandPrompt, commandModeFor } from "../harness/commands";
 import { useSessionBindings } from "./SessionBindings";
-import {
-  persistentTurnFilePath,
-  dropUnansweredPrompt,
-  sanitizeMessages,
-  SessionSaver,
-} from "../libs/sessions";
+import { messageMetadataSchema, makeStop, type RunSession } from "./session-run";
+import { persistentTurnFilePath, SessionSaver } from "../libs/sessions";
 import type { PromptFile } from "../libs/embeds";
 import { subscribeInbound, type InboundEvent } from "../integrations/whatsapp/bus";
 
-export type PersistentSession = {
-  messages: UIMessage[];
-  streaming: boolean;
-  onPrompt: (text?: string, files?: PromptFile[]) => void;
-  stop: () => void;
-  elapsedSec: number;
-  ttftMs: number | null;
-  thinkingTimes: Record<string, number>;
-  tokensPerSec: number | null;
-  inputTokens: number | null;
-  outputTokens: number | null;
-  cacheReadTokens: number | null;
-  cacheWriteTokens: number | null;
-};
+export type PersistentSession = RunSession;
 
-export const PersistentSessionContext = createContext<PersistentSession | null>(null);
+export const PersistentSessionContext = createContext<RunSession | null>(null);
 
 /**
  * Persistent-session tab: each prompt is a fresh, stateless run — the loop's
@@ -58,15 +39,7 @@ export const PersistentSessionProvider = ({ children }: { children: ReactNode })
 
   const { messages, sendMessage, status, stop: chatStop, setMessages } = useChat({
     transport,
-    messageMetadataSchema: z.object({
-      usage: z.object({
-        inputTokens: z.number().optional(),
-        outputTokens: z.number().optional(),
-        cacheReadTokens: z.number().optional(),
-        cacheWriteTokens: z.number().optional(),
-      }).optional(),
-      finishReason: z.string().optional(),
-    }),
+    messageMetadataSchema,
     sendAutomaticallyWhen: () => false,
   });
 
@@ -81,6 +54,7 @@ export const PersistentSessionProvider = ({ children }: { children: ReactNode })
     outputTokens,
     cacheReadTokens,
     cacheWriteTokens,
+    cost,
   } = useRunMetrics({ status, messages });
 
   const turnRef = useRef(0);
@@ -106,12 +80,7 @@ export const PersistentSessionProvider = ({ children }: { children: ReactNode })
     else sendMessage({ text });
   };
 
-  const stop = useCallback(() => {
-    chatStop();
-    // Same contract as the coding session: an interrupted prompt with no
-    // response yet is removed along with its bare assistant stub.
-    setMessages((msgs) => sanitizeMessages(dropUnansweredPrompt(msgs)));
-  }, [chatStop, setMessages]);
+  const stop = makeStop(chatStop, setMessages);
 
   const submitOrDefer = useCallback(
     (t: string, files: PromptFile[]) => {
@@ -133,20 +102,22 @@ export const PersistentSessionProvider = ({ children }: { children: ReactNode })
       // Slash commands resolve in the persistent mode: commands flagged
       // `code`-only (e.g. /new, /sessions) are consumed with a toast.
       if (t.startsWith("/")) {
-        void resolveCommandPrompt(t, bindings, commandModeFor("persistent", bindings.frontend === "web")).then(
-          (res) => {
-            if (res.handled) {
-              if (res.prompt !== undefined) submitOrDefer(res.prompt, files);
-              return;
-            }
-            submitOrDefer(t, files); // unknown command / "/ " prompt -> passthrough
-          },
-        );
+        void resolveCommandPrompt(
+          t,
+          bindings,
+          commandModeFor("persistent", bindings.frontend === "web", streaming),
+        ).then((res) => {
+          if (res.handled) {
+            if (res.prompt !== undefined) submitOrDefer(res.prompt, files);
+            return;
+          }
+          submitOrDefer(t, files); // unknown command / "/ " prompt -> passthrough
+        });
         return;
       }
       submitOrDefer(t, files);
     },
-    [submitOrDefer, bindings],
+    [submitOrDefer, bindings, streaming],
   );
 
   // Deferred send: a prompt submitted while streaming interrupts the run, then
@@ -202,7 +173,7 @@ export const PersistentSessionProvider = ({ children }: { children: ReactNode })
     [],
   );
 
-  const value: PersistentSession = useMemo(
+  const value: RunSession = useMemo(
     () => ({
       messages,
       streaming,
@@ -216,6 +187,7 @@ export const PersistentSessionProvider = ({ children }: { children: ReactNode })
       outputTokens,
       cacheReadTokens,
       cacheWriteTokens,
+      cost,
     }),
     [
       messages,
@@ -230,6 +202,7 @@ export const PersistentSessionProvider = ({ children }: { children: ReactNode })
       outputTokens,
       cacheReadTokens,
       cacheWriteTokens,
+      cost,
     ],
   );
 

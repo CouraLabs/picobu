@@ -9,6 +9,8 @@ export type ToolPart = {
   input?: unknown;
   output?: unknown;
   errorText?: string;
+  /** True while the tool is streaming preliminary output chunks (still executing). */
+  preliminary?: boolean;
 };
 
 /** Context the renderer passes for interrupt flow tools (ask / plan-write). */
@@ -57,7 +59,15 @@ export function toolPartToModel(part: ToolPart, ctx: ToolPartContext = {}): Tool
   const name: string =
     part.type === "dynamic-tool" ? (part.toolName ?? "") : part.type.replace(/^tool-/, "");
 
-  const status: ToolStatus = part.state === "output-error" ? "error" : "success";
+  // A part is still executing until its *final* output lands: states before
+  // the result (`input-streaming`, `input-available`) and preliminary output
+  // chunks (streamed by tools that report progress) all render as `running`.
+  const status: ToolStatus =
+    part.state === "output-error"
+      ? "error"
+      : part.state === "output-available" && part.preliminary !== true
+        ? "success"
+        : "running";
   const input = (part.input ?? {}) as Record<string, unknown>;
   const error = part.state === "output-error" ? part.errorText : undefined;
   // `output` is only meaningful once the tool has produced it.
@@ -145,9 +155,11 @@ export function toolPartToModel(part: ToolPart, ctx: ToolPartContext = {}): Tool
     }
     case "websearch": {
       // External tool: the output carries the result list rendered by the UI.
+      // While running, preliminary chunks stream a progress note plus the
+      // results found so far.
       const searchOutput =
         part.state === "output-available"
-          ? (part.output as { results?: unknown } | undefined)
+          ? (part.output as { results?: unknown; progress?: unknown } | undefined)
           : undefined;
       const rawResults = Array.isArray(searchOutput?.results) ? (searchOutput!.results as unknown[]) : [];
       const results = rawResults.map((raw) => {
@@ -166,12 +178,13 @@ export function toolPartToModel(part: ToolPart, ctx: ToolPartContext = {}): Tool
         query: String(input.query ?? ""),
         deepness: typeof input.deepness === "number" ? input.deepness : undefined,
         results,
+        progress: typeof searchOutput?.progress === "string" ? searchOutput.progress : undefined,
       };
     }
     case "webfetch": {
       const fetchOutput =
         part.state === "output-available"
-          ? (part.output as { contentType?: string; content?: string } | undefined)
+          ? (part.output as { contentType?: unknown; content?: unknown; progress?: unknown } | undefined)
           : undefined;
       return {
         name: "webfetch",
@@ -179,7 +192,8 @@ export function toolPartToModel(part: ToolPart, ctx: ToolPartContext = {}): Tool
         error,
         url: String(input.url ?? ""),
         contentType: typeof fetchOutput?.contentType === "string" ? fetchOutput.contentType : undefined,
-        output: fetchOutput?.content,
+        output: typeof fetchOutput?.content === "string" ? fetchOutput.content : undefined,
+        progress: typeof fetchOutput?.progress === "string" ? fetchOutput.progress : undefined,
       };
     }
     case "wwp-msg":

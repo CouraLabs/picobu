@@ -4,6 +4,7 @@ import { useTerminalDimensions } from "@opentui/react";
 import { useSelector } from "@xstate/store-react";
 import { ErrorCorrectionLevel } from "@opentui/qrcode";
 import { Button } from "../components/ui/Button";
+import { icons } from "../components/symbols/icons";
 import { InputField } from "../components/ui/InputField";
 import { useTheme } from "../hooks/useTheme";
 import { whatsappStore } from "../integrations/whatsapp/whatsapp-store";
@@ -70,7 +71,7 @@ export const WhatsAppPage = () => {
           borderStyle="rounded"
           borderColor={theme.border}
           titleColor={theme.textMuted}
-          title=" Scan in WhatsApp → Linked devices "
+          title={` Scan in WhatsApp ${icons.arrows.right} Linked devices `}
         >
           <qr-code
             content={qr}

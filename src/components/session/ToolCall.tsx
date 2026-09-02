@@ -12,7 +12,7 @@ import { AskToolCall, type AskToolCallProps } from "./tools/AskToolCall";
 import { PlanExitToolCall, type PlanExitToolCallProps } from "./tools/PlanExitToolCall";
 import { PlanWriteToolCall, type PlanWriteToolCallProps } from "./tools/PlanWriteToolCall";
 
-export type ToolStatus = "success" | "error";
+export type ToolStatus = "success" | "error" | "running";
 
 /** Discriminated union of every tool call the coding page can render. */
 export type ToolCallModel =

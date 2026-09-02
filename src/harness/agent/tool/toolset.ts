@@ -1,17 +1,17 @@
 import { tool, type Tool, type ToolSet } from "ai";
 import z from "zod";
-import { readTool } from "./filesystem/read/read";
-import { writeTool } from "./filesystem/write/write";
-import { editTool } from "./filesystem/edit/edit";
-import { globTool } from "./filesystem/glob/glob";
-import { grepTool } from "./filesystem/grep/grep";
-import { createBashTool } from "./filesystem/bash/bash";
-import { createTodoTool } from "./flow/todo/todo";
-import { createAskTool } from "./flow/ask/ask";
-import { createPlanExitTool } from "./flow/plan-exit/plan-exit";
-import { createPlanWriteTool } from "./flow/plan-write/plan-write";
-import { websearchTool } from "./external/websearch/websearch";
-import { webfetchTool } from "./external/webfetch/webfetch";
+import { readTool } from "./filesystem/read";
+import { writeTool } from "./filesystem/write";
+import { editTool } from "./filesystem/edit";
+import { globTool } from "./filesystem/glob";
+import { grepTool } from "./filesystem/grep";
+import { createBashTool } from "./filesystem/bash";
+import { createTodoTool } from "./flow/todo";
+import { createAskTool } from "./flow/ask";
+import { createPlanExitTool } from "./flow/plan-exit";
+import { createPlanWriteTool } from "./flow/plan-write";
+import { websearchTool } from "./external/websearch";
+import { webfetchTool } from "./external/webfetch";
 import { wwpTools } from "./integration/wwp";
 import { options } from "../../../libs/options";
 
@@ -33,8 +33,9 @@ export type ToolSetContext = {
   /** Absolute path of this session's todo file; registers the `todo` flow tool. */
   todoFilePath?: string;
   /**
-   * Session id. Registers the interactive flow tools (`ask`, `plan-exit`,
-   * `plan-write`), which key their interaction state by session.
+   * Session id. Registers the interactive flow tools (`ask`, `plan-write`),
+   * which key their interaction state by session. `plan-exit` is also gated on
+   * this context but acts on the global loop config, not per-session state.
    */
   sessionId?: string;
 };
@@ -62,7 +63,7 @@ export function buildToolSet(ctx: ToolSetContext = {}) {
     ...(ctx.sessionId
       ? [
           wrapTool(createAskTool()),
-          wrapTool(createPlanExitTool(ctx.sessionId)),
+          wrapTool(createPlanExitTool()),
           wrapTool(createPlanWriteTool()),
         ]
       : []),

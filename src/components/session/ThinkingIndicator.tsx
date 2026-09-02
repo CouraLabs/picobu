@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useTheme } from "../../hooks/useTheme";
-import { pickMotivationalPhrase } from "./motivational-phrases";
+import { pickMotivationalPhrase } from "./MotivationalPhrases";
 
 /** Spinner + a random life-motivational phrase shown while the model is
  * executing. Mounted only while a run streams, so the phrase is re-picked
@@ -10,7 +10,7 @@ export const ThinkingIndicator = () => {
   const [phrase] = useState(() => pickMotivationalPhrase());
   return (
     <box flexDirection="row" gap={1}>
-      <spinner name="dots10" color={theme.accent} />
+      <spinner name="sand" color={theme.accent} />
       <text fg={theme.textMuted}>{phrase}</text>
     </box>
   );

@@ -15,6 +15,6 @@ export const useCopyToClipboard = (): ((text: string) => void) => {
       renderer.copyToClipboardOSC52(text);
       footerToastStore.trigger.show({ message: "Copied to clipboard!" });
     },
-    [renderer],
+    [],
   );
 };

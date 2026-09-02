@@ -36,6 +36,12 @@ export type LoopState = {
   steeringMode: boolean;
   /** Model-role assignment picker (`/model-roles`). */
   rolePickerOpen: boolean;
+  /** Live working directory (`/cd`); mirrors the mutable `options.app.cwd`. */
+  cwd: string;
+  /** Directory-tree picker (`/cd` with no args): picks a new working directory. */
+  cwdPickerOpen: boolean;
+  /** File-tree picker (ctrl+t): links a file into the prompt as `@path`. */
+  filePickerOpen: boolean;
 };
 
 /**
@@ -77,6 +83,9 @@ export const loopStore = createStore({
     queueMode: false,
     steeringMode: false,
     rolePickerOpen: false,
+    cwd: options.app.cwd,
+    cwdPickerOpen: false,
+    filePickerOpen: false,
   } as LoopState,
   on: {
     nextAgent: (state, event: { category?: AgentCategory }) => {
@@ -146,6 +155,14 @@ export const loopStore = createStore({
     closeAuthPicker: (state) => ({ ...state, authPickerOpen: false }),
     openRolePicker: (state) => ({ ...state, rolePickerOpen: true }),
     closeRolePicker: (state) => ({ ...state, rolePickerOpen: false }),
+    setCwd: (state, event: { cwd: string }) => ({
+      ...state,
+      cwd: event.cwd,
+    }),
+    openCwdPicker: (state) => ({ ...state, cwdPickerOpen: true }),
+    closeCwdPicker: (state) => ({ ...state, cwdPickerOpen: false }),
+    openFilePicker: (state) => ({ ...state, filePickerOpen: true }),
+    closeFilePicker: (state) => ({ ...state, filePickerOpen: false }),
     // Queue and steering are mutually exclusive — enabling one disables the other.
     toggleQueueMode: (state) =>
       state.queueMode ? { ...state, queueMode: false } : { ...state, queueMode: true, steeringMode: false },

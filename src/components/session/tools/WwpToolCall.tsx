@@ -1,6 +1,6 @@
 import { useSelector } from "@xstate/store-react";
 import { themeStore } from "../../../stores/theme-store";
-import { ToolCallShell } from "../ToolCallShell";
+import { ToolCallShell } from "./ToolCallShell";
 import type { ToolStatus } from "../ToolCall";
 
 export type WwpToolCallProps = {

@@ -1,6 +1,7 @@
 import { useSelector } from "@xstate/store-react";
 import { themeStore } from "../../../stores/theme-store";
-import { ToolCallShell } from "../ToolCallShell";
+import { icons } from "../../symbols/icons";
+import { ToolCallShell } from "./ToolCallShell";
 import type { ToolStatus } from "../ToolCall";
 
 export type PlanExitToolCallProps = {
@@ -24,13 +25,13 @@ export const PlanExitToolCall = ({ status, error, switchedTo, message, copyText 
       collapsible={false}
       header={(hovered) => (
         <text selectable={false} fg={hovered ? theme.accent : theme.success}>
-          {switchedTo ? `→ ${switchedTo}` : ""}
+          {switchedTo ? `${icons.arrows.right} ${switchedTo}` : ""}
         </text>
       )}
     >
       {message ? (
         <text selectable={false} fg={theme.success}>
-          {`✓ ${message}`}
+          {`${icons.check} ${message}`}
         </text>
       ) : (
         <text selectable={false} fg={theme.textMuted}>

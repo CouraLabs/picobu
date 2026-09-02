@@ -121,6 +121,35 @@ describe("SessionSaver + loadSession", () => {
       expect(loaded?.[0]?.parts).toEqual(complete.parts);
     });
   });
+
+  test("sanitizes on load: preliminary tool outputs are dropped as non-final", async () => {
+    await withSessionsDir(async () => {
+      const folderKey = folderKeyFor(options.app.cwd);
+      const sessionId = generateSessionId();
+      const saver = new SessionSaver(sessionFilePath(folderKey, sessionId));
+      // A streaming tool (e.g. websearch) saved mid-run: its output is a
+      // progress snapshot, not the result.
+      const streaming: UIMessage = {
+        id: "m1",
+        role: "assistant",
+        parts: [
+          {
+            type: "tool-websearch",
+            toolCallId: "t1",
+            state: "output-available",
+            preliminary: true,
+            input: { query: "q" },
+            output: { progress: "Fetching result 1 of 2…", results: [] },
+          },
+        ],
+      };
+
+      await saver.save([streaming]);
+
+      const loaded = await loadSession(folderKey, sessionId);
+      expect(loaded).toEqual([]);
+    });
+  });
 });
 
 describe("listSessions", () => {

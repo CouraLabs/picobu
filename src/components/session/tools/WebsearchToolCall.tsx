@@ -2,7 +2,7 @@ import { useSelector } from "@xstate/store-react";
 import { TextAttributes } from "@opentui/core";
 import { themeStore } from "../../../stores/theme-store";
 import { ScrollableOutput } from "../ScrollableOutput";
-import { ToolCallShell } from "../ToolCallShell";
+import { ToolCallShell } from "./ToolCallShell";
 import type { ToolStatus } from "../ToolCall";
 
 export type WebsearchResultItem = {
@@ -17,6 +17,8 @@ export type WebsearchToolCallProps = {
   query: string;
   deepness?: number;
   results: WebsearchResultItem[];
+  /** Progress note streamed while the search is still running. */
+  progress?: string;
   error?: string;
 };
 
@@ -25,7 +27,7 @@ export type WebsearchToolCallProps = {
  * its title, URL, and snippet (fetched page content is omitted — it lives in
  * the model's context, not the UI).
  */
-export const WebsearchToolCall = ({ query, deepness, results, status, error, copyText }: WebsearchToolCallProps & { copyText: string }) => {
+export const WebsearchToolCall = ({ query, deepness, results, status, error, progress, copyText }: WebsearchToolCallProps & { copyText: string }) => {
   const theme = useSelector(themeStore, (s) => s.context.theme);
   const fetchedCount = results.filter((r) => r.content !== null).length;
 
@@ -38,10 +40,10 @@ export const WebsearchToolCall = ({ query, deepness, results, status, error, cop
       header={(hovered) => (
         <>
           <text selectable={false} fg={hovered ? theme.accent : theme.textMuted}>
-            {deepness && deepness > 1 ? `"${query}" (${deepness} pages)` : `"${query}"`}
+            {deepness && deepness > 1 ? `"${query}" (${deepness} deepness pages)` : `"${query}"`}
           </text>
           <text selectable={false} fg={theme.textMuted}>
-            {`${fetchedCount}/${results.length} pages fetched`}
+            {status === "running" && progress ? progress : `${fetchedCount}/${results.length} pages fetched`}
           </text>
         </>
       )}
