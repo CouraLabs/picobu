@@ -3,7 +3,6 @@ import { basename, extname, join } from "node:path";
 import { options } from "../../libs/options";
 import { parseMarkdown, parseMarkdownFile } from "../agent/markdown/markdown-parser";
 import type { Command } from "./types";
-import { SYSTEM_COMMANDS } from "./system";
 
 /** Skill roots, in precedence order (first-found wins). */
 const SKILL_ROOTS = [
@@ -145,7 +144,6 @@ async function scanWorkflows(root: string, taken: Set<string>, out: Command[]): 
 export const loadCommandCatalog = async (): Promise<Command[]> => {
   const cmd: Command[] = [];
   const taken = new Set<string>();
-  for (const system of SYSTEM_COMMANDS) tryRegister(taken, cmd, system);
   for (const root of SKILL_ROOTS) await scanSkills(root(), taken, cmd);
   for (const root of WORKFLOW_ROOTS) await scanWorkflows(root(), taken, cmd);
   return cmd;

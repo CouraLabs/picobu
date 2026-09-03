@@ -1,8 +1,7 @@
-import { createStore } from "@xstate/store-react";
+import { createStore } from "@xstate/store";
 import { mkdirSync } from "node:fs";
 import { options } from "../libs/options";
 import { withLock } from "../libs/lock";
-import { footerToastStore } from "../stores/footer-toast-store";
 import { isDue, type CronJob } from "./schedule";
 import { deliverCronAction } from "../integrations/whatsapp/deliver";
 
@@ -96,7 +95,7 @@ async function executeJob(job: CronJob): Promise<void> {
     await deliverCronAction(job.action);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    footerToastStore.trigger.show({ message: `Cron "${job.name}" failed: ${message}` });
+    console.error(`Cron "${job.name}" failed: ${message}`);
     return;
   }
   await markFired(job.id, Date.now());

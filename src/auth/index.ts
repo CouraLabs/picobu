@@ -3,7 +3,6 @@ import { githubCopilotOAuth } from "./github-copilot";
 import { openaiOAuth } from "./openai";
 import { createInteraction } from "./interaction";
 import { registerOAuthProvider } from "./register";
-import { authStore } from "../stores/auth-store";
 import { getCredential, initAuth, listCredentials, setCredential } from "./store";
 import type { OAuthAuth } from "./types";
 
@@ -38,18 +37,12 @@ export const cancelLogin = (): void => activeLoginAbort?.abort();
 
 /**
  * Run a provider OAuth login (browser / device-code), then register the
- * provider + models in options.json. Progress is pushed to the auth status
- * dialog; failures land in the same dialog with the error message.
+ * provider + models in options.json. Progress is logged to the console.
  */
 export const startLogin = async (id: string, opts?: string): Promise<void> => {
   const auth = oauthAuthById(id);
   if (!auth) {
-    authStore.trigger.error({
-      screen: "error",
-      providerId: id,
-      providerName: id,
-      message: `Unknown OAuth provider "${id}"`,
-    });
+    console.error(`Unknown OAuth provider "${id}"`);
     return;
   }
   activeLoginAbort?.abort();
@@ -57,26 +50,18 @@ export const startLogin = async (id: string, opts?: string): Promise<void> => {
   activeLoginAbort = controller;
   try {
     const interaction = createInteraction(auth.id, auth.name, controller.signal);
-    // `/login copilot <enterprise-domain>` supplies the domain; other flows
-    // ignore it.
+    // An optional extra argument supplies the enterprise domain (copilot);
+    // other flows ignore it.
     const options = opts?.trim() ? { enterpriseDomain: opts.trim() } : undefined;
     const credential = await auth.login(interaction, options);
     controller.signal.throwIfAborted();
     await registerOAuthProvider(auth, credential);
     controller.signal.throwIfAborted();
-    authStore.trigger.success({
-      screen: "success",
-      providerId: auth.id,
-      providerName: auth.name,
-      message: `Logged in as ${auth.name} — provider & models registered`,
-    });
+    console.log(`Logged in as ${auth.name} — provider & models registered`);
   } catch (error) {
-    authStore.trigger.error({
-      screen: "error",
-      providerId: auth.id,
-      providerName: auth.name,
-      message: error instanceof Error ? error.message : String(error),
-    });
+    console.error(
+      `Login failed for ${auth.id}: ${error instanceof Error ? error.message : String(error)}`,
+    );
   } finally {
     if (activeLoginAbort === controller) activeLoginAbort = null;
   }

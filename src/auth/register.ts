@@ -9,7 +9,6 @@ import {
 } from "../libs/options";
 import { upsertProvider } from "../harness/agent/factory/llm-providers/registry";
 import { fetchModelsDevProvider, modelsFromModelsDev } from "../harness/agent/factory/llm-providers/models-dev";
-import { settingsStore } from "../stores/settings-store";
 import { removeCredential, setCredential } from "./store";
 import { getGitHubCopilotBaseUrl } from "./github-copilot";
 import type { OAuthAuth, OAuthCredential } from "./types";
@@ -104,7 +103,6 @@ export const registerOAuthProvider = async (auth: OAuthAuth, credential: OAuthCr
   // singleton + settings store so the picker/model resolution pick it up live.
   options.providers = next.providers;
   if (next.harness) options.harness = next.harness;
-  settingsStore.trigger.hydrate({ options: next });
 };
 
 /**
@@ -169,8 +167,7 @@ export const logoutOAuthProvider = async (
     const next = await updateSettings({ providers, harness });
     options.providers = next.providers;
     if (next.harness) options.harness = next.harness;
-    settingsStore.trigger.hydrate({ options: next });
-  }
+    }
   return {
     removed: removedCredential || changed,
     nextModelKey: repointModelKey(currentModelKey, id, options.providers),

@@ -1,4 +1,4 @@
-import { createStore } from "@xstate/store-react";
+import { createStore } from "@xstate/store";
 
 export type WhatsAppStatus = "disconnected" | "connecting" | "awaiting-qr" | "connected" | "error";
 

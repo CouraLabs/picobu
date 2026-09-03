@@ -1,4 +1,9 @@
-import type { FileEmbedding } from "../stores/clipboard-store";
+/** A file pasted into the prompt, kept as a data URL for the AI SDK. */
+export type FileEmbedding = {
+  mimeType: string;
+  filename?: string;
+  dataUrl: string;
+};
 
 /** A file ready to be handed to the AI SDK's `sendMessage({ files })`. */
 export type PromptFile = {
