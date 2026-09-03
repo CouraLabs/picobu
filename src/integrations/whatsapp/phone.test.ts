@@ -5,7 +5,7 @@ import {
   normalizePhone,
   normalizedAllowList,
   phoneToJid,
-} from "./phone";
+} from "@integrations/whatsapp/phone.ts";
 
 describe("phone normalization", () => {
   test("normalizePhone strips non-digits", () => {

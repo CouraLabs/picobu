@@ -3,8 +3,8 @@ import { mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import z from "zod";
-import type { Rule } from "../../rules";
-import { createRuleTool, RuleToolArgsSchema } from "./rule";
+import type { Rule } from "@harness/agent/rules.ts";
+import { createRuleTool, RuleToolArgsSchema } from "@harness/agent/tool/flow/rule.ts";
 
 let root = "";
 

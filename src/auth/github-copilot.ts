@@ -4,8 +4,8 @@
  * enterprise prompt: the domain comes from `/login copilot <domain>`).
  */
 
-import type { OAuthAuth, OAuthCredential, AuthInteraction, AuthLoginOptions } from "./types";
-import { pollOAuthDeviceCodeFlow } from "./device-code";
+import type { OAuthAuth, OAuthCredential, AuthInteraction, AuthLoginOptions } from "@auth/types.ts";
+import { pollOAuthDeviceCodeFlow } from "@auth/device-code.ts";
 
 const decode = (s: string): string => atob(s);
 const CLIENT_ID = decode("SXYxLmI1MDdhMDhjODdlY2ZlOTg=");

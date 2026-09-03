@@ -1,7 +1,7 @@
 import { readdir, stat } from "node:fs/promises";
 import { basename, extname, join } from "node:path";
-import { options } from "../../libs/options";
-import { parseMarkdownFile } from "./markdown/markdown-parser";
+import { options } from "@libs/options.ts";
+import { parseMarkdownFile } from "@harness/agent/markdown/markdown-parser.ts";
 
 /** A discovered rule: markdown file with `name`/`description` frontmatter. */
 export type Rule = {

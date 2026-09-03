@@ -1,7 +1,7 @@
 import { rgPath } from "@vscode/ripgrep";
 import { relative, resolve } from "node:path";
 import z from "zod";
-import { agentDirsUnder } from "./agent-dirs";
+import { agentDirsUnder } from "@harness/agent/tool/filesystem/agent-dirs.ts";
 
 export const GlobToolArgsSchema = z.object({
   pattern: z.string(),

@@ -1,21 +1,21 @@
 import { tool, type Tool, type ToolSet } from "ai";
 import z from "zod";
-import { readTool } from "./filesystem/read";
-import { writeTool } from "./filesystem/write";
-import { editTool } from "./filesystem/edit";
-import { globTool } from "./filesystem/glob";
-import { grepTool } from "./filesystem/grep";
-import { createBashTool } from "./filesystem/bash";
-import { createTodoTool } from "./flow/todo";
-import { createAskTool } from "./flow/ask";
-import { createSkillTool } from "./flow/skill";
-import { createRuleTool } from "./flow/rule";
-import { createPlanExitTool } from "./flow/plan-exit";
-import { createPlanWriteTool } from "./flow/plan-write";
-import { websearchTool } from "./external/websearch";
-import { webfetchTool } from "./external/webfetch";
-import { wwpTools } from "./integration/wwp";
-import { options } from "../../../libs/options";
+import { readTool } from "@harness/agent/tool/filesystem/read.ts";
+import { writeTool } from "@harness/agent/tool/filesystem/write.ts";
+import { editTool } from "@harness/agent/tool/filesystem/edit.ts";
+import { globTool } from "@harness/agent/tool/filesystem/glob.ts";
+import { grepTool } from "@harness/agent/tool/filesystem/grep.ts";
+import { createBashTool } from "@harness/agent/tool/filesystem/bash.ts";
+import { createTodoTool } from "@harness/agent/tool/flow/todo.ts";
+import { createAskTool } from "@harness/agent/tool/flow/ask.ts";
+import { createSkillTool } from "@harness/agent/tool/flow/skill.ts";
+import { createRuleTool } from "@harness/agent/tool/flow/rule.ts";
+import { createPlanExitTool } from "@harness/agent/tool/flow/plan-exit.ts";
+import { createPlanWriteTool } from "@harness/agent/tool/flow/plan-write.ts";
+import { websearchTool } from "@harness/agent/tool/external/websearch.ts";
+import { webfetchTool } from "@harness/agent/tool/external/webfetch.ts";
+import { wwpTools } from "@harness/agent/tool/integration/wwp.ts";
+import { options } from "@libs/options.ts";
 
 /** Tool families: `filesystem` (file I/O), `flow` (session workflow state), `external` (web), and `integration` (WhatsApp ops). */
 export type ToolKind = "filesystem" | "flow" | "external" | "integration";

@@ -1,8 +1,8 @@
 import { readdir, readFile, stat } from "node:fs/promises";
 import { basename, extname, join } from "node:path";
-import { options } from "../../libs/options";
-import { parseMarkdown, parseMarkdownFile } from "../agent/markdown/markdown-parser";
-import type { Command } from "./types";
+import { options } from "@libs/options.ts";
+import { parseMarkdown, parseMarkdownFile } from "@harness/agent/markdown/markdown-parser.ts";
+import type { Command } from "@harness/commands/types.ts";
 
 /** Skill roots, in precedence order (first-found wins). */
 const SKILL_ROOTS = [

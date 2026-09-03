@@ -3,10 +3,10 @@ import { createOpenAI } from "@ai-sdk/openai";
 import { createOpenResponses } from "@ai-sdk/open-responses";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import type { LanguageModel } from "ai";
-import { options, type ProviderModelBilling, type ProviderModelCapability, type ProviderModelOptions, type ProviderOptions } from "../../../libs/options";
-import { oauthAuthById } from "../../../auth";
-import { getCredential } from "../../../auth/store";
-import { initLockDir } from "../../../libs/lock";
+import { options, type ProviderModelBilling, type ProviderModelCapability, type ProviderModelOptions, type ProviderOptions } from "@libs/options.ts";
+import { oauthAuthById } from "@auth/index.ts";
+import { getCredential } from "@auth/store.ts";
+import { initLockDir } from "@libs/lock.ts";
 
 initLockDir(options.app.systemDir);
 

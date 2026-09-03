@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { AskToolArgsSchema, createAskTool } from "./ask";
+import { AskToolArgsSchema, createAskTool } from "@harness/agent/tool/flow/ask.ts";
 
 const q = (n: number) => ({
   title: `q${n}`,

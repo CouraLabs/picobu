@@ -1,8 +1,8 @@
-import { options, updateSettings, type ProviderModelOptions, type ProviderOptions } from "../../../../libs/options";
-import type { LlmProviderDefinition } from "./types";
-import { hyper } from "./hyper";
-import { fetchModels } from "./fetch-models";
-import { fetchModelsDevProvider, modelsFromModelsDev } from "./models-dev";
+import { options, updateSettings, type ProviderModelOptions, type ProviderOptions } from "@libs/options.ts";
+import type { LlmProviderDefinition } from "@harness/agent/factory/llm-providers/types.ts";
+import { hyper } from "@harness/agent/factory/llm-providers/hyper.ts";
+import { fetchModels } from "@harness/agent/factory/llm-providers/fetch-models.ts";
+import { fetchModelsDevProvider, modelsFromModelsDev } from "@harness/agent/factory/llm-providers/models-dev.ts";
 
 /** Built-in custom providers that autoload themselves when their API key env var is set. */
 export const LLM_PROVIDERS: LlmProviderDefinition[] = [hyper];

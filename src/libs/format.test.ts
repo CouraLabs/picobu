@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { fmtDuration, fmtRunSummary } from "./format";
+import { fmtDuration, fmtRunSummary } from "@libs/format.ts";
 
 describe("format", () => {
   test("fmtDuration renders seconds, minutes and hours", () => {

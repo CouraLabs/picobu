@@ -3,12 +3,12 @@ import {
   parseFrequency,
   scheduleLabel,
   type CronJob,
-} from "../../cron/schedule";
-import { newCronId, upsertCron, removeCron, readCrons } from "../../cron/cron-store";
-import { withLock } from "../../libs/lock";
-import { options } from "../../libs/options";
-import { sendText } from "./connection";
-import { normalizePhone } from "./phone";
+} from "@cron/schedule.ts";
+import { newCronId, upsertCron, removeCron, readCrons } from "@cron/cron-store.ts";
+import { withLock } from "@libs/lock.ts";
+import { options } from "@libs/options.ts";
+import { sendText } from "@integrations/whatsapp/connection.ts";
+import { normalizePhone } from "@integrations/whatsapp/phone.ts";
 
 /** Persisted "today" task: `~/.picobu/whatsapp/today.json`, reset each day. */
 export type TodayTask = { id: string; text: string; createdAt: number };

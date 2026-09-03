@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { Provider as ModelsDevProvider } from "@opencode-ai/models";
-import type { HarnessOptions, ProviderModelOptions, ProviderOptions } from "../libs/options";
-import { fixHarnessAfterLogout, pickDefaultModel, repointModelKey, selectCopilotModels } from "./register";
+import type { HarnessOptions, ProviderModelOptions, ProviderOptions } from "@libs/options.ts";
+import { fixHarnessAfterLogout, pickDefaultModel, repointModelKey, selectCopilotModels } from "@auth/register.ts";
 
 const modelsDevFixture = (models: ModelsDevProvider["models"]): ModelsDevProvider => ({
   id: "github-copilot",

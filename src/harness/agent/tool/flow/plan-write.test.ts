@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { PlanWriteToolArgsSchema, createPlanWriteTool } from "./plan-write";
+import { PlanWriteToolArgsSchema, createPlanWriteTool } from "@harness/agent/tool/flow/plan-write.ts";
 
 describe("PlanWriteToolArgsSchema", () => {
   test("requires a non-empty plan", () => {

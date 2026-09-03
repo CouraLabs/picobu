@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { describeError, reportFromText, withSessionId, type ErrorReport } from "./error-report";
+import { describeError, reportFromText, withSessionId, type ErrorReport } from "@libs/error-report.ts";
 
 describe("error-report", () => {
   test("plain Error keeps its message with no detail", () => {

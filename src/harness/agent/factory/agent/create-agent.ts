@@ -1,5 +1,5 @@
-import { parseMarkdown, type Frontmatter } from "../../markdown/markdown-parser";
-import type { AgentCategory, AgentType } from "../../types/agent-type";
+import { parseMarkdown, type Frontmatter } from "@harness/agent/markdown/markdown-parser.ts";
+import type { AgentCategory, AgentType } from "@harness/agent/types/agent-type.ts";
 
 type AgentFrontmatter = Frontmatter & {
   name?: string;

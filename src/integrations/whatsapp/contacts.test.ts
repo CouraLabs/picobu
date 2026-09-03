@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { listWwpContacts, mergeContacts, recordWwpContacts } from "./contacts";
+import { listWwpContacts, mergeContacts, recordWwpContacts } from "@integrations/whatsapp/contacts.ts";
 
 describe("contact merge", () => {
   test("upserts new contacts, keyed by normalized phone", () => {

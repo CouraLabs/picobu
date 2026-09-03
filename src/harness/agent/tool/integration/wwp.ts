@@ -9,7 +9,7 @@ import {
   createWwpReminder,
   listWwpReminders,
   removeWwpReminder,
-} from "../../../../integrations/whatsapp/actions";
+} from "@integrations/whatsapp/actions.ts";
 
 const sent = z.object({ message: z.string() });
 const created = z.object({ id: z.string(), name: z.string() });

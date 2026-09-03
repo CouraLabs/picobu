@@ -3,7 +3,7 @@ import { mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import z from "zod";
-import { grepTool, GrepToolArgsSchema } from "./grep";
+import { grepTool, GrepToolArgsSchema } from "@harness/agent/tool/filesystem/grep.ts";
 
 /** Fixture: a git repo whose `.agents/` is hidden AND gitignored. */
 let base = "";

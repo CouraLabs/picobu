@@ -5,9 +5,9 @@
  */
 
 import { createServer, type Server } from "node:http";
-import type { OAuthAuth, OAuthCredential, AuthInteraction } from "./types";
-import { generatePKCE } from "./pkce";
-import { oauthErrorHtml, oauthSuccessHtml } from "./oauth-pages";
+import type { OAuthAuth, OAuthCredential, AuthInteraction } from "@auth/types.ts";
+import { generatePKCE } from "@auth/pkce.ts";
+import { oauthErrorHtml, oauthSuccessHtml } from "@auth/oauth-pages.ts";
 
 const decode = (s: string): string => atob(s);
 const CLIENT_ID = decode("OWQxYzI1MGEtZTYxYi00NGQ5LTg4ZWQtNTk0NGQxOTYyZjVl");

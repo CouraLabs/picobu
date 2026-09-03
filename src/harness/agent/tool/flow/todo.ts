@@ -1,7 +1,7 @@
 import { mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
 import z from "zod";
-import { withLock } from "../../../../libs/lock";
+import { withLock } from "@libs/lock.ts";
 
 export const TodoItemSchema = z.object({
   phase: z.string(),

@@ -1,6 +1,6 @@
 import { stat } from "node:fs/promises";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
-import { options } from "../../../../libs/options";
+import { options } from "@libs/options.ts";
 
 /**
  * Candidate dirs that extend the agent's behavior (skills, workflows, prompts,

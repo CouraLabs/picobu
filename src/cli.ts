@@ -1,11 +1,11 @@
 #!/usr/bin/env bun
 import { Command } from "commander";
-import { folderKeyFor, listSessions } from "./libs/sessions";
-import { options } from "./libs/options";
-import { autoloadLlmProviders } from "./harness/agent/factory/llm-providers/registry";
-import { ensureOAuthTokens } from "./auth";
-import { startCronScheduler } from "./cron/cron-store";
-import { connectToWhatsApp } from "./integrations/whatsapp/connection";
+import { folderKeyFor, listSessions } from "@harness/agent/factory/loop/session.ts";
+import { options } from "@libs/options.ts";
+import { autoloadLlmProviders } from "@harness/agent/factory/llm-providers/registry.ts";
+import { ensureOAuthTokens } from "@auth/index.ts";
+import { startCronScheduler } from "@cron/cron-store.ts";
+import { connectToWhatsApp } from "@integrations/whatsapp/connection.ts";
 
 const program = new Command();
 program

@@ -1,7 +1,7 @@
-import { loadCommandCatalog } from "./discovery";
-import type { Command } from "./types";
+import { loadCommandCatalog } from "@harness/commands/discovery.ts";
+import type { Command } from "@harness/commands/types.ts";
 
-export type { Command, CommandKind } from "./types";
+export type { Command, CommandKind } from "@harness/commands/types.ts";
 
 const catalog: Command[] = await loadCommandCatalog();
 

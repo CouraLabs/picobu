@@ -1,6 +1,6 @@
 import z from "zod";
-import { withLock } from "../../../../libs/lock";
-import { detectFiletype } from "../../../../libs/filetype";
+import { withLock } from "@libs/lock.ts";
+import { detectFiletype } from "@libs/filetype.ts";
 
 const ReadToolOutputSchema = z.object({
   filetype: z.string(),

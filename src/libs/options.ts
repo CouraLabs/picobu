@@ -1,7 +1,7 @@
 import { homedir } from "node:os";
 import { mkdirSync } from "node:fs";
-import { detectShell } from "./shell";
-import { acquireLock } from "./lock";
+import { detectShell } from "@libs/shell.ts";
+import { acquireLock } from "@libs/lock.ts";
 
 export type ProviderModelBilling = {
   multiplier?: number;

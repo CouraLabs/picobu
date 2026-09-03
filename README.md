@@ -144,11 +144,17 @@ Skills, workflows, prompts, and commands are markdown files (flat-YAML frontmatt
 src/
 ├── cli.ts               # CLI entry point (`picobu`, `sessions`) + background-service bootstrap
 ├── harness/             # Agent runtime: providers, agent factory, loop, prompts, toolset, commands
-├── libs/                # options, lock, shell, sessions, embeds, compactor, notify, text stats, filetype
+├── libs/                  # options, lock, shell, prompt-history, embeds, notify, error-report
+│                          # (session persistence/compaction/titles live in harness/.../loop/session.ts)
 ├── auth/                # OAuth login flows, credential store, provider registration
 ├── cron/                # schedule parsing + 30s sweep scheduler
-└── integrations/        # WhatsApp (Baileys) connection, inbound bus, contacts, actions
+├── integrations/        # WhatsApp (Baileys) connection, inbound bus, contacts, actions
+└── tui/                 # 44 bundled themes (resolveTheme/generateSyntax) for host frontends
 ```
+
+### Path aliases
+
+Every `src/` folder is importable as `@<folder>` via the `paths` map in `tsconfig.json`: `@harness/*`, `@libs/*`, `@auth/*`, `@cron/*`, `@integrations/*`, `@tui/*`. Imports use aliases instead of relative specifiers, keeping the `.ts` extension (e.g. `import { options } from "@libs/options.ts"`). Bun and `tsc` both resolve them, so no build step is needed.
 
 ## Tech stack
 

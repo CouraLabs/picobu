@@ -1,8 +1,8 @@
 import { rgPath } from "@vscode/ripgrep";
 import { resolve } from "node:path";
 import z from "zod";
-import { detectFiletype } from "../../../../libs/filetype";
-import { agentDirsUnder, insideAgentDir } from "./agent-dirs";
+import { detectFiletype } from "@libs/filetype.ts";
+import { agentDirsUnder, insideAgentDir } from "@harness/agent/tool/filesystem/agent-dirs.ts";
 
 const GrepToolOutputSchema = z.object({
   filetype: z.string(),

@@ -1,10 +1,10 @@
-import { createAgent } from "./create-agent";
-import type { AgentCategory, AgentType } from "../../types/agent-type";
-import { askMarkdown } from "../../prompts/ask";
-import { coderMarkdown } from "../../prompts/coder";
-import { planMarkdown } from "../../prompts/plan";
-import { persistentMarkdown } from "../../prompts/persistent";
-import type { ModelRoleId } from "../../../../libs/options";
+import { createAgent } from "@harness/agent/factory/agent/create-agent.ts";
+import type { AgentCategory, AgentType } from "@harness/agent/types/agent-type.ts";
+import { askMarkdown } from "@harness/agent/prompts/ask.ts";
+import { coderMarkdown } from "@harness/agent/prompts/coder.ts";
+import { planMarkdown } from "@harness/agent/prompts/plan.ts";
+import { persistentMarkdown } from "@harness/agent/prompts/persistent.ts";
+import type { ModelRoleId } from "@libs/options.ts";
 
 /** The registered agents, keyed by id. */
 export const AGENTS: Record<string, AgentType> = {

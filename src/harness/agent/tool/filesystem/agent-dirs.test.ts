@@ -2,8 +2,8 @@ import { describe, expect, test } from "bun:test";
 import { mkdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { agentDirsUnder, insideAgentDir } from "./agent-dirs";
-import { options } from "../../../../libs/options";
+import { agentDirsUnder, insideAgentDir } from "@harness/agent/tool/filesystem/agent-dirs.ts";
+import { options } from "@libs/options.ts";
 
 const makeTemp = async (): Promise<string> => {
   const dir = join(tmpdir(), `picobu-agent-dirs-${Date.now()}-${Math.random().toString(36).slice(2)}`);

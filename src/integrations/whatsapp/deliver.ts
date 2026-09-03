@@ -1,7 +1,7 @@
-import type { CronAction } from "../../cron/schedule";
-import { notifyCompletion } from "../../libs/notify";
-import { sendText } from "./connection";
-import { emitInbound } from "./bus";
+import type { CronAction } from "@cron/schedule.ts";
+import { notifyCompletion } from "@libs/notify.ts";
+import { sendText } from "@integrations/whatsapp/connection.ts";
+import { emitInbound } from "@integrations/whatsapp/bus.ts";
 
 /**
  * Execute a cron action: send a WhatsApp message (level 2+ also fires a

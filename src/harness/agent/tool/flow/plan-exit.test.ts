@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { createPlanExitTool } from "./plan-exit";
+import { createPlanExitTool } from "@harness/agent/tool/flow/plan-exit.ts";
 
 describe("createPlanExitTool", () => {
   test("returns the coder handoff message", () => {

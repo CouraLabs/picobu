@@ -9,8 +9,8 @@ import {
   PROMPT_HISTORY_LIMIT,
   promptHistoryPath,
   resetPromptHistoryCache,
-} from "./prompt-history";
-import { options } from "./options";
+} from "@libs/prompt-history.ts";
+import { options } from "@libs/options.ts";
 
 /**
  * Run `fn` with the system dir redirected to a fresh temp dir (and the prompt

@@ -6,12 +6,12 @@ import {
   type HarnessOptionsInput,
   type ProviderModelOptions,
   type ProviderOptions,
-} from "../libs/options";
-import { upsertProvider } from "../harness/agent/factory/llm-providers/registry";
-import { fetchModelsDevProvider, modelsFromModelsDev } from "../harness/agent/factory/llm-providers/models-dev";
-import { removeCredential, setCredential } from "./store";
-import { getGitHubCopilotBaseUrl } from "./github-copilot";
-import type { OAuthAuth, OAuthCredential } from "./types";
+} from "@libs/options.ts";
+import { upsertProvider } from "@harness/agent/factory/llm-providers/registry.ts";
+import { fetchModelsDevProvider, modelsFromModelsDev } from "@harness/agent/factory/llm-providers/models-dev.ts";
+import { removeCredential, setCredential } from "@auth/store.ts";
+import { getGitHubCopilotBaseUrl } from "@auth/github-copilot.ts";
+import type { OAuthAuth, OAuthCredential } from "@auth/types.ts";
 
 /**
  * Post-login provider registration — the exact "same as hyper" procedure used

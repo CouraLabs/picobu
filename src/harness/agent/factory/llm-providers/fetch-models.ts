@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { ProviderModelCapability, ProviderModelOptions } from "../../../../libs/options";
+import type { ProviderModelCapability, ProviderModelOptions } from "@libs/options.ts";
 
 /**
  * One entry of an OpenAI-compatible `/models` payload. Only `id` is required —

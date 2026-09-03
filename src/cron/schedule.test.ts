@@ -5,7 +5,7 @@ import {
   parseTimeOfDay,
   scheduleLabel,
   type CronJob,
-} from "./schedule";
+} from "@cron/schedule.ts";
 
 const MIN = 60_000;
 

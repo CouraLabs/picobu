@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { htmlToMarkdown } from "./html-to-markdown";
+import { htmlToMarkdown } from "@harness/agent/tool/external/html-to-markdown.ts";
 
 describe("htmlToMarkdown", () => {
   test("converts headings, emphasis, and links", () => {

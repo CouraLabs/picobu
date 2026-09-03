@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { decodeJwt, getAccountId } from "./openai";
+import { decodeJwt, getAccountId } from "@auth/openai.ts";
 
 const b64url = (value: unknown): string =>
   Buffer.from(JSON.stringify(value)).toString("base64url");

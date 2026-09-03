@@ -3,8 +3,8 @@ import { mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import z from "zod";
-import type { Command } from "../../../commands";
-import { createSkillTool, SkillToolArgsSchema } from "./skill";
+import type { Command } from "@harness/commands/index.ts";
+import { createSkillTool, SkillToolArgsSchema } from "@harness/agent/tool/flow/skill.ts";
 
 let root = "";
 

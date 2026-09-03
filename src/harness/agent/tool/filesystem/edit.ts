@@ -1,6 +1,6 @@
 import { createTwoFilesPatch } from "diff";
 import z from "zod";
-import { withLock } from "../../../../libs/lock";
+import { withLock } from "@libs/lock.ts";
 
 export const EditToolArgsSchema = z.object({
   path: z.string(),

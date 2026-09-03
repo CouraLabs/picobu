@@ -6,9 +6,9 @@
 
 import { randomBytes } from "node:crypto";
 import { createServer } from "node:http";
-import type { OAuthAuth, OAuthCredential, AuthInteraction } from "./types";
-import { generatePKCE } from "./pkce";
-import { oauthErrorHtml, oauthSuccessHtml } from "./oauth-pages";
+import type { OAuthAuth, OAuthCredential, AuthInteraction } from "@auth/types.ts";
+import { generatePKCE } from "@auth/pkce.ts";
+import { oauthErrorHtml, oauthSuccessHtml } from "@auth/oauth-pages.ts";
 
 const CLIENT_ID = "app_EMoamEEZ73f0CkXaXp7hrann";
 const AUTH_BASE_URL = "https://auth.openai.com";

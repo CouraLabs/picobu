@@ -1,6 +1,6 @@
 import z from "zod";
-import { listRules, type Rule } from "../../rules";
-import { parseMarkdownFile } from "../../markdown/markdown-parser";
+import { listRules, type Rule } from "@harness/agent/rules.ts";
+import { parseMarkdownFile } from "@harness/agent/markdown/markdown-parser.ts";
 
 export const RuleToolArgsSchema = z.object({
   name: z.string(),

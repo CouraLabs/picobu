@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { buildRulesSection, buildSkillsSection, generateSystemMessage } from "./system";
+import { buildRulesSection, buildSkillsSection, generateSystemMessage } from "@harness/agent/prompts/system.ts";
 
 const skills = [
   { name: "demo", description: "Demo skill" },

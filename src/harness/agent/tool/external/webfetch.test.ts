@@ -6,7 +6,7 @@ import {
   WebfetchToolArgsSchema,
   WebfetchToolOutputSchema,
   webfetchTool,
-} from "./webfetch";
+} from "@harness/agent/tool/external/webfetch.ts";
 
 describe("webfetch", () => {
   const server = Bun.serve({

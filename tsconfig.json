@@ -23,6 +23,16 @@
     // Some stricter flags (disabled by default)
     "noUnusedLocals": false,
     "noUnusedParameters": false,
-    "noPropertyAccessFromIndexSignature": false
+    "noPropertyAccessFromIndexSignature": false,
+
+    // Path aliases: each src folder is importable as @<folder>
+    "paths": {
+      "@auth/*": ["./src/auth/*"],
+      "@cron/*": ["./src/cron/*"],
+      "@harness/*": ["./src/harness/*"],
+      "@integrations/*": ["./src/integrations/*"],
+      "@libs/*": ["./src/libs/*"],
+      "@tui/*": ["./src/tui/*"]
+    }
   }
 }

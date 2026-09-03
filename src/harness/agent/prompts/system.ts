@@ -1,4 +1,4 @@
-import { parseMarkdown, type MarkdownParam } from "../markdown/markdown-parser";
+import { parseMarkdown, type MarkdownParam } from "@harness/agent/markdown/markdown-parser.ts";
 
 export const systemMarkdown =
 `# System Preamble

@@ -3,7 +3,7 @@ import { mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import z from "zod";
-import { globTool, GlobToolArgsSchema } from "./glob";
+import { globTool, GlobToolArgsSchema } from "@harness/agent/tool/filesystem/glob.ts";
 
 /** Fixture: a git repo whose `.agents/` is hidden AND gitignored. */
 let base = "";

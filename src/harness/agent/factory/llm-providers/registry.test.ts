@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import type { Provider as ModelsDevProvider } from "@opencode-ai/models";
-import { parseModelsResponse } from "./fetch-models";
-import { modelsFromModelsDev } from "./models-dev";
-import { upsertProvider } from "./registry";
-import type { ProviderOptions } from "../../../../libs/options";
+import { parseModelsResponse } from "@harness/agent/factory/llm-providers/fetch-models.ts";
+import { modelsFromModelsDev } from "@harness/agent/factory/llm-providers/models-dev.ts";
+import { upsertProvider } from "@harness/agent/factory/llm-providers/registry.ts";
+import type { ProviderOptions } from "@libs/options.ts";
 
 describe("parseModelsResponse", () => {
   test("maps a rich Hyper-style listing onto model metadata", () => {

@@ -5,6 +5,7 @@
   "private": true,
   "scripts": {
     "dev": "bun run --watch src/cli.ts",
+    "dev:test": "bun run src/test.ts",
     "tsc": "tsc -noEmit"
   },
   "devDependencies": {
@@ -22,6 +23,7 @@
     "@ai-sdk/openai-compatible": "^3.0.37",
     "@ai-sdk/provider": "^4.0.8",
     "@opencode-ai/models": "^0.0.61",
+    "@opentui/core": "^0.5.10",
     "@vscode/ripgrep": "^1.18.0",
     "@whiskeysockets/baileys": "^7.0.0-rc14",
     "@xstate/store": "^4.0.0",

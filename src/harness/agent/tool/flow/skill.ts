@@ -1,8 +1,8 @@
 import { readdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import z from "zod";
-import { listSkills, type Command } from "../../../commands";
-import { parseMarkdownFile } from "../../markdown/markdown-parser";
+import { listSkills, type Command } from "@harness/commands/index.ts";
+import { parseMarkdownFile } from "@harness/agent/markdown/markdown-parser.ts";
 
 export const SkillToolArgsSchema = z.object({
   name: z.string(),

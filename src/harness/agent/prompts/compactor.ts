@@ -1,9 +1,9 @@
 /**
  * Compactor prompt: instructions for the one-shot LLM call that condenses a
  * full coding session into a summary message for a fresh session. Consumed by
- * `compactSession` (`src/libs/compactor.ts`) as the `system` prompt of a
- * structured-output `generateObject` call — the transcript is passed as the
- * user prompt.
+ * `compactSession` (`src/harness/agent/factory/loop/session.ts`) as the
+ * `system` prompt of a `generateText` call with `Output.object` — the
+ * transcript is passed as the user prompt.
  */
 export const compactorPrompt =
 `# Role

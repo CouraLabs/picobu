@@ -1,6 +1,6 @@
 import z from "zod";
-import { htmlToMarkdown } from "./html-to-markdown";
-import { renderPage } from "./browser";
+import { htmlToMarkdown } from "@harness/agent/tool/external/html-to-markdown.ts";
+import { renderPage } from "@harness/agent/tool/external/browser.ts";
 
 export const WebfetchToolArgsSchema = z.object({
   url: z.string().url(),

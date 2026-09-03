@@ -1,20 +1,20 @@
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { DirectChatTransport, ToolLoopAgent, hasToolCall, isStepCount, type InferUITools, type LanguageModel, type UIMessage } from "ai";
-import { buildToolSet, toolsInfo } from "../../tool/toolset";
-import { getAgent } from "../agent/registry";
-import { resolveModel, resolveModelRef } from "../provider-resolver";
-import { buildRulesSection, buildSkillsSection, generateSystemMessage } from "../../prompts/system";
-import { loadAgentsMarkdown } from "../../prompts/agents-md";
-import { listRules } from "../../rules";
-import { listSkills } from "../../../commands";
-import { options, type ProviderModelBilling, type ProviderModelReasoningEffort } from "../../../../libs/options";
-import { folderKeyFor, sessionTodoFilePath } from "../../../../libs/sessions";
-import { describeError } from "../../../../libs/error-report";
+import { buildToolSet, toolsInfo } from "@harness/agent/tool/toolset.ts";
+import { getAgent } from "@harness/agent/factory/agent/registry.ts";
+import { resolveModel, resolveModelRef } from "@harness/agent/factory/provider-resolver.ts";
+import { buildRulesSection, buildSkillsSection, generateSystemMessage } from "@harness/agent/prompts/system.ts";
+import { loadAgentsMarkdown } from "@harness/agent/prompts/agents-md.ts";
+import { listRules } from "@harness/agent/rules.ts";
+import { listSkills } from "@harness/commands/index.ts";
+import { options, type ProviderModelBilling, type ProviderModelReasoningEffort } from "@libs/options.ts";
+import { folderKeyFor, sessionTodoFilePath } from "@harness/agent/factory/loop/session.ts";
+import { describeError } from "@libs/error-report.ts";
 
 /** The AI SDK's `reasoning` union. The project's `ProviderModelReasoningEffort`
  * adds `"max"` (used by configured providers) but omits `"minimal"` /
  * `"provider-default"`, so reasoning values are cast across that boundary. */
-type AiReasoningEffort = "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "provider-default";
+export type AiReasoningEffort = "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "provider-default";
 
 export type LoopConfig = {
   agentId: string;
@@ -161,17 +161,9 @@ export function createLoop(getConfig: () => LoopConfig): Loop {
         model: resolved.model,
         activeTools: agentDef.tools.length ? agentDef.tools : undefined,
         instructions: await buildSystem(persistent ? "persistent" : config.agentId),
-        reasoning: config.thinking as AiReasoningEffort,
-        // Interactive flow tools interrupt the run once their (stub) result is
-        // in: `ask` (questions) and `plan-write` (plan submission) pause for the
-        // user. `plan-exit` stays non-interrupting so the loop continues as the
-        // Coder agent.
-        stopWhen: [isStepCount(100), hasToolCall("ask", "plan-write")],
-        // Explicit ephemeral cache breakpoint (Anthropic): pins the prompt prefix
-        // with a 1h TTL instead of the default 5m auto-cache. Non-Anthropic
-        // providers ignore this namespaced option.
+        reasoning: config.thinking as any,
         providerOptions: {
-          anthropic: { cacheControl: { type: "ephemeral", ttl: "1h" } },
+          cacheControl: { type: "ephemeral", ttl: "1h" },
         },
         ...(agentDef.temperature !== undefined ? { temperature: agentDef.temperature } : {}),
         ...(agentDef.topP !== undefined ? { topP: agentDef.topP } : {}),
@@ -186,7 +178,7 @@ export function createLoop(getConfig: () => LoopConfig): Loop {
       return {
         ...base,
         prompt: lastUser ? [lastUser] : rest.prompt,
-        stopWhen: isStepCount(10),
+        stopWhen: [isStepCount(100), hasToolCall("ask", "plan-write")],
       };
     },
   });

@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type z from "zod";
-import { writeTool, WriteToolArgsSchema } from "./write";
+import { writeTool, WriteToolArgsSchema } from "@harness/agent/tool/filesystem/write.ts";
 
 describe("writeTool", () => {
   test("writes the file and streams the content followed by the line count", async () => {

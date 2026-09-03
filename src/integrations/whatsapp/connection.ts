@@ -5,11 +5,11 @@ import makeWASocket, {
   DisconnectReason,
   useMultiFileAuthState,
 } from "@whiskeysockets/baileys";
-import { options } from "../../libs/options";
-import { whatsappStore } from "./whatsapp-store";
-import { emitInbound } from "./bus";
-import { recordWwpContacts } from "./contacts";
-import { isPhoneAllowed, jidToPhone, phoneToJid } from "./phone";
+import { options } from "@libs/options.ts";
+import { whatsappStore } from "@integrations/whatsapp/whatsapp-store.ts";
+import { emitInbound } from "@integrations/whatsapp/bus.ts";
+import { recordWwpContacts } from "@integrations/whatsapp/contacts.ts";
+import { isPhoneAllowed, jidToPhone, phoneToJid } from "@integrations/whatsapp/phone.ts";
 
 type BaileysSocket = ReturnType<typeof makeWASocket>;
 

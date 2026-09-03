@@ -1,4 +1,4 @@
-import type { LlmProviderDefinition } from "./types";
+import type { LlmProviderDefinition } from "@harness/agent/factory/llm-providers/types.ts";
 
 /** Charm Hyper — https://hyper.charm.land (keyed by `HYPER_API_KEY`). */
 export const hyper: LlmProviderDefinition = {

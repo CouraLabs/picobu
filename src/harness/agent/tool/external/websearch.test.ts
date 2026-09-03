@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { parseSearchPage, resolveDdgHref, WebsearchToolArgsSchema } from "./websearch";
+import { parseSearchPage, resolveDdgHref, WebsearchToolArgsSchema } from "@harness/agent/tool/external/websearch.ts";
 
 const PAGE_HTML = `
 <div class="results">

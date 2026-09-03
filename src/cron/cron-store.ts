@@ -1,9 +1,9 @@
 import { createStore } from "@xstate/store";
 import { mkdirSync } from "node:fs";
-import { options } from "../libs/options";
-import { withLock } from "../libs/lock";
-import { isDue, type CronJob } from "./schedule";
-import { deliverCronAction } from "../integrations/whatsapp/deliver";
+import { options } from "@libs/options.ts";
+import { withLock } from "@libs/lock.ts";
+import { isDue, type CronJob } from "@cron/schedule.ts";
+import { deliverCronAction } from "@integrations/whatsapp/deliver.ts";
 
 const SWEEP_MS = 30_000;
 

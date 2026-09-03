@@ -1,9 +1,9 @@
 import { mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { options } from "../libs/options";
-import { acquireLock } from "../libs/lock";
-import type { OAuthCredential } from "./types";
+import { options } from "@libs/options.ts";
+import { acquireLock } from "@libs/lock.ts";
+import type { OAuthCredential } from "@auth/types.ts";
 
 /**
  * OAuth credential persistence: `<systemDir>/auth.json` keyed by provider id

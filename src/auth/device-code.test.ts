@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { CANCEL_MESSAGE, pollOAuthDeviceCodeFlow } from "./device-code";
+import { CANCEL_MESSAGE, pollOAuthDeviceCodeFlow } from "@auth/device-code.ts";
 
 describe("pollOAuthDeviceCodeFlow", () => {
   test("polls until the provider reports complete", async () => {

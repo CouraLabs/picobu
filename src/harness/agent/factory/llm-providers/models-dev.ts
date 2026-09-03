@@ -1,5 +1,5 @@
 import { Models, type Model as ModelsDevModel, type Provider as ModelsDevProvider } from "@opencode-ai/models";
-import type { ProviderModelOptions, ProviderModelReasoningEffort } from "../../../../libs/options";
+import type { ProviderModelOptions, ProviderModelReasoningEffort } from "@libs/options.ts";
 
 /**
  * Fetch a provider entry from the models.dev catalog (via `@opencode-ai/models`)

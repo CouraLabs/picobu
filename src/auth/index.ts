@@ -1,10 +1,10 @@
-import { anthropicOAuth } from "./anthropic";
-import { githubCopilotOAuth } from "./github-copilot";
-import { openaiOAuth } from "./openai";
-import { createInteraction } from "./interaction";
-import { registerOAuthProvider } from "./register";
-import { getCredential, initAuth, listCredentials, setCredential } from "./store";
-import type { OAuthAuth } from "./types";
+import { anthropicOAuth } from "@auth/anthropic.ts";
+import { githubCopilotOAuth } from "@auth/github-copilot.ts";
+import { openaiOAuth } from "@auth/openai.ts";
+import { createInteraction } from "@auth/interaction.ts";
+import { registerOAuthProvider } from "@auth/register.ts";
+import { getCredential, initAuth, listCredentials, setCredential } from "@auth/store.ts";
+import type { OAuthAuth } from "@auth/types.ts";
 
 /** Advisory margin: treat a credential as stale shortly before hard expiry. */
 const REFRESH_GRACE_MS = 5 * 60 * 1000;

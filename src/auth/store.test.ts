@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { initLockDir } from "../libs/lock";
+import { initLockDir } from "@libs/lock.ts";
 import {
   authFilePathOf,
   getCredential,
@@ -13,8 +13,8 @@ import {
   removeCredential,
   resetAuthCache,
   setCredential,
-} from "./store";
-import type { OAuthCredential } from "./types";
+} from "@auth/store.ts";
+import type { OAuthCredential } from "@auth/types.ts";
 
 const credential = (overrides: Partial<OAuthCredential> = {}): OAuthCredential => ({
   type: "oauth",

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { emitInbound, subscribeInbound, type InboundEvent } from "./bus";
+import { emitInbound, subscribeInbound, type InboundEvent } from "@integrations/whatsapp/bus.ts";
 
 const event: InboundEvent = {
   source: "whatsapp",

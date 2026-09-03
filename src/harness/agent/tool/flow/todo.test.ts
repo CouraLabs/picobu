@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { z } from "zod";
-import { createTodoTool, TodoToolArgsSchema, type TodoItem } from "./todo";
+import { createTodoTool, TodoToolArgsSchema, type TodoItem } from "@harness/agent/tool/flow/todo.ts";
 
 type TodoArgs = z.infer<typeof TodoToolArgsSchema>;
 

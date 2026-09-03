@@ -1,7 +1,7 @@
 import z from "zod";
-import { htmlToMarkdown } from "./html-to-markdown";
-import { fetchAsMarkdown } from "./webfetch";
-import { renderPage } from "./browser";
+import { htmlToMarkdown } from "@harness/agent/tool/external/html-to-markdown.ts";
+import { fetchAsMarkdown } from "@harness/agent/tool/external/webfetch.ts";
+import { renderPage } from "@harness/agent/tool/external/browser.ts";
 
 export const WebsearchToolArgsSchema = z.object({
   query: z.string().min(1),

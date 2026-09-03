@@ -2,8 +2,8 @@ import { mkdirSync, readFileSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod";
-import { options } from "./options";
-import { withLock } from "./lock";
+import { options } from "@libs/options.ts";
+import { withLock } from "@libs/lock.ts";
 
 /** Max prompts kept in the rolling history. */
 export const PROMPT_HISTORY_LIMIT = 10;

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { getGitHubCopilotBaseUrl, normalizeDomain, parseGitHubCopilotModelCatalog } from "./github-copilot";
+import { getGitHubCopilotBaseUrl, normalizeDomain, parseGitHubCopilotModelCatalog } from "@auth/github-copilot.ts";
 
 describe("getGitHubCopilotBaseUrl", () => {
   test("derives the API host from the token's proxy-ep claim", () => {

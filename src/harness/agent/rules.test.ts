@@ -2,8 +2,8 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { loadRules } from "./rules";
-import { options } from "../../libs/options";
+import { loadRules } from "@harness/agent/rules.ts";
+import { options } from "@libs/options.ts";
 
 let root = "";
 const original = {

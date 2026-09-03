@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { generatePKCE } from "./pkce";
+import { generatePKCE } from "@auth/pkce.ts";
 
 describe("generatePKCE", () => {
   test("produces a verifier + S256 challenge pair", async () => {

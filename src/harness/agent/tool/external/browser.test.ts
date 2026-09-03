@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { renderPage } from "./browser";
+import { renderPage } from "@harness/agent/tool/external/browser.ts";
 
 describe("browser identity", () => {
   // Echoes every request header back as plain text so tests can assert the
