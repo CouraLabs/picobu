@@ -8,6 +8,8 @@ import { grepTool } from "./filesystem/grep";
 import { createBashTool } from "./filesystem/bash";
 import { createTodoTool } from "./flow/todo";
 import { createAskTool } from "./flow/ask";
+import { createSkillTool } from "./flow/skill";
+import { createRuleTool } from "./flow/rule";
 import { createPlanExitTool } from "./flow/plan-exit";
 import { createPlanWriteTool } from "./flow/plan-write";
 import { websearchTool } from "./external/websearch";
@@ -60,6 +62,8 @@ export function buildToolSet(ctx: ToolSetContext = {}) {
     wrapTool(webfetchTool),
     ...wwpTools.map(wrapTool),
     ...(ctx.todoFilePath ? [wrapTool(createTodoTool(ctx.todoFilePath))] : []),
+    wrapTool(createSkillTool()),
+    wrapTool(createRuleTool()),
     ...(ctx.sessionId
       ? [
           wrapTool(createAskTool()),

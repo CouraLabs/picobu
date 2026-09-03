@@ -80,3 +80,63 @@ describe("toolPartToModel webfetch progress", () => {
     }
   });
 });
+
+describe("toolPartToModel skill", () => {
+  test("running renders from the input name only", () => {
+    const model = toolPartToModel({
+      type: "tool-skill",
+      state: "input-available",
+      input: { name: "opentui" },
+    });
+    expect(model?.status).toBe("running");
+    if (model?.name === "skill") {
+      expect(model.skill).toBe("opentui");
+      expect(model.content).toBeUndefined();
+      expect(model.files).toBeUndefined();
+    } else {
+      throw new Error("expected skill model");
+    }
+  });
+
+  test("final output carries the loaded skill", () => {
+    const model = toolPartToModel({
+      type: "tool-skill",
+      state: "output-available",
+      input: { name: "opentui" },
+      output: {
+        name: "opentui",
+        description: "Build terminal UIs with OpenTUI.",
+        skillFile: "/x/.agents/skills/opentui/SKILL.md",
+        skillDir: "/x/.agents/skills/opentui",
+        files: ["SKILL.md", "docs/core.mdx"],
+        content: "# OpenTUI Skill",
+      },
+    });
+    expect(model?.status).toBe("success");
+    if (model?.name === "skill") {
+      expect(model.skill).toBe("opentui");
+      expect(model.description).toBe("Build terminal UIs with OpenTUI.");
+      expect(model.skillDir).toBe("/x/.agents/skills/opentui");
+      expect(model.files).toEqual(["SKILL.md", "docs/core.mdx"]);
+      expect(model.content).toBe("# OpenTUI Skill");
+    } else {
+      throw new Error("expected skill model");
+    }
+  });
+
+  test("output errors surface the error text", () => {
+    const model = toolPartToModel({
+      type: "tool-skill",
+      state: "output-error",
+      input: { name: "nope" },
+      errorText: 'Unknown skill: "nope"',
+    });
+    expect(model?.status).toBe("error");
+    if (model?.name === "skill") {
+      expect(model.error).toBe('Unknown skill: "nope"');
+      expect(model.skill).toBe("nope");
+    } else {
+      throw new Error("expected skill model");
+    }
+  });
+});

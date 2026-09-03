@@ -3,6 +3,7 @@ import type { UIMessage } from "ai";
 import { z } from "zod";
 import type { PromptFile } from "../libs/embeds";
 import { dropUnansweredPrompt, sanitizeMessages } from "../libs/sessions";
+import { describeError, type ErrorReport } from "../libs/error-report";
 
 type Sanitize<M> = (msgs: M[]) => M[];
 
@@ -14,6 +15,10 @@ type Sanitize<M> = (msgs: M[]) => M[];
 export type RunSession = {
   messages: UIMessage[];
   streaming: boolean;
+  /** Normalized error from the last run — the transport's `chat.error` (e.g.
+   * model-resolution failures) or the serialized stream error (`useChat`'s
+   * `onError`) — or null when the run did not fail. */
+  error: ErrorReport | null;
   onPrompt: (text?: string, files?: PromptFile[]) => void;
   stop: () => void;
   elapsedSec: number;

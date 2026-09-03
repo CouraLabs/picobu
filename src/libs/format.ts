@@ -31,3 +31,27 @@ export const fmtCost = (n?: number): string => {
   const fixed = n.toFixed(2);
   return `$${fixed.replace(/\.00$/, "")}`;
 };
+
+/** Format elapsed seconds as a compact timer, e.g. "42s", "1m 02s", "1h 03m". */
+export const fmtDuration = (sec: number): string => {
+  const s = Math.max(0, Math.round(sec));
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ${String(s % 60).padStart(2, "0")}s`;
+  return `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, "0")}m`;
+};
+
+/** One-line run summary for notifications, e.g. "1m 02s · 12.5K out · $0.03".
+ * Null when there is nothing worth reporting (no time, tokens, or cost). */
+export const fmtRunSummary = (
+  elapsedSec: number,
+  outputTokens: number | null,
+  cost: number | null,
+): string | null => {
+  const parts: string[] = [];
+  if (elapsedSec >= 1) parts.push(fmtDuration(elapsedSec));
+  if (outputTokens !== null && outputTokens > 0) parts.push(`${fmtTokens(outputTokens)} out`);
+  const costLabel = fmtCost(cost ?? undefined);
+  if (costLabel) parts.push(costLabel);
+  return parts.length ? parts.join(" · ") : null;
+};

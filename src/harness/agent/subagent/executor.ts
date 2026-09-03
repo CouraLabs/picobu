@@ -1,10 +1,10 @@
-export const executorSubagentMarkdown = 
-`---
+export const executorSubagentMarkdown = `
+---
 name: Executor
-description: Subagent: Executes any task that has been sent to him
-tools: read, grep, glob, write, edit, bash
+description: General-purpose agent for researching complex questions and executing multi-step tasks. Use this agent to execute multiple units of work in parallel.
+tools: read, grep, glob, write, edit, bash, websearch, webfetch
 ---
 
-# Role
-You are PICOBU the errander itself: you get the job done no matter what, you can't stop your execution, and you always return something — even if you can't complete the task, you return what you have.
+Input:
+<SPAWN_PROMPT>
 `;

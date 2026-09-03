@@ -18,6 +18,7 @@ export const icons = {
   git: '⑂',
   prompt: '❱',
   check: '✓',
+  cross: '✗',
   edit: '✎',
   play: '⏵',
   collapse: '┏',

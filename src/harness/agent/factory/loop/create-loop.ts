@@ -3,9 +3,13 @@ import { DirectChatTransport, ToolLoopAgent, hasToolCall, isStepCount, type Infe
 import { buildToolSet, toolsInfo } from "../../tool/toolset";
 import { getAgent } from "../agent/registry";
 import { resolveModel, resolveModelRef } from "../provider-resolver";
-import { generateSystemMessage } from "../../prompts/system";
+import { buildRulesSection, buildSkillsSection, generateSystemMessage } from "../../prompts/system";
+import { loadAgentsMarkdown } from "../../prompts/agents-md";
+import { listRules } from "../../rules";
+import { listSkills } from "../../../commands";
 import { options, type ProviderModelBilling, type ProviderModelReasoningEffort } from "../../../../libs/options";
 import { folderKeyFor, sessionTodoFilePath } from "../../../../libs/sessions";
+import { describeError } from "../../../../libs/error-report";
 
 /** The AI SDK's `reasoning` union. The project's `ProviderModelReasoningEffort`
  * adds `"max"` (used by configured providers) but omits `"minimal"` /
@@ -85,6 +89,17 @@ const initialModel = (modelKey: string): LanguageModel => {
   }
 };
 
+/**
+ * Serialize any loop error for the UI stream. The SDK's default masks errors
+ * as "An error occurred." to avoid leaking server details over HTTP; the
+ * direct in-process transport has no such boundary, so surface the real
+ * message plus technical detail (status code, URL, response body, cause).
+ */
+const formatStreamError = (error: unknown): string => {
+  const report = describeError(error);
+  return report.detail ? `${report.message}\n${report.detail}` : report.message;
+};
+
 export function createLoop(getConfig: () => LoopConfig): Loop {
   const initialConfig = getConfig();
   const isPersistent = initialConfig.sessionMode === "persistent";
@@ -101,13 +116,23 @@ export function createLoop(getConfig: () => LoopConfig): Loop {
   // System prompts are deterministic per (agent, tool set, cwd): build once so
   // the prompt-cache prefix stays byte-stable and we skip recomputing every
   // turn. The cwd is part of the key so `/cd` rebuilds instead of serving a
-  // stale prompt.
+  // stale prompt. The agents markdown (AGENTS.md/CLAUDE.md) and the rules
+  // catalog are loaded here too — i.e. once per session, not per step.
   const systemCache: Record<string, string> = {};
-  const buildSystem = (agentId: string): string => {
+  const buildSystem = async (agentId: string): Promise<string> => {
     const cacheKey = `${agentId}:${options.app.cwd}`;
     const cached = systemCache[cacheKey];
     if (cached !== undefined) return cached;
     const agent = getAgent(agentId);
+    // Skills are only advertised to agents that can actually call the `skill`
+    // tool (empty tools list = all tools); otherwise the prompt would name a
+    // tool outside the agent's `activeTools`.
+    const skills = listSkills();
+    const hasSkillTool = agent.tools.length === 0 || agent.tools.includes("skill");
+    // Same gating for rules and the `rule` tool.
+    const rules = listRules();
+    const hasRuleTool = agent.tools.length === 0 || agent.tools.includes("rule");
+    const agentsAppendix = await loadAgentsMarkdown(options.app.cwd);
     const built = generateSystemMessage({
       appName: options.app.name,
       cwd: options.app.cwd,
@@ -115,6 +140,9 @@ export function createLoop(getConfig: () => LoopConfig): Loop {
       shell: options.app.shell,
       agentPrompt: agent.prompt,
       toolsInfo: toolsInfo(toolSet.getTools(agent.tools)),
+      ...(skills.length && hasSkillTool ? { skillsInfo: buildSkillsSection(skills) } : {}),
+      ...(rules.length && hasRuleTool ? { rulesInfo: buildRulesSection(rules) } : {}),
+      ...(agentsAppendix ? { agentsAppendix } : {}),
     }).map((s) => `<${s.key}>${s.content}</${s.key}>`).join("\n");
     systemCache[cacheKey] = built;
     return built;
@@ -123,7 +151,7 @@ export function createLoop(getConfig: () => LoopConfig): Loop {
   const agent = new ToolLoopAgent<LoopCallOptions, any, any, any>({
     model: initialModel(initialConfig.modelKey),
     tools: toolSet.getToolSet(), // full set; activeTools narrows per agent below
-    prepareCall: ({ options, ...rest }) => {
+    prepareCall: async ({ options, ...rest }) => {
       const persistent = options?.sessionMode === "persistent";
       const config = getConfig();
       const agentDef = getAgent(persistent ? "persistent" : config.agentId);
@@ -132,7 +160,7 @@ export function createLoop(getConfig: () => LoopConfig): Loop {
         ...rest,
         model: resolved.model,
         activeTools: agentDef.tools.length ? agentDef.tools : undefined,
-        instructions: buildSystem(persistent ? "persistent" : config.agentId),
+        instructions: await buildSystem(persistent ? "persistent" : config.agentId),
         reasoning: config.thinking as AiReasoningEffort,
         // Interactive flow tools interrupt the run once their (stub) result is
         // in: `ask` (questions) and `plan-write` (plan submission) pause for the
@@ -170,6 +198,9 @@ export function createLoop(getConfig: () => LoopConfig): Loop {
     sendReasoning: true,
     sendSources: true,
     sendStart: true,
+    // Real error details in the stream's `errorText` (reaches the UI through
+    // `useChat`'s `onError`) instead of the SDK's default "An error occurred.".
+    onError: formatStreamError,
     // Usage metadata flows live: returning a value for any stream part makes
     // the SDK emit a `message-metadata` chunk, so each step's `finish-step`
     // updates tokens/cost in the status bar mid-run (not only at the end).

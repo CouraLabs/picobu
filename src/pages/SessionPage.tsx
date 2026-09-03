@@ -14,6 +14,7 @@ import { CommandPicker } from "../components/session/pickers/CommandPicker";
 import { EffortPicker } from "../components/session/pickers/EffortPicker";
 import { ModelStatusBar } from "../components/session/status-bars/ModelStatusBar";
 import { ThinkingIndicator } from "../components/session/ThinkingIndicator";
+import { ErrorMessage } from "../components/session/ErrorMessage";
 import { SessionTabs, type CodingTabId } from "../components/layout/Tabs";
 import { useSession } from "../hooks/useSession";
 import { usePersistentSession } from "../hooks/usePersistentSession";
@@ -99,6 +100,7 @@ export const SessionPage = ({ sessionTab, onCodingTabChange }: SessionPageProps)
       </scrollbox>
       <box flexDirection="column" marginTop={1}>
         {active.streaming && <ThinkingIndicator />}
+        {!active.streaming && active.error && <ErrorMessage report={active.error} />}
         {modelPickerOpen && <ModelPicker />}
         {commandOpen && <CommandPicker kind={agentCategory} />}
         {effortOpen && <EffortPicker />}

@@ -7,6 +7,7 @@ import { createLoop, type LoopMessage } from "../harness/agent/factory/loop/crea
 import { useRunMetrics } from "../hooks/useRunMetrics";
 import { resolveCommandPrompt } from "../harness/commands";
 import { useRunCompletionNotification } from "../hooks/useRunCompletionNotification";
+import { fmtRunSummary } from "../libs/format";
 import { generateSessionTitle } from "../libs/session-title";
 import { sessionTitleStore } from "../stores/session-title-store";
 import { options } from "../libs/options";
@@ -26,6 +27,7 @@ import { resolveModelRef } from "../harness/agent/factory/provider-resolver";
 import { compactionStore } from "../stores/compaction-store";
 import { footerToastStore } from "../stores/footer-toast-store";
 import { messageMetadataSchema, makeStop, type RunSession } from "./session-run";
+import { describeError, reportFromText, withSessionId, type ErrorReport } from "../libs/error-report";
 import type { PromptFile } from "../libs/embeds";
 import { useSessionBindings } from "./SessionBindings";
 import { interactionStore } from "../stores/interaction-store";
@@ -62,11 +64,29 @@ export const CodingSessionProvider = ({ children }: { children: ReactNode }) => 
     [bindings.sessionId],
   );
 
-  const { messages, sendMessage, status, stop: chatStop, setMessages } = useChat({
+  // Stream-level errors never reach `chat.error` — they arrive as masked
+  // `errorText` chunks that only fire `onError` — so they are captured here.
+  // Aborts surface the same way; they clear the error instead of setting one.
+  const [streamError, setStreamError] = useState<string | null>(null);
+  const { messages, sendMessage, status, error, stop: chatStop, setMessages } = useChat({
     transport,
     messageMetadataSchema,
     sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls,
+    onError: (err) => setStreamError(/abort/i.test(err.message) ? null : err.message),
   });
+
+  // A new run resets the stream-level error (the SDK clears `chat.error` itself).
+  useEffect(() => {
+    if (status === "submitted") setStreamError(null);
+  }, [status]);
+
+  // Structured error from the transport (`chat.error`, e.g. a model-resolution
+  // failure) wins; the serialized stream error is the fallback. Both are
+  // tagged with the session id so the failing tab is identifiable.
+  const runError: ErrorReport | null = useMemo(() => {
+    const report = error ? describeError(error) : streamError ? reportFromText(streamError) : null;
+    return report ? withSessionId(report, bindings.sessionId) : null;
+  }, [error, streamError, bindings.sessionId]);
 
   // Load the persisted conversation once per session id (resume path). useChat
   // builds its Chat once, so a late-arriving `messages` option would never
@@ -101,7 +121,16 @@ export const CodingSessionProvider = ({ children }: { children: ReactNode }) => 
     usage,
   } = useRunMetrics({ status, messages });
 
-  useRunCompletionNotification(streaming, hasSession);
+  // Interrupt tracking: set when the user stops the run (or steering takes
+  // over); `useRunCompletionNotification` consumes the flag so manual stops
+  // don't fire a completion notification.
+  const interruptedRef = useRef(false);
+
+  useRunCompletionNotification(streaming, hasSession, {
+    error: runError,
+    summary: fmtRunSummary(elapsedSec, outputTokens, cost),
+    interruptedRef,
+  });
 
   // Session title: reset per session (a /new or /sessions switch gets a clean
   // slot), then generated once from the first user prompt via the tiny role
@@ -146,7 +175,10 @@ export const CodingSessionProvider = ({ children }: { children: ReactNode }) => 
   }, []);
 
   // Interrupt: see `makeStop` in session-run.ts.
-  const stop = makeStop(chatStop, setMessages);
+  const stop = useCallback(() => {
+    interruptedRef.current = true;
+    makeStop(chatStop, setMessages)();
+  }, [chatStop, setMessages]);
 
   // ---- session compaction (auto at 80% context, manual via /compact) ----
   // Refs mirror the live values so `runCompaction` (subscribed once / fired
@@ -320,6 +352,7 @@ export const CodingSessionProvider = ({ children }: { children: ReactNode }) => 
     () => ({
       messages,
       streaming,
+      error: runError,
       onPrompt,
       stop,
       elapsedSec,
@@ -335,6 +368,7 @@ export const CodingSessionProvider = ({ children }: { children: ReactNode }) => 
     [
       messages,
       streaming,
+      runError,
       onPrompt,
       stop,
       elapsedSec,

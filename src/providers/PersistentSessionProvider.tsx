@@ -1,4 +1,4 @@
-import { createContext, useCallback, useEffect, useMemo, useRef, type ReactNode } from "react";
+import { createContext, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useChat } from "@ai-sdk/react";
 import { loopStore } from "../stores/loop-store";
 import { createLoop } from "../harness/agent/factory/loop/create-loop";
@@ -8,6 +8,7 @@ import { sessionTitleStore } from "../stores/session-title-store";
 import { resolveCommandPrompt, commandModeFor } from "../harness/commands";
 import { useSessionBindings } from "./SessionBindings";
 import { messageMetadataSchema, makeStop, type RunSession } from "./session-run";
+import { describeError, reportFromText, withSessionId, type ErrorReport } from "../libs/error-report";
 import { persistentTurnFilePath, SessionSaver } from "../libs/sessions";
 import type { PromptFile } from "../libs/embeds";
 import { subscribeInbound, type InboundEvent } from "../integrations/whatsapp/bus";
@@ -37,11 +38,29 @@ export const PersistentSessionProvider = ({ children }: { children: ReactNode })
     [],
   );
 
-  const { messages, sendMessage, status, stop: chatStop, setMessages } = useChat({
+  // Stream-level errors never reach `chat.error` — they arrive as masked
+  // `errorText` chunks that only fire `onError` — so they are captured here.
+  // Aborts surface the same way; they clear the error instead of setting one.
+  const [streamError, setStreamError] = useState<string | null>(null);
+  const { messages, sendMessage, status, error, stop: chatStop, setMessages } = useChat({
     transport,
     messageMetadataSchema,
     sendAutomaticallyWhen: () => false,
+    onError: (err) => setStreamError(/abort/i.test(err.message) ? null : err.message),
   });
+
+  // A new run resets the stream-level error (the SDK clears `chat.error` itself).
+  useEffect(() => {
+    if (status === "submitted") setStreamError(null);
+  }, [status]);
+
+  // Structured error from the transport (`chat.error`, e.g. a model-resolution
+  // failure) wins; the serialized stream error is the fallback. Both are
+  // tagged with the session id so the failing tab is identifiable.
+  const runError: ErrorReport | null = useMemo(() => {
+    const report = error ? describeError(error) : streamError ? reportFromText(streamError) : null;
+    return report ? withSessionId(report, bindings.sessionId) : null;
+  }, [error, streamError, bindings.sessionId]);
 
   const streaming = status === "submitted" || status === "streaming";
 
@@ -177,6 +196,7 @@ export const PersistentSessionProvider = ({ children }: { children: ReactNode })
     () => ({
       messages,
       streaming,
+      error: runError,
       onPrompt,
       stop,
       elapsedSec,
@@ -192,6 +212,7 @@ export const PersistentSessionProvider = ({ children }: { children: ReactNode })
     [
       messages,
       streaming,
+      runError,
       onPrompt,
       stop,
       elapsedSec,

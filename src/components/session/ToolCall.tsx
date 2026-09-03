@@ -11,6 +11,7 @@ import { WwpToolCall, type WwpToolCallProps } from "./tools/WwpToolCall";
 import { AskToolCall, type AskToolCallProps } from "./tools/AskToolCall";
 import { PlanExitToolCall, type PlanExitToolCallProps } from "./tools/PlanExitToolCall";
 import { PlanWriteToolCall, type PlanWriteToolCallProps } from "./tools/PlanWriteToolCall";
+import { SkillToolCall, type SkillToolCallProps } from "./tools/SkillToolCall";
 
 export type ToolStatus = "success" | "error" | "running";
 
@@ -28,7 +29,8 @@ export type ToolCallModel =
   | ({ name: "wwp"; tool: string; summary: string; status: ToolStatus; error?: string; output?: string })
   | ({ name: "ask" } & AskToolCallProps)
   | ({ name: "plan-exit" } & PlanExitToolCallProps)
-  | ({ name: "plan-write" } & PlanWriteToolCallProps);
+  | ({ name: "plan-write" } & PlanWriteToolCallProps)
+  | ({ name: "skill" } & SkillToolCallProps);
 
 /** Compile-time exhaustiveness guard for `ToolCallModel` (asserted `never`). */
 const assertNever = (value: never): never => {
@@ -70,6 +72,8 @@ export const ToolCall = ({ model, copyText }: ToolCallProps) => {
       return <PlanExitToolCall {...model} copyText={copyText} />;
     case "plan-write":
       return <PlanWriteToolCall {...model} copyText={copyText} />;
+    case "skill":
+      return <SkillToolCall {...model} copyText={copyText} />;
     default: {
       // Exhaustiveness guard: the `ToolCallModel` union is closed over exactly
       // the cases above; `toolPartToModel` returns `null` for anything else, so

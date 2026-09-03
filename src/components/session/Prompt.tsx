@@ -5,7 +5,7 @@ import { useTheme } from "../../hooks/useTheme";
 import { useDialog } from "../../hooks/useDialog";
 import { loopStore } from "../../stores/loop-store";
 import { icons } from "../symbols/icons";
-import { filterCommands, commandModeFor } from "../../harness/commands";
+import { filterCommands, commandModeFor, lastCommandWord } from "../../harness/commands";
 import { useSessionBindings } from "../../providers/SessionBindings";
 import { HelpDialog } from "../dialogs/HelpDialog";
 
@@ -51,8 +51,10 @@ export const Prompt = ({ onSubmit, kind }: PromptProps) => {
 
   // Live slash-command filtering: opening `/` starts command mode, while a
   // space (args) or a deleted `/` closes it and reverts to a normal prompt.
-  // Tab-accept writes the chosen name back into the textarea. Commands are
-  // filtered by the session mode (code/persistent + web) availability flags.
+  // Once a command is accepted, typing another `/` starts a new command word
+  // and re-opens the picker (multi-command prompts). Tab-accept replaces only
+  // the word being typed, keeping any earlier text/commands intact. Commands
+  // are filtered by the session mode (code/persistent + web) availability flags.
   useEffect(() => {
     const ta = textareaRef.current;
     if (!ta) return;
@@ -71,10 +73,14 @@ export const Prompt = ({ onSubmit, kind }: PromptProps) => {
         dialog.open();
         return;
       }
-      const inCommand = t.startsWith("/") && !t.slice(1).includes(" ");
+      // The word being typed (whitespace-delimited tail) is the command word
+      // while it starts with `/`; a trailing space closes the picker.
+      const word = lastCommandWord(t);
+      const inCommand = t.startsWith("/") && word.startsWith("/");
       if (inCommand) {
-        if (filterCommands(t.slice(1), mode).length) {
-          loopStore.trigger.openCommand({ query: t.slice(1) });
+        const query = word.slice(1);
+        if (filterCommands(query, mode).length) {
+          loopStore.trigger.openCommand({ query });
         } else {
           loopStore.trigger.closeCommand();
         }
@@ -85,7 +91,18 @@ export const Prompt = ({ onSubmit, kind }: PromptProps) => {
     bindCommandAccept((name) => {
       const target = textareaRef.current;
       if (target) {
-        target.setText("/" + name + " ");
+        // Replace only the trailing word with the accepted command so earlier
+        // commands and text survive (extmarks included); the cursor sits at
+        // the end of the word being typed.
+        const t = target.plainText;
+        const word = lastCommandWord(t);
+        const cut = word ? t.length - word.length : t.length;
+        const start = target.editBuffer.offsetToPosition(cut);
+        const end = target.editBuffer.offsetToPosition(t.length);
+        if (start && end && cut < t.length) {
+          target.deleteRange(start.row, start.col, end.row, end.col);
+        }
+        target.insertText("/" + name + " ");
         target.focus();
       }
       loopStore.trigger.closeCommand();
@@ -182,7 +199,7 @@ export const Prompt = ({ onSubmit, kind }: PromptProps) => {
       titleAlignment="right"
       onMouseDown={() => textareaRef.current?.focus()}
     >
-      <text fg={queueMode ? theme.info : steeringMode ? theme.error : commandOpen ? theme.accent : theme.textMuted}> {icons.prompt}</text>
+      <text fg={queueMode ? theme.info : steeringMode ? theme.error : commandOpen ? theme.accent : theme.textMuted}>{icons.prompt}</text>
       <box flexGrow={1} onMouseDown={handleMouseDown}>
         <textarea
           ref={textareaRef}

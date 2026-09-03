@@ -8,7 +8,6 @@ You are {APP_NAME}, a godlike general-purpose autonomous agent, you code, send a
 - Operating system: {APP_OS}
 - System Shell: {APP_SHELL}
 # System Guideless
-- Read AGENTS.md or CLAUDE.md on {APP_CWD} folder for extra instructions
 - Default to informed action; don't ask for confirmation when tools or repo context can answer.
 - Resolve ambiguity from repo conventions, existing patterns, and reasonable defaults; escalate only when options have materially different tradeoffs the user must decide.
 - Mark unobserved claims [INFERENCE]; keep observed and inferred distinct.
@@ -28,14 +27,58 @@ export type GenerateSystemMessageParams = {
   agentPrompt?: string;
   /** Concatenated LLM-facing tool usage docs emitted by `toolsInfo`. */
   toolsInfo?: string;
+  /** Installed-skills catalog rendered by `buildSkillsSection` (omitted when none). */
+  skillsInfo?: string;
+  /** Installed-rules catalog rendered by `buildRulesSection` (omitted when none). */
+  rulesInfo?: string;
+  /**
+   * Project instructions loaded from AGENTS.md/CLAUDE.md at session creation,
+   * concatenated at the end of the guidelines section (omitted when absent).
+   */
+  agentsAppendix?: string;
 };
+
+/**
+ * Render the `<Skills>` section content: when to reach for the `skill` tool
+ * plus one bulleted entry per discovered skill (exact invocation name + the
+ * frontmatter description the model matches the task against).
+ */
+export function buildSkillsSection(
+  skills: { name: string; description: string }[],
+): string {
+  return [
+    "The skills below are installed. When the user's request or the task's subject matches a skill's description,",
+    "call the `skill` tool with that skill's exact name to load its full instructions, then follow them.",
+    "The tool's output also lists the skill's related files; read them with the read tool as needed.",
+    "",
+    ...skills.map((s) => `- ${s.name}: ${s.description}`),
+  ].join("\n");
+}
+
+/**
+ * Render the `<Rules>` section content: when to reach for the `rule` tool plus
+ * one bulleted entry per discovered rule (exact invocation name + the
+ * frontmatter description the model matches the task against).
+ */
+export function buildRulesSection(
+  rules: { name: string; description: string }[],
+): string {
+  return [
+    "The rules below are installed. When the current task matches a rule's description,",
+    "call the `rule` tool with that rule's exact name to load its instructions, then follow them.",
+    "",
+    ...rules.map((r) => `- ${r.name}: ${r.description}`),
+  ].join("\n");
+}
 
 /**
  * Build the agent system prompt from the `systemMarkdown` template: substitute
  * the environment placeholders, then split the body into one section per `#`
  * heading so callers can render each as its own instruction block. When provided,
- * the active agent's prompt and the available-tools usage docs are appended as
- * their own `<Agent Role>` and `<Available Tools>` sections.
+ * the active agent's prompt, the installed-skills and installed-rules catalogs
+ * and the available-tools usage docs are appended as their own `<Agent Role>`,
+ * `<Skills>`, `<Rules>` and `<Available Tools>` sections. `agentsAppendix`
+ * (AGENTS.md/CLAUDE.md) is concatenated at the end of the guidelines section.
  */
 export function generateSystemMessage(
   params: GenerateSystemMessageParams,
@@ -51,8 +94,20 @@ export function generateSystemMessage(
 
   const sections = splitIntoSections(content);
 
+  if (params.agentsAppendix) {
+    for (const section of sections) {
+      if (section.key === "System Guideless") section.content += `\n\n${params.agentsAppendix}`;
+    }
+  }
+
   if (params.agentPrompt) {
     sections.push({ key: "Agent Role", content: params.agentPrompt });
+  }
+  if (params.skillsInfo) {
+    sections.push({ key: "Skills", content: params.skillsInfo });
+  }
+  if (params.rulesInfo) {
+    sections.push({ key: "Rules", content: params.rulesInfo });
   }
   if (params.toolsInfo) {
     sections.push({ key: "Available Tools", content: params.toolsInfo });

@@ -92,7 +92,7 @@ export type StartPicobuOptions = {
  * global.
  */
 export function startPicobu(renderer: CliRenderer, options: StartPicobuOptions = { from: 'terminal' }): void {
-  renderer.setTerminalTitle("PICOBU");
+  renderer.setTerminalTitle("Picobu");
 
   const bindings = createSessionBindings({
     sessionId: options.sessionId ?? generateSessionId(),

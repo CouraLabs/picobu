@@ -192,6 +192,8 @@ Commands declare the session modes they are available in via flags: `code` (codi
 
 Commands are also discovered from markdown files in `.agents/skills`, `.agents/workflows`, `.agents/prompts`, and `.agents/commands` — checked in your project, `~/.picobu`, and home, in that precedence order.
 
+**Multiple commands per prompt:** a prompt starting with `/` can chain several commands. After accepting one (`tab`), typing another `/` re-opens the picker; every word-boundary `/token` that matches a command resolves on submit. System commands run in order; skill/workflow segments are expanded with the text that follows each one (its "user request") and all pieces concatenate into the outgoing prompt — e.g. `/effort high /opentui build a box` sets the effort, then sends the opentui skill instructions with that request. Text that doesn't match a command stays literal, and a prompt whose *first* token isn't a known command is sent as-is (no surprise executions).
+
 ### Login & OAuth
 
 `/login` authenticates a subscription provider OAuth — **OpenAI** (ChatGPT), **Anthropic** (Claude Pro/Max), or **GitHub Copilot** — so you can run models without API keys. With no argument it opens a provider picker; `/login openai`, `/login anthropic`, and `/login copilot [enterprise-domain]` start the flow directly. A status dialog shows the auth URL / device code and opens the browser; progress, success, and errors land there (Cancel aborts the flow).
@@ -219,13 +221,17 @@ Each agent has a `category` that binds it to a session mode: `coding` agents app
 
 Coding runs are capped at **100 steps** as a safety limit (each tool call round-trip is a step; the `ask`/`plan-write` interrupts pause before a new step starts). The persistent session keeps its own 10-step cap per prompt.
 
+Project instructions are loaded automatically: when a session starts, the system prompt embeds the `AGENTS.md` (or `CLAUDE.md`) from the working directory, appended at the end of the guidelines section — no need to ask the agent to read it.
+
 ## Tools
 
 Tools are grouped in families:
 
-- **filesystem** — `read` / `write` / `edit` (file I/O with diffs), `glob` / `grep` (search, ripgrep-backed), `bash` (shell execution using your detected shell)
+- **filesystem** — `read` / `write` / `edit` (file I/O with diffs), `glob` / `grep` (search, ripgrep-backed), `bash` (shell execution using your detected shell). `glob` and `grep` respect `.gitignore`, except that agent config folders — `.agents/` in the project and home, plus `~/.picobu/{skills,workflows,prompts,commands,rules}` — are always included, even when dot-prefixed or gitignored.
 - **flow** — session workflow state.
   - `todo`: one todo list per session, persisted at `<folder>/<sessionId>/session-todo.json` and fully rewritten on every call. Actions: `ins` (append items), `upd` (replace by index), `del` (remove by index). Rendered in the chat as a phase tree with `[x]` / `[ ]` per item.
+  - `skill` (non-interrupting): loads a discovered skill by name. The output carries the skill's frontmatter-stripped SKILL.md body plus its folder path and the relative paths of the related files in it, which the agent then reads with `read` as the instructions reference them. Available to the ask/coder/plan agents; the system prompt lists every installed skill's name and description (a `<Skills>` section) so the agent knows when to reach for it — task matches the description or the user asks for it by name.
+  - `rule` (non-interrupting): loads a discovered rule by name — modular instructions for specific cases (e.g. a `testing.md` rule whose description says it applies when generating tests). Rules are flat markdown files with `name`/`description` frontmatter, discovered from `.agents/rules`, `~/.picobu/rules`, and `~/.agents/rules` in that precedence order. Available to all agents; the system prompt lists every installed rule's name and description (a `<Rules>` section) so the agent loads the ones whose description matches the current task.
   - `ask` (interrupting): asks the user up to 5 structured questions. Each question renders as a tab with clickable radios (`single`) / checkboxes (`multiple`) plus an automatic custom-answer field; once all questions are answered the answers are sent back as a new prompt. Available to the ask/coder/plan agents.
   - `plan-exit` (non-interrupting): handoff tool that switches the running loop from the Plan agent to the Coder agent mid-run so the approved plan is implemented immediately. It flips the active agent exactly like a manual picker change (tab): the picker visibly shows Coder and the coder's `flash` role config applies from the next step.
   - `plan-write` (interrupting): submits the finished plan for review. The run pauses and a dialog opens with the plan rendered line by line — click a line to add a comment below it. "Not satisfied" sends the comments back as a revision prompt (the plan agent revises and resubmits until approved); "Confirm" sends an approval prompt and the agent calls `plan-exit` so the Coder implements with the comments in hand.

@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 //
-// PICOBU in the browser. A Bun HTTP + WebSocket server that serves an xterm.js
+// Picobu in the browser. A Bun HTTP + WebSocket server that serves an xterm.js
 // client and runs one picobu session per connected tab. Each session gets its
 // own CliRenderer wired to WebSocket-backed stdin/stdout: renderer output is
 // sent as binary ANSI frames, while keyboard bytes and resize control frames
@@ -279,5 +279,5 @@ export function startServer(): void {
 });
 
 const displayHost = server.hostname === "0.0.0.0" ? "localhost" : server.hostname;
-console.log(`PICOBU web ready on http://${displayHost}:${server.port}/`);
+console.log(`Picobu web ready on http://${displayHost}:${server.port}/`);
 }

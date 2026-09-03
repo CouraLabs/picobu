@@ -258,6 +258,32 @@ export function toolPartToModel(part: ToolPart, ctx: ToolPartContext = {}): Tool
         message: typeof exitOutput?.message === "string" ? exitOutput.message : undefined,
       };
     }
+    case "skill": {
+      // Flow tool: the loaded skill is the tool output; while running only the
+      // requested name (input) is known.
+      const skillOutput =
+        part.state === "output-available"
+          ? (part.output as {
+                name?: unknown;
+                description?: unknown;
+                skillDir?: unknown;
+                files?: unknown;
+                content?: unknown;
+              } | undefined)
+          : undefined;
+      return {
+        name: "skill",
+        status,
+        error,
+        skill: String(skillOutput?.name ?? input.name ?? ""),
+        description: typeof skillOutput?.description === "string" ? skillOutput.description : undefined,
+        skillDir: typeof skillOutput?.skillDir === "string" ? skillOutput.skillDir : undefined,
+        files: Array.isArray(skillOutput?.files)
+          ? (skillOutput!.files as unknown[]).filter((f): f is string => typeof f === "string")
+          : undefined,
+        content: typeof skillOutput?.content === "string" ? skillOutput.content : undefined,
+      };
+    }
     default:
       return null;
   }
