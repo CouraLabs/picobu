@@ -5,7 +5,7 @@ import makeWASocket, {
   DisconnectReason,
   useMultiFileAuthState,
 } from "@whiskeysockets/baileys";
-import { options } from "@libs/options.ts";
+import { options } from "@config/options.ts";
 import { whatsappStore } from "@integrations/whatsapp/whatsapp-store.ts";
 import { emitInbound } from "@integrations/whatsapp/bus.ts";
 import { recordWwpContacts } from "@integrations/whatsapp/contacts.ts";
@@ -27,7 +27,7 @@ let pairedPhone = "";
 /**
  * LID digits of the paired device. WhatsApp is migrating accounts to LID
  * addressing: some messages (notably "Message yourself" self-chats) arrive
- * with `key.remoteJid` pointed at `<lid>@lid` instead of the phone JID, so
+ * with `key.remoteJid` pointed at `<lid>@lid` instead of the phone JIPD, so
  * self-recognition must check both.
  */
 let pairedLid = "";

@@ -6,9 +6,9 @@ import {
   type HarnessOptionsInput,
   type ProviderModelOptions,
   type ProviderOptions,
-} from "@libs/options.ts";
-import { upsertProvider } from "@harness/agent/factory/llm-providers/registry.ts";
-import { fetchModelsDevProvider, modelsFromModelsDev } from "@harness/agent/factory/llm-providers/models-dev.ts";
+} from "@config/options.ts";
+import { upsertProvider } from "@agent/model/registry.ts";
+import { fetchModelsDevProvider, modelsFromModelsDev } from "@agent/model/catalog-models-dev.ts";
 import { removeCredential, setCredential } from "@auth/store.ts";
 import { getGitHubCopilotBaseUrl } from "@auth/github-copilot.ts";
 import type { OAuthAuth, OAuthCredential } from "@auth/types.ts";

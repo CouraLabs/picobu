@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    // Path aliases for tests: same as the base config (this file sits at the repo root)
+    "paths": {
+      "@agent/*": ["./src/agent/*"],
+      "@auth/*": ["./src/auth/*"],
+      "@config/*": ["./src/config/*"],
+      "@integrations/*": ["./src/integrations/*"],
+      "@shared/*": ["./src/shared/*"],
+      "@tui/*": ["./src/tui/*"]
+    }
+  },
+  "include": ["./src/**/*", "./test/**/*"]
+}

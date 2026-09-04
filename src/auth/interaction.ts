@@ -1,5 +1,5 @@
 import type { AuthInteraction, AuthNotifyEvent } from "@auth/types.ts";
-import { openInBrowser } from "@libs/open-url.ts";
+import { openInBrowser } from "@shared/open-url.ts";
 
 /**
  * Adapt a login flow's notifications to console output: progress/device-code/

@@ -1,7 +1,7 @@
 /**
  * Inbound bridge between integrations and the persistent session.
  *
- * Producers (the Baileys `messages.upsert` handler, cron `prompt` actions)
+ * Producers (the Baileys `messages.upsert` handler)
  * publish here; `PersistentSessionProvider` subscribes while it is mounted and
  * submits each event as a labeled prompt to the persistent agent. When no
  * subscriber is attached (user on another page), messages queue here and drain
@@ -10,7 +10,7 @@
 
 export type InboundEvent = {
   /** Where the prompt came from. */
-  source: "whatsapp" | "cron";
+  source: "whatsapp";
   /** Header line describing the origin (shown to the agent). */
   title: string;
   /** The payload text / task description. */

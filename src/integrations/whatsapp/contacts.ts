@@ -1,5 +1,5 @@
-import { withLock } from "@libs/lock.ts";
-import { options } from "@libs/options.ts";
+import { withLock } from "@shared/lock.ts";
+import { options } from "@config/options.ts";
 import { normalizePhone } from "@integrations/whatsapp/phone.ts";
 
 /** A known WhatsApp counterparty, kept fresh from traffic + contact events. */

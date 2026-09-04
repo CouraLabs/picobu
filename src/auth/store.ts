@@ -1,8 +1,7 @@
 import { mkdirSync } from "node:fs";
-import { homedir } from "node:os";
 import { join } from "node:path";
-import { options } from "@libs/options.ts";
-import { acquireLock } from "@libs/lock.ts";
+import { options } from "@config/options.ts";
+import { acquireLock } from "@shared/lock.ts";
 import type { OAuthCredential } from "@auth/types.ts";
 
 /**

@@ -1,12 +1,5 @@
-import {
-  parseTimeOfDay,
-  parseFrequency,
-  scheduleLabel,
-  type CronJob,
-} from "@cron/schedule.ts";
-import { newCronId, upsertCron, removeCron, readCrons } from "@cron/cron-store.ts";
-import { withLock } from "@libs/lock.ts";
-import { options } from "@libs/options.ts";
+import { withLock } from "@shared/lock.ts";
+import { options } from "@config/options.ts";
 import { sendText } from "@integrations/whatsapp/connection.ts";
 import { normalizePhone } from "@integrations/whatsapp/phone.ts";
 
@@ -32,43 +25,6 @@ export const sendWwpMessage = async (phone: string, message: string): Promise<st
   return `Message sent to +${normalizePhone(phone)}`;
 };
 
-/** Create an alert cron job: fires a WhatsApp message at `timeOfDay` daily. */
-export const createWwpAlert = (
-  phone: string,
-  message: string,
-  level: number,
-  timeOfDay: string,
-): CronJob => {
-  if (!normalizePhone(phone)) throw new Error(`Invalid phone number: ${phone}`);
-  if (!message.trim()) throw new Error("Alert message is empty");
-  if (!parseTimeOfDay(timeOfDay)) throw new Error(`Invalid time of day: ${timeOfDay} (use HH:MM)`);
-  const levelNum = Math.max(1, Math.floor(level) || 1);
-  const job: CronJob = {
-    id: newCronId(),
-    name: `Alert to +${normalizePhone(phone)}: ${message.trim().slice(0, 40)}`,
-    origin: "alert",
-    enabled: true,
-    createdAt: Date.now(),
-    schedule: { type: "daily", time: timeOfDay.trim() },
-    action: { type: "whatsapp", phone, message, level: levelNum },
-    lastRunAt: 0,
-    runCount: 0,
-  };
-  void upsertCron(job);
-  return job;
-};
-
-/** List active alerts (origin === "alert"). */
-export const listWwpAlerts = async (): Promise<CronJob[]> =>
-  (await readCrons()).filter((j) => j.origin === "alert");
-
-/** Remove an alert by id; throws when the id is unknown. */
-export const removeWwpAlert = async (id: string): Promise<string> => {
-  const removed = await removeCron(id);
-  if (!removed) throw new Error(`No alert with id ${id}`);
-  return `Alert ${id} removed`;
-};
-
 /** Append a task to today's list (file resets when the day changes). */
 export const addTodayTask = async (text: string): Promise<string> => {
   const path = whatsappFilePath("today");
@@ -89,18 +45,6 @@ export const addTodayTask = async (text: string): Promise<string> => {
   return `Added to today's tasks: ${text}`;
 };
 
-/** Today's tasks (empty list once the day rolls over). */
-export const listTodayTasks = async (): Promise<TodayTask[]> => {
-  const file = Bun.file(whatsappFilePath("today"));
-  if (!(await file.exists())) return [];
-  try {
-    const parsed = (await file.json()) as TodayFile;
-    return parsed.day === todayKey() ? parsed.items : [];
-  } catch {
-    return [];
-  }
-};
-
 /** Remove a today-task by id; throws when unknown. */
 export const removeTodayTask = async (id: string): Promise<string> => {
   const path = whatsappFilePath("today");
@@ -114,67 +58,6 @@ export const removeTodayTask = async (id: string): Promise<string> => {
     await Bun.write(path, JSON.stringify({ day: todayKey(), items }, null, 2));
   });
   return `Task ${id} removed`;
-};
-
-/** Create a recurring reminder cron job fired over WhatsApp. */
-export const createWwpReminder = (
-  frequency: string,
-  description: string,
-  repeatAtTime: string,
-): CronJob => {
-  if (!description.trim()) throw new Error("Reminder description is empty");
-  // An explicit HH:MM anchor wins; otherwise treat `frequency` as an interval.
-  if (parseTimeOfDay(repeatAtTime)) {
-    const job = reminderJob(`Reminder: ${description.trim().slice(0, 40)}`, {
-      type: "daily",
-      time: repeatAtTime.trim(),
-    });
-    void upsertCron(job);
-    return job;
-  }
-  const minutes = parseFrequency(frequency);
-  if (!minutes) {
-    throw new Error(
-      `Invalid frequency: ${frequency} (use e.g. "daily", "hourly", "every 30m", or an HH:MM anchor)`,
-    );
-  }
-  const job = reminderJob(
-    `Reminder: ${description.trim().slice(0, 40)}`,
-    { type: "interval", everyMinutes: minutes },
-  );
-  void upsertCron(job);
-  return job;
-};
-
-const reminderJob = (name: string, schedule: CronJob["schedule"]): CronJob => ({
-  id: newCronId(),
-  name,
-  origin: "reminder",
-  enabled: true,
-  createdAt: Date.now(),
-  schedule,
-  action: { type: "notification", message: name },
-  lastRunAt: 0,
-  runCount: 0,
-});
-
-/** List reminders (origin === "reminder") and today's tasks. */
-export const listWwpReminders = async (
-  type: string,
-): Promise<{ reminders: CronJob[]; today: TodayTask[] }> => {
-  const kind = type.trim().toLowerCase();
-  const reminderJobs = (await readCrons()).filter((j) => j.origin === "reminder");
-  if (kind === "reminders") return { today: [], reminders: reminderJobs };
-  if (kind === "today") return { reminders: [], today: await listTodayTasks() };
-  return { reminders: reminderJobs, today: await listTodayTasks() };
-};
-
-/** Remove a reminder cron job (or today-task) by id. */
-export const removeWwpReminder = async (id: string): Promise<string> => {
-  if (id.startsWith("t")) return removeTodayTask(id);
-  const removed = await removeCron(id);
-  if (!removed) throw new Error(`No reminder with id ${id}`);
-  return `Reminder ${id} removed`;
 };
 
 
