@@ -11,8 +11,10 @@ import {
   dropUnansweredPrompt,
   folderKeyFor,
   generateSessionId,
+  isCompactionCut,
   listSessions,
   loadSession,
+  messagesForLlm,
   sanitizeMessages,
   serializeForCompaction,
   sessionFilePath,
@@ -67,7 +69,12 @@ async function waitFor(cond: () => boolean, timeoutMs = 5000): Promise<void> {
  * `reasoning: true` the stream emits a reasoning delta and then holds —
  * mid-run there is only an (unsigned) reasoning part, no visible answer.
  */
-function startMockProvider({ reasoning = false }: { reasoning?: boolean } = {}) {
+function startMockProvider({
+  reasoning = false,
+  context = 128_000,
+  promptTokens = 10,
+  toolCall,
+}: { reasoning?: boolean; context?: number; promptTokens?: number; toolCall?: string } = {}) {
   const requests: string[] = [];
   const payloads: Array<{ messages?: unknown }> = [];
   const extractText = (content: unknown): string => {
@@ -104,7 +111,7 @@ function startMockProvider({ reasoning = false }: { reasoning?: boolean } = {}) 
               finish_reason: "stop",
             },
           ],
-          usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
+          usage: { prompt_tokens: promptTokens, completion_tokens: 5, total_tokens: promptTokens + 5 },
         });
       }
       const sse = (delta: object | undefined, finish?: string, usage?: object) =>
@@ -122,6 +129,30 @@ function startMockProvider({ reasoning = false }: { reasoning?: boolean } = {}) 
         async start(controller) {
           try {
             controller.enqueue(sse({}));
+            if (toolCall) {
+              // A blocking flow tool call (e.g. `ask`): the loop executes it
+              // and pauses — the run settles with a pending output.
+              controller.enqueue(
+                sse({
+                  tool_calls: [{
+                    index: 0,
+                    id: "call-1",
+                    type: "function",
+                    function: {
+                      name: toolCall,
+                      arguments: JSON.stringify({
+                        questions: [{ title: "q", question: "Continue?", type: "single", options: [{ answer: "yes", answerDescription: "" }] }],
+                      }),
+                    },
+                  }],
+                }),
+              );
+              controller.enqueue(sse({}, "tool_calls"));
+              controller.enqueue(sse(undefined, undefined, { prompt_tokens: promptTokens, completion_tokens: 5, total_tokens: promptTokens + 5 }));
+              controller.enqueue(enc.encode("data: [DONE]\n\n"));
+              controller.close();
+              return;
+            }
             if (reasoning) {
               controller.enqueue(sse({ reasoning: "pondering the question" }));
               await sleep(300); // hold mid-reasoning so a test can abort here
@@ -129,7 +160,7 @@ function startMockProvider({ reasoning = false }: { reasoning?: boolean } = {}) 
             controller.enqueue(sse({ content: "ack" }));
             await sleep(150); // hold the run open so tests can steer mid-flight
             controller.enqueue(sse({}, "stop"));
-            controller.enqueue(sse(undefined, undefined, { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 }));
+            controller.enqueue(sse(undefined, undefined, { prompt_tokens: promptTokens, completion_tokens: 5, total_tokens: promptTokens + 5 }));
             controller.enqueue(enc.encode("data: [DONE]\n\n"));
             controller.close();
           } catch {
@@ -147,7 +178,7 @@ function startMockProvider({ reasoning = false }: { reasoning?: boolean } = {}) 
     type: "openai-compatible",
     baseUrl: `http://127.0.0.1:${server.port}/v1`,
     apiKey: "sk-test",
-    models: [{ id: "m1", name: "M1", context: 128_000, output: 4_000, billing: { input: 3, output: 15 } }],
+    models: [{ id: "m1", name: "M1", context, output: 4_000, billing: { input: 3, output: 15 } }],
   };
   return { provider, requests, payloads, close: () => server.stop(true) };
 }
@@ -548,6 +579,37 @@ describe("compactedMessageText", () => {
   });
 });
 
+describe("messagesForLlm", () => {
+  const u = (id: string): UIMessage => ({ id, role: "user", parts: [{ type: "text", text: id }] });
+  const cut = (id: string): UIMessage => ({
+    id,
+    role: "user",
+    metadata: { compaction: { summary: "s", compactedMessageIds: [], createdAt: 0 } },
+    parts: [{ type: "text", text: "summary" }],
+  });
+
+  test("returns everything when there is no cut", () => {
+    const messages = [u("a"), u("b")];
+    expect(messagesForLlm(messages)).toEqual(messages);
+  });
+
+  test("returns everything after the last cut plus the cut itself", () => {
+    const messages = [u("a"), cut("c1"), u("b"), cut("c2"), u("d")];
+    expect(messagesForLlm(messages).map((m) => m.id)).toEqual(["c2", "d"]);
+  });
+
+  test("handles a cut as the only message and an empty list", () => {
+    expect(messagesForLlm([cut("c")]).map((m) => m.id)).toEqual(["c"]);
+    expect(messagesForLlm([])).toEqual([]);
+  });
+
+  test("isCompactionCut detects the metadata marker", () => {
+    expect(isCompactionCut(cut("c"))).toBe(true);
+    expect(isCompactionCut(u("a"))).toBe(false);
+    expect(isCompactionCut(undefined)).toBe(false);
+  });
+});
+
 const userMessage = (text: string): UIMessage => ({
   id: "u1",
   role: "user",
@@ -884,7 +946,7 @@ describe("createSession", () => {  test("starts ready with a 16-hex session id a
     });
   });
 
-  test("compact replaces the messages with the model's summary", async () => {
+  test("compact appends a compaction cut and keeps the old messages", async () => {
     await withSessionsDir(async () => {
       const mock = startMockProvider();
       const original = options.providers;
@@ -893,19 +955,338 @@ describe("createSession", () => {  test("starts ready with a 16-hex session id a
         const session = await createSession(() => ({ agentId: "ask", modelKey: "mock/m1", thinking: "medium" }));
         session.queue("do the thing");
         await waitFor(() => session.status === "ready");
+        const before = [...session.messages];
+        expect(before.length).toBe(2); // user prompt + assistant answer
 
         const result = await session.compact();
         expect(result.summary).toBe("did the thing");
-        expect(session.messages).toHaveLength(1);
-        expect(session.messages[0]?.role).toBe("user");
-        expect((session.messages[0]?.parts[0] as { type: string; text: string }).text).toContain("[Session compacted");
-        expect((session.messages[0]?.parts[0] as { type: string; text: string }).text).toContain("did the thing");
+        // The cut is appended, not destructive: the pre-compaction messages
+        // stay in the conversation (and on disk).
+        expect(session.messages).toHaveLength(3);
+        expect(session.messages.slice(0, 2)).toEqual(before);
+        const cut = session.messages[2]!;
+        expect(result.cutMessageId).toBe(cut.id);
+        expect(cut.role).toBe("user");
+        expect((cut.parts[0] as { type: string; text: string }).text).toContain("[Session compacted");
+        expect((cut.parts[0] as { type: string; text: string }).text).toContain("did the thing");
+        const meta = cut.metadata as { compaction?: { summary: string; compactedMessageIds: string[] } };
+        expect(meta.compaction?.summary).toBe("did the thing");
+        expect(meta.compaction?.compactedMessageIds).toEqual(before.map((m) => m.id));
 
-        // The compacted fresh state is persisted (the pre-compaction messages
-        // are tombstoned on the next save).
+        // The full history (cut included) is persisted — no tombstones.
         await session.flush();
         const loaded = await loadSession(folderKeyFor(options.app.cwd), session.id);
         expect(loaded).toEqual(session.messages);
+      } finally {
+        mock.close();
+        options.providers = original;
+      }
+    });
+  });
+
+  test("only the post-cut slice reaches the provider", async () => {
+    await withSessionsDir(async () => {
+      const mock = startMockProvider();
+      const original = options.providers;
+      options.providers = [mock.provider];
+      try {
+        const session = await createSession(() => ({ agentId: "ask", modelKey: "mock/m1", thinking: "medium" }));
+        session.queue("pre-cut secret");
+        await waitFor(() => session.status === "ready");
+        await session.compact();
+        expect(isCompactionCut(session.messages.at(-1))).toBe(true);
+
+        session.queue("post-cut prompt");
+        await waitFor(() => mock.requests.filter((r) => r === "post-cut prompt").length === 1);
+        // The request body carries the cut's summary but not the pre-cut text.
+        const body = mock.payloads.at(-1) as { messages?: Array<{ role: string; content: unknown }> };
+        const serialized = JSON.stringify(body.messages);
+        expect(serialized).toContain("did the thing");
+        expect(serialized).not.toContain("pre-cut secret");
+      } finally {
+        mock.close();
+        options.providers = original;
+      }
+    });
+  });
+
+  test("uncompact removes the trailing cut and restores the full view", async () => {
+    await withSessionsDir(async () => {
+      const mock = startMockProvider();
+      const original = options.providers;
+      options.providers = [mock.provider];
+      try {
+        const session = await createSession(() => ({ agentId: "ask", modelKey: "mock/m1", thinking: "medium" }));
+        session.queue("hello");
+        await waitFor(() => session.status === "ready");
+        const before = [...session.messages];
+
+        await session.compact();
+        expect(session.messages).toHaveLength(3);
+        session.uncompact();
+        expect(session.messages).toEqual(before);
+
+        // No cut left to remove.
+        expect(() => session.uncompact()).toThrow("no compaction cut");
+      } finally {
+        mock.close();
+        options.providers = original;
+      }
+    });
+  });
+
+  test("compact refuses while a run is in progress", async () => {
+    await withSessionsDir(async () => {
+      const mock = startMockProvider();
+      const original = options.providers;
+      options.providers = [mock.provider];
+      try {
+        const session = await createSession(() => ({ agentId: "ask", modelKey: "mock/m1", thinking: "medium" }));
+        session.queue("hello");
+        // The mock holds each run open for 150ms, so this lands mid-run.
+        await expect(session.compact()).rejects.toThrow("while a run is in progress");
+        await waitFor(() => session.status === "ready");
+      } finally {
+        mock.close();
+        options.providers = original;
+      }
+    });
+  });
+
+  test("auto-compact fires on settle and queued prompts go out post-cut", async () => {
+    await withSessionsDir(async () => {
+      // Context 10 tokens, usage 10 prompt tokens: every run crosses the
+      // 80% threshold immediately.
+      const mock = startMockProvider({ context: 10, promptTokens: 10 });
+      const original = options.providers;
+      options.providers = [mock.provider];
+      try {
+        const session = await createSession(
+          () => ({ agentId: "ask", modelKey: "mock/m1", thinking: "medium" }),
+          { autoCompact: true },
+        );
+        session.queue("precut secret");
+        await waitFor(() => isCompactionCut(session.messages.at(-1)));
+        expect(session.messages.some((m) => m.parts.some((p) => (p as { text?: string }).text === "ack"))).toBe(true);
+
+        // The next prompt goes out with the cut context: the summary
+        // survives, the pre-cut conversation does not.
+        session.queue("second");
+        await waitFor(() => (mock.requests.at(-1)) === "second");
+        const body = mock.payloads.at(-1) as { messages?: Array<{ role: string; content: unknown }> };
+        const serialized = JSON.stringify(body.messages);
+        expect(serialized).toContain("did the thing");
+        expect(serialized).not.toContain("precut secret");
+        await session.flush();
+      } finally {
+        mock.close();
+        options.providers = original;
+      }
+    });
+  });
+
+  test("auto-compact does not fire below the threshold or after an aborted run", async () => {
+    await withSessionsDir(async () => {
+      const mock = startMockProvider({ context: 128_000, promptTokens: 10 });
+      const original = options.providers;
+      options.providers = [mock.provider];
+      try {
+        const session = await createSession(
+          () => ({ agentId: "ask", modelKey: "mock/m1", thinking: "medium" }),
+          { autoCompact: true },
+        );
+        session.queue("hello");
+        await waitFor(() => session.status === "ready" && session.usage !== undefined);
+        // 10 tokens in a 128k window: far below the threshold.
+        await sleep(50);
+        expect(session.messages.some((m) => isCompactionCut(m))).toBe(false);
+
+        // A second session past the threshold: aborting the run must not
+        // trigger compaction on its settle.
+        const hot = startMockProvider({ context: 10, promptTokens: 10 });
+        options.providers = [hot.provider];
+        try {
+          const aborted = await createSession(
+            () => ({ agentId: "ask", modelKey: "mock/m1", thinking: "medium" }),
+            { autoCompact: true },
+          );
+          aborted.queue("hello");
+          await waitFor(() => aborted.status === "streaming");
+          aborted.abort();
+          await waitFor(() => aborted.status === "ready");
+          await sleep(50);
+          expect(aborted.messages.some((m) => isCompactionCut(m))).toBe(false);
+        } finally {
+          hot.close();
+        }
+      } finally {
+        mock.close();
+        options.providers = original;
+      }
+    });
+  });
+
+  test("auto-compact skips a run paused on a blocking flow tool", async () => {
+    await withSessionsDir(async () => {
+      // Over the threshold, but the run ends with a pending `ask`: the
+      // user's answer must not reference a question the cut hides.
+      const mock = startMockProvider({ context: 10, promptTokens: 10, toolCall: "ask" });
+      const original = options.providers;
+      options.providers = [mock.provider];
+      try {
+        const session = await createSession(
+          () => ({ agentId: "ask", modelKey: "mock/m1", thinking: "medium" }),
+          { autoCompact: true },
+        );
+        session.queue("ask me");
+        await waitFor(() => session.state === "waiting");
+        await sleep(100);
+        expect(session.messages.some((m) => isCompactionCut(m))).toBe(false);
+      } finally {
+        mock.close();
+        options.providers = original;
+      }
+    });
+  });
+
+  test("concurrent compactions fail fast instead of stacking cuts", async () => {
+    await withSessionsDir(async () => {
+      const mock = startMockProvider();
+      const original = options.providers;
+      options.providers = [mock.provider];
+      try {
+        const session = await createSession(() => ({ agentId: "ask", modelKey: "mock/m1", thinking: "medium" }));
+        session.queue("hello");
+        await waitFor(() => session.status === "ready");
+
+        const first = session.compact();
+        // The first compaction is in flight (the mock holds the JSON call);
+        // the second must reject rather than append a duplicate cut.
+        await expect(session.compact()).rejects.toThrow("already in progress");
+        await first;
+        expect(session.messages.filter((m) => isCompactionCut(m))).toHaveLength(1);
+      } finally {
+        mock.close();
+        options.providers = original;
+      }
+    });
+  });
+
+  test("a prompt queued during compaction goes out with the cut context", async () => {
+    await withSessionsDir(async () => {
+      const mock = startMockProvider();
+      const original = options.providers;
+      options.providers = [mock.provider];
+      try {
+        const session = await createSession(() => ({ agentId: "ask", modelKey: "mock/m1", thinking: "medium" }));
+        session.queue("precut secret");
+        await waitFor(() => session.status === "ready");
+
+        const compaction = session.compact();
+        // Enqueued while the compactor model call is in flight: the drain
+        // must wait for the cut instead of sending the pre-cut history.
+        session.queue("racing prompt");
+        await compaction;
+        await waitFor(() => mock.requests.at(-1) === "racing prompt");
+        const body = mock.payloads.at(-1) as { messages?: Array<{ role: string; content: unknown }> };
+        const serialized = JSON.stringify(body.messages);
+        expect(serialized).toContain("did the thing");
+        expect(serialized).not.toContain("precut secret");
+        await session.flush();
+      } finally {
+        mock.close();
+        options.providers = original;
+      }
+    });
+  });
+
+  test("compact refuses while waiting on a blocking flow tool", async () => {
+    await withSessionsDir(async () => {
+      const mock = startMockProvider({ toolCall: "ask" });
+      const original = options.providers;
+      options.providers = [mock.provider];
+      try {
+        const session = await createSession(() => ({ agentId: "ask", modelKey: "mock/m1", thinking: "medium" }));
+        session.queue("ask me");
+        await waitFor(() => session.state === "waiting");
+        await expect(session.compact()).rejects.toThrow("waiting on a flow tool");
+        expect(session.messages.some((m) => isCompactionCut(m))).toBe(false);
+      } finally {
+        mock.close();
+        options.providers = original;
+      }
+    });
+  });
+
+  test("a failed compaction does not fork", async () => {
+    await withSessionsDir(async () => {
+      const mock = startMockProvider();
+      const original = options.providers;
+      options.providers = [mock.provider];
+      try {
+        let forked = false;
+        const session = await createSession(() => ({ agentId: "ask", modelKey: "mock/m1", thinking: "medium" }), {
+          meta: {
+            forkHost: async () => {
+              forked = true;
+              return "fork123";
+            },
+          },
+        });
+        session.queue("hello");
+        await waitFor(() => session.status === "ready");
+
+        mock.close(); // the compactor model call now fails (after SDK retries)
+        await expect(session.compact({ fork: true })).rejects.toThrow();
+        expect(forked).toBe(false);
+        expect(session.messages.some((m) => isCompactionCut(m))).toBe(false);
+      } finally {
+        options.providers = original;
+      }
+    });
+  }, 20_000); // the SDK retries the dead endpoint with backoff before failing
+
+  test("fork-on-compact hard-resets the session to the summary without a cut", async () => {
+    await withSessionsDir(async () => {
+      const mock = startMockProvider();
+      const original = options.providers;
+      options.providers = [mock.provider];
+      try {
+        let forked = false;
+        const session = await createSession(() => ({ agentId: "ask", modelKey: "mock/m1", thinking: "medium" }), {
+          meta: {
+            forkHost: async () => {
+              forked = true;
+              return "fork123";
+            },
+          },
+        });
+        session.queue("hello");
+        await waitFor(() => session.status === "ready");
+
+        const result = await session.compact({ fork: true });
+        expect(forked).toBe(true);
+        expect(result.forkedSessionId).toBe("fork123");
+        // Hard reset: a single plain summary message, no cut marker (the
+        // fork is the checkpoint).
+        expect(session.messages).toHaveLength(1);
+        expect(isCompactionCut(session.messages[0])).toBe(false);
+        expect((session.messages[0]!.parts[0] as { text: string }).text).toContain("did the thing");
+      } finally {
+        mock.close();
+        options.providers = original;
+      }
+    });
+  });
+
+  test("fork-on-compact without a manager throws", async () => {
+    await withSessionsDir(async () => {
+      const mock = startMockProvider();
+      const original = options.providers;
+      options.providers = [mock.provider];
+      try {
+        const session = await createSession(() => ({ agentId: "ask", modelKey: "mock/m1", thinking: "medium" }));
+        await expect(session.compact({ fork: true })).rejects.toThrow("Forking requires a session manager");
       } finally {
         mock.close();
         options.providers = original;

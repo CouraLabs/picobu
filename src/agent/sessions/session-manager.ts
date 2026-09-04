@@ -1,5 +1,7 @@
-import { readdir, rm, stat } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { readdir, rm, stat, writeFile } from "node:fs/promises";
+import { mkdirSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
+import { withLock } from "@shared/lock.ts";
 import {
   options,
   resolveModelRole,
@@ -12,6 +14,7 @@ import {
   generateSessionId,
   listSessions,
   loadSession,
+  messagesForLlm,
   sessionFilePath,
   toPromptMessage,
   type Session,
@@ -60,15 +63,21 @@ export type CreateSessionOptions = {
   agentId?: string;
   modelKey?: string;
   title?: string;
+  /** Auto-compact after a run settles once the context crosses the window
+   * threshold (see `CreateSessionInit.autoCompact`). */
+  autoCompact?: boolean;
+  /** Auto-compaction forks the full history first (fork-on-compact). */
+  forkOnCompact?: boolean;
 };
 
 const DEFAULT_MAX_AGENTS = 4;
 
 /**
  * Owns the session lifecycle: creation, listing, renaming (title only),
- * deletion (cascading to sub sessions), directory switching (starts a NEW
- * session), the sandbox toggle, the `maxAgents` concurrency cap, and the job
- * registry for spawned sub sessions.
+ * forking (point-in-time clone), deletion (cascading to sub sessions),
+ * directory switching (starts a NEW session), the sandbox toggle, the
+ * `maxAgents` concurrency cap, and the job registry for spawned sub
+ * sessions.
  *
  * The cwd is owned here — `options.app.cwd` is read once as a bootstrap
  * default and never written back. Sessions in different worktrees run
@@ -162,7 +171,9 @@ export class SessionManager {
 
     const session = await createSession(() => this.baseConfig({ agentId: init.agentId, modelKey: init.modelKey, sessionId: id }), {
       id,
-      meta: { cwd: this.cwd, title: init.title },
+      meta: { cwd: this.cwd, title: init.title, forkHost: () => this.forkSession(id).then((r) => r.sessionId) },
+      autoCompact: init.autoCompact,
+      forkOnCompact: init.forkOnCompact,
     });
     this.live.set(id, session);
     return session;
@@ -214,6 +225,63 @@ export class SessionManager {
       if (meta) await writeSessionMeta(folderKey, id, { ...meta, title });
       else throw new Error(`Unknown session "${id}"`);
     }
+  }
+
+  /**
+   * Fork a session: clone its saved JSONL and meta sidecar under a fresh id
+   * and return the fork's id. `fromCompaction` mirrors the LLM view — the
+   * fork starts at the last compaction cut (a full clone when no cut
+   * exists). Per-session flow state (todo list, checkpoints) is not copied —
+   * the fork starts fresh. The fork is an independent session: the source's
+   * `parentSessionId` link is dropped so cascade deletion of the source's
+   * parent never reaches it.
+   */
+  async forkSession(id: string, opts: { fromCompaction?: boolean } = {}): Promise<{ sessionId: string }> {
+    const folderKey = await this.folderKeyForSession(id);
+    // Refuse to fork a running session (live here, or stuck in `running`
+    // meta owned by another process).
+    const source = this.live.get(id);
+    if (source?.state === "running") {
+      throw new Error(`Session "${id}" is running; stop it before forking`);
+    }
+    const meta = await readSessionMeta(folderKey, id);
+    if (!source && meta?.state === "running") {
+      throw new Error(`Session "${id}" is running; stop it before forking`);
+    }
+    // Flush pending writes so the clone sees the settled state.
+    await source?.flush();
+    const messages = await loadSession(folderKey, id);
+    if (!messages) throw new Error(`Unknown session "${id}"`);
+    const forkedMessages = opts.fromCompaction ? messagesForLlm(messages) : messages;
+    const forkId = generateSessionId();
+    const filePath = sessionFilePath(folderKey, forkId);
+    await withLock(filePath, async () => {
+      mkdirSync(dirname(filePath), { recursive: true });
+      await writeFile(
+        filePath,
+        forkedMessages
+          .map((m) => JSON.stringify({ id: m.id, role: m.role, metadata: m.metadata, parts: m.parts }))
+          .join("\n") + "\n",
+      );
+    });
+    if (meta) {
+      await writeSessionMeta(folderKey, forkId, {
+        ...meta,
+        id: forkId,
+        title: meta.title ? `${meta.title} (forked)` : "(forked)",
+        parentSessionId: undefined,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+    }
+    // Materialize the fork as a live session (resumes its saved messages) —
+    // only when it lives in the manager's current folder. A cross-worktree
+    // fork (source meta cwd ≠ current cwd) stays on disk: startSession would
+    // create it under the wrong folder key and resume empty. The fork id is
+    // still returned; resuming it from its own worktree works as usual.
+    if (folderKey !== folderKeyFor(this.cwd)) return { sessionId: forkId };
+    const fork = await this.startSession({ id: forkId });
+    return { sessionId: fork.id };
   }
 
   //

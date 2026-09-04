@@ -89,7 +89,7 @@ The same operations are exposed to the persistent agent as tools (`wwp-msg`, `ww
 
 Every run is saved incrementally (per message) to `~/.picobu/sessions/<folder>/<id>.jsonl` — `<folder>` is the sanitized name of the working directory, `<id>` the 16-hex session id. A session is only saved **after its first prompt** — an untouched session leaves no file behind. Saved sessions are listed with `picobu sessions` (id, timestamp, lifecycle state, and title — or the first prompt when untitled). The persistent agent keeps its own 10-step cap per prompt.
 
-The **session manager** (`SessionManager`) owns the lifecycle: start/resume, list, delete (cascading to every sub session below the target — all-or-nothing, refused while anything in the subtree runs), rename (title only — the id and JSONL file name are immutable), and directory switching. The working directory is manager-owned: `changeDirectory(path)` starts a **new session** under the new worktree's folder key, and sessions in different worktrees run concurrently (each carries its own sandbox). A meta sidecar (`<id>.meta.json`) records the cwd, parent link, lifecycle state, title, and lifetime cost totals; a meta stuck in `running` from a crashed process is downgraded to `error` on load.
+The **session manager** (`SessionManager`) owns the lifecycle: start/resume, list, fork (point-in-time clone under a new id — the fork's title gets a `(forked)` suffix and its `parentSessionId` link is dropped), delete (cascading to every sub session below the target — all-or-nothing, refused while anything in the subtree runs), rename (title only — the id and JSONL file name are immutable), and directory switching. The working directory is manager-owned: `changeDirectory(path)` starts a **new session** under the new worktree's folder key, and sessions in different worktrees run concurrently (each carries its own sandbox). A meta sidecar (`<id>.meta.json`) records the cwd, parent link, lifecycle state, title, and lifetime cost totals; a meta stuck in `running` from a crashed process is downgraded to `error` on load.
 
 ```bash
 picobu sessions                 # list sessions (title + state)
@@ -105,7 +105,7 @@ Every session carries a lifecycle state, persisted in its meta sidecar: `running
 
 ### Session summary (`summarize`)
 
-`session.summarize()` makes a one-shot model call over the whole conversation and returns the summary (plus that call's usage and cost). It is read-only — the session's history is never touched. (Compaction, by contrast, replaces the history.)
+`session.summarize()` makes a one-shot model call over the whole conversation and returns the summary (plus that call's usage and cost). It is read-only — the session's history is never touched. (Compaction, by contrast, appends a cut to the history — see [Session compaction](#session-compaction).)
 
 ### Checkpoints: undo & redo
 
@@ -140,7 +140,12 @@ Each session runs its tools inside a local sandbox rooted at the session's cwd (
 
 ### Session compaction
 
-When a session's used context (input + output tokens) reaches **80% of the current model's context window**, the session is compacted automatically after the run settles: the whole conversation is sent to the **currently running model** with a compactor prompt, and the resulting summary becomes the first message of a **new session**. The original session stays fully saved on disk.
+Compaction turns a growing conversation into a **session cut**: the whole conversation is summarized by the **currently running model** with a compactor prompt, and the summary is appended as a special cut message (`metadata.compaction`). Everything before the cut stays fully saved in the JSONL — undoable and forkable — but **never reaches the LLM again**: the provider only sees the cut's summary plus every message sent after it. Every compaction is therefore a checkpoint, and post-cut context usage (the status bar and the auto-compact trigger) measures only the fresh slice. Cost totals keep accumulating across cuts; per-run token counts naturally drop after one.
+
+- **Auto**: when a run settles with its context at **80% of the model's context window**, the session compacts itself before any queued prompt goes out (opt-in per session via `autoCompact`; sub sessions never auto-compact). With `forkOnCompact` set, the full pre-compaction history is forked into a new session first and the current session hard-resets to the summary (no cut marker — the fork is the checkpoint).
+- **Manual**: `session.compact()` appends a cut on demand; `session.compact({ fork: true })` behaves like the fork-on-compact flow above.
+- **Undo**: `session.uncompact()` removes the trailing cut, restoring the full history to the LLM view.
+- **Fork**: `manager.forkSession(id)` clones the saved session under a new id (title suffixed `(forked)`); with `{ fromCompaction: true }` the fork starts at the last cut, mirroring exactly what the LLM sees.
 
 ### Login & OAuth
 

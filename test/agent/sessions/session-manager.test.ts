@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { options } from "@config/options.ts";
 import { folderKeyFor, sessionFilePath } from "@agent/sessions/session.ts";
-import { writeSessionMeta } from "@agent/sessions/session-meta.ts";
+import { writeSessionMeta, readSessionMeta } from "@agent/sessions/session-meta.ts";
 import { SessionManager } from "@agent/sessions/session-manager.ts";
 import type { SessionMeta } from "@agent/sessions/session-meta.ts";
 
@@ -77,6 +77,72 @@ describe("SessionManager", () => {
       // The id (and therefore the JSONL file name) is untouched.
       expect(session.id).toBe(meta?.id ?? "");
       await session.close();
+    });
+  });
+
+  test("forkSession clones the history into a live fork with a (forked) title", async () => {
+    await withSessionsDir(async (dir) => {
+      const folderKey = folderKeyFor(dir);
+      const id = "0123456789abcdef";
+      await mkdir(join(options.app.systemDir, "sessions", folderKey), { recursive: true });
+      await writeFile(sessionFilePath(folderKey, id), [
+        JSON.stringify({ id: "u1", role: "user", parts: [{ type: "text", text: "hello" }] }),
+        JSON.stringify({ id: "a1", role: "assistant", parts: [{ type: "text", text: "hi" }] }),
+      ].join("\n") + "\n");
+      await writeSessionMeta(folderKey, id, meta({ id, cwd: dir, title: "Original", parentSessionId: "root012345678" }));
+
+      const manager = new SessionManager({ cwd: dir });
+      const { sessionId: forkId } = await manager.forkSession(id);
+      expect(forkId).not.toBe(id);
+      // The fork is live and carries the entire cloned history.
+      const fork = manager.getSession(forkId);
+      expect(fork).toBeDefined();
+      expect(fork!.messages.map((m) => m.id)).toEqual(["u1", "a1"]);
+      // The fork is independent: "(forked)" title, parent link dropped.
+      const forkMeta = await readSessionMeta(folderKey, forkId);
+      expect(forkMeta?.title).toBe("Original (forked)");
+      expect(forkMeta?.parentSessionId).toBeUndefined();
+      await fork!.close();
+    });
+  });
+
+  test("forkSession with fromCompaction starts at the last compaction cut", async () => {
+    await withSessionsDir(async (dir) => {
+      const folderKey = folderKeyFor(dir);
+      const id = "0123456789abcdef";
+      await mkdir(join(options.app.systemDir, "sessions", folderKey), { recursive: true });
+      await writeFile(sessionFilePath(folderKey, id), [
+        JSON.stringify({ id: "u1", role: "user", parts: [{ type: "text", text: "pre-cut" }] }),
+        JSON.stringify({
+          id: "cut",
+          role: "user",
+          metadata: { compaction: { summary: "s", compactedMessageIds: ["u1"], createdAt: 1 } },
+          parts: [{ type: "text", text: "summary" }],
+        }),
+        JSON.stringify({ id: "u2", role: "user", parts: [{ type: "text", text: "post-cut" }] }),
+      ].join("\n") + "\n");
+      await writeSessionMeta(folderKey, id, meta({ id, cwd: dir, title: "Original" }));
+
+      const manager = new SessionManager({ cwd: dir });
+      const full = await manager.forkSession(id);
+      expect(manager.getSession(full.sessionId)!.messages.map((m) => m.id)).toEqual(["u1", "cut", "u2"]);
+      const sliced = await manager.forkSession(id, { fromCompaction: true });
+      expect(manager.getSession(sliced.sessionId)!.messages.map((m) => m.id)).toEqual(["cut", "u2"]);
+      for (const forkId of [full.sessionId, sliced.sessionId]) {
+        await manager.getSession(forkId)!.close();
+      }
+    });
+  });
+
+  test("forkSession refuses a running session", async () => {
+    await withSessionsDir(async (dir) => {
+      const folderKey = folderKeyFor(dir);
+      const id = "0123456789abcdef";
+      await mkdir(join(options.app.systemDir, "sessions", folderKey), { recursive: true });
+      await writeFile(sessionFilePath(folderKey, id), "");
+      await writeSessionMeta(folderKey, id, meta({ id, cwd: dir, state: "running" }));
+      const manager = new SessionManager({ cwd: dir });
+      await expect(manager.forkSession(id)).rejects.toThrow("running");
     });
   });
 

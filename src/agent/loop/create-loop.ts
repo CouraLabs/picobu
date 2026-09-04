@@ -63,6 +63,18 @@ export type LoopUsage = {
   cacheWriteTokens?: number;
 };
 
+/**
+ * A compaction cut: appended to the conversation when it is compacted. The
+ * cut's text part (the summary) is what the provider sees; everything before
+ * the last cut stays saved but never reaches the LLM again.
+ */
+export type CompactionMetadata = {
+  summary: string;
+  /** Audit record of the messages the cut replaces (slicing uses position). */
+  compactedMessageIds: string[];
+  createdAt: number;
+};
+
 /** Assistant-message metadata carried through the UI stream: per-step usage
  * updates arrive mid-run (`finish-step`); the last step's usage — the current
  * context size — is the final value (see the `messageMetadata` note below). */
@@ -71,6 +83,8 @@ export type LoopMessageMetadata = {
   finishReason?: string;
   /** USD cost derived from the resolved model's `billing` (no SDK cost field). */
   cost?: number;
+  /** Present on a compaction cut message (role `user`). */
+  compaction?: CompactionMetadata;
 };
 
 /**

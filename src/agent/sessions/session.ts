@@ -245,6 +245,7 @@ export async function loadSession(
 
 const previewLineSchema = z.object({
   role: z.enum(["system", "user", "assistant"]),
+  metadata: z.unknown().optional(),
   parts: z.array(z.unknown()).optional(),
 });
 
@@ -255,7 +256,9 @@ function isTextPart(part: unknown): part is { type: "text"; text: string } {
   return true;
 }
 
-/** First user text preview for a session file, truncated to 60 chars. */
+/** First user text preview for a session file, truncated to 60 chars.
+ * Compaction cuts are skipped so a fork-at-cut session lists its first real
+ * prompt instead of the `[Session compacted …]` header. */
 function firstPromptPreview(content: string): string {
   for (const raw of content.split("\n")) {
     if (!raw.trim()) continue;
@@ -266,8 +269,14 @@ function firstPromptPreview(content: string): string {
       continue; // skip unparseable lines
     }
     if (line.role !== "user") continue;
+    const meta = line.metadata as { compaction?: unknown } | undefined;
+    if (meta?.compaction) continue;
     const text = (line.parts ?? []).find(isTextPart)?.text.trim();
-    if (text) return text.length > 60 ? `${text.slice(0, 57)}...` : text;
+    if (!text) continue;
+    // A fork-on-compact reset message carries no cut marker — recognize it
+    // by its header so the first real prompt is listed.
+    if (text.startsWith(COMPACTION_HEADER)) continue;
+    return text.length > 60 ? `${text.slice(0, 57)}...` : text;
   }
   return "(no text)";
 }
@@ -422,26 +431,54 @@ export type CompactSessionParams = {
 };
 
 export type CompactResult = {
-  /** The fresh conversation: a single user message carrying the summary. */
-  messages: UIMessage[];
   summary: string;
+  /** The compaction cut's message id (or the reset message under `fork`). */
+  cutMessageId: string;
+  /** Fork session id when the compaction ran with `fork: true`. */
+  forkedSessionId?: string;
 };
+
+/** True when a message is a compaction cut (carries `metadata.compaction`). */
+export const isCompactionCut = (message: UIMessage | undefined): boolean => {
+  const meta = message?.metadata as LoopMessageMetadata | undefined;
+  return meta?.compaction !== undefined;
+};
+
+/**
+ * The conversation as the LLM sees it: everything after the last compaction
+ * cut plus the cut itself. Messages before the cut stay saved (undoable,
+ * forkable) but never reach the provider again — every compaction is a
+ * session cut, and post-cut context accounting measures only this slice.
+ * Pure so it is directly unit-testable.
+ */
+export function messagesForLlm<M extends UIMessage>(messages: M[]): M[] {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (!isCompactionCut(messages[i])) continue;
+    return messages.slice(i);
+  }
+  return messages;
+}
+
+/** Header prefix shared by every compaction-generated message (a cut, or a
+ * fork-on-compact reset — the reset carries no cut marker, so previews
+ * recognize it by this header). */
+const COMPACTION_HEADER = "[Session compacted";
 
 /** Header wrapping the summary inside the fresh session's first message. */
 export const compactedMessageText = (summary: string): string =>
-  `[Session compacted — the earlier conversation was replaced by this summary.]\n\n${summary}`;
+  `${COMPACTION_HEADER} — the earlier conversation was replaced by this summary.]\n\n${summary}`;
 
 /**
  * Compact a conversation with a one-shot structured-output call. Uses the
  * currently running model (`modelKey`) with the compactor prompt; returns the
- * new (much shorter) message list. Throws on model failure — callers surface
- * the error and keep the un-compacted session.
+ * summary (the caller appends the cut or reset). Throws on model failure —
+ * callers surface the error and keep the un-compacted session.
  */
 export async function compactSession({
   messages,
   modelKey,
   thinking,
-}: CompactSessionParams): Promise<CompactResult> {
+}: CompactSessionParams): Promise<{ summary: string }> {
   const transcript = serializeForCompaction(messages);
   if (!transcript) throw new Error("Nothing to compact: the session has no content");
   const { model } = resolveModel(modelKey);
@@ -452,16 +489,7 @@ export async function compactSession({
     prompt: transcript,
     ...(thinking !== undefined ? { reasoning: thinking as AiReasoningEffort as any } : {}),
   });
-  return {
-    messages: [
-      {
-        id: randomUUID(),
-        role: "user",
-        parts: [{ type: "text", text: compactedMessageText(output.summary) }],
-      },
-    ],
-    summary: output.summary,
-  };
+  return { summary: output.summary };
 }
 
 //
@@ -679,9 +707,17 @@ export type Session = {
    * its generated tokens) and makes the steering prompt the next thing the
    * loop sees, ahead of any queued prompts. Resolves when its run settles. */
   steer: (prompt: SessionPrompt) => Promise<void>;
-  /** Summarize the conversation with the current model and replace the
-   * messages with the compacted result. Throws on model failure. */
-  compact: () => Promise<CompactResult>;
+  /** Summarize the conversation with the current model and append a
+   * compaction cut: everything before the cut stays saved (undoable,
+   * forkable) but never reaches the LLM again — the cut's summary is what
+   * the provider sees. With `fork`, the full history is forked into a new
+   * session first and this session hard-resets to the summary alone (no cut
+   * marker — the fork is the checkpoint). Throws on model failure, while a
+   * run is in progress, or while a blocking flow tool is pending. */
+  compact: (opts?: { fork?: boolean }) => Promise<CompactResult>;
+  /** Remove the trailing compaction cut, restoring the pre-cut history to
+   * the LLM view. Throws while running or when no cut exists. */
+  uncompact: () => void;
   /** Await all pending persistence writes. */
   flush: () => Promise<void>;
   /** End the session: abort any run, drop the queue, flush persistence, and
@@ -701,7 +737,18 @@ export type CreateSessionInit = Omit<ChatInit<LoopMessage>, "transport"> & {
     cwd?: string;
     parentSessionId?: string;
     title?: string;
+    /** Fork wiring for fork-on-compact: forks THIS session (full history)
+     * and returns the fork's id. Supplied by the session manager. */
+    forkHost?: () => Promise<string>;
   };
+  /** Auto-compact after a run settles once its context crosses the model's
+   * window threshold (`COMPACT_THRESHOLD`). Spawned sub sessions never
+   * auto-compact. */
+  autoCompact?: boolean;
+  /** When auto-compaction triggers, fork the full history into a new session
+   * first (fork-on-compact): the fork preserves the pre-compaction messages
+   * and this session hard-resets to the summary. */
+  forkOnCompact?: boolean;
 };
 
 /** Token usage + latency of the session's most recent run. */
@@ -742,7 +789,8 @@ export const toPromptMessage = (prompt: SessionPrompt): CreateUIMessage<LoopMess
  * `sessionId` always wins over everything.
  */
 export async function createSession(getConfig: () => LoopConfig, init: CreateSessionInit = {}): Promise<Session> {
-  const { onChange, messages, onFinish, id: sessionId, meta: metaInit, ...chatInit } = init;
+  const { onChange, messages, onFinish, id: sessionId, meta: metaInit, autoCompact, forkOnCompact, ...chatInit } = init;
+  const forkHost = metaInit?.forkHost;
   const id = sessionId ?? generateSessionId();
   // The session's cwd (and therefore its folder key) comes from the manager's
   // config closure, not the global default — sessions in different worktrees
@@ -792,12 +840,14 @@ export async function createSession(getConfig: () => LoopConfig, init: CreateSes
   const runEndListeners = new Set<() => void>();
   const transport: ChatTransport<LoopMessage> = {
     sendMessages: async (options) => {
-      // Reasoning blocks the provider cannot replay (an interrupted thinking
-      // block with no signature) are stripped before every send so aborted
+      // The LLM sees everything after the last compaction cut plus the cut
+      // itself — pre-cut history stays saved but never re-sent. Reasoning
+      // blocks the provider cannot replay (an interrupted thinking block
+      // with no signature) are stripped before every send so aborted
       // reasoning is never re-sent to the model.
       const upstream = await loop.transport.sendMessages({
         ...options,
-        messages: stripUnreplayableReasoning(options.messages),
+        messages: stripUnreplayableReasoning(messagesForLlm(options.messages)),
       });
       return upstream.pipeThrough(
         new TransformStream<UIMessageChunk, UIMessageChunk>({
@@ -818,12 +868,20 @@ export async function createSession(getConfig: () => LoopConfig, init: CreateSes
   // `draining` flag keeps a single dispatcher so sends never overlap.
   const pendingPrompts: PendingPrompt[] = [];
   let draining = false;
+  /** Set while a compaction is in flight (undefined when idle): the drain
+   * awaits it so no prompt is sent while the history is being cut/reset. */
+  let compaction: Promise<void> | undefined;
 
   const drain = async (): Promise<void> => {
     if (draining) return;
     draining = true;
     try {
-      while (pendingPrompts.length > 0 && chat.status !== "submitted" && chat.status !== "streaming") {
+      while (pendingPrompts.length > 0 && !isRunning()) {
+        // A compaction in flight lands first: queued prompts go out with the
+        // cut context, never with the pre-cut history the cut replaces.
+        const pendingCompaction = compaction;
+        if (pendingCompaction) await pendingCompaction;
+        if (isRunning()) break;
         const item = pendingPrompts.shift()!;
         try {
           await chat.sendMessage(item.message);
@@ -890,6 +948,7 @@ export async function createSession(getConfig: () => LoopConfig, init: CreateSes
       // before any visible response (mid-reasoning, cancelled between submit
       // and the first streamed chunk) is erased: the truncated reasoning must
       // not sit in the history or go back to the model on the next prompt.
+      const wasAborting = aborting;
       if (aborting) {
         aborting = false;
         const kept = dropUnansweredPrompt(chat.messages);
@@ -937,15 +996,150 @@ export async function createSession(getConfig: () => LoopConfig, init: CreateSes
       // settled. Fires before the drain so the next run's chunks belong to
       // the next stream subscription.
       for (const listener of runEndListeners) listener();
-      // The run settled (completed, errored, or aborted) — the next queued
-      // prompt, if any, may go out now.
-      void drain();
+      // Auto-compaction: when the settled run's context crosses the model's
+      // window threshold, compact BEFORE the drain so queued prompts go out
+      // with the cut context. Aborted and failed runs never trigger it.
+      if (autoCompact && !wasAborting && !chat.error && shouldAutoCompact(usage)) {
+        void runAutoCompact();
+      } else {
+        // The run settled (completed, errored, or aborted) — the next queued
+        // prompt, if any, may go out now.
+        void drain();
+      }
     },
     loop,
   });
 
   const markAborting = (): void => {
     if (chat.status === "submitted" || chat.status === "streaming") aborting = true;
+  };
+
+  /** True while a run is in flight (a function, not a property check —
+   * narrowing `chat.status` across awaits is unsound). */
+  const isRunning = (): boolean => chat.status === "submitted" || chat.status === "streaming";
+
+  /** Set while a compaction is in flight so a concurrent (auto + manual)
+   * compaction fails fast instead of stacking duplicate cuts. */
+  let compacting = false;
+
+  /**
+   * Compact the conversation: summarize with the current model, then either
+   * append a compaction cut (history stays saved; only the post-cut slice
+   * reaches the LLM) or — with `fork` — fork the full history via the
+   * manager's `forkHost` and hard-reset this session to the summary alone.
+   * Throws while a run is in progress (compaction only mutates messages
+   * while the chat is settled), while a blocking flow tool is pending, while
+   * another compaction is in flight, and on model failure.
+   */
+  const compactInternal = async ({ fork }: { fork?: boolean } = {}): Promise<CompactResult> => {
+    if (compacting) throw new Error("Compaction already in progress");
+    if (isRunning()) {
+      throw new Error("Cannot compact while a run is in progress");
+    }
+    if (isWaiting(chat.messages)) {
+      // The cut/reset would hide the pending blocking flow tool (`ask`/
+      // `plan-write`) — the user's answer must reference a visible question.
+      throw new Error("Cannot compact while waiting on a flow tool");
+    }
+    const config = effectiveConfig();
+    if (fork && !forkHost) throw new Error("Forking requires a session manager");
+    compacting = true;
+    const run = (async () => {
+      try {
+        const { summary } = await compactSession({
+          messages: chat.messages,
+          modelKey: config.modelKey,
+          thinking: config.thinking,
+        });
+        // A steer or queued prompt may have started a run while the compactor
+        // model call was in flight — re-check before forking or mutating.
+        if (isRunning()) {
+          throw new Error("Cannot compact while a run is in progress");
+        }
+        // Fork only after the summary succeeded and the session is still
+        // settled (the conversation is unmutated, so the fork captures the
+        // same pre-compaction state) — a failed compaction must not leave a
+        // stray fork behind. forkSession refuses while the source is running,
+        // so a steer that raced the compactor call fails the fork instead of
+        // forking mid-run.
+        const forkedSessionId = fork ? await forkHost!() : undefined;
+        // forkSession's own async work re-opened the window — check once
+        // more before mutating the history.
+        if (isRunning()) {
+          throw new Error("Cannot compact while a run is in progress");
+        }
+        const text = compactedMessageText(summary);
+        if (fork) {
+          // Fork-on-compact: the fork preserved the full history, so this
+          // session hard-resets to the summary alone (no cut marker — the
+          // fork is the checkpoint; nothing to undo here).
+          const reset: LoopMessage = {
+            id: randomUUID(),
+            role: "user",
+            parts: [{ type: "text", text }],
+          };
+          chat.messages = [reset];
+          return { summary, cutMessageId: reset.id, forkedSessionId };
+        }
+        const cut: LoopMessage = {
+          id: randomUUID(),
+          role: "user",
+          metadata: {
+            compaction: {
+              summary,
+              compactedMessageIds: chat.messages.map((m) => m.id),
+              createdAt: Date.now(),
+            },
+          },
+          parts: [{ type: "text", text }],
+        };
+        chat.messages = [...chat.messages, cut];
+        return { summary, cutMessageId: cut.id, forkedSessionId };
+      } finally {
+        compacting = false;
+      }
+    })();
+    // Settled mirror of the run: the drain awaits it so no queued prompt is
+    // sent while the history is being cut/reset.
+    const settled = run.then(() => {}, () => {});
+    compaction = settled;
+    settled.then(() => {
+      if (compaction === settled) compaction = undefined;
+    });
+    return run;
+  };
+
+  /** True when the settled run's usage crosses the model's window threshold.
+   * Never fires while a blocking flow tool is pending: the user's answer
+   * would reference a question the cut hides. */
+  const shouldAutoCompact = (usage: LoopUsage | undefined): boolean => {
+    if (!usage) return false;
+    if (effectiveConfig().subagent) return false; // sub sessions never auto-compact
+    // One compaction per context build-up: a trailing cut means the fresh
+    // context has not been extended yet (guards against re-compacting a
+    // summary that alone exceeds the threshold).
+    if (isCompactionCut(chat.messages[chat.messages.length - 1])) return false;
+    if (isWaiting(chat.messages)) return false;
+    let contextWindow = 0;
+    try {
+      contextWindow = resolveModelRef(effectiveConfig().modelKey).modelMeta.context;
+    } catch {
+      return false; // unconfigured model — never auto-compact
+    }
+    return shouldCompact(usage.inputTokens ?? 0, contextWindow);
+  };
+
+  // Auto-compaction on settle: fire-and-forget with error logging — a failed
+  // compaction never breaks the session. The drain is chained after it so
+  // queued prompts go out with the cut context.
+  const runAutoCompact = async (): Promise<void> => {
+    try {
+      await compactInternal({ fork: forkOnCompact });
+    } catch (error) {
+      console.error("picobu: auto-compaction failed:", error);
+    } finally {
+      void drain();
+    }
   };
 
   // Derived lifecycle state (same rule the onChange handler persists).
@@ -1137,15 +1331,17 @@ export async function createSession(getConfig: () => LoopConfig, init: CreateSes
           void drain();
         }
       }),
-    compact: async () => {
-      const config = effectiveConfig();
-      const result = await compactSession({
-        messages: chat.messages,
-        modelKey: config.modelKey,
-        thinking: config.thinking,
-      });
-      chat.messages = result.messages as LoopMessage[];
-      return result;
+    compact: (opts) => compactInternal(opts ?? {}),
+    uncompact: () => {
+      if (isRunning()) {
+        throw new Error("Cannot uncompact while a run is in progress");
+      }
+      for (let i = chat.messages.length - 1; i >= 0; i--) {
+        if (!isCompactionCut(chat.messages[i])) continue;
+        chat.messages = chat.messages.filter((_, index) => index !== i);
+        return;
+      }
+      throw new Error("Nothing to uncompact: the session has no compaction cut");
     },
     flush: () => saver.flush(),
     close: async () => {
