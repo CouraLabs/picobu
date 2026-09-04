@@ -5,6 +5,7 @@
   "private": true,
   "scripts": {
     "dev": "bun run --watch src/cli.ts",
+    "dev:tui": "bun run --watch src/tui/app.ts",
     "test": "bun test test/",
     "dev:test": "bun run src/dev/smoke.ts",
     "tsc": "tsc -noEmit",
