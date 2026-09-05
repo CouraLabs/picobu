@@ -23,7 +23,7 @@ import { withLock } from "@shared/lock.ts";
 import { compactorPrompt } from "@agent/prompts/compactor.ts";
 import { resolveModel, resolveModelRef } from "@agent/model/resolver.ts";
 import { AGENTS, listAgents } from "@agent/agents/registry.ts";
-import { listRules, type Rule } from "@agent/rules/rules";
+import { listRules, type Rule } from "@agent/rules/rules.ts";
 import { listCommands, listSkills, type Command } from "@agent/commands/index.ts";
 import {
   computeCost,

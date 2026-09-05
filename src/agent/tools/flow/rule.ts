@@ -1,5 +1,5 @@
 import z from "zod";
-import { listRules, type Rule } from "@agent/rules/rules";
+import { listRules, type Rule } from "@agent/rules/rules.ts";
 import { parseMarkdownFile } from "@agent/markdown/markdown-parser.ts";
 
 export const RuleToolArgsSchema = z.object({

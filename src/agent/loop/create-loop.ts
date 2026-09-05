@@ -6,7 +6,7 @@ import { getAgent } from "@agent/agents/registry.ts";
 import { resolveModel, resolveModelRef } from "@agent/model/resolver.ts";
 import { buildRulesSection, buildSkillsSection, buildSubagentsSection, generateSystemMessage } from "@agent/prompts/system.ts";
 import { loadAgentsMarkdown } from "@agent/prompts/agents-md.ts";
-import { listRules } from "@agent/rules/rules";
+import { listRules } from "@agent/rules/rules.ts";
 import { listSkills } from "@agent/commands/index.ts";
 import { listSubagents } from "@agent/agents/subagents.ts";
 import { options, type ProviderModelBilling, type ProviderModelReasoningEffort } from "@config/options.ts";

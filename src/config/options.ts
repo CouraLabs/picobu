@@ -327,8 +327,4 @@ export const updateSettings = async (
   }
 };
 
-const options = await loadOptions();
-
-export {
-  options
-}
+export const options = await loadOptions();

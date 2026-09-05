@@ -44,6 +44,8 @@ import tacos from "@tui/themes/assets/tacos.json" with { type: "json" }
 import vesper from "@tui/themes/assets/vesper.json" with { type: "json" }
 import zenburn from "@tui/themes/assets/zenburn.json" with { type: "json" }
 
+export * from "./icons.ts";
+
 export type Theme = {
   readonly primary: RGBA
   readonly secondary: RGBA
@@ -183,28 +185,13 @@ export const DEFAULT_THEMES: Record<string, ThemeJson> = {
   ["bluloco-dark"]: blulocoDark,
 }
 
-const pluginThemes: Record<string, ThemeJson> = {}
-let customThemes: Record<string, ThemeJson> = {}
-let systemTheme: ThemeJson | undefined
-const listeners = new Set<(themes: Record<string, ThemeJson>) => void>()
-
 function listThemes() {
   // Priority: defaults < plugin installs < custom files < generated system.
   const themes = {
     ...DEFAULT_THEMES,
-    ...pluginThemes,
-    ...customThemes,
   }
-  if (!systemTheme) return themes
-  return {
-    ...themes,
-    system: systemTheme,
-  }
-}
 
-function syncThemes() {
-  const themes = listThemes()
-  for (const listener of listeners) listener(themes)
+  return themes;
 }
 
 export function allThemes() {
@@ -217,45 +204,9 @@ export function isTheme(theme: unknown): theme is ThemeJson {
   return typeof value === "object" && value !== null && !Array.isArray(value)
 }
 
-export function subscribeThemes(listener: (themes: Record<string, ThemeJson>) => void) {
-  listeners.add(listener)
-  return () => listeners.delete(listener)
-}
-
-export function setCustomThemes(themes: Record<string, ThemeJson>) {
-  customThemes = themes
-  syncThemes()
-}
-
-export function setSystemTheme(theme: ThemeJson | undefined) {
-  systemTheme = theme
-  syncThemes()
-}
-
 export function hasTheme(name: string) {
   if (!name) return false
   return allThemes()[name] !== undefined
-}
-
-export function addTheme(name: string, theme: unknown) {
-  if (!name) return false
-  if (!isTheme(theme)) return false
-  if (hasTheme(name)) return false
-  pluginThemes[name] = theme
-  syncThemes()
-  return true
-}
-
-export function upsertTheme(name: string, theme: unknown) {
-  if (!name) return false
-  if (!isTheme(theme)) return false
-  if (customThemes[name] !== undefined) {
-    customThemes[name] = theme
-  } else {
-    pluginThemes[name] = theme
-  }
-  syncThemes()
-  return true
 }
 
 export function resolveTheme(theme: ThemeJson, mode: "dark" | "light") {

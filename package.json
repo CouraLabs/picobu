@@ -5,11 +5,9 @@
   "private": true,
   "scripts": {
     "dev": "bun run --watch src/cli.ts",
-    "dev:tui": "bun run --watch src/tui/app.ts",
-    "test": "bun test test/",
-    "dev:test": "bun run src/dev/smoke.ts",
+    "dev:tui": "bun run --watch src/tui/init.tsx",
     "tsc": "tsc -noEmit",
-    "tsc:test": "tsc -noEmit -p tsconfig.test.json"
+    "parsers:update": "bun ./scripts/update-tree-sitter-assets.ts"
   },
   "devDependencies": {
     "@types/bun": "^1.4.1",
@@ -17,7 +15,8 @@
     "@types/turndown": "^5.0.6"
   },
   "peerDependencies": {
-    "typescript": "^7.0.2"
+    "typescript": "^5",
+    "solid-js": "1.9.12"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.49",
@@ -26,11 +25,11 @@
     "@ai-sdk/openai": "^4.0.58",
     "@ai-sdk/openai-compatible": "^3.0.43",
     "@ai-sdk/provider": "^4.0.10",
-    "@opencode-ai/models": "^0.0.64",
+    "@opencode-ai/models": "^0.0.65",
     "@opentui/core": "^0.5.10",
+    "@opentui/solid": "^0.5.10",
     "@vscode/ripgrep": "^1.18.0",
     "@whiskeysockets/baileys": "^7.0.0-rc14",
-    "@xstate/store": "^4.0.0",
     "ai": "^7.0.92",
     "commander": "^15.0.0",
     "diff": "^9.0.0",
