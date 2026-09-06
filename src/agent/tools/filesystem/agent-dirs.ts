@@ -2,20 +2,14 @@ import { stat } from "node:fs/promises";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { options } from "@config/options.ts";
 
-/**
- * Candidate dirs that extend the agent's behavior (skills, workflows, prompts,
- * commands, rules) and must therefore never be hidden from the filesystem tools
- * — even when dot-prefixed or listed in `.gitignore`.
- */
-const AGENT_SUBDIRS = ["skills", "workflows", "prompts", "commands", "rules"];
 
+const AGENT_SUBDIRS = ["skills", "workflows", "prompts", "commands", "rules"];
 export const agentDirCandidates = (base: string): string[] => [
-  join(base, ".agents"), // the scanned project's own
-  join(options.app.cwd, ".agents"), // active working dir (`/cd` keeps it in sync)
+  join(base, ".agents"),
+  join(options.app.cwd, ".agents"),
   join(options.app.homeDir, ".agents"),
   ...AGENT_SUBDIRS.map((s) => join(options.app.systemDir, s)),
 ];
-
 const dirExists = async (p: string): Promise<boolean> => {
   try {
     return (await stat(p)).isDirectory();
@@ -24,10 +18,7 @@ const dirExists = async (p: string): Promise<boolean> => {
   }
 };
 
-/**
- * Existing agent dirs strictly inside `base` (deduped, absolute). Only these
- * can contribute files to a search rooted at `base`.
- */
+
 export const agentDirsUnder = async (base: string): Promise<string[]> => {
   const root = resolve(base);
   const out: string[] = [];
@@ -44,11 +35,7 @@ export const agentDirsUnder = async (base: string): Promise<string[]> => {
   return out;
 };
 
-/**
- * True when `path` is inside (or equals) an agent dir: any `<...>/.agents`
- * ancestor, or the picobu systemDir's agent subdirs. Pure path math — the
- * search target exists by construction.
- */
+
 export const insideAgentDir = (path: string): boolean => {
   const systemSubdirs = AGENT_SUBDIRS.map((s) => resolve(join(options.app.systemDir, s)));
   let dir = resolve(path);

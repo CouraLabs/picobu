@@ -1,10 +1,4 @@
-/**
- * Compactor prompt: instructions for the one-shot LLM call that condenses a
- * full coding session into a summary message for a fresh session. Consumed by
- * `compactSession` (`src/harness/agent/factory/loop/session.ts`) as the
- * `system` prompt of a `generateText` call with `Output.object` — the
- * transcript is passed as the user prompt.
- */
+
 export const compactorPrompt =
 `You are a session compactor. You receive the transcript of a coding-agent session (user requests, assistant answers, tool calls with abbreviated inputs and outputs) and produce a dense summary that lets the agent continue the work in a fresh session with no memory of the original conversation.
 - Write the summary so the agent can resume seamlessly: it is the only context the fresh session will have.

@@ -1,5 +1,4 @@
 export const icons: Record<string, string> = {
-  // Status
   success: "✓",
   cross: "✗",
   error: "✘",
@@ -24,7 +23,7 @@ export const icons: Record<string, string> = {
   hourglass: "⌛",
   pin: "⍟",
 
-  // Arrows & navigation
+  
   arrowLeft: "←",
   arrowRight: "→",
   arrowUp: "↑",
@@ -54,7 +53,7 @@ export const icons: Record<string, string> = {
   capsLock: "⇪",
   space: "␣",
 
-  // Files & folders
+  
   folder: "▸",
   folderOpen: "▾",
   file: "≡",
@@ -67,7 +66,7 @@ export const icons: Record<string, string> = {
   collapse: "▾",
   uncollapse: "▸",
 
-  // Git & diff
+  
   gitBranch: "⑂",
   gitMerge: "⌥",
   gitCommit: "⊙",
@@ -79,7 +78,7 @@ export const icons: Record<string, string> = {
   diffRenamed: "→",
   conflict: "≠",
 
-  // Edit operations
+  
   add: "+",
   remove: "−",
   edit: "✎",
@@ -107,7 +106,7 @@ export const icons: Record<string, string> = {
   shield: "⛨",
   link: "⌗",
 
-  // Chat & AI
+  
   robot: "⌬",
   human: "☺",
   thought: "…",
@@ -120,7 +119,7 @@ export const icons: Record<string, string> = {
   cost: "$",
   usage: "▤",
 
-  // Boxes, borders & layout
+  
   boxTopLeft: "┌",
   boxTopRight: "┐",
   boxBottomLeft: "└",
@@ -139,7 +138,7 @@ export const icons: Record<string, string> = {
   caretLeft: "◀",
   caretRight: "▶",
 
-  // Bars & progress
+  
   blockFull: "█",
   blockLight: "░",
   blockMedium: "▒",
@@ -149,7 +148,7 @@ export const icons: Record<string, string> = {
   progressFull: "█",
   progressEmpty: "░",
 
-  // Math & misc
+  
   plus: "+",
   minus: "−",
   multiply: "×",

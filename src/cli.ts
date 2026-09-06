@@ -9,12 +9,10 @@ import { connectToWhatsApp } from "@integrations/whatsapp/connection.ts";
 import { getMcpServer } from "@integrations/mcp/discover.ts";
 import { startMcpLogin, removeMcpCredential } from "@integrations/mcp/auth.ts";
 import { listMcpServers } from "@integrations/mcp/status.ts";
-
 const program = new Command();
 program
   .name("picobu")
   .description("Headless autonomous coding agent core");
-
 const sessions = program
   .command("sessions")
   .description("list saved sessions for a folder (title + lifecycle state)")
@@ -37,7 +35,6 @@ const sessions = program
       process.exit(0);
     })();
   });
-
 sessions
   .command("delete")
   .description("delete a session and cascade to its sub sessions (refuses running subtrees)")
@@ -56,7 +53,6 @@ sessions
       process.exit(0);
     })();
   });
-
 sessions
   .command("rename")
   .description("rename a session (title only — the id is immutable)")
@@ -75,7 +71,6 @@ sessions
       process.exit(0);
     })();
   });
-
 sessions
   .command("tree")
   .description("show the session tree (roots with their sub sessions)")
@@ -97,11 +92,10 @@ sessions
     })();
   });
 
-// MCP server management: status table + OAuth login/logout.
+
 const mcp = program
   .command("mcp")
   .description("list configured MCP servers with connection and auth status");
-
 mcp
   .action(() => {
     void (async () => {
@@ -119,7 +113,6 @@ mcp
       process.exit(0);
     })();
   });
-
 mcp
   .command("login")
   .description("run the OAuth login flow for an MCP server (auth: true in config)")
@@ -137,7 +130,6 @@ mcp
       process.exit(0);
     })();
   });
-
 mcp
   .command("logout")
   .description("remove the stored OAuth tokens for an MCP server")
@@ -150,22 +142,20 @@ mcp
     })();
   });
 
-// Bootstrap runs after provider discovery so any env-gated custom provider is
-// merged into options.json before credentials are refreshed. It also starts
-// the long-lived background service: the WhatsApp connection (reconnects from
-// persisted credentials without a QR), when enabled in options.
+
+
+
+
 const bootstrap = async (): Promise<void> => {
   await autoloadLlmProviders();
-  // Load auth.json + refresh expired OAuth tokens so synchronous model
-  // resolution during a run can read valid access tokens.
+  
+  
   await ensureOAuthTokens();
   if (options.whatsapp.enabled) void connectToWhatsApp();
 };
-
 program.action(() => {
   void bootstrap().then(() => {
     console.log("picobu headless core ready (no UI attached).");
   });
 });
-
 program.parse(process.argv);

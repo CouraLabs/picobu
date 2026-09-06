@@ -17,54 +17,31 @@ import { websearchTool } from "@agent/tools/web/websearch.ts";
 import { webfetchTool } from "@agent/tools/web/webfetch.ts";
 import { wwpTools } from "@integrations/whatsapp/wwp-tools.ts";
 
-/** Tool families: `filesystem` (file I/O), `flow` (session workflow state), `external` (web), `integration` (WhatsApp ops), and `mcp` (connected MCP servers — namespaced `mcp_<server>_<tool>`, merged per step in the loop). */
-export type ToolKind = "filesystem" | "flow" | "external" | "integration" | "mcp";
 
+export type ToolKind = "filesystem" | "flow" | "external" | "integration" | "mcp";
 export type AgentTool = {
   name: string;
-  /** Which family the tool belongs to. */
   kind: ToolKind;
-  /** AI SDK tool ready for the agent loop. */
   tool: Tool;
-  /** LLM-facing usage docs: description + JSON schema, for the system prompt. */
   info: string;
 };
 
-/** Execute options forwarded from the AI SDK into tool handlers. */
+
 export type ToolExecuteOptions = {
   abortSignal?: AbortSignal;
-  /** The session's sandbox (undefined when the sandbox is disabled). */
   experimental_sandbox?: Experimental_SandboxSession;
 };
 
-/** Per-session context a tool set may need (session-scoped flow tools). */
+
 export type ToolSetContext = {
-  /** Absolute path of this session's todo file; registers the `todo` flow tool. */
   todoFilePath?: string;
-  /**
-   * Session id. Registers the session-keyed flow tools. The interactive ones
-   * (`ask`, `plan-write`, `plan-exit`) additionally require `interactive` —
-   * spawned sub sessions never get them (a pending interactive output would
-   * pause the sub run with nobody able to answer).
-   */
   sessionId?: string;
-  /** Interactive flow tools registered only for main sessions (default true
-   * when a `sessionId` is present). Sub sessions set this to false. */
   interactive?: boolean;
-  /** Absolute path of this session's checkpoint log (write/edit undo). */
   checkpointsPath?: string;
-  /** Wiring for the `spawn` flow tool (session manager + parent id + depth). */
   spawn?: SpawnToolContext;
 };
 
-/**
- * Build the tool environment for an agent: `getTools` returns the registered
- * tools — optionally filtered by name (e.g. `['read', 'grep']`) — each carrying
- * an AI SDK `tool` for the agent loop and an LLM-facing `info` string (description
- * + JSON schema) to concatenate into the system prompt. Without a name filter it
- * returns every registered tool. Flow tools are only registered when their
- * session context is available (see `ToolSetContext`).
- */
+
 export function buildToolSet(ctx: ToolSetContext = {}) {
   const allTools: AgentTool[] = [
     wrapTool(readTool),
@@ -81,7 +58,6 @@ export function buildToolSet(ctx: ToolSetContext = {}) {
     wrapTool(createRuleTool()),
     ...(ctx.sessionId
       ? [
-          // Interactive flow tools are structurally forbidden for sub sessions.
           ...(ctx.interactive === false
             ? []
             : [wrapTool(createAskTool()), wrapTool(createPlanExitTool()), wrapTool(createPlanWriteTool())]),
@@ -89,27 +65,23 @@ export function buildToolSet(ctx: ToolSetContext = {}) {
       : []),
     ...(ctx.sessionId && ctx.spawn ? [wrapTool(createSpawnTool(ctx.spawn))] : []),
   ];
-
   const getTools = (names?: string[]): AgentTool[] =>
     names?.length ? allTools.filter((t) => names.includes(t.name)) : allTools;
-
   const getToolSet = (names?: string[]): ToolSet => {
     return toToolSet(getTools(names));
   }
-
   return { getTools, getToolSet };
 }
 
-/** Convert agent tools into the AI SDK `ToolSet` used by the agent loop. */
+
 export function toToolSet(tools: AgentTool[]): ToolSet {
   return Object.fromEntries(tools.map((t) => [t.name, t.tool]));
 }
 
-/** Render LLM-facing usage docs for a list of tools (for the system prompt). */
+
 export function toolsInfo(tools: AgentTool[]): string {
   return tools.map((t) => t.info).join("\n\n");
 }
-
 function wrapTool<TSchema extends z.ZodType, TOutput extends z.ZodType>(def: {
   name: string;
   description: string;
@@ -128,9 +100,9 @@ function wrapTool<TSchema extends z.ZodType, TOutput extends z.ZodType>(def: {
       description: def.description,
       inputSchema: def.parameters,
       outputSchema: def.output,
-      // Forward the SDK's execute options (abort signal + sandbox) into the
-      // handler so tools can run inside the session's working directory and
-      // be cancelled mid-flight.
+      
+      
+      
       execute: (args, executeOptions) =>
         def.handler(args as z.infer<TSchema>, {
           abortSignal: executeOptions?.abortSignal,
@@ -140,7 +112,6 @@ function wrapTool<TSchema extends z.ZodType, TOutput extends z.ZodType>(def: {
     info: renderToolInfo(def.name, def.description, def.parameters),
   };
 }
-
 function renderToolInfo(
   name: string,
   description: string,

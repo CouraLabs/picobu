@@ -6,39 +6,33 @@ import { registerOAuthProvider } from "@auth/register.ts";
 import { getCredential, initAuth, listCredentials, setCredential } from "@auth/store.ts";
 import type { OAuthAuth } from "@auth/types.ts";
 
-/** Advisory margin: treat a credential as stale shortly before hard expiry. */
+
 const REFRESH_GRACE_MS = 5 * 60 * 1000;
 
-/** Registered OAuth providers, in picker order. */
+
 export const OAUTH_AUTHS: OAuthAuth[] = [openaiOAuth, anthropicOAuth, githubCopilotOAuth];
 
-/** Friendly invocation aliases (`/login copilot` → github-copilot). */
-const PROVIDER_ALIASES: Record<string, string> = { copilot: "github-copilot", claude: "anthropic", chatgpt: "openai" };
 
+const PROVIDER_ALIASES: Record<string, string> = { copilot: "github-copilot", claude: "anthropic", chatgpt: "openai" };
 export const oauthAuthById = (raw: string): OAuthAuth | undefined => {
   const id = PROVIDER_ALIASES[raw.trim().toLowerCase()] ?? raw;
   return OAUTH_AUTHS.find((auth) => auth.id === id);
 };
-
 export type OAuthProviderInfo = { id: string; name: string; loggedIn: boolean };
 
-/** Provider rows for the login/logout picker (sync; requires `initAuth`). */
+
 export const listOAuthProviders = (): OAuthProviderInfo[] =>
   OAUTH_AUTHS.map((auth) => ({
     id: auth.id,
     name: auth.name,
     loggedIn: Boolean(getCredential(auth.id)),
   }));
-
 let activeLoginAbort: AbortController | null = null;
 
-/** Abort the in-flight login flow (wired to the status dialog's Cancel). */
+
 export const cancelLogin = (): void => activeLoginAbort?.abort();
 
-/**
- * Run a provider OAuth login (browser / device-code), then register the
- * provider + models in options.json. Progress is logged to the console.
- */
+
 export const startLogin = async (id: string, opts?: string): Promise<void> => {
   const auth = oauthAuthById(id);
   if (!auth) {
@@ -50,8 +44,8 @@ export const startLogin = async (id: string, opts?: string): Promise<void> => {
   activeLoginAbort = controller;
   try {
     const interaction = createInteraction(auth.id, auth.name, controller.signal);
-    // An optional extra argument supplies the enterprise domain (copilot);
-    // other flows ignore it.
+    
+    
     const options = opts?.trim() ? { enterpriseDomain: opts.trim() } : undefined;
     const credential = await auth.login(interaction, options);
     controller.signal.throwIfAborted();
@@ -66,22 +60,15 @@ export const startLogin = async (id: string, opts?: string): Promise<void> => {
     if (activeLoginAbort === controller) activeLoginAbort = null;
   }
 };
-
 let refreshInFlight: Promise<void> | null = null;
 
-/**
- * Refresh every stored credential close to expiry, serialized so concurrent
- * callers (app boot, each run start) share one pass. Failures keep the stale
- * credential — `resolveAuth` surfaces an actionable `/login` error at request
- * time instead of silently building a keyless client.
- */
+
 export const ensureOAuthTokens = (): Promise<void> => {
   refreshInFlight ??= refreshOAuthTokens().finally(() => {
     refreshInFlight = null;
   });
   return refreshInFlight;
 };
-
 export const refreshOAuthTokens = async (): Promise<void> => {
   await initAuth();
   const credentials = listCredentials();
@@ -94,7 +81,6 @@ export const refreshOAuthTokens = async (): Promise<void> => {
       if (fresh.expires - REFRESH_GRACE_MS <= Date.now()) continue;
       await setCredential(id, fresh);
     } catch {
-      // keep the stale credential — resolveAuth surfaces an actionable error
     }
   }
 };

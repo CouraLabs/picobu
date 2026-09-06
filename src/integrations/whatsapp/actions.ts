@@ -3,21 +3,19 @@ import { options } from "@config/options.ts";
 import { sendText } from "@integrations/whatsapp/connection.ts";
 import { normalizePhone } from "@integrations/whatsapp/phone.ts";
 
-/** Persisted "today" task: `~/.picobu/whatsapp/today.json`, reset each day. */
+
 export type TodayTask = { id: string; text: string; createdAt: number };
-
 type TodayFile = { day: string; items: TodayTask[] };
-
 export const whatsappFilePath = (name: string): string =>
   `${options.app.systemDir}/whatsapp/${name}.json`;
 
-/** Local day key (`2026-1-9`) used to reset the today list. */
+
 const todayKey = (now = Date.now()): string => {
   const d = new Date(now);
   return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
 };
 
-/** Send a WhatsApp text; throws with a user-facing message on failure. */
+
 export const sendWwpMessage = async (phone: string, message: string): Promise<string> => {
   if (!normalizePhone(phone)) throw new Error(`Invalid phone number: ${phone}`);
   if (!message.trim()) throw new Error("Message text is empty");
@@ -25,7 +23,7 @@ export const sendWwpMessage = async (phone: string, message: string): Promise<st
   return `Message sent to +${normalizePhone(phone)}`;
 };
 
-/** Append a task to today's list (file resets when the day changes). */
+
 export const addTodayTask = async (text: string): Promise<string> => {
   const path = whatsappFilePath("today");
   await withLock(path, async () => {
@@ -45,7 +43,7 @@ export const addTodayTask = async (text: string): Promise<string> => {
   return `Added to today's tasks: ${text}`;
 };
 
-/** Remove a today-task by id; throws when unknown. */
+
 export const removeTodayTask = async (id: string): Promise<string> => {
   const path = whatsappFilePath("today");
   await withLock(path, async () => {

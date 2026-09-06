@@ -1,17 +1,7 @@
-/**
- * Manual smoke test: run with `bun src/test.ts` (or `bun run dev:test`).
- *
- * Creates a session over the loop (with the configured `flash` role model),
- * subscribes to `session.stream()`, sends one random prompt, and prints the
- * status transitions, the streamed UI message chunks as they arrive, and the
- * final message list. Requires a configured model (`harness.defaultModel` or
- * the `flash` role in `~/.picobu/options.json`) and valid credentials.
- */
+
 import { options, resolveModelRole, type ProviderModelReasoningEffort } from "@config/options.ts";
 import { createSession } from "@agent/sessions/session.ts";
-
-const prompt = "Glob the directory and read a random file. Then explain what you read." //prompts[Math.floor(Math.random() * prompts.length)]!;
-
+const prompt = "Glob the directory and read a random file. Then explain what you read." 
 let modelKey: string;
 let thinking: ProviderModelReasoningEffort = "medium";
 try {
@@ -22,7 +12,6 @@ try {
   console.error("No model configured:", error);
   process.exit(1);
 }
-
 let lastStatus = "";
 const session = await createSession(
   () => ({ agentId: "ask", modelKey, thinking }),
@@ -35,14 +24,13 @@ const session = await createSession(
     },
   },
 );
-
 console.log(`session:  ${session.id}`);
 console.log(`model:    ${modelKey} (thinking: ${thinking})`);
 console.log(`agent:    ${session.config.agentId}`);
 console.log(`prompt:   ${prompt}\n`);
 
-// Subscribe before sending: the generator yields every UIMessageChunk of the
-// run and ends when the run settles.
+
+
 const stream = session.streamMessages();
 let chunkCount = 0;
 let streaming = false;
@@ -53,16 +41,13 @@ const consume = (async () => {
     console.log(chunk)
   }
 })();
-
 await session.sendMessage({ text: prompt });
 await consume;
 await session.flush();
-
 if (streaming) {
   streaming = false;
   process.stdout.write("\n");
 }
-
 console.log(`\n--- messages (${session.messages.length}, ${chunkCount} chunks streamed) ---`);
 console.log(`\n${JSON.stringify(session.messages, undefined, 2)}`);
 console.log(`\n----`);

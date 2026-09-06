@@ -1,17 +1,11 @@
 import z from "zod";
-
 export const PlanExitToolArgsSchema = z.object({});
-
 export const PlanExitToolOutputSchema = z.object({
   switchedTo: z.string(),
   message: z.string(),
 });
 
-/**
- * Plan → Coder handoff flow tool. Signals that the plan was accepted and the
- * loop should continue as the Coder agent with the full toolset. Call only
- * after the user explicitly accepted the plan.
- */
+
 export const createPlanExitTool = () => ({
   name: "plan-exit",
   kind: "flow" as const,

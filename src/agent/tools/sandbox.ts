@@ -3,15 +3,11 @@ import { mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
 import type { Experimental_SandboxProcess, Experimental_SandboxSession } from "ai";
 
-/** Options for `run`/`spawn` (shell command + working dir + env + abort). */
-type SandboxProcessOptions = Parameters<Experimental_SandboxSession["run"]>[0];
 
+type SandboxProcessOptions = Parameters<Experimental_SandboxSession["run"]>[0];
 export type ShellSpec = { cmd: string[] };
 
-/**
- * Map a `detectShell()` label (`options.app.shell`) to the shell executable and
- * flag used to invoke the command. Falls back to a POSIX shell for unknown labels.
- */
+
 export function shellSpec(shellLabel: string): ShellSpec {
   const [platform, shell] = shellLabel.split(":");
   if (platform === "Windows") {
@@ -38,45 +34,27 @@ export function shellSpec(shellLabel: string): ShellSpec {
   return { cmd: [Bun.env.SHELL || "/bin/sh", "-c"] };
 }
 
-/**
- * The AI SDK ships the `SandboxSession` interface but no local implementation;
- * this is the Bun-backed one. It owns the session's working directory: shell
- * commands run inside it, and relative file paths resolve against it.
- * Absolute paths are allowed (no jail — path policy v1).
- */
+
 export type LocalSandboxSession = Experimental_SandboxSession & {
-  /** Absolute root directory every relative path resolves against. */
   readonly root: string;
-  /**
-   * Internal argv-style execution extension (e.g. ripgrep spawning): runs a
-   * raw argv vector without shell-line semantics. Not part of the SDK
-   * interface — callers must duck-type before use.
-   */
   exec(
     argv: string[],
     opts?: { cwd?: string; env?: Record<string, string>; abortSignal?: AbortSignal },
   ): Promise<{ exitCode: number; stdout: string; stderr: string }>;
 };
 
-/** Extract the sandbox root from a tool-execute sandbox (undefined when absent/foreign). */
+
 export const sandboxRoot = (sandbox: unknown): string | undefined =>
   typeof sandbox === "object" && sandbox !== null && "root" in sandbox && typeof (sandbox as LocalSandboxSession).root === "string"
     ? (sandbox as LocalSandboxSession).root
     : undefined;
-
 const MISSING = "ENOENT";
 
-/**
- * Create a local sandbox session rooted at `root`. Shell commands run through
- * the user's shell (`shellSpec(shellLabel)`), so `run` takes shell-line
- * semantics; `exec` takes raw argv for programmatic callers. Abort signals
- * kill the running process.
- */
+
 export function createLocalSandboxSession(root: string, shellLabel: string): LocalSandboxSession {
   const spec = shellSpec(shellLabel);
   const resolveInRoot = (p: string | undefined): string =>
     p ? (isAbsolute(p) ? p : join(root, p)) : root;
-
   const start = (
     cmd: string[],
     opts: { cwd?: string; env?: Record<string, string>; abortSignal?: AbortSignal },
@@ -92,18 +70,15 @@ export function createLocalSandboxSession(root: string, shellLabel: string): Loc
       try {
         proc.kill();
       } catch {
-        // already exited
       }
     };
     opts.abortSignal?.addEventListener("abort", onAbort, { once: true });
     return { proc, onAbort };
   };
-
   const done = (opts: { abortSignal?: AbortSignal }, onAbort: () => void, exitCode: number) => {
     opts.abortSignal?.removeEventListener("abort", onAbort);
     return exitCode;
   };
-
   const spawn = async (opts: SandboxProcessOptions): Promise<Experimental_SandboxProcess> => {
     const { proc, onAbort } = start([...spec.cmd, opts.command], {
       cwd: opts.workingDirectory,
@@ -120,7 +95,6 @@ export function createLocalSandboxSession(root: string, shellLabel: string): Loc
       },
     };
   };
-
   const run = async (opts: SandboxProcessOptions) => {
     const { proc, onAbort } = start([...spec.cmd, opts.command], {
       cwd: opts.workingDirectory,
@@ -135,7 +109,6 @@ export function createLocalSandboxSession(root: string, shellLabel: string): Loc
     done(opts, onAbort, exitCode);
     return { exitCode, stdout, stderr };
   };
-
   const readStream = (path: string, abortSignal?: AbortSignal): Promise<ReadableStream<Uint8Array> | null> =>
     new Promise((resolve) => {
       const file = Bun.file(path);
@@ -145,7 +118,6 @@ export function createLocalSandboxSession(root: string, shellLabel: string): Loc
         .then((exists) => resolve(exists ? file.stream() : null))
         .catch(() => resolve(null));
     });
-
   const readText = async (path: string, opts?: { startLine?: number; endLine?: number }): Promise<string | null> => {
     let text: string;
     try {
@@ -161,7 +133,6 @@ export function createLocalSandboxSession(root: string, shellLabel: string): Loc
     const endLine = Math.min(lines.length, opts?.endLine ?? lines.length);
     return lines.slice(startLine - 1, endLine).join("\n");
   };
-
   return {
     root,
     description: `Local sandbox: shell commands run via the user's shell in ${root}; relative file paths resolve against this root.`,

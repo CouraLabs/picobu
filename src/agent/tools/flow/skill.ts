@@ -3,25 +3,19 @@ import { dirname, join } from "node:path";
 import z from "zod";
 import { listSkills, type Command } from "@agent/commands/index.ts";
 import { parseMarkdownFile } from "@agent/markdown/markdown-parser.ts";
-
 export const SkillToolArgsSchema = z.object({
   name: z.string(),
 });
-
 export const SkillToolOutputSchema = z.object({
   name: z.string(),
   description: z.string(),
-  /** SKILL.md path. */
   skillFile: z.string(),
-  /** Folder containing the skill; related files live here. */
   skillDir: z.string(),
-  /** Relative paths of every file in the skill folder (SKILL.md included). */
   files: z.array(z.string()),
-  /** Frontmatter-stripped SKILL.md body. */
   content: z.string(),
 });
 
-/** Every file under `dir`, as paths relative to it (dot-files included). */
+
 const listSkillFiles = async (dir: string): Promise<string[]> => {
   const files: string[] = [];
   const walk = async (current: string, prefix: string): Promise<void> => {
@@ -41,13 +35,7 @@ const listSkillFiles = async (dir: string): Promise<string[]> => {
   return files.sort();
 };
 
-/**
- * Skill-loading flow tool. Resolves a skill from the discovered catalog
- * (`.agents/skills`, `~/.agents/skills`, `~/.picobu/skills` — same source as
- * the `/`-command picker) and returns its SKILL.md body plus the relative
- * paths of the related files in the skill's folder, so the model can read the
- * ones the instructions reference with the `read` tool.
- */
+
 export const createSkillTool = (getSkills: () => Command[] = listSkills) => ({
   name: "skill",
   kind: "flow" as const,

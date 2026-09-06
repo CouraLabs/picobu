@@ -1,4 +1,4 @@
-/** Best-effort open of a URL in the platform default browser (never throws). */
+
 export const openInBrowser = (url: string): void => {
   const cmd =
     process.platform === "darwin"
@@ -9,7 +9,5 @@ export const openInBrowser = (url: string): void => {
   try {
     Bun.spawn({ cmd, stdout: "ignore", stderr: "ignore" });
   } catch {
-    // A browser not being available (headless/CI) must not fail the login —
-    // the status dialog still shows the URL / device code.
   }
 };

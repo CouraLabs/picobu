@@ -3,11 +3,10 @@ import {
   sendWwpMessage,
   addTodayTask,
 } from "@integrations/whatsapp/actions.ts";
-
 const sent = z.object({ message: z.string() });
 
-/** WhatsApp / alert / reminder tools for the persistent agent. */
-/** Tool defs share a widened shape so the heterogeneous array type-checks. */
+
+
 export const wwpTools: {
   name: string;
   description: string;

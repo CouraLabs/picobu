@@ -9,14 +9,11 @@ import {
 } from "@opentui/core"
 import { render } from "@opentui/solid"
 import { App } from "@tui/layout/app.tsx"
-
 export type TuiAppOptions = {
   debug?: boolean
 }
-
 export async function runTui(options: TuiAppOptions = {}): Promise<void> {
   const debug = options.debug === true
-
   const renderer = await createCliRenderer({
     exitOnCtrlC: true,
     useMouse: true,
@@ -30,20 +27,17 @@ export async function runTui(options: TuiAppOptions = {}): Promise<void> {
       process.exit(0)
     }
   })
-
   const clipboard = createClipboard({
     host: createHostClipboard(),
     terminal: createRendererClipboardAdapter(renderer)
   })
-
   if (debug) {
-    // FPS/frame-time overlay in the bottom-right corner; `d` toggles it live.
     renderer.configureDebugOverlay({
       enabled: true,
       corner: DebugOverlayCorner.bottomRight,
     })
-    // Show (not focus) the console overlay so captured console.* output is
-    // visible without stealing key handling from the app.
+    
+    
     renderer.console.show()
     renderer.on(
       CliRenderEvents.MEMORY_SNAPSHOT,
@@ -55,12 +49,9 @@ export async function runTui(options: TuiAppOptions = {}): Promise<void> {
       },
     )
   }
-
   engine.attach(renderer)
-
   await render(() => <App clipboard={clipboard} />, renderer)
 }
-
 if (import.meta.main) {
   await runTui({
     debug: process.argv.includes("--debug")

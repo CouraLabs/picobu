@@ -5,30 +5,23 @@ import { withLock } from "@shared/lock.ts";
 import { sandboxRoot } from "@agent/tools/sandbox.ts";
 import { CheckpointStore } from "@agent/sessions/checkpoints.ts";
 import type { ToolExecuteOptions } from "@agent/tools/toolset.ts";
-
 export const EditToolArgsSchema = z.object({
   path: z.string(),
   oldString: z.string(),
   newString: z.string(),
 })
 
-/** Structured result: a human-readable confirmation plus the unified diff of the change. */
+
 export type EditToolResult = {
   message: string;
   diff: string;
 };
-
 export const EditToolOutputSchema = z.object({
   message: z.string(),
   diff: z.string(),
 });
 
-/**
- * Replace a single occurrence of oldString with newString. When
- * `checkpointsPath` is provided, every edit records a checkpoint (the file's
- * before/after content) so `undo`/`redo` can replay it. Relative paths resolve
- * against the session sandbox root when a sandbox is attached.
- */
+
 export const createEditTool = (checkpointsPath?: string) => {
   const checkpoints = checkpointsPath ? new CheckpointStore(checkpointsPath) : undefined;
   return {

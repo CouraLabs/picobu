@@ -39,93 +39,69 @@ import type { LoopConfig } from "@agent/loop/create-loop.ts";
 import type { AgentType } from "@agent/agents/types.ts";
 import type { UIMessage } from "ai";
 
-/** A spawned sub session as observed by the job registry. */
+
 export type JobRow = {
   sessionId: string;
   parentId: string;
   subagent: string;
   state: SessionState;
-  /** True while the spawn waits for a concurrency slot (not started yet). */
   queued: boolean;
   startedAt: number;
 };
-
 export type SpawnSubSessionParams = {
   parentId: string;
   subagent: string;
   prompt: SessionPrompt;
-  /** Nesting depth of the caller (a root session is depth 0). */
   depth: number;
 };
-
 export type CreateSessionOptions = {
   id?: string;
   agentId?: string;
   modelKey?: string;
   title?: string;
-  /** Auto-compact after a run settles once the context crosses the window
-   * threshold (see `CreateSessionInit.autoCompact`). */
   autoCompact?: boolean;
-  /** Auto-compaction forks the full history first (fork-on-compact). */
   forkOnCompact?: boolean;
 };
-
 const DEFAULT_MAX_AGENTS = 4;
 
-/**
- * Owns the session lifecycle: creation, listing, renaming (title only),
- * forking (point-in-time clone), deletion (cascading to sub sessions),
- * directory switching (starts a NEW session), the sandbox toggle, the
- * `maxAgents` concurrency cap, and the job registry for spawned sub
- * sessions.
- *
- * The cwd is owned here — `options.app.cwd` is read once as a bootstrap
- * default and never written back. Sessions in different worktrees run
- * concurrently, each with its own sandbox.
- */
+
 export class SessionManager {
   private cwd: string;
   private _sandboxEnabled = true;
   private readonly _maxAgents: number;
-  /** Live sessions created by this manager, keyed by id. */
   private readonly live = new Map<string, Session>();
-  /** Job registry: active + recently settled sub sessions. */
   private readonly jobRows = new Map<string, JobRow>();
   private readonly jobListeners = new Set<(rows: JobRow[]) => void>();
-  /** FIFO queue of slot waiters (spawned sessions only; roots never count). */
   private readonly slotQueue: Array<() => void> = [];
   private activeSlots = 0;
-
   constructor(init: { cwd?: string; maxAgents?: number } = {}) {
     this.cwd = resolve(init.cwd ?? options.app.cwd);
     this._maxAgents = init.maxAgents ?? options.harness.maxAgents ?? DEFAULT_MAX_AGENTS;
   }
 
-  /** The manager's current working directory (per-session worktree root). */
+  
   get currentCwd(): string {
     return this.cwd;
   }
 
-  /** Concurrency cap for spawned sub sessions (0 = spawning disabled). */
+  
   get maxAgents(): number {
     return this._maxAgents;
   }
 
-  //
-  // ── Configuration ─────────────────────────────────────────────────────────
-  //
+  
+  
+  
 
-  /** Enable/disable the sandbox. Applies to sessions created from now on;
-   * running sessions keep their loop's sandbox. Runtime-only (not persisted). */
+  
   setSandbox(enabled: boolean): void {
     this._sandboxEnabled = enabled;
   }
-
   get sandboxEnabled(): boolean {
     return this._sandboxEnabled;
   }
 
-  /** Base loop config for a new session in the current cwd. */
+  
   private baseConfig(overrides: { agentId?: string; modelKey?: string; sessionId?: string; agentOverride?: AgentType; subagent?: boolean; spawn?: LoopConfig["spawn"] } = {}): LoopConfig {
     let modelKey = overrides.modelKey;
     let thinking: ProviderModelReasoningEffort | undefined;
@@ -135,8 +111,8 @@ export class SessionManager {
         modelKey = role.modelKey;
         thinking = role.thinking;
       } catch {
-        // No model configured yet — the loop constructs with a placeholder
-        // and the host can `switchModel` once one is available.
+        
+        
         modelKey = "unconfigured/none";
         thinking = "medium";
       }
@@ -154,21 +130,17 @@ export class SessionManager {
     };
   }
 
-  //
-  // ── Session lifecycle ─────────────────────────────────────────────────────
-  //
+  
+  
+  
 
-  /**
-   * Start a session in the current cwd. With `id`, resume the saved session
-   * (crash recovery: a stale `running` meta is downgraded to `error` first).
-   */
+  
   async startSession(init: CreateSessionOptions = {}): Promise<Session> {
     const id = init.id ?? generateSessionId();
     const folderKey = folderKeyFor(this.cwd);
 
-    // Crash recovery applies to sessions not live in this process.
+    
     if (!this.live.has(id)) await recoverSessionMeta(folderKey, id);
-
     const session = await createSession(() => this.baseConfig({ agentId: init.agentId, modelKey: init.modelKey, sessionId: id }), {
       id,
       meta: { cwd: this.cwd, title: init.title, forkHost: () => this.forkSession(id).then((r) => r.sessionId) },
@@ -179,67 +151,52 @@ export class SessionManager {
     return session;
   }
 
-  /** A session created by this manager (undefined for foreign ids). */
+  
   getSession(id: string): Session | undefined {
     return this.live.get(id);
   }
 
-  /** Load any saved session's messages (folder key derived from meta cwd when present). */
+  
   async loadMessages(id: string): Promise<UIMessage[] | null> {
     const folderKey = await this.folderKeyForSession(id);
     return loadSession(folderKey, id);
   }
 
-  /** Resolve a session's folder key: the meta cwd when recorded, else the current cwd. */
+  
   private async folderKeyForSession(id: string): Promise<string> {
     const meta = await readSessionMeta(folderKeyFor(this.cwd), id);
     return folderKeyFor(meta?.cwd ?? this.cwd);
   }
 
-  /**
-   * Change the working directory. Starts a NEW session under the new
-   * worktree's folder key; existing sessions keep running untouched (no
-   * concurrency gate — sessions in other worktrees are independent). A no-op
-   * when the path equals the current cwd.
-   */
+  
   async changeDirectory(path: string): Promise<Session | undefined> {
     const next = resolve(path);
     const info = await stat(next).catch(() => undefined);
     if (!info?.isDirectory()) throw new Error(`Not a directory: ${next}`);
-    if (next === this.cwd) return undefined; // silent no-op
+    if (next === this.cwd) return undefined; 
     this.cwd = next;
     return this.startSession();
   }
 
-  /** Rename = set the title only (id and JSONL filename are immutable). */
+  
   async renameSession(id: string, title: string): Promise<void> {
     return this.setSessionTitle(id, title);
   }
-
   async setSessionTitle(id: string, title: string): Promise<void> {
     const folderKey = await this.folderKeyForSession(id);
     const updated = await updateSessionMeta(folderKey, id, { title });
     if (!updated) {
-      // Legacy session without a sidecar: create a minimal one.
       const meta = await readSessionMeta(folderKey, id);
       if (meta) await writeSessionMeta(folderKey, id, { ...meta, title });
       else throw new Error(`Unknown session "${id}"`);
     }
   }
 
-  /**
-   * Fork a session: clone its saved JSONL and meta sidecar under a fresh id
-   * and return the fork's id. `fromCompaction` mirrors the LLM view — the
-   * fork starts at the last compaction cut (a full clone when no cut
-   * exists). Per-session flow state (todo list, checkpoints) is not copied —
-   * the fork starts fresh. The fork is an independent session: the source's
-   * `parentSessionId` link is dropped so cascade deletion of the source's
-   * parent never reaches it.
-   */
+  
   async forkSession(id: string, opts: { fromCompaction?: boolean } = {}): Promise<{ sessionId: string }> {
     const folderKey = await this.folderKeyForSession(id);
-    // Refuse to fork a running session (live here, or stuck in `running`
-    // meta owned by another process).
+    
+    
     const source = this.live.get(id);
     if (source?.state === "running") {
       throw new Error(`Session "${id}" is running; stop it before forking`);
@@ -248,7 +205,6 @@ export class SessionManager {
     if (!source && meta?.state === "running") {
       throw new Error(`Session "${id}" is running; stop it before forking`);
     }
-    // Flush pending writes so the clone sees the settled state.
     await source?.flush();
     const messages = await loadSession(folderKey, id);
     if (!messages) throw new Error(`Unknown session "${id}"`);
@@ -274,23 +230,21 @@ export class SessionManager {
         updatedAt: Date.now(),
       });
     }
-    // Materialize the fork as a live session (resumes its saved messages) —
-    // only when it lives in the manager's current folder. A cross-worktree
-    // fork (source meta cwd ≠ current cwd) stays on disk: startSession would
-    // create it under the wrong folder key and resume empty. The fork id is
-    // still returned; resuming it from its own worktree works as usual.
+    
+    
+    
+    
+    
     if (folderKey !== folderKeyFor(this.cwd)) return { sessionId: forkId };
     const fork = await this.startSession({ id: forkId });
     return { sessionId: fork.id };
   }
 
-  //
-  // ── Listing ───────────────────────────────────────────────────────────────
-  //
+  
+  
+  
 
-  /** List saved sessions for the current cwd's folder key, newest first,
-   * joined with their meta (title/state/parent/cwd). Sessions whose meta
-   * records a different cwd are excluded (same-basename worktrees). */
+  
   async listSessions(): Promise<Array<{
     id: string;
     mtimeMs: number;
@@ -313,8 +267,8 @@ export class SessionManager {
     }> = [];
     for (const row of rows) {
       const meta = await readSessionMeta(folderKey, row.id);
-      // Meta-less (legacy) sessions always show; meta-cwd filtering keeps
-      // same-basename worktrees from mixing.
+      
+      
       if (meta && meta.cwd !== this.cwd) continue;
       out.push({
         ...row,
@@ -327,7 +281,7 @@ export class SessionManager {
     return out;
   }
 
-  /** The session tree for the current cwd: roots with their nested children. */
+  
   async listSessionTree(): Promise<Array<SessionMeta & { children: SessionMeta[] }>> {
     const folderKey = folderKeyFor(this.cwd);
     const metas = await this.readAllMetas(folderKey);
@@ -338,7 +292,7 @@ export class SessionManager {
       .map((root) => ({ ...root, children: childrenOf(root.id) }));
   }
 
-  /** All meta sidecars for a folder key (corrupt/missing entries skipped). */
+  
   private async readAllMetas(folderKey: string): Promise<SessionMeta[]> {
     let names: string[];
     try {
@@ -352,20 +306,16 @@ export class SessionManager {
     return metas.filter((m): m is SessionMeta => m !== null && m.cwd === this.cwd);
   }
 
-  //
-  // ── Deletion ──────────────────────────────────────────────────────────────
-  //
+  
+  
+  
 
-  /**
-   * Delete a session and cascade to every sub session below it
-   * (all-or-nothing: the whole subtree must be non-running). Returns the
-   * number of deleted sessions (target + descendants).
-   */
+  
   async deleteSession(id: string): Promise<number> {
     const folderKey = await this.folderKeyForSession(id);
     const subtree = await this.collectSubtree(folderKey, id);
-    // All-or-nothing: every session in the subtree must be settled. A meta
-    // stuck in `running` for a non-live session means another process owns it.
+    
+    
     for (const nodeId of subtree) {
       const running = this.live.get(nodeId)?.state === "running"
         || (this.live.has(nodeId) === false && (await readSessionMeta(folderKey, nodeId))?.state === "running");
@@ -378,13 +328,12 @@ export class SessionManager {
       this.emitJobs();
       await rm(sessionFilePath(folderKey, nodeId), { force: true });
       await deleteSessionMeta(folderKey, nodeId);
-      // Per-session dir (checkpoints, todo list).
       await rm(join(options.app.systemDir, "sessions", folderKey, nodeId), { recursive: true, force: true }).catch(() => {});
     }
     return subtree.length;
   }
 
-  /** The session and every descendant via the meta parent links. */
+  
   private async collectSubtree(folderKey: string, rootId: string): Promise<string[]> {
     const byParent = new Map<string, string[]>();
     for (const meta of await this.readAllMetas(folderKey)) {
@@ -404,47 +353,40 @@ export class SessionManager {
     return out;
   }
 
-  //
-  // ── Job registry ──────────────────────────────────────────────────────────
-  //
+  
+  
+  
 
-  /** Snapshot of the job registry (active + recently settled sub sessions). */
+  
   jobs(): JobRow[] {
     return [...this.jobRows.values()];
   }
 
-  /** Subscribe to job-registry changes; returns an unsubscribe function. */
+  
   onJobs(listener: (rows: JobRow[]) => void): () => void {
     this.jobListeners.add(listener);
     return () => this.jobListeners.delete(listener);
   }
-
   private emitJobs(): void {
     const rows = this.jobs();
     for (const listener of this.jobListeners) listener(rows);
   }
 
-  /** Abort a running job (cascading to its own children). */
+  
   abortJob(sessionId: string): void {
     this.live.get(sessionId)?.abort();
   }
 
-  /** Abort every live session and its sub sessions (e.g. on host shutdown). */
+  
   abortAll(): void {
     for (const session of this.live.values()) session.abort();
   }
 
-  //
-  // ── Spawning ──────────────────────────────────────────────────────────────
-  //
+  
+  
+  
 
-  /**
-   * Spawn a sub session from a subagent definition and run its prompt to
-   * settlement. Concurrency (`maxAgents`, depth-inclusive, spawned sessions
-   * only) follows the deadlock-free rule: a root-level spawn over capacity
-   * queues FIFO; a nested spawn (the caller already holds a slot) fails fast
-   * so a cycle of blocked holders can never deadlock the queue.
-   */
+  
   async spawnSubSession({ parentId, subagent, prompt, depth }: SpawnSubSessionParams): Promise<{
     summary: string;
     usage: { inputTokens: number; outputTokens: number; cacheRead: number; cacheWrite: number; cost?: number };
@@ -460,13 +402,12 @@ export class SessionManager {
     }
     const parent = this.live.get(parentId);
 
-    // Nested spawn (caller holds a slot): never queue — fail fast so holders
-    // blocked on their own children cannot starve the queue (deadlock rule).
+    
+    
     const nested = depth > 0;
     if (nested && this.activeSlots >= this.maxAgents) {
       throw new Error("Agent concurrency limit reached — wait for the current sub agents to finish, then retry");
     }
-
     const sessionId = generateSessionId();
     this.jobRows.set(sessionId, {
       sessionId,
@@ -477,38 +418,33 @@ export class SessionManager {
       startedAt: Date.now(),
     });
     this.emitJobs();
-
     try {
       if (!nested) await this.acquireSlot();
       this.jobRows.set(sessionId, { ...this.jobRows.get(sessionId)!, queued: false });
       this.emitJobs();
-
       const prepared = prepareSubagent(def);
-      // Model: the subagent's explicit `provider/model` key wins, else the
-      // parent's current model.
+      
+      
       let modelKey = parent?.config.modelKey ?? this.baseConfig().modelKey;
       if (def.model) {
         const ref = resolveModelRef(def.model);
         if (`${ref.provider.id}/${ref.modelId}` === def.model) modelKey = def.model;
       }
-
       const child = await createSession(
         () => this.baseConfig({ modelKey, sessionId, agentOverride: prepared, subagent: true, spawn: { manager: this, parentId: sessionId, depth: depth + 1 } }),
         { id: sessionId, meta: { cwd: this.cwd, parentSessionId: parentId, title: `${subagent}: sub session` } },
       );
       this.live.set(sessionId, child);
-
       try {
         await child.sendMessage(toPromptMessage(prompt));
-        // An errored run (model failure, aborted stream) must surface: the
-        // chat swallows stream errors into its error state, so check it.
+        
+        
         if (child.error) throw child.error;
-        // Settle → summarize → close: the summary is the deliverable; the
-        // child's MCP clients are closed after the model call.
+        
+        
         const result = await child.summarize().catch(() => undefined);
         const summary = result?.summary ?? lastAssistantText(child.messages) ?? "(sub agent produced no output)";
         const childTotals = child.totals;
-        // Roll the child's usage into the parent's lifetime totals.
         parent?.addUsage({
           source: "subagent",
           sessionId,
@@ -542,7 +478,6 @@ export class SessionManager {
       this.releaseSlot();
     }
   }
-
   private async acquireSlot(): Promise<void> {
     if (this.activeSlots < this.maxAgents) {
       this.activeSlots += 1;
@@ -551,14 +486,13 @@ export class SessionManager {
     await new Promise<void>((release) => this.slotQueue.push(release));
     this.activeSlots += 1;
   }
-
   private releaseSlot(): void {
     this.activeSlots -= 1;
     this.slotQueue.shift()?.();
   }
 }
 
-/** Last assistant text of a conversation: the sub agent's raw deliverable. */
+
 function lastAssistantText(messages: UIMessage[]): string | undefined {
   for (let i = messages.length - 1; i >= 0; i--) {
     const m = messages[i]!;

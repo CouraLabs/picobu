@@ -2,26 +2,18 @@ import { withLock } from "@shared/lock.ts";
 import { options } from "@config/options.ts";
 import { normalizePhone } from "@integrations/whatsapp/phone.ts";
 
-/** A known WhatsApp counterparty, kept fresh from traffic + contact events. */
+
 export type WwpContact = {
-  /** Bare digits, e.g. `15551234567`. */
   phone: string;
-  /** Push/saved name when known, otherwise null. */
   name: string | null;
-  /** Last inbound/outbound activity (epoch ms). */
   lastAt: number;
 };
-
 type ContactsFile = { contacts: WwpContact[] };
 
-/** Merge cap so the contacts book can't grow unbounded. */
+
 const MAX_CONTACTS = 200;
 
-/**
- * Pure merge: one entry per normalized phone; `lastAt` never goes back; a
- * fresh non-empty name replaces the stored one, otherwise the name survives.
- * Newest activity first.
- */
+
 export const mergeContacts = (
   existing: readonly WwpContact[],
   incoming: readonly { phone: string; name?: string | null; lastAt: number }[],
@@ -44,11 +36,11 @@ export const mergeContacts = (
   return Array.from(byPhone.values()).sort((a, b) => b.lastAt - a.lastAt);
 };
 
-/** Contacts persist under `<dir>/contacts.json` (`dir` overridable for tests). */
+
 export const contactsFilePath = (dir: string = `${options.app.systemDir}/whatsapp`): string =>
   `${dir}/contacts.json`;
 
-/** All known contacts, newest activity first (missing/corrupt file = empty). */
+
 export const listWwpContacts = async (dir?: string): Promise<WwpContact[]> => {
   const file = Bun.file(contactsFilePath(dir));
   if (!(await file.exists())) return [];
@@ -63,7 +55,7 @@ export const listWwpContacts = async (dir?: string): Promise<WwpContact[]> => {
   }
 };
 
-/** Upsert contacts (fire-and-forget from the connection handlers). */
+
 export const recordWwpContacts = async (
   incoming: readonly { phone: string; name?: string | null; lastAt?: number }[],
   dir?: string,
@@ -71,8 +63,8 @@ export const recordWwpContacts = async (
   const usable = incoming.filter((c) => normalizePhone(c.phone));
   if (!usable.length) return;
   const path = contactsFilePath(dir);
-  // Read-merge-write under one lock: concurrent recorders (messages.upsert +
-  // contacts.upsert land together) would otherwise drop each other's updates.
+  
+  
   await withLock(path, async () => {
     const file = Bun.file(path);
     const existing: readonly WwpContact[] = (await file.exists())

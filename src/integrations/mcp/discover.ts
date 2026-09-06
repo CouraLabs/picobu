@@ -6,18 +6,9 @@ import {
   type McpServerOptions,
 } from "@integrations/mcp/config.ts";
 
-/**
- * MCP config discovery: reads the global `mcp` block (via the `options`
- * singleton) and the project `.mcp.json` in a working directory, merging the
- * two (project entries win on id collision).
- */
 
-/**
- * Parse a project `.mcp.json` file's raw JSON into server options. Accepts
- * the Claude-style `{ "mcpServers": { ... } }` shape (and a bare
- * `{ "servers": ... }` as a lenient fallback); throws a descriptive error
- * on malformed input.
- */
+
+
 export const parseProjectMcpJson = (raw: unknown, source = PROJECT_MCP_FILENAME): McpServerOptions[] => {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
     throw new Error(`${source} must contain a JSON object`);
@@ -34,7 +25,7 @@ export const parseProjectMcpJson = (raw: unknown, source = PROJECT_MCP_FILENAME)
   }
 };
 
-/** Read + parse the project `.mcp.json` in `dir`; missing file → `[]`. */
+
 export const loadProjectMcpServers = async (dir: string): Promise<McpServerOptions[]> => {
   const file = Bun.file(`${dir}/${PROJECT_MCP_FILENAME}`);
   if (!(await file.exists())) return [];
@@ -49,11 +40,7 @@ export const loadProjectMcpServers = async (dir: string): Promise<McpServerOptio
   return parseProjectMcpJson(raw);
 };
 
-/**
- * The effective MCP config for `dir`: global `options.mcp.servers` plus the
- * project `.mcp.json` (project wins on collision). A broken project file is
- * reported to the console and skipped — it must not take the harness down.
- */
+
 export const loadMcpConfig = async (dir: string = options.app.cwd): Promise<McpServerOptions[]> => {
   let projectServers: McpServerOptions[] = [];
   try {
@@ -64,6 +51,6 @@ export const loadMcpConfig = async (dir: string = options.app.cwd): Promise<McpS
   return mergeMcpServers(Object.values(options.mcp.servers), projectServers);
 };
 
-/** Look up one configured server by id (merged global + project). */
+
 export const getMcpServer = async (id: string, dir: string = options.app.cwd): Promise<McpServerOptions | undefined> =>
   (await loadMcpConfig(dir)).find((server) => server.id === id);

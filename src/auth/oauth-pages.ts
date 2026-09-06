@@ -1,7 +1,4 @@
-/**
- * Minimal success/error HTML for the local OAuth callback windows. Ported from
- * earendil-works/pi `oauth/oauth-page.ts` (same dark theme, no logo markup).
- */
+
 
 const escapeHtml = (value: string): string =>
   value
@@ -10,13 +7,11 @@ const escapeHtml = (value: string): string =>
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
-
 const renderPage = (options: { title: string; heading: string; message: string; details?: string }): string => {
   const title = escapeHtml(options.title);
   const heading = escapeHtml(options.heading);
   const message = escapeHtml(options.message);
   const details = options.details ? escapeHtml(options.details) : undefined;
-
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -48,9 +43,7 @@ const renderPage = (options: { title: string; heading: string; message: string; 
 </body>
 </html>`;
 };
-
 export const oauthSuccessHtml = (message: string): string =>
   renderPage({ title: "Authentication successful", heading: "Authentication successful", message });
-
 export const oauthErrorHtml = (message: string, details?: string): string =>
   renderPage({ title: "Authentication failed", heading: "Authentication failed", message, details });

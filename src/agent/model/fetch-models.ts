@@ -1,11 +1,7 @@
 import { z } from "zod";
 import type { ProviderModelCapability, ProviderModelOptions } from "@config/options.ts";
 
-/**
- * One entry of an OpenAI-compatible `/models` payload. Only `id` is required —
- * the extended fields are optional so plain listings (id-only) still parse,
- * while Hyper's rich entries map onto full model metadata.
- */
+
 const ModelsEntrySchema = z.object({
   id: z.string(),
   display_name: z.string().optional(),
@@ -33,19 +29,16 @@ const ModelsEntrySchema = z.object({
     })
     .optional(),
 });
-
 const ModelsResponseSchema = z.object({ data: z.array(ModelsEntrySchema) });
 
-/** Map one `/models` entry to a `ProviderModelOptions`, dropping id-less entries. */
+
 const toProviderModel = (entry: z.infer<typeof ModelsEntrySchema>): ProviderModelOptions | null => {
   if (!entry.id) return null;
   const efforts = (entry.reasoning?.effort_levels ?? [])
     .map((level) => level.value)
     .filter((value): value is string => Boolean(value));
-
   const supports: ProviderModelCapability[] = ["text"];
   if (entry.capabilities?.vision) supports.push("vision");
-
   return {
     id: entry.id,
     name: entry.display_name ?? entry.id,
@@ -66,10 +59,7 @@ const toProviderModel = (entry: z.infer<typeof ModelsEntrySchema>): ProviderMode
   };
 };
 
-/**
- * Parse a `/models` JSON payload into model metadata. Unknown shapes and
- * empty listings resolve to `[]` so callers can fall back to models.dev.
- */
+
 export const parseModelsResponse = (payload: unknown): ProviderModelOptions[] => {
   const parsed = ModelsResponseSchema.safeParse(payload);
   if (!parsed.success) return [];
@@ -79,7 +69,7 @@ export const parseModelsResponse = (payload: unknown): ProviderModelOptions[] =>
   });
 };
 
-/** Fetch a provider's OpenAI-compatible models listing with bearer auth. */
+
 export const fetchModels = async (url: string, apiKey: string): Promise<ProviderModelOptions[]> => {
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${apiKey}` },

@@ -1,21 +1,4 @@
-/**
- * Tree-sitter parser descriptors for grammars that OpenTUI does not bundle
- * (JavaScript/TypeScript, Markdown and Zig come built-in).
- *
- * Consumed by `scripts/update-tree-sitter-assets.ts`, which downloads every
- * parser wasm + query into `src/wrappers/parsers/<filetype>/` and generates
- * the asset loader at `src/wrappers/parsers/assets.ts`.
- *
- * NOTE: `locals` queries from the upstream nvim-treesitter configs are
- * intentionally not listed here — OpenTUI's `FiletypeParserOptions` only
- * consumes `highlights` and `injections`.
- *
- * Warn: when taking queries from the nvim-treesitter repo, make sure to include
- *       the query dependencies as well, marked with `; inherits: ecma` at the
- *       top of the file. Some queries use breaking changes that are not
- *       compatible with the (web-)tree-sitter parser — the entries below point
- *       at query sources known to work with the pinned parser wasm.
- */
+
 export default {
   parsers: [
     {
@@ -23,8 +6,8 @@ export default {
       wasm: "https://github.com/tree-sitter/tree-sitter-python/releases/download/v0.23.6/tree-sitter-python.wasm",
       queries: {
         highlights: [
-          // NOTE: The nvim-treesitter python query is currently broken ("except" nodes
-          //       the parser complains about), so we use the parser repo's own query.
+          
+          
           "https://github.com/tree-sitter/tree-sitter-python/raw/refs/heads/master/queries/highlights.scm",
         ],
       },
@@ -113,7 +96,6 @@ export default {
       wasm: "https://github.com/tree-sitter/tree-sitter-php/releases/download/v0.24.2/tree-sitter-php.wasm",
       queries: {
         highlights: [
-          // NOTE: The nvim-treesitter php query is incompatible with this parser.
           "https://github.com/tree-sitter/tree-sitter-php/raw/refs/heads/master/queries/highlights.scm",
         ],
       },
@@ -132,7 +114,6 @@ export default {
       wasm: "https://github.com/tree-sitter/tree-sitter-html/releases/download/v0.23.2/tree-sitter-html.wasm",
       queries: {
         highlights: [
-          // NOTE: The nvim-treesitter html query is incompatible with this parser.
           "https://github.com/tree-sitter/tree-sitter-html/raw/refs/heads/master/queries/highlights.scm",
         ],
       },
@@ -221,7 +202,6 @@ export default {
     },
     {
       filetype: "clojure",
-      // temporarily using fork to fix issues
       wasm: "https://github.com/anomalyco/tree-sitter-clojure/releases/download/v0.0.1/tree-sitter-clojure.wasm",
       queries: {
         highlights: [
@@ -234,7 +214,6 @@ export default {
       wasm: "https://github.com/alex-pinkus/tree-sitter-swift/releases/download/0.7.1/tree-sitter-swift.wasm",
       queries: {
         highlights: [
-          // NOTE: Using parser repo queries instead of nvim-treesitter due to incompatible #lua-match? predicates
           "https://raw.githubusercontent.com/alex-pinkus/tree-sitter-swift/main/queries/highlights.scm",
         ],
       },
@@ -250,8 +229,8 @@ export default {
     },
     {
       filetype: "nix",
-      // TODO: Replace with official tree-sitter-nix WASM when published
-      // See: https://github.com/nix-community/tree-sitter-nix/issues/66
+      
+      
       wasm: "https://github.com/ast-grep/ast-grep.github.io/raw/40b84530640aa83a0d34a20a2b0623d7b8e5ea97/website/public/parsers/tree-sitter-nix.wasm",
       queries: {
         highlights: [

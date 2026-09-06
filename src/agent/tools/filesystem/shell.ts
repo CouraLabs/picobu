@@ -3,19 +3,12 @@ import z from "zod";
 import { options } from "@config/options.ts";
 import { shellSpec } from "@agent/tools/sandbox.ts";
 import type { ToolExecuteOptions } from "@agent/tools/toolset.ts";
-
 export const ShellToolArgsSchema = z.object({
   command: z.string(),
   cwd: z.string().optional(),
 })
 
-/**
- * Execute a command in the user's shell (the harness-detected shell, named
- * `{APP_SHELL}` in the system prompt). With a session sandbox the command runs
- * inside it (relative `cwd` resolves against the sandbox root, abort signals
- * kill the process); without one it falls back to a direct spawn rooted at the
- * process cwd.
- */
+
 export function createShellTool() {
   return {
     name: "shell",
@@ -46,7 +39,7 @@ export function createShellTool() {
         return result.stdout.trimEnd() || "(no output)";
       }
 
-      // Legacy path: direct spawn via the harness shell, rooted at the process cwd.
+      
       const cwd = args.cwd ? resolve(args.cwd) : process.cwd();
       const proc = Bun.spawn({
         cmd: [...shellSpec(options.app.shell).cmd, args.command],

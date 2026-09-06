@@ -4,14 +4,14 @@ import { options } from "@config/options.ts";
 import { parseMarkdown, parseMarkdownFile } from "@agent/markdown/markdown-parser.ts";
 import type { Command } from "@agent/commands/types.ts";
 
-/** Skill roots, in precedence order (first-found wins). */
+
 const SKILL_ROOTS = [
   () => join(options.app.cwd, ".agents", "skills"),
   () => join(options.app.systemDir, "skills"),
   () => join(options.app.homeDir, ".agents", "skills"),
 ];
 
-/** Workflow/prompt/command roots, in precedence order (first-found wins). */
+
 const WORKFLOW_ROOTS = [
   () => join(options.app.cwd, ".agents", "workflows"),
   () => join(options.app.cwd, ".agents", "prompts"),
@@ -24,7 +24,7 @@ const WORKFLOW_ROOTS = [
   () => join(options.app.homeDir, ".agents", "commands"),
 ];
 
-/** Title-case a token for display (e.g. "demo-skill" -> "Demo Skill"). */
+
 const humanize = (s: string): string =>
   s
     .split(/[-_\s]+/)
@@ -32,12 +32,12 @@ const humanize = (s: string): string =>
     .map((w) => w[0]?.toUpperCase() + w.slice(1))
     .join(" ");
 
-/** True when `entry` collides with an already-taken name or alias. */
+
 const collides = (taken: Set<string>, entry: Command): boolean =>
   taken.has(entry.name.toLowerCase()) ||
   entry.aliases.some((a) => taken.has(a.toLowerCase()));
 
-/** Register `entry` unless its name/aliases are taken; returns true if pushed. */
+
 const tryRegister = (taken: Set<string>, list: Command[], entry: Command): boolean => {
   if (collides(taken, entry)) return false;
   list.push(entry);
@@ -45,7 +45,6 @@ const tryRegister = (taken: Set<string>, list: Command[], entry: Command): boole
   entry.aliases.forEach((a) => taken.add(a.toLowerCase()));
   return true;
 };
-
 const dirExists = async (p: string): Promise<boolean> => {
   try {
     return (await stat(p)).isDirectory();
@@ -53,7 +52,6 @@ const dirExists = async (p: string): Promise<boolean> => {
     return false;
   }
 };
-
 const fileExists = async (p: string): Promise<boolean> => {
   try {
     return (await stat(p)).isFile();
@@ -62,10 +60,7 @@ const fileExists = async (p: string): Promise<boolean> => {
   }
 };
 
-/**
- * Discover skills from a single root: each immediate subdirectory containing a
- * SKILL.md becomes a skill (entry skipped if its description is empty).
- */
+
 async function scanSkills(root: string, taken: Set<string>, out: Command[]): Promise<void> {
   if (!(await dirExists(root))) return;
   let entries;
@@ -77,7 +72,7 @@ async function scanSkills(root: string, taken: Set<string>, out: Command[]): Pro
   }
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
-    if (entry.name.startsWith(".")) continue; // .git, node_modules, ...
+    if (entry.name.startsWith(".")) continue; 
     const skillDir = join(root, entry.name);
     const skillFile = join(skillDir, "SKILL.md");
     if (!(await fileExists(skillFile))) continue;
@@ -88,7 +83,7 @@ async function scanSkills(root: string, taken: Set<string>, out: Command[]): Pro
           ? parsed.name.trim()
           : entry.name;
       const description = typeof parsed.description === "string" ? parsed.description : "";
-      if (!description.trim()) continue; // per spec: skip skills with no description
+      if (!description.trim()) continue; 
       tryRegister(taken, out, {
         kind: "skill",
         name,
@@ -103,7 +98,7 @@ async function scanSkills(root: string, taken: Set<string>, out: Command[]): Pro
   }
 }
 
-/** Discover workflows from a single root: each `*.md` file becomes a command. */
+
 async function scanWorkflows(root: string, taken: Set<string>, out: Command[]): Promise<void> {
   if (!(await dirExists(root))) return;
   let files: string[];
@@ -136,11 +131,7 @@ async function scanWorkflows(root: string, taken: Set<string>, out: Command[]): 
   }
 }
 
-/**
- * Load the full command catalog. Order: system -> skills -> workflows; on a
- * name or alias collision the earlier entry wins (later duplicates are
- * skipped). Errors in a single file log and skip that entry, never abort.
- */
+
 export const loadCommandCatalog = async (): Promise<Command[]> => {
   const cmd: Command[] = [];
   const taken = new Set<string>();
@@ -149,14 +140,7 @@ export const loadCommandCatalog = async (): Promise<Command[]> => {
   return cmd;
 };
 
-/**
- * Build the outgoing user prompt for a skill or workflow command.
- * - workflow: template body with env + {USER_PROMPT} params; `rest` is the
- *   substituted value, and is appended as "User request:" when the template
- *   has no {USER_PROMPT} slot.
- * - skill: frontmatter-stripped SKILL.md content wrapped in a [Skill: ...]
- *   header; `rest` appended as "User request:".
- */
+
 export const buildCommandPrompt = async (cmd: Command, rest: string): Promise<string> => {
   if (cmd.kind === "workflow") {
     const raw = await readFile(cmd.path, "utf8");
@@ -172,7 +156,6 @@ export const buildCommandPrompt = async (cmd: Command, rest: string): Promise<st
     if (rest.trim() && !hadUser) content += "\n\nUser request:\n" + rest;
     return content;
   }
-
   const parsed = await parseMarkdownFile(cmd.path);
   let content = `[Skill: ${cmd.title}]\n${cmd.description}\n\n${parsed.content}`;
   if (rest.trim()) content += "\n\nUser request:\n" + rest;

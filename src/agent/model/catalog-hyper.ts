@@ -1,6 +1,6 @@
 import type { LlmProviderDefinition } from "@agent/model/types.ts";
 
-/** Charm Hyper — https://hyper.charm.land (keyed by `HYPER_API_KEY`). */
+
 export const hyper: LlmProviderDefinition = {
   id: "hyper",
   name: "Charm Hyper",

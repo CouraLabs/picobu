@@ -1,26 +1,17 @@
 import z from "zod";
 import { listRules, type Rule } from "@agent/rules/rules.ts";
 import { parseMarkdownFile } from "@agent/markdown/markdown-parser.ts";
-
 export const RuleToolArgsSchema = z.object({
   name: z.string(),
 });
-
 export const RuleToolOutputSchema = z.object({
   name: z.string(),
   description: z.string(),
-  /** Rule markdown file path. */
   ruleFile: z.string(),
-  /** Frontmatter-stripped rule body. */
   content: z.string(),
 });
 
-/**
- * Rule-loading flow tool. Resolves a rule from the discovered catalog
- * (`.agents/rules`, `~/.picobu/rules`, `~/.agents/rules`) and returns its
- * frontmatter-stripped body so the model can apply the rule to the current
- * task when its description matches.
- */
+
 export const createRuleTool = (getRules: () => Rule[] = listRules) => ({
   name: "rule",
   kind: "flow" as const,

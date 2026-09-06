@@ -1,8 +1,4 @@
-/**
- * Map a file path (or name) to the OpentUI syntax `filetype` used by the `code`
- * component. Only extensions the bundled tree-sitter parsers understand map to a
- * real type; everything else falls back to plain `text`.
- */
+
 const EXT_TO_FILETYPE: Record<string, string> = {
   ".ts": "typescript",
   ".tsx": "tsx",
@@ -41,7 +37,7 @@ const EXT_TO_FILETYPE: Record<string, string> = {
   ".php": "php",
 };
 
-/** Detect a syntax-highlighting filetype from a path/name; defaults to `text`. */
+
 export function detectFiletype(path: string): string {
   const name = path.split("/").pop() ?? path;
   const dot = name.lastIndexOf(".");

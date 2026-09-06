@@ -1,14 +1,9 @@
-/**
- * Anthropic (Claude Pro/Max) browser OAuth flow — ported from earendil-works/pi
- * `oauth/anthropic.ts`, trimmed to the browser login path (no manual-code
- * paste) and using static node imports (picobu is Bun/Node only).
- */
+
 
 import { createServer, type Server } from "node:http";
 import type { OAuthAuth, OAuthCredential, AuthInteraction } from "@auth/types.ts";
 import { generatePKCE } from "@auth/pkce.ts";
 import { oauthErrorHtml, oauthSuccessHtml } from "@auth/oauth-pages.ts";
-
 const decode = (s: string): string => atob(s);
 const CLIENT_ID = decode("OWQxYzI1MGEtZTYxYi00NGQ5LTg4ZWQtNTk0NGQxOTYyZjVl");
 const AUTHORIZE_URL = "https://claude.ai/oauth/authorize";
@@ -19,11 +14,10 @@ const REDIRECT_URI = `http://localhost:${CALLBACK_PORT}${CALLBACK_PATH}`;
 const SCOPES =
   "org:create_api_key user:profile user:inference user:sessions:claude_code user:mcp_servers " +
   "user:file_upload";
-
 const callbackHost = (): string => process.env.PICOBU_OAUTH_CALLBACK_HOST || "127.0.0.1";
 const LOGIN_TIMEOUT_MS = 15 * 60 * 1000;
 
-/** Race `promise` against a timeout that rejects with `message`. */
+
 const withTimeout = async <T>(promise: Promise<T>, ms: number, message: string): Promise<T> => {
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
@@ -37,13 +31,11 @@ const withTimeout = async <T>(promise: Promise<T>, ms: number, message: string):
     clearTimeout(timer);
   }
 };
-
 type CallbackServerInfo = {
   server: Server;
   cancelWait: () => void;
   waitForCode: () => Promise<{ code: string } | null>;
 };
-
 function startCallbackServer(expectedState: string): Promise<CallbackServerInfo> {
   return new Promise((resolve, reject) => {
     let settleWait: ((value: { code: string } | null) => void) | undefined;
@@ -55,7 +47,6 @@ function startCallbackServer(expectedState: string): Promise<CallbackServerInfo>
         resolveWait(value);
       };
     });
-
     const server = createServer((req, res) => {
       try {
         const url = new URL(req.url || "", "http://localhost");
@@ -90,11 +81,9 @@ function startCallbackServer(expectedState: string): Promise<CallbackServerInfo>
         res.end("Internal error");
       }
     });
-
     server.on("error", (err) => {
       reject(err);
     });
-
     server.listen(CALLBACK_PORT, callbackHost(), () => {
       resolve({
         server,
@@ -106,7 +95,6 @@ function startCallbackServer(expectedState: string): Promise<CallbackServerInfo>
     });
   });
 }
-
 const formatErrorDetails = (error: unknown): string => {
   if (error instanceof Error) {
     const details = [`${error.name}: ${error.message}`];
@@ -118,7 +106,6 @@ const formatErrorDetails = (error: unknown): string => {
   }
   return String(error);
 };
-
 async function postJson(
   url: string,
   body: Record<string, string | number>,
@@ -136,9 +123,7 @@ async function postJson(
   }
   return responseBody;
 }
-
 type AnthropicToken = { access_token: string; refresh_token: string; expires_in: number };
-
 async function exchangeAuthorizationCode(
   code: string,
   verifier: string,
@@ -178,14 +163,12 @@ async function exchangeAuthorizationCode(
     expires: Date.now() + tokenData.expires_in * 1000 - 5 * 60 * 1000,
   };
 }
-
 const tokenFromPayload = (data: AnthropicToken): OAuthCredential => ({
   type: "oauth",
   refresh: data.refresh_token,
   access: data.access_token,
   expires: Date.now() + data.expires_in * 1000 - 5 * 60 * 1000,
 });
-
 async function loginAnthropic(interaction: AuthInteraction): Promise<OAuthCredential> {
   const { verifier, challenge } = await generatePKCE();
   const server = await startCallbackServer(verifier);
@@ -208,7 +191,6 @@ async function loginAnthropic(interaction: AuthInteraction): Promise<OAuthCreden
       url: `${AUTHORIZE_URL}?${authParams.toString()}`,
       instructions: "A browser window should open. Complete login to finish.",
     });
-
     const result = await withTimeout(server.waitForCode(), LOGIN_TIMEOUT_MS, "Login timed out — please try again");
     if (!result?.code) throw new Error("Login cancelled");
     interaction.notify({ type: "progress", message: "Exchanging authorization code for tokens…" });
@@ -218,7 +200,6 @@ async function loginAnthropic(interaction: AuthInteraction): Promise<OAuthCreden
     server.server.close();
   }
 }
-
 async function refreshAnthropicToken(refreshToken: string, signal: AbortSignal): Promise<OAuthCredential> {
   let responseBody: string;
   try {
@@ -240,7 +221,6 @@ async function refreshAnthropicToken(refreshToken: string, signal: AbortSignal):
   }
   return tokenFromPayload(data);
 }
-
 export const anthropicOAuth: OAuthAuth = {
   id: "anthropic",
   name: "Anthropic",

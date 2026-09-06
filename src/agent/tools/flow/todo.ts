@@ -2,18 +2,14 @@ import { mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
 import z from "zod";
 import { withLock } from "@shared/lock.ts";
-
 export const TodoItemSchema = z.object({
   phase: z.string(),
   title: z.string(),
   prompt: z.string(),
   done: z.boolean(),
 });
-
 export type TodoItem = z.infer<typeof TodoItemSchema>;
-
 const todoFileSchema = z.object({ items: z.array(TodoItemSchema) });
-
 export const TodoToolArgsSchema = z.object({
   actionType: z.enum(["ins", "upd", "del"]),
   action: z.object({
@@ -25,19 +21,12 @@ export const TodoToolArgsSchema = z.object({
     }).optional(),
   }),
 });
-
 export const TodoToolOutputSchema = z.object({
   items: z.array(TodoItemSchema),
   message: z.string(),
 });
 
-/**
- * Session todo list tool (flow tool family). One list per session, persisted
- * at `<sessionDir>/<sessionId>/session-todo.json`; every call rewrites the
- * file in full. `ins` appends items, `upd` replaces the item at `index`,
- * `del` removes the item at `index`; the full updated list (0-based indices,
- * shifting after `del`) is written back and returned on every call.
- */
+
 export const createTodoTool = (todoFilePath: string) => ({
   name: "todo",
   kind: "flow" as const,
@@ -62,7 +51,6 @@ export const createTodoTool = (todoFilePath: string) => ({
         }
         items = parsed.data.items;
       }
-
       const { actionType, action } = args;
       let message: string;
       if (actionType === "ins") {
@@ -87,7 +75,6 @@ export const createTodoTool = (todoFilePath: string) => ({
         items = items.filter((_, i) => i !== del.index);
         message = `todo #${del.index} removed`;
       }
-
       await mkdir(dirname(todoFilePath), { recursive: true });
       await Bun.write(todoFilePath, `${JSON.stringify({ items }, null, 2)}\n`);
       return { items, message };
