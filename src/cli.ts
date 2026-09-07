@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 import { Command } from "commander";
-import { folderKeyFor } from "@agent/sessions/session.ts";
+import { folderKeyFor } from "@agent/sessions/session-paths.ts";
 import { SessionManager } from "@agent/sessions/session-manager.ts";
 import { options } from "@config/options.ts";
 import { autoloadLlmProviders } from "@agent/model/registry.ts";

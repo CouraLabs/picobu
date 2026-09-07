@@ -13,18 +13,15 @@ export const CheckpointRecordSchema = z.object({
 });
 export type CheckpointRecord = z.infer<typeof CheckpointRecordSchema>;
 
-
 export const checkpointsPath = (folderKey: string, sessionId: string): string =>
   join(options.app.systemDir, "sessions", folderKey, sessionId, "checkpoints.jsonl");
 export type UndoResult = { applied: number; paths: string[] };
-
 
 export class CheckpointStore {
   private records: CheckpointRecord[] = [];
   private pointer = -1;
   private loaded = false;
   constructor(readonly path: string) {}
-
   
   async load(): Promise<void> {
     let content: string;
@@ -48,7 +45,6 @@ export class CheckpointStore {
     this.pointer = records.length - 1;
     this.loaded = true;
   }
-
   
   async record(entry: Omit<CheckpointRecord, "seq">): Promise<void> {
     if (!this.loaded) await this.load();
@@ -68,7 +64,6 @@ export class CheckpointStore {
   get canRedo(): boolean {
     return this.pointer < this.records.length - 1;
   }
-
   
   async undo(): Promise<UndoResult> {
     if (!this.loaded) await this.load();
@@ -78,7 +73,6 @@ export class CheckpointStore {
     await this.apply(record.path, record.before);
     return { applied: 1, paths: [record.path] };
   }
-
   
   async redo(): Promise<UndoResult> {
     if (!this.loaded) await this.load();
@@ -88,7 +82,6 @@ export class CheckpointStore {
     await this.apply(record.path, record.after);
     return { applied: 1, paths: [record.path] };
   }
-
   
   private async apply(path: string, content: string | null): Promise<void> {
     await withLock(path, async () => {

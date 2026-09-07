@@ -13,17 +13,15 @@ try {
   process.exit(1);
 }
 let lastStatus = "";
-const session = await createSession(
-  () => ({ agentId: "ask", modelKey, thinking }),
-  {
-    onChange: (state) => {
-      if (state.status !== lastStatus) {
-        lastStatus = state.status;
-        console.log(`[status] ${state.status}`);
-      }
-    },
+const session = await createSession({
+  config: () => ({ agentId: "ask", modelKey, thinking }),
+  onChange: (state) => {
+    if (state.status !== lastStatus) {
+      lastStatus = state.status;
+      console.log(`[status] ${state.status}`);
+    }
   },
-);
+});
 console.log(`session:  ${session.id}`);
 console.log(`model:    ${modelKey} (thinking: ${thinking})`);
 console.log(`agent:    ${session.config.agentId}`);

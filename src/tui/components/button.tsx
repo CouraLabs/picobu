@@ -17,7 +17,7 @@ export const Button = ({ id, isActive, label, onClick }: ButtonProps) => {
       width={"auto"}
       alignSelf={"flex-start"}
       height={1}
-      paddingX={2}
+      paddingX={1}
       flexDirection={"row"}
       alignItems={"center"}
       backgroundColor={isActive ? theme().primary : (hovered() ? theme().accent : theme().backgroundElement)}

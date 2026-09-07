@@ -10,7 +10,7 @@ import { listRules } from "@agent/rules/rules.ts";
 import { listSkills } from "@agent/commands/index.ts";
 import { listSubagents } from "@agent/agents/subagents.ts";
 import { options, type ProviderModelBilling, type ProviderModelReasoningEffort } from "@config/options.ts";
-import { folderKeyFor, sessionTodoFilePath } from "@agent/sessions/session.ts";
+import { folderKeyFor, sessionTodoFilePath } from "@agent/sessions/session-paths.ts";
 import { checkpointsPath } from "@agent/sessions/checkpoints.ts";
 import type { SpawnToolContext } from "@agent/tools/flow/spawn.ts";
 import type { AgentType } from "@agent/agents/types.ts";

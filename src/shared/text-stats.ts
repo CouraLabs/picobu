@@ -37,3 +37,8 @@ export function countOccurrences(haystack: string, needle: string): number {
   }
   return count;
 }
+
+
+export function truncate(text: string, max = 60): string {
+  return text.length > max ? `${text.slice(0, max - 3)}...` : text;
+}

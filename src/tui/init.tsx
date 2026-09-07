@@ -9,6 +9,8 @@ import {
 } from "@opentui/core"
 import { render } from "@opentui/solid"
 import { App } from "@tui/layout/app.tsx"
+import { ClipboardProvider } from "./hooks/clipboard-provider.tsx"
+import { theme } from "@states/theme-state.ts"
 export type TuiAppOptions = {
   debug?: boolean
 }
@@ -22,35 +24,39 @@ export async function runTui(options: TuiAppOptions = {}): Promise<void> {
     targetFps: 30,
     gatherStats: debug,
     memorySnapshotInterval: debug ? 3000 : 0,
+    backgroundColor: theme().background,
     onDestroy: () => {
-      clipboard.dispose()
+      clipboardService.dispose()
       process.exit(0)
     }
   })
-  const clipboard = createClipboard({
-    host: createHostClipboard(),
-    terminal: createRendererClipboardAdapter(renderer)
-  })
+  
+  const clipboardService = createClipboard({ host: createHostClipboard(), terminal: createRendererClipboardAdapter(renderer)})
+
   if (debug) {
     renderer.configureDebugOverlay({
       enabled: true,
       corner: DebugOverlayCorner.bottomRight,
     })
     
-    
     renderer.console.show()
+
     renderer.on(
       CliRenderEvents.MEMORY_SNAPSHOT,
       (snapshot: { heapUsed: number; heapTotal: number; arrayBuffers: number }) => {
         const mb = (n: number): string => `${(n / 1024 / 1024).toFixed(1)} MB`
-        console.log(
-          `memory · heap ${mb(snapshot.heapUsed)}/${mb(snapshot.heapTotal)} · buffers ${mb(snapshot.arrayBuffers)}`,
-        )
+        console.log(`memory · heap ${mb(snapshot.heapUsed)}/${mb(snapshot.heapTotal)} · buffers ${mb(snapshot.arrayBuffers)}`)
       },
     )
   }
+
   engine.attach(renderer)
-  await render(() => <App clipboard={clipboard} />, renderer)
+
+  await render(() => (
+    <ClipboardProvider clipboardService={clipboardService}>
+      <App />
+    </ClipboardProvider>
+  ), renderer)
 }
 if (import.meta.main) {
   await runTui({

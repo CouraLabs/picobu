@@ -2,8 +2,8 @@ import { readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { mkdirSync } from "node:fs";
 import { z } from "zod";
-import { options } from "@config/options.ts";
 import { withLock } from "@shared/lock.ts";
+import { folderKeyFor, sessionsRoot } from "@agent/sessions/session-paths.ts";
 
 
 
@@ -134,7 +134,6 @@ const metaSchema = z.object({
 
 
 export type SessionMeta = z.infer<typeof metaSchema>;
-const sessionsRoot = (): string => join(options.app.systemDir, "sessions");
 
 
 export const sessionMetaPath = (folderKey: string, sessionId: string): string =>
@@ -164,6 +163,11 @@ export async function writeSessionMeta(folderKey: string, sessionId: string, met
   });
 }
 
+
+export async function folderKeyForSession(cwd: string, sessionId: string): Promise<string> {
+  const meta = await readSessionMeta(folderKeyFor(cwd), sessionId);
+  return folderKeyFor(meta?.cwd ?? cwd);
+}
 
 export async function updateSessionMeta(
   folderKey: string,

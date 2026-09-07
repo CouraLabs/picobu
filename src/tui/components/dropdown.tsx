@@ -50,7 +50,7 @@ export const Dropdown = (props: DropdownProps) => {
       width={"auto"}
       alignSelf={"flex-start"}
       height={1}
-      paddingX={2}
+      paddingX={1}
       flexDirection={"row"}
       alignItems={"center"}
       gap={1}

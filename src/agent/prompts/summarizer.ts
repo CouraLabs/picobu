@@ -2,7 +2,7 @@ import { generateText } from "ai";
 import type { UIMessage } from "ai";
 import { resolveModel, resolveModelRef } from "@agent/model/resolver.ts";
 import { computeCost, type AiReasoningEffort, type LoopUsage } from "@agent/loop/create-loop.ts";
-import { serializeForCompaction } from "@agent/sessions/session.ts";
+import { serializeForCompaction } from "@agent/sessions/session-compaction.ts";
 import type { ProviderModelReasoningEffort } from "@config/options.ts";
 
 
