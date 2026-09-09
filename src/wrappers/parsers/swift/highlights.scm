@@ -1,4 +1,4 @@
-; Query from: https://raw.githubusercontent.com/alex-pinkus/tree-sitter-swift/main/queries/highlights.scm
+; Query from: https://raw.githubusercontent.com/alex-pinkus/tree-sitter-swift/c79af47572af041d5df15e9d805cf575bb0265e0/queries/highlights.scm
 [
   "."
   ";"
@@ -282,7 +282,7 @@
 
 (boolean_literal) @boolean
 
-(nil_literal) @constant.builtin
+"nil" @constant.builtin
 
 (wildcard_pattern) @character.special
 

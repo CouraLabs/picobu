@@ -10,10 +10,17 @@ export type ForkDeps = {
   startSession: (id: string) => Promise<Session>;
 };
 
+/** Messages up to and including the one with the given id; throws when absent. */
+export function sliceMessagesUpTo<M extends { id: string }>(messages: M[], messageId: string): M[] {
+  const index = messages.findIndex((m) => m.id === messageId);
+  if (index < 0) throw new Error(`Unknown message "${messageId}"`);
+  return messages.slice(0, index + 1);
+}
+
 export async function forkSession(
   deps: ForkDeps,
   id: string,
-  opts: { fromCompaction?: boolean } = {},
+  opts: { fromCompaction?: boolean; upToMessageId?: string } = {},
 ): Promise<{ sessionId: string }> {
   const { cwd, live } = deps;
   const folderKey = await folderKeyForSession(cwd, id);
@@ -28,7 +35,11 @@ export async function forkSession(
   await source?.flush();
   const messages = await loadSession(folderKey, id);
   if (!messages) throw new Error(`Unknown session "${id}"`);
-  const forkedMessages = opts.fromCompaction ? messagesForLlm(messages) : messages;
+  const forkedMessages = opts.upToMessageId
+    ? sliceMessagesUpTo(messages, opts.upToMessageId)
+    : opts.fromCompaction
+      ? messagesForLlm(messages)
+      : messages;
   const forkId = generateSessionId();
   await writeSessionFile(folderKey, forkId, forkedMessages);
   if (meta) {

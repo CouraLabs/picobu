@@ -83,7 +83,7 @@ Agents run on three model roles, each with its own default thinking level:
 
 The Baileys integration (unofficial WhatsApp Web API) lives in `src/integrations/whatsapp/`. When `whatsapp.enabled` is set, `connectToWhatsApp()` is called at bootstrap and reconnects from persisted credentials under `~/.picobu/whatsapp/auth` without a QR. `allowedNumbers` lists the phone numbers allowed to talk to the agent (empty = nobody; outbound sending still works). Inbound messages from allowed numbers are submitted to the persistent session, which can reply and act using the `wwp-*` tools. Agent-sent texts are prefixed with an invisible zero-width-space sentinel; when that outbound message echoes back into the socket (`fromMe` upsert), it is recognized by the sentinel and dropped.
 
-The same operations are exposed to the persistent agent as tools (`wwp-msg`, `wwp-today`), so the agent can send messages and list today's tasks itself.
+The same operations are exposed to the persistent agent as tools (`wwp-msg` sends a text message to a phone number; `wwp-today` adds a task to the user's "today" todo list), so the agent can message and track tasks itself.
 
 ## Sessions
 
@@ -98,6 +98,17 @@ picobu sessions tree            # session tree: roots with their sub sessions
 picobu sessions rename <id> "New title"
 picobu sessions delete <id>     # reports the cascade count
 ```
+
+### Session facade (host API)
+
+`createSession()` returns the `Session` facade every frontend drives:
+
+- **Driving runs** — `sendMessage(prompt)` (string or UI message), `queue(prompt)` (parks a prompt; queued prompts go out when the current run settles), `steer(prompt)` (injects a mid-run follow-up into the running step), `regenerate()` re-runs the last exchange, `stop()` / `abort()` cancel a run, `flush()` and `close()` drain and tear down (MCP clients included).
+- **Streaming** — `stream()` yields raw `UIMessageChunk`s as they arrive; `streamMessages()` yields whole loop messages; `onChange` (init option) notifies on every chat-state change (status, error, messages).
+- **Editing history** — `revertToMessage(messageId)` truncates everything after a message and persists the cut (compaction checkpoints still apply); `undo` / `redo` are file-level (see [Checkpoints](#checkpoints-undo--redo)).
+- **Switching mid-session** — `switchAgent(agentId)`, `switchModel("<providerId>/<modelId>")`, and `switchThinking(effort)` change the live config for the next run.
+- **Tool results without a run** — `addToolOutput()` appends a tool result part to a message (how the host returns `ask`/`plan-write` answers).
+- **Catalogs** — the session exposes its discovered `skills`, `workflows`, `rules`, and `agents` lists, plus `mcp` (per-server snapshots, current tool names, `refresh()` — see [MCP](#mcp-model-context-protocol)).
 
 ### Session states
 
@@ -220,6 +231,22 @@ Every tool carries a JSON Schema rendered into the system prompt.
 
 Skills, workflows, prompts, and commands are markdown files (flat-YAML frontmatter) discovered from `.agents/skills`, `.agents/workflows`, `.agents/prompts`, and `.agents/commands` — checked in your project, `~/.picobu`, and home, in that precedence order.
 
+## Host frontends
+
+The core ships with everything a frontend needs — no UI logic lives in the agent loop.
+
+### Reference TUI (`bun dev:tui`)
+
+A full terminal UI over [OpenTUI](https://github.com/sst/opentui) + Solid (`src/tui/`): session page with streamed message rendering (text, reasoning, and tool parts — `ask` renders its structured form inline), session header/status, message actions, a diff viewer for edits, dialogs and dropdowns, a splash screen covering startup, and mouse + Kitty-keyboard support. Clipboard goes through an OpenTUI service adapter; unhandled rejections from the AI SDK stream teardown are filtered (documented benign race) while everything else stays fatal.
+
+### Library kit
+
+- **Headless chat state** — `createHeadlessChatState()` (`src/agent/sessions/session-headless-chat.ts`) implements the AI SDK `ChatState` contract over the loop, so any UI can reuse the `ai` chat primitives (`useChat`) against a picobu session.
+- **Tree-sitter rendering** — `src/wrappers/` bundles parser WASMs + highlight queries for 39 languages and exposes `createTreeSitterClient()` / a shared singleton for markdown + code syntax highlighting in OpenTUI renderables (parser data under `~/.picobu/tree-sitter`).
+- **Themes & states** — 44 theme JSONs with `resolveTheme`/`generateSyntax` and an icon set (`src/tui/themes/`), plus Solid state primitives for dialogs, dropdowns, and the active theme (`src/states/`).
+- **Prompt history** — `src/agent/sessions/prompt-history.ts` persists the last 10 prompts to `~/.picobu/prompt-history.json` (read/append helpers with a lock file) so hosts can render input history.
+- **Session titles** — `generateSessionTitle()` (`src/agent/prompts/session-title.ts`) makes a one-shot `tiny`-role model call that turns a first prompt into a ≤50-char thread title.
+
 ## Project layout
 
 ```
@@ -240,7 +267,7 @@ src/
 
 ### Path aliases
 
-Every `src/` folder is importable as `@<folder>` via the `paths` map in `tsconfig.base.json`: `@agent/*`, `@auth/*`, `@config/*`, `@integrations/*`, `@shared/*`, `@tui/*`. Imports use aliases instead of relative specifiers, keeping the `.ts` extension (e.g. `import { options } from "@config/options.ts"`). Bun and `tsc` both resolve them, so no build step is needed.
+Every `src/` folder is importable as `@<folder>` via the `paths` map in `tsconfig.json`: `@agent/*`, `@auth/*`, `@config/*`, `@integrations/*`, `@shared/*`, `@states/*`, `@tui/*`, `@wrappers/*`. Imports use aliases instead of relative specifiers, keeping the `.ts` extension (e.g. `import { options } from "@config/options.ts"`). Bun and `tsc` both resolve them, so no build step is needed.
 
 ## Tech stack
 

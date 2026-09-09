@@ -22,6 +22,9 @@ const sessionLineSchema = z.object({
 });
 type SessionLine = z.infer<typeof sessionLineSchema>;
 
+const isStreamingMessage = (message: UIMessage): boolean =>
+  message.parts.some((part) => (part as { state?: string }).state === "streaming");
+
 export async function loadSession(
   folderKey: string,
   sessionId: string,
@@ -154,11 +157,12 @@ export class SessionSaver {
       );
     }
     for (const m of messages) {
+      if (isStreamingMessage(m)) continue;
       const json = JSON.stringify({ id: m.id, role: m.role, metadata: m.metadata, parts: m.parts });
       if (this.lastWritten.get(m.id) === json) continue;
       this.lastWritten.set(m.id, json);
       this.queue = this.queue.then(() =>
-        withLock(this.filePath, () => appendFile(this.filePath, json + "\n")),
+        withLock(this.filePath, () => upsertLine(this.filePath, json)),
       );
     }
     return this.queue;
@@ -166,4 +170,29 @@ export class SessionSaver {
   flush(): Promise<void> {
     return this.queue;
   }
+}
+
+const lineId = (raw: string): string | undefined => {
+  try {
+    return (JSON.parse(raw) as { id?: unknown }).id as string | undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+async function upsertLine(filePath: string, json: string): Promise<void> {
+  const id = lineId(json);
+  let content = "";
+  try {
+    content = await readFile(filePath, "utf8");
+  } catch {
+  }
+  const lines = content.split("\n").filter((raw) => raw.trim());
+  const existing = lines.map(lineId).lastIndexOf(id);
+  if (existing === -1) {
+    lines.push(json);
+  } else {
+    lines[existing] = json;
+  }
+  await writeFile(filePath, lines.join("\n") + "\n");
 }

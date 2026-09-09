@@ -30,6 +30,7 @@ import {
   type SessionListRow,
 } from "@agent/sessions/session-queries.ts";
 import { spawnSubSession, type SpawnSubSessionParams } from "@agent/sessions/session-spawn.ts";
+import type { ChatChangeHandler } from "@agent/sessions/session-headless-chat.ts";
 import type { AgentType } from "@agent/agents/types.ts";
 import type { LoopConfig } from "@agent/loop/create-loop.ts";
 import type { UIMessage } from "ai";
@@ -42,6 +43,7 @@ export type CreateSessionOptions = {
   title?: string;
   autoCompact?: boolean;
   forkOnCompact?: boolean;
+  onChange?: ChatChangeHandler;
 };
 const DEFAULT_MAX_AGENTS = 4;
 
@@ -108,6 +110,7 @@ export class SessionManager {
       meta: { cwd: this.cwd, title: init.title, forkHost: () => this.forkSession(id).then((r) => r.sessionId) },
       autoCompact: init.autoCompact,
       forkOnCompact: init.forkOnCompact,
+      ...(init.onChange ? { onChange: init.onChange } : {}),
     });
     this.live.set(id, session);
     return session;
@@ -144,7 +147,7 @@ export class SessionManager {
     }
   }
 
-  async forkSession(id: string, opts: { fromCompaction?: boolean } = {}): Promise<{ sessionId: string }> {
+  async forkSession(id: string, opts: { fromCompaction?: boolean; upToMessageId?: string } = {}): Promise<{ sessionId: string }> {
     return forkSession(
       { cwd: this.cwd, live: this.live, startSession: (forkId) => this.startSession({ id: forkId }) },
       id,

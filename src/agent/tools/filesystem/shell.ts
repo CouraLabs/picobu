@@ -1,65 +1,267 @@
 import { resolve } from "node:path";
 import z from "zod";
 import { options } from "@config/options.ts";
-import { shellSpec } from "@agent/tools/sandbox.ts";
+import { killProcessTree, shellSpec } from "@agent/tools/sandbox.ts";
 import type { ToolExecuteOptions } from "@agent/tools/toolset.ts";
 export const ShellToolArgsSchema = z.object({
   command: z.string(),
   cwd: z.string().optional(),
+  timeout: z
+    .number()
+    .int()
+    .min(1)
+    .max(600)
+    .optional()
+    .describe("Maximum seconds the command may run before it is killed (1-600). Default 120."),
 })
 
+export const ShellToolOutputSchema = z.union([
+  z.object({ progress: z.string() }),
+  z.string(),
+])
+
+type ShellToolArgs = z.infer<typeof ShellToolArgsSchema>
+type ShellToolChunk = z.infer<typeof ShellToolOutputSchema>
+
+const DEFAULT_TIMEOUT_SECONDS = 120
+// How often streamed output is flushed to the UI while the command runs.
+const PROGRESS_INTERVAL_MS = 300
+// Number of trailing lines shown in the live terminal-style progress preview.
+const PROGRESS_TAIL_LINES = 10
+const PROGRESS_LINE_MAX = 160
+// Hard cap on the output kept for the final result; runaway commands stop
+// accumulating (but keep streaming) once they exceed this.
+const OUTPUT_MAX_CHARS = 100_000
+// Grace period after the process exits for the pipes to drain before they are
+// force-closed; guards against grandchildren holding the pipe FDs open forever.
+const DRAIN_GRACE_MS = 500
+
+/** Minimal process handle shared by the direct-spawn and sandbox paths. */
+type Child = {
+  stdout: ReadableStream<Uint8Array>
+  stderr: ReadableStream<Uint8Array>
+  exited: PromiseLike<number>
+  kill: () => void
+}
+
+const truncateLine = (line: string): string =>
+  line.length > PROGRESS_LINE_MAX ? `${line.slice(0, PROGRESS_LINE_MAX - 1)}…` : line
+
+const capOutput = (text: string): string => {
+  if (text.length <= OUTPUT_MAX_CHARS) return text
+  const half = OUTPUT_MAX_CHARS / 2
+  return `${text.slice(0, half)}\n…[output truncated]…\n${text.slice(-half)}`
+}
+
+/**
+ * Reads a spawn pipe to completion, forwarding decoded text to `sink`.
+ * Resolves when the pipe closes, when `cancel` fires (pipes force-closed
+ * after the process exited), or on read errors — it never rejects.
+ */
+const drainStream = (
+  stream: ReadableStream<Uint8Array>,
+  sink: (text: string) => void,
+  cancel: Promise<"cancel">,
+): Promise<void> => {
+  const reader = stream.getReader()
+  const decoder = new TextDecoder()
+  return (async () => {
+    try {
+      while (true) {
+        const result = await Promise.race([reader.read(), cancel])
+        if (result === "cancel") {
+          void reader.cancel().catch(() => {})
+          return
+        }
+        if (result.done) return
+        sink(decoder.decode(result.value, { stream: true }))
+      }
+    } catch {
+      // Pipe destroyed (e.g. process killed); treat as end of stream.
+    }
+  })()
+}
+
+/**
+ * Runs a child to completion while streaming its trailing output as
+ * `{ progress }` chunks for a live terminal-style UI preview. Kills the child
+ * on abort or after `timeoutSeconds`. Yields the final result string, or
+ * throws with the partial output on timeout/abort/non-zero exit.
+ */
+const runStreaming = async function* (
+  label: string,
+  child: Child,
+  toolOptions: ToolExecuteOptions | undefined,
+  timeoutSeconds: number,
+): AsyncGenerator<ShellToolChunk> {
+  let aborted = false;
+  let timedOut = false;
+  const onAbort = () => {
+    aborted = true;
+    child.kill();
+  };
+  toolOptions?.abortSignal?.addEventListener("abort", onAbort, { once: true });
+  const timeoutTimer = setTimeout(() => {
+    timedOut = true;
+    child.kill();
+  }, timeoutSeconds * 1000);
+
+  // Output accumulators. `stdout`/`stderr` feed the final result; the tail
+  // buffer mirrors both streams in arrival order for the live preview.
+  let stdout = "";
+  let stderr = "";
+  const tailLines: string[] = [];
+  let tailPending = "";
+  let lastProgress = "";
+
+  const pushText = (text: string) => {
+    const parts = text.split("\n");
+    tailPending += parts[0];
+    for (const part of parts.slice(1)) {
+      tailLines.push(truncateLine(tailPending));
+      tailPending = part;
+    }
+    if (tailLines.length > PROGRESS_TAIL_LINES) tailLines.splice(0, tailLines.length - PROGRESS_TAIL_LINES);
+  };
+  const sink = (which: "out" | "err") => (text: string) => {
+    if (which === "out" && stdout.length <= OUTPUT_MAX_CHARS) stdout += text;
+    if (which === "err" && stderr.length <= OUTPUT_MAX_CHARS) stderr += text;
+    pushText(text);
+  };
+  const progressText = (): string => {
+    const lines = tailPending.length > 0 ? [...tailLines, truncateLine(tailPending)] : [...tailLines];
+    return lines.join("\n").replace(/^\n+/, "");
+  };
+
+  let resolveCancel: (value: "cancel") => void = () => {};
+  const cancel = new Promise<"cancel">((resolve) => (resolveCancel = resolve));
+  const drained = Promise.all([
+    drainStream(child.stdout, sink("out"), cancel),
+    drainStream(child.stderr, sink("err"), cancel),
+  ]);
+
+  try {
+    // Poll while the command runs, flushing the trailing output to the UI
+    // as preliminary chunks so it renders like a live terminal.
+    let exitCode: number | undefined;
+    const startedAt = Date.now();
+    let lastEmitAt = Date.now();
+    while (true) {
+      const result = await Promise.race([
+        child.exited,
+        Bun.sleep(PROGRESS_INTERVAL_MS).then(() => "tick" as const),
+      ]);
+      if (result !== "tick") {
+        exitCode = result;
+        break;
+      }
+      const now = Date.now();
+      const progress = progressText();
+      if (progress !== lastProgress) {
+        lastProgress = progress;
+        lastEmitAt = now;
+        if (progress.length > 0) yield { progress };
+        continue;
+      }
+      // Output stalled (or none yet): emit an elapsed-time heartbeat so silent
+      // commands still show a running status in the UI instead of a frozen
+      // preview or a bare pending icon.
+      if (now - startedAt >= 2_000 && now - lastEmitAt >= 3_000) {
+        lastEmitAt = now;
+        const elapsed = Math.round((now - startedAt) / 1000);
+        yield {
+          progress:
+            progress.length > 0
+              ? `${progress}\n(${elapsed}s, still running…)`
+              : `(${elapsed}s, waiting for output…)`,
+        };
+      }
+    }
+
+    // Give the pipes a short grace period to flush buffered output, then
+    // force-close them so descendants holding the FDs cannot hang us.
+    await Promise.race([drained, Bun.sleep(DRAIN_GRACE_MS)]);
+    resolveCancel("cancel");
+    await drained.catch(() => {});
+
+    if (timedOut) {
+      throw new Error(
+        `command \`${label}\` timed out after ${timeoutSeconds}s and was killed\n` +
+          (stderr.trim() ? `stderr:\n${stderr.trim()}\n` : "") +
+          (stdout.trim() ? `stdout:\n${capOutput(stdout).trim()}` : "(no output)"),
+      );
+    }
+    if (aborted) {
+      throw new Error(
+        `command \`${label}\` was aborted\n` +
+          (stdout.trim() ? `stdout:\n${capOutput(stdout).trim()}` : ""),
+      );
+    }
+    if (exitCode !== 0) {
+      const stdoutTrim = capOutput(stdout).trim();
+      const stderrTrim = capOutput(stderr).trim();
+      throw new Error(
+        `command \`${label}\` exited ${exitCode}\n` +
+          (stderrTrim ? `stderr:\n${stderrTrim}\n` : "") +
+          (stdoutTrim ? `stdout:\n${stdoutTrim}` : ""),
+      );
+    }
+    yield capOutput(stdout).trimEnd() || "(no output)";
+  } finally {
+    clearTimeout(timeoutTimer);
+    toolOptions?.abortSignal?.removeEventListener("abort", onAbort);
+    resolveCancel("cancel");
+  }
+}
 
 export function createShellTool() {
   return {
     name: "shell",
-    description: "Execute a shell command on the host; use for real binaries or short fact pipelines. Prefer the dedicated read/write/edit/glob/grep tools over shell when they can do the job.",
+    description:
+      "Execute a shell command on the host; use for real binaries or short fact pipelines. Prefer the dedicated read/write/edit/glob/grep tools over shell when they can do the job. Output streams live while the command runs; a command that exceeds its timeout is killed and returns the output produced so far.",
     parameters: ShellToolArgsSchema,
-    output: z.string(),
+    output: ShellToolOutputSchema,
     isTerminal: true,
     overridesBuiltInTool: true,
     skipPermission: true,
     defer: "auto",
-    handler: async (args: z.infer<typeof ShellToolArgsSchema>, toolOptions?: ToolExecuteOptions): Promise<string> => {
+    handler: async function* (args: ShellToolArgs, toolOptions?: ToolExecuteOptions): AsyncGenerator<ShellToolChunk> {
       const sandbox = toolOptions?.experimental_sandbox;
+      const timeoutSeconds = args.timeout ?? DEFAULT_TIMEOUT_SECONDS;
+
+      let child: Child;
       if (sandbox) {
-        const result = await sandbox.run({
+        const proc = await sandbox.spawn({
           command: args.command,
           workingDirectory: args.cwd,
           abortSignal: toolOptions?.abortSignal,
         });
-        if (result.exitCode !== 0) {
-          const stdoutTrim = result.stdout.trim();
-          const stderrTrim = result.stderr.trim();
-          throw new Error(
-            `command \`${args.command}\` exited ${result.exitCode}\n` +
-              (stderrTrim ? `stderr:\n${stderrTrim}\n` : "") +
-              (stdoutTrim ? `stdout:\n${stdoutTrim}` : ""),
-          );
-        }
-        return result.stdout.trimEnd() || "(no output)";
+        child = {
+          stdout: proc.stdout as ReadableStream<Uint8Array>,
+          stderr: proc.stderr as ReadableStream<Uint8Array>,
+          exited: proc.wait().then((w) => w.exitCode),
+          kill: () => void proc.kill(),
+        };
+      } else {
+        const cwd = args.cwd ? resolve(args.cwd) : process.cwd();
+        const proc = Bun.spawn({
+          cmd: [...shellSpec(options.app.shell).cmd, args.command],
+          cwd,
+          stdout: "pipe",
+          stderr: "pipe",
+          // Detached on POSIX so the command runs in its own process group
+          // and a timeout/abort can kill the whole tree, not just the shell.
+          detached: process.platform !== "win32",
+        });
+        child = {
+          stdout: proc.stdout as ReadableStream<Uint8Array>,
+          stderr: proc.stderr as ReadableStream<Uint8Array>,
+          exited: proc.exited,
+          kill: () => killProcessTree(proc),
+        };
       }
 
-      
-      const cwd = args.cwd ? resolve(args.cwd) : process.cwd();
-      const proc = Bun.spawn({
-        cmd: [...shellSpec(options.app.shell).cmd, args.command],
-        cwd,
-        stdout: "pipe",
-        stderr: "pipe",
-      });
-      const stdout = await new Response(proc.stdout).text();
-      const stderr = await new Response(proc.stderr).text();
-      const code = await proc.exited;
-      if (code !== 0) {
-        const stdoutTrim = stdout.trim();
-        const stderrTrim = stderr.trim();
-        throw new Error(
-          `command \`${args.command}\` exited ${code}\n` +
-            (stderrTrim ? `stderr:\n${stderrTrim}\n` : "") +
-            (stdoutTrim ? `stdout:\n${stdoutTrim}` : ""),
-        );
-      }
-      return stdout.trimEnd() || "(no output)";
+      yield* runStreaming(args.command, child, toolOptions, timeoutSeconds);
     },
   };
 }

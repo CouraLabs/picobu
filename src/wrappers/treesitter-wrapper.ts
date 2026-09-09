@@ -51,8 +51,21 @@ export async function createTreeSitterClient(options?: CreateTreeSitterClientOpt
 
 
 export async function getSharedTreeSitterClient(): Promise<TreeSitterClient> {
-  const client = getTreeSitterClient();
-  await client.initialize();
-  await attachParsers(client);
-  return client;
+  if (!sharedClient) {
+    const client = getTreeSitterClient();
+    await client.initialize();
+    await attachParsers(client);
+    sharedClient = client;
+  }
+  return sharedClient;
 }
+
+let sharedClient: TreeSitterClient | undefined;
+
+/**
+ * The shared client once `getSharedTreeSitterClient()` has resolved, or
+ * `undefined` before that (or if initialization failed). Markdown and code
+ * renderables take the client as a prop and have no internal fallback, so
+ * components read this synchronously after startup has awaited resolution.
+ */
+export const getSharedTreeSitterClientSync = (): TreeSitterClient | undefined => sharedClient;

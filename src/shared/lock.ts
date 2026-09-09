@@ -78,38 +78,69 @@ function removeEntries(path: string, entries: Entry[]): Entry[] {
 }
 
 
+type InProcessGate = { queue: Promise<void>; release: () => void };
+const inProcessGates = new Map<string, Promise<void>>();
+
+
+/**
+ * Serializes acquirers within this process before the cross-process file poll:
+ * each caller chains a gate behind the previous holder's and awaits it,
+ * resolving with the release function for its own turn.
+ */
+async function waitForInProcessTurn(path: string): Promise<() => void> {
+  const previous = inProcessGates.get(path) ?? Promise.resolve();
+  let release: () => void = () => {};
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  inProcessGates.set(path, previous.then(() => gate));
+  await previous;
+  return release;
+}
+
+
 export async function acquireLock(filePath: string): Promise<LockHandle> {
   const path = resolve(filePath);
+  const releaseInProcess = await waitForInProcessTurn(path);
   mkdirSync(lockDir, { recursive: true });
   let lastStaleCheck = 0;
-  for (;;) {
-    const now = Date.now();
-    if (now - lastStaleCheck >= STALE_CHECK_INTERVAL_MS) {
-      writeEntries(purgeStale(readEntries()));
-      lastStaleCheck = now;
-    }
+  try {
+    for (;;) {
+      const now = Date.now();
+      if (now - lastStaleCheck >= STALE_CHECK_INTERVAL_MS) {
+        writeEntries(purgeStale(readEntries()));
+        lastStaleCheck = now;
+      }
 
-    
-    if (!(await hasEntry(path))) {
-      appendFileSync(lockFile(), `${path}${FIELD_SEP}${ourPid}\n`, "utf8");
-      return {
-        path,
-        release: () => removeOurEntry(path),
-      };
-    }
+      
+      if (!(await hasEntry(path))) {
+        appendFileSync(lockFile(), `${path}${FIELD_SEP}${ourPid}\n`, "utf8");
+        return {
+          path,
+          release: () => {
+            removeOurEntry(path);
+            releaseInProcess();
+          },
+        };
+      }
 
-    
-    
-    const holders = readEntries().filter((entry) => entry.path === path);
-    const foreignAlive = holders.some((entry) => entry.pid !== ourPid && isAlive(entry.pid));
-    if (!foreignAlive) {
-      appendFileSync(lockFile(), `${path}${FIELD_SEP}${ourPid}\n`, "utf8");
-      return {
-        path,
-        release: () => removeOurEntry(path),
-      };
+      
+      
+      const holders = readEntries().filter((entry) => entry.path === path);
+      const foreignAlive = holders.some((entry) => entry.pid !== ourPid && isAlive(entry.pid));
+      if (!foreignAlive) {
+        appendFileSync(lockFile(), `${path}${FIELD_SEP}${ourPid}\n`, "utf8");
+        return {
+          path,
+          release: () => {
+            removeOurEntry(path);
+            releaseInProcess();
+          },
+        };
+      }
+      await sleep(POLL_INTERVAL_MS);
     }
-    await sleep(POLL_INTERVAL_MS);
+  } catch (error) {
+    releaseInProcess();
+    throw error;
   }
 }
 function removeOurEntry(path: string): void {

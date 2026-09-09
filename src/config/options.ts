@@ -78,6 +78,22 @@ export type ThemePrefs = {
 };
 
 
+export type TuiOptionsInput = {
+  theme?: ThemePrefs;
+  maxMessages?: number;
+};
+
+
+export type TuiOptions = {
+  theme: ThemePrefs;
+  maxMessages: number;
+};
+
+export const DEFAULT_TUI_OPTIONS: Pick<Required<TuiOptionsInput>, "maxMessages"> = {
+  maxMessages: 20,
+};
+
+
 export type WebServerOptions = {
   host: string;
   port: number;
@@ -104,7 +120,9 @@ export const DEFAULT_WEB_OPTIONS: WebServerOptions = {
 export type OptionsExternal = {
   providers?: ProviderOptions[];
   harness?: HarnessOptionsInput;
+  /** @deprecated Moved to `tui.theme`. Auto-migrated on load. */
   theme?: ThemePrefs;
+  tui?: TuiOptionsInput;
   web?: WebServerOptions;
   whatsapp?: WhatsAppOptions;
   mcp?: McpOptions;
@@ -123,7 +141,7 @@ export type GlobalOptions = {
 export type Options = GlobalOptions & {
   providers: ProviderOptions[];
   harness: HarnessOptions;
-  theme: ThemePrefs;
+  tui: TuiOptions;
   web: WebServerOptions;
   whatsapp: WhatsAppOptions;
   mcp: McpOptions;
@@ -175,6 +193,14 @@ export function resolveModelRole(
   else if (role === "heavyThinkingLevel") thinking = modelRoles?.heavyThinkingLevel ?? "high";
   return { modelKey, thinking };
 }
+export const DEFAULT_THEME_PREFS: ThemePrefs = { key: "tacos", variant: "dark" };
+
+const resolveTui = (external: OptionsExternal): TuiOptions => ({
+  // Migrate the pre-`tui` top-level `theme` key into `tui.theme`.
+  theme: external.tui?.theme ?? external.theme ?? DEFAULT_THEME_PREFS,
+  maxMessages: Math.max(1, external.tui?.maxMessages ?? DEFAULT_TUI_OPTIONS.maxMessages),
+});
+
 export const loadOptions = async (): Promise<Options> => {
   const externalOpts = await readExternalOptions();
 
@@ -186,7 +212,7 @@ export const loadOptions = async (): Promise<Options> => {
     ...globals,
     providers: externalOpts.providers ?? [],
     harness: externalOpts.harness as HarnessOptions,
-    theme: externalOpts.theme ?? { key: "tacos", variant: "dark" },
+    tui: resolveTui(externalOpts),
     web: { ...DEFAULT_WEB_OPTIONS, ...externalOpts.web },
     whatsapp: { ...DEFAULT_WHATSAPP_OPTIONS, ...externalOpts.whatsapp },
     mcp: { ...DEFAULT_MCP_OPTIONS, ...externalOpts.mcp },
@@ -199,31 +225,58 @@ async function readExternalOptions(): Promise<OptionsExternal> {
   mkdirSync(systemDir, { recursive: true });
   const externalOptsPath = `${systemDir}/options.json`;
   const externalOptsFile = Bun.file(externalOptsPath);
-  if (!await externalOptsFile.exists()) {
-    await Bun.write(externalOptsPath, "{}");
-    return {};
-  }
-  const externalOpts = (await externalOptsFile.json()) as OptionsExternal & {
-    defaults?: { model?: string };
-  };
+  // File may not exist yet; start from an empty config and seed it below.
+  let externalOpts = (await externalOptsFile.exists())
+    ? ((await externalOptsFile.json()) as OptionsExternal & {
+        defaults?: { model?: string };
+      })
+    : {};
 
-  
-  
+  // Migrate the pre-`tui` top-level `theme` key into `tui.theme`.
+  if (externalOpts.theme !== undefined) {
+    externalOpts = {
+      ...externalOpts,
+      tui: {
+        theme: externalOpts.tui?.theme ?? externalOpts.theme,
+        maxMessages: externalOpts.tui?.maxMessages ?? DEFAULT_TUI_OPTIONS.maxMessages,
+      },
+      theme: undefined,
+    };
+  }
+
+  // Migrate the pre-`harness` `defaults.model` key into `harness.defaultModel`.
   if (externalOpts.defaults?.model && !externalOpts.harness?.defaultModel) {
-    const next: OptionsExternal = {
+    externalOpts = {
       ...externalOpts,
       harness: { ...externalOpts.harness, defaultModel: externalOpts.defaults.model },
       defaults: undefined,
     } as OptionsExternal;
-    await Bun.write(externalOptsPath, JSON.stringify(next, null, 2));
-    return next;
   }
-  return externalOpts;
+
+  // Fill every unset block with its defaults so the on-disk file always
+  // shows the effective default configuration to the user.
+  const seeded: OptionsExternal = {
+    ...externalOpts,
+    tui: {
+      theme: externalOpts.tui?.theme ?? DEFAULT_THEME_PREFS,
+      maxMessages: externalOpts.tui?.maxMessages ?? DEFAULT_TUI_OPTIONS.maxMessages,
+    },
+    theme: undefined,
+    web: { ...DEFAULT_WEB_OPTIONS, ...externalOpts.web },
+    whatsapp: { ...DEFAULT_WHATSAPP_OPTIONS, ...externalOpts.whatsapp },
+    mcp: { ...DEFAULT_MCP_OPTIONS, ...externalOpts.mcp },
+  };
+  // Only rewrite when something actually changed (new file, migration, or
+  // newly seeded defaults) to avoid churn on every startup.
+  if (JSON.stringify(seeded) !== JSON.stringify(externalOpts)) {
+    await Bun.write(externalOptsPath, JSON.stringify(seeded, null, 2));
+  }
+  return seeded;
 }
 
 
 export const updateSettings = async (
-  patch: Partial<Pick<OptionsExternal, "providers" | "harness" | "theme" | "web" | "whatsapp" | "mcp">>,
+  patch: Partial<Pick<OptionsExternal, "providers" | "harness" | "tui" | "web" | "whatsapp" | "mcp">>,
 ): Promise<Options> => {
   const systemDir = globals.app.systemDir;
   mkdirSync(systemDir, { recursive: true });
@@ -244,10 +297,11 @@ export const updateSettings = async (
           ...patch.harness?.modelRoles,
         },
       },
-      theme: {
-        ...current.theme,
-        ...patch.theme,
-      } as ThemePrefs,
+      tui: {
+        // Fold the legacy top-level theme into `tui.theme` on every save.
+        theme: patch.tui?.theme ?? current.tui?.theme ?? current.theme,
+        maxMessages: patch.tui?.maxMessages ?? current.tui?.maxMessages ?? DEFAULT_TUI_OPTIONS.maxMessages,
+      },
       web: {
         ...DEFAULT_WEB_OPTIONS,
         ...current.web,
@@ -264,8 +318,9 @@ export const updateSettings = async (
         ...patch.mcp,
       } as McpOptions,
     };
+    delete next.theme;
     await Bun.write(externalOptsPath, JSON.stringify(next, null, 2));
-    return { ...globals, ...next } as Options;
+    return loadOptions();
   } finally {
     lock.release();
   }

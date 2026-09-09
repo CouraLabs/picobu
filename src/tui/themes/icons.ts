@@ -1,4 +1,4 @@
-export const icons: Record<string, string> = {
+export const icons = {
   success: "✓",
   cross: "✗",
   error: "✘",
@@ -52,8 +52,6 @@ export const icons: Record<string, string> = {
   option: "⌥",
   capsLock: "⇪",
   space: "␣",
-
-  
   folder: "▸",
   folderOpen: "▾",
   file: "≡",
@@ -65,8 +63,6 @@ export const icons: Record<string, string> = {
   bookmark: "⚐",
   collapse: "▾",
   uncollapse: "▸",
-
-  
   gitBranch: "⑂",
   gitMerge: "⌥",
   gitCommit: "⊙",
@@ -77,8 +73,6 @@ export const icons: Record<string, string> = {
   diffModified: "±",
   diffRenamed: "→",
   conflict: "≠",
-
-  
   add: "+",
   remove: "−",
   edit: "✎",
@@ -105,8 +99,6 @@ export const icons: Record<string, string> = {
   key: "⚿",
   shield: "⛨",
   link: "⌗",
-
-  
   robot: "⌬",
   human: "☺",
   thought: "…",
@@ -118,8 +110,6 @@ export const icons: Record<string, string> = {
   record: "⏺",
   cost: "$",
   usage: "▤",
-
-  
   boxTopLeft: "┌",
   boxTopRight: "┐",
   boxBottomLeft: "└",
@@ -137,8 +127,6 @@ export const icons: Record<string, string> = {
   caretDown: "▼",
   caretLeft: "◀",
   caretRight: "▶",
-
-  
   blockFull: "█",
   blockLight: "░",
   blockMedium: "▒",
@@ -147,8 +135,6 @@ export const icons: Record<string, string> = {
   lowerHalf: "▄",
   progressFull: "█",
   progressEmpty: "░",
-
-  
   plus: "+",
   minus: "−",
   multiply: "×",

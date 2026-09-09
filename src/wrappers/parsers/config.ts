@@ -210,11 +210,14 @@ export default {
       },
     },
     {
+      // Query pinned to the grammar repo commit that matches the 0.7.3 wasm
+      // ("Baseline to nvim-treesitter highlights"); the nvim-master query
+      // references nodes this grammar revision does not have.
       filetype: "swift",
-      wasm: "https://github.com/alex-pinkus/tree-sitter-swift/releases/download/0.7.1/tree-sitter-swift.wasm",
+      wasm: "https://github.com/alex-pinkus/tree-sitter-swift/releases/download/0.7.3/tree-sitter-swift.wasm",
       queries: {
         highlights: [
-          "https://raw.githubusercontent.com/alex-pinkus/tree-sitter-swift/main/queries/highlights.scm",
+          "https://raw.githubusercontent.com/alex-pinkus/tree-sitter-swift/c79af47572af041d5df15e9d805cf575bb0265e0/queries/highlights.scm",
         ],
       },
     },
@@ -309,6 +312,58 @@ export default {
       queries: {
         highlights: [
           "https://raw.githubusercontent.com/nvim-treesitter/nvim-treesitter/refs/heads/master/queries/agda/highlights.scm",
+        ],
+      },
+    },
+    {
+      // The upstream grammar repo publishes no wasm release assets; use the
+      // npm-built wasm from the `tree-sitter-wasms` prebuild package. The
+      // query must match the grammar revision that package builds: pin the
+      // dart repo's query to the newest commit that compiles against it
+      // (the npm-published query is older than the wasm's grammar).
+      filetype: "dart",
+      wasm: "https://unpkg.com/tree-sitter-wasms@0.1.13/out/tree-sitter-dart.wasm",
+      queries: {
+        highlights: [
+          "https://raw.githubusercontent.com/UserNobody14/tree-sitter-dart/507c5546dc73667c03d36803ee9bd4df0bbe4b0b/queries/highlights.scm",
+        ],
+      },
+    },
+    {
+      filetype: "solidity",
+      aliases: ["sol"],
+      // Query pinned to the exact grammar revision `tree-sitter-wasms`
+      // builds the wasm from (see its package.json); the npm-published
+      // query targets a newer grammar and does not compile against it.
+      wasm: "https://unpkg.com/tree-sitter-wasms@0.1.13/out/tree-sitter-solidity.wasm",
+      queries: {
+        highlights: [
+          "https://raw.githubusercontent.com/JoranHonig/tree-sitter-solidity/b239a95f94cfcc6e7b3e961bc73a28d55e214f02/queries/highlights.scm",
+        ],
+      },
+    },
+    {
+      filetype: "powershell",
+      aliases: ["ps1", "psm1"],
+      wasm: "https://unpkg.com/tree-sitter-powershell@0.26.4/tree-sitter-powershell.wasm",
+      queries: {
+        highlights: ["https://unpkg.com/tree-sitter-powershell@0.26.4/queries/highlights.scm"],
+      },
+    },
+    {
+      filetype: "svelte",
+      wasm: "https://unpkg.com/tree-sitter-svelte@0.11.0/tree-sitter-svelte.wasm",
+      queries: {
+        highlights: ["https://unpkg.com/tree-sitter-svelte@0.11.0/queries/highlights.scm"],
+      },
+    },
+    {
+      filetype: "objc",
+      aliases: ["objectivec"],
+      wasm: "https://github.com/tree-sitter-grammars/tree-sitter-objc/releases/download/v3.0.2/tree-sitter-objc.wasm",
+      queries: {
+        highlights: [
+          "https://raw.githubusercontent.com/nvim-treesitter/nvim-treesitter/refs/heads/master/queries/objc/highlights.scm",
         ],
       },
     },

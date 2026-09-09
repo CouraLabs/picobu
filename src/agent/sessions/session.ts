@@ -10,15 +10,13 @@ import {
   type UIMessageChunk,
 } from "ai";
 import {
-  computeCost,
-  computeCostSplit,
   createLoop,
   type Loop,
   type LoopConfig,
   type LoopMessage,
   type LoopMessageMetadata,
-  type LoopUsage,
 } from "@agent/loop/create-loop.ts";
+import { computeCost, computeCostSplit, type LoopUsage } from "@agent/model/cost.ts";
 import {
   addToTotals,
   emptyTotals,
@@ -90,6 +88,8 @@ export type Session = {
   summarize: () => Promise<SummarizeResult>;
   undo: () => Promise<UndoResult>;
   redo: () => Promise<UndoResult>;
+  /** Drops every message after the given one from the context and persists the truncation. */
+  revertToMessage: (messageId: string) => void;
   addUsage: (detail: CostDetail) => void;
   sendMessage: Chat["sendMessage"];
   regenerate: Chat["regenerate"];
@@ -496,6 +496,14 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
       assertEditable("redo");
       return new CheckpointStore(checkpointsPath(folderKey, id)).redo();
     },
+    revertToMessage: (messageId) => {
+      assertNotRunning("revert");
+      const index = chat.messages.findIndex((m) => m.id === messageId);
+      if (index < 0) throw new Error(`Unknown message "${messageId}"`);
+      // Assigning the state notifies listeners, which persist the truncated
+      // list through the SessionSaver.
+      chat.messages = chat.messages.slice(0, index + 1);
+    },
     addUsage: (detail: CostDetail) => {
       totals = addToTotals(totals, detail);
       persistMeta({ totals });
@@ -538,8 +546,17 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
         stream: new ReadableStream<UIMessageChunk>({
           async pull(controller) {
             const { done, value } = await chunks.next();
-            if (done) controller.close();
-            else controller.enqueue(value);
+            try {
+              if (done) controller.close();
+              else controller.enqueue(value);
+            } catch (error) {
+              // `ai`'s readUIMessageStream closes its controller in a
+              // `.finally()` and can race with stream teardown (run stopped,
+              // session closed); only that known-harmless case is swallowed.
+              const message = error instanceof Error ? error.message : String(error);
+              if (message.includes("Controller is already closed")) return;
+              throw error;
+            }
           },
         }),
         terminateOnError: false,

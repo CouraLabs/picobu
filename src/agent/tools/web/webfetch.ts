@@ -22,10 +22,13 @@ export const WebfetchStreamChunkSchema = z.union([
 ]);
 
 
-export async function fetchAsMarkdown(url: string): Promise<z.infer<typeof WebfetchToolOutputSchema>> {
+export async function fetchAsMarkdown(
+  url: string,
+  opts: { timeout?: number } = {},
+): Promise<z.infer<typeof WebfetchToolOutputSchema>> {
   let rendered: Awaited<ReturnType<typeof renderPage>>;
   try {
-    rendered = await renderPage(url);
+    rendered = await renderPage(url, opts);
   } catch (error) {
     throw new Error(`Failed to fetch ${url}: ${error instanceof Error ? error.message : String(error)}`);
   }

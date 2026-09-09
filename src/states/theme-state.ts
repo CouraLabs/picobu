@@ -1,4 +1,4 @@
-import { options } from "@config/options.ts";
+import { options, updateSettings } from "@config/options.ts";
 import type { RGBA, SyntaxStyle } from "@opentui/core";
 import {
   allThemes,
@@ -33,8 +33,8 @@ function resolveEntry(name: string, variant: ThemeVariant): Theme {
   return resolveTheme(json, variant);
 }
 export const themes = listEntries();
-const defaultName = options?.theme?.key ?? "tacos";
-const defaultVariant = options?.theme?.variant ?? "dark";
+const defaultName = options?.tui?.theme?.key ?? "tacos";
+const defaultVariant = options?.tui?.theme?.variant ?? "dark";
 const defaultTheme = resolveEntry(defaultName, defaultVariant);
 const [themeState, setThemeState] = createSignal<ThemeState>({
   name: defaultName,
@@ -61,9 +61,16 @@ export const setTheme = (name: string, variant: ThemeVariant) => {
   const syntax = generateSyntax(resolved);
   const syntaxMuted = generateSubtleSyntax(resolved);
   setThemeState(() => ({ name, variant, theme: resolved, syntax, syntaxMuted }))
+  // Persist the selection so it survives restarts. Fire-and-forget: the UI
+  // must not block or fail on a config write.
+  updateSettings({ tui: { theme: { key: name, variant } } }).catch(() => {})
 };
 export const toggleThemeVariant = () => {
   const info = themeInfo();
   setTheme(info.name, info.variant === 'dark' ? 'light' : 'dark')
+};
+export const indexOfTheme = (names: string[]): number => {
+  const index = names.indexOf(themeInfo().name);
+  return index < 0 ? 0 : index;
 };
 

@@ -5,7 +5,8 @@ import { useKeyboard } from "@opentui/solid"
 import { createEffect } from "solid-js"
 
 export const Dialog = () => {
-  let ref: BoxRenderable | null = null;
+  let backdropRef: BoxRenderable | null = null;
+  let panelRef: BoxRenderable | null = null;
 
   useKeyboard((key) => {
     if (dialogStatus().status !== "open") return false;
@@ -17,15 +18,16 @@ export const Dialog = () => {
   })
 
   const handleBackdropMouseDown = (event: MouseEvent) => {
-    if (event.target === event.currentTarget) closeDialog()
+    if (event.target === backdropRef) closeDialog()
   }
 
   createEffect(() => {
-    if (dialogStatus().status === "open") ref?.focus();
+    if (dialogStatus().status === "open") panelRef?.focus();
   })
 
   return (
     <box
+      ref={(r) => backdropRef = r}
       position={"absolute"}
       width={"100%"}
       height={"100%"}
@@ -35,23 +37,25 @@ export const Dialog = () => {
       visible={dialogStatus().status === 'close' ? false : true}
       zIndex={500}
       focusable={true}
-      focused={true}
+      focused={dialogStatus().status === "open"}
       onMouseDown={handleBackdropMouseDown}
     >
       <box
-        ref={(r) => ref = r}
-        borderColor={theme().border}
-        focusedBorderColor={theme().borderActive}
+        ref={(r) => panelRef = r}
+        backgroundColor={theme().backgroundPanel}
         focusable
-        borderStyle={"rounded"}
         flexDirection={"column"}
         overflow={"hidden"}
-        width={dialogStatus().size.width}
-        height={dialogStatus().size.height}
+        width={"auto"}
+        height={"auto"}
+        maxWidth={"90%"}
+        maxHeight={"90%"}
       >
-        {dialogStatus().content}
+        {/* Invoke the factory here, inside the renderer context — creating these
+            nodes in async code (e.g. a catch block after `await`) has no
+            RendererContext and throws "No renderer found". */}
+        {dialogStatus().content?.()}
       </box>
     </box>
   )
 }
-

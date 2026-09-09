@@ -1,5 +1,5 @@
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
-import { DirectChatTransport, ToolLoopAgent, hasToolCall, isStepCount, type InferUITools, type LanguageModel, type UIMessage } from "ai";
+import { DirectChatTransport, ToolLoopAgent, isStepCount, type InferUITools, type LanguageModel, type UIMessage } from "ai";
 import { buildToolSet, toolsInfo } from "@agent/tools/toolset.ts";
 import { createLocalSandboxSession } from "@agent/tools/sandbox.ts";
 import { getAgent } from "@agent/agents/registry.ts";
@@ -10,6 +10,7 @@ import { listRules } from "@agent/rules/rules.ts";
 import { listSkills } from "@agent/commands/index.ts";
 import { listSubagents } from "@agent/agents/subagents.ts";
 import { options, type ProviderModelBilling, type ProviderModelReasoningEffort } from "@config/options.ts";
+import { computeCost, type LoopUsage } from "@agent/model/cost.ts";
 import { folderKeyFor, sessionTodoFilePath } from "@agent/sessions/session-paths.ts";
 import { checkpointsPath } from "@agent/sessions/checkpoints.ts";
 import type { SpawnToolContext } from "@agent/tools/flow/spawn.ts";
@@ -40,21 +41,6 @@ type LoopCallOptions = { sessionMode?: "chat" | "persistent" };
 export type LoopMessage = UIMessage<unknown, never, InferUITools<any>>;
 
 
-export type LoopUsage = {
-  inputTokens?: number;
-  outputTokens?: number;
-  cacheReadTokens?: number;
-  cacheWriteTokens?: number;
-};
-
-
-export type CompactionMetadata = {
-  summary: string;
-  compactedMessageIds: string[];
-  createdAt: number;
-};
-
-
 export type LoopMessageMetadata = {
   usage?: LoopUsage;
   finishReason?: string;
@@ -63,37 +49,29 @@ export type LoopMessageMetadata = {
 };
 
 
-export const computeCost = (usage: LoopUsage, billing?: ProviderModelBilling): number | undefined => {
-  if (!billing) return undefined;
-  const uncached = Math.max(0, (usage.inputTokens ?? 0) - (usage.cacheReadTokens ?? 0) - (usage.cacheWriteTokens ?? 0));
-  return (
-    (
-      uncached * (billing.input ?? 0)
-      + (usage.outputTokens ?? 0) * (billing.output ?? 0)
-      + (usage.cacheReadTokens ?? 0) * (billing.cacheRead ?? 0)
-      + (usage.cacheWriteTokens ?? 0) * (billing.cacheWrite ?? 0)
-    ) / 1_000_000) * (billing.multiplier ?? 1);
-};
-
-
-export const computeCostSplit = (
-  usage: LoopUsage,
-  billing?: ProviderModelBilling,
-): { inputCost: number; outputCost: number; cacheCost: number } | undefined => {
-  if (!billing) return undefined;
-  const uncached = Math.max(0, (usage.inputTokens ?? 0) - (usage.cacheReadTokens ?? 0) - (usage.cacheWriteTokens ?? 0));
-  const m = (tokens: number, rate: number | undefined) => (tokens * (rate ?? 0) / 1_000_000) * (billing.multiplier ?? 1);
-  return {
-    inputCost: m(uncached, billing.input),
-    outputCost: m(usage.outputTokens ?? 0, billing.output),
-    cacheCost: m(usage.cacheReadTokens ?? 0, billing.cacheRead) + m(usage.cacheWriteTokens ?? 0, billing.cacheWrite),
-  };
+export type CompactionMetadata = {
+  summary: string;
+  compactedMessageIds: string[];
+  createdAt: number;
 };
 export type Loop = {
   agent: ToolLoopAgent<any, any, any, any>;
   transport: DirectChatTransport<any, any, any, any, LoopMessage>;
   mcp: McpManager;
 };
+
+
+// Like `hasToolCall` from "ai", but ignores invalid tool calls. The AI SDK marks
+// tool calls with schema-invalid input as `invalid` and feeds a tool-error back to
+// the model so it can retry — stopping on those would kill the run before the
+// model ever sees the error (observed with malformed `ask` calls).
+const hasValidToolCall = (...toolNames: string[]) =>
+  ({ steps }: { steps: Array<{ toolCalls?: Array<{ toolName: string; invalid?: boolean }> }> }) => {
+    const lastStep = steps.at(-1);
+    return lastStep?.toolCalls?.some(
+      (toolCall) => toolNames.includes(toolCall.toolName) && !toolCall.invalid,
+    ) ?? false;
+  };
 
 
 const initialModel = (modelKey: string): LanguageModel => {
@@ -230,7 +208,7 @@ export function createLoop(getConfig: () => LoopConfig): Loop {
       
       const blocking: string[] = config.subagent ? [] : ["ask", "plan-write"];
       const stopWhen = blocking.length
-        ? [isStepCount(100), hasToolCall(...blocking)]
+        ? [isStepCount(100), hasValidToolCall(...blocking)]
         : [isStepCount(100)];
       
       
@@ -241,7 +219,7 @@ export function createLoop(getConfig: () => LoopConfig): Loop {
       return {
         ...base,
         prompt: lastUser ? [lastUser] : rest.prompt,
-        stopWhen: [isStepCount(100), hasToolCall("ask", "plan-write")],
+        stopWhen: [isStepCount(100), hasValidToolCall("ask", "plan-write")],
       };
     },
   });
@@ -266,6 +244,15 @@ export function createLoop(getConfig: () => LoopConfig): Loop {
         generate: (callOptions: any) => loopAgent.generate({ ...callOptions, experimental_sandbox: sandboxSession }),
       } as ToolLoopAgent<any, any, any, any>)
     : loopAgent;
+  const addUsage = (a: LoopUsage | undefined, b: LoopUsage): LoopUsage => ({
+    inputTokens: (a?.inputTokens ?? 0) + (b.inputTokens ?? 0),
+    outputTokens: (a?.outputTokens ?? 0) + (b.outputTokens ?? 0),
+    cacheReadTokens: (a?.cacheReadTokens ?? 0) + (b.cacheReadTokens ?? 0),
+    cacheWriteTokens: (a?.cacheWriteTokens ?? 0) + (b.cacheWriteTokens ?? 0),
+  });
+  // messageMetadata is invoked once per stream part with a fresh scope, so the
+  // running total must live here to accumulate across a run's finish-step parts.
+  let runUsage: LoopUsage | undefined;
   const transport = new DirectChatTransport({
     agent,
     options: { sessionMode: isPersistent ? "persistent" : "chat" },
@@ -294,16 +281,31 @@ export function createLoop(getConfig: () => LoopConfig): Loop {
         }
         return { usage, cost: computeCost(usage, billing), ...extra };
       };
+      if (opts.part.type === "start") {
+        runUsage = undefined;
+        return undefined;
+      }
       if (opts.part.type === "finish-step") {
-        return build({
+        const stepUsage: LoopUsage = {
           inputTokens: opts.part.usage.inputTokens,
           outputTokens: opts.part.usage.outputTokens,
           cacheReadTokens: opts.part.usage.inputTokenDetails?.cacheReadTokens ?? 0,
           cacheWriteTokens: opts.part.usage.inputTokenDetails?.cacheWriteTokens ?? 0,
-        });
+        };
+        runUsage = addUsage(runUsage, stepUsage);
+        return build(runUsage);
       }
       if (opts.part.type === "finish") {
-        return { finishReason: opts.part.finishReason };
+        const total = opts.part.totalUsage;
+        return {
+          ...build({
+            inputTokens: total.inputTokens,
+            outputTokens: total.outputTokens,
+            cacheReadTokens: total.inputTokenDetails?.cacheReadTokens ?? 0,
+            cacheWriteTokens: total.inputTokenDetails?.cacheWriteTokens ?? 0,
+          }),
+          finishReason: opts.part.finishReason,
+        };
       }
       return undefined;
     },

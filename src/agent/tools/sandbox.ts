@@ -50,6 +50,16 @@ export const sandboxRoot = (sandbox: unknown): string | undefined =>
     : undefined;
 const MISSING = "ENOENT";
 
+/** Kills the process and its whole tree; the child runs detached (setsid) on POSIX. */
+export const killProcessTree = (proc: Bun.Subprocess): void => {
+  try {
+    if (process.platform !== "win32" && proc.pid) process.kill(-proc.pid, "SIGKILL");
+    else proc.kill(9);
+  } catch {
+    // Already exited.
+  }
+};
+
 
 export function createLocalSandboxSession(root: string, shellLabel: string): LocalSandboxSession {
   const spec = shellSpec(shellLabel);
@@ -65,12 +75,12 @@ export function createLocalSandboxSession(root: string, shellLabel: string): Loc
       env: opts.env ? { ...Bun.env, ...opts.env } : Bun.env,
       stdout: "pipe",
       stderr: "pipe",
+      // Own process group so a kill takes down the whole tree, including
+      // grandchildren that would otherwise keep the output pipes open.
+      detached: process.platform !== "win32",
     });
     const onAbort = () => {
-      try {
-        proc.kill();
-      } catch {
-      }
+      killProcessTree(proc);
     };
     opts.abortSignal?.addEventListener("abort", onAbort, { once: true });
     return { proc, onAbort };

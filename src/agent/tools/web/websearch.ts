@@ -137,25 +137,57 @@ export const websearchTool = {
     
     
     
+    // Fetch page content with a sliding window of concurrent renders. Each
+    // launch and each completion emits a progress chunk so the UI shows
+    // continuous activity — a batch-wide Promise.all would go silent for the
+    // whole window, which on slow sites can be tens of seconds.
     const total = results.length;
     const FETCH_CONCURRENCY = 4;
-    for (let i = 0; i < total; i += FETCH_CONCURRENCY) {
-      const batch = results.slice(i, i + FETCH_CONCURRENCY);
-      yield {
-        progress: `Fetching results ${i + 1}–${i + batch.length} of ${total}…`,
-        results: snapshot(),
-      };
-      await Promise.all(
-        batch.map(async (result) => {
-          try {
-            const fetchedPage = await fetchAsMarkdown(result.url);
-            result.content = fetchedPage.content;
-          } catch {
-            result.content = null;
-          }
-        }),
-      );
-      yield { progress: `Fetched ${Math.min(i + FETCH_CONCURRENCY, total)} of ${total}…`, results: snapshot() };
+    // Content enrichment is best-effort; cap each page well below renderPage's
+    // 30s default so one hung page can't stall a whole concurrency window.
+    const FETCH_TIMEOUT_MS = 15_000;
+    const hostOf = (url: string): string => {
+      try {
+        return new URL(url).host.replace(/^www\./, "");
+      } catch {
+        return url;
+      }
+    };
+    let completed = 0;
+    type Slot = { promise: Promise<void>; done: boolean };
+    const slots: Slot[] = [];
+    const launch = (result: z.infer<typeof WebsearchResultSchema>): Slot => {
+      const slot: Slot = { promise: Promise.resolve(), done: false };
+      slot.promise = (async () => {
+        try {
+          result.content = (await fetchAsMarkdown(result.url, { timeout: FETCH_TIMEOUT_MS })).content;
+        } catch {
+          result.content = null;
+        } finally {
+          slot.done = true;
+          completed++;
+        }
+      })();
+      return slot;
+    };
+    const reapSettled = (): void => {
+      for (let i = slots.length - 1; i >= 0; i--) {
+        if (slots[i]?.done) slots.splice(i, 1);
+      }
+    };
+    for (const [i, result] of results.entries()) {
+      if (slots.length >= FETCH_CONCURRENCY) {
+        await Promise.race(slots.map((s) => s.promise));
+        reapSettled();
+        yield { progress: `Fetched ${completed} of ${total} pages`, results: snapshot() };
+      }
+      yield { progress: `Fetching page ${i + 1} of ${total} (${hostOf(result.url)})…`, results: snapshot() };
+      slots.push(launch(result));
+    }
+    while (slots.length > 0) {
+      await Promise.race(slots.map((s) => s.promise));
+      reapSettled();
+      yield { progress: `Fetched ${completed} of ${total} pages`, results: snapshot() };
     }
     yield { query: args.query, results };
   },

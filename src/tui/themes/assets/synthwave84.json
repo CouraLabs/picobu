@@ -59,15 +59,15 @@
       "light": "#5c5c8a"
     },
     "background": {
-      "dark": "#262335",
+      "dark": "#16141f",
       "light": "#fafafa"
     },
     "backgroundPanel": {
-      "dark": "#1e1a29",
+      "dark": "#191623",
       "light": "#f5f5f5"
     },
     "backgroundElement": {
-      "dark": "#2a2139",
+      "dark": "#241c30",
       "light": "#eeeeee"
     },
     "border": {

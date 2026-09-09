@@ -45,7 +45,13 @@ export const createTodoTool = (todoFilePath: string) => ({
       let items: TodoItem[] = [];
       const file = Bun.file(todoFilePath);
       if (await file.exists()) {
-        const parsed = todoFileSchema.safeParse(await file.json());
+        let raw: unknown;
+        try {
+          raw = await file.json();
+        } catch {
+          throw new Error(`Corrupt todo file at ${todoFilePath}: not valid JSON`);
+        }
+        const parsed = todoFileSchema.safeParse(raw);
         if (!parsed.success) {
           throw new Error(`Corrupt todo file at ${todoFilePath}: ${parsed.error.message}`);
         }

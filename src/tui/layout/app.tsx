@@ -1,4 +1,4 @@
-import { setTheme, theme, themeInfo, themes, toggleThemeVariant } from "@states/theme-state.ts"
+import { indexOfTheme, setTheme, theme, themeInfo, themes, toggleThemeVariant } from "@states/theme-state.ts"
 import { Dialog } from "@tui/components/dialog.tsx"
 import { Dropdown, DropdownLayer } from "@tui/components/dropdown.tsx"
 import { createMemo, createSignal } from "solid-js"
@@ -17,8 +17,8 @@ export const App = () => {
   const isSession = createMemo(() => page() === 'app-tab-session')
 
   return (
-    <box id="app" width={"100%"} height={"100%"}>
-      <box id="app-header" marginY={1} marginX={2} flexDirection="row" justifyContent="space-between" alignItems="space-between" flexBasis={1}>
+    <box id="app" width={"100%"} height={"100%"} backgroundColor={theme().background}>
+      <box id="app-header" marginY={1} marginX={2} flexDirection="row" justifyContent="space-between" alignItems="center">
         <box id="app-header-left">
           <Tab tabs={pages} onChange={setPage} curr={page()} />
         </box>
@@ -26,12 +26,13 @@ export const App = () => {
           <Dropdown
             options={themes.map((name) => ({ name, value: name }))}
             onSelect={(option) => setTheme(String(option.value), "dark")}
+            selected={indexOfTheme(themes)}
             placeholder="Select theme…"
           />
           <Button label={themeInfo().variant} onClick={() => toggleThemeVariant()} />
         </box>
       </box>
-      <box id="app-content" flexDirection="column" flexGrow={1} flexShrink={1}>
+      <box id="app-content" flexDirection="column" flexGrow={1} flexShrink={1} marginX={2}>
         <SessionPage sessionId={undefined} visible={isSession()} />
       </box>
       <box id="app-footer" flexDirection="row" flexShrink={1} gap={1} marginX={2} marginY={1}>
