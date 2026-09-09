@@ -1,17 +1,16 @@
-
 export const clip = (value: string, max: number): string => {
   if (max <= 0) return "";
   return value.length <= max ? value : `${value.slice(0, max - 1)}…`;
 };
 
-
 export const relTime = (ms: number): string => {
-  const min = Math.max(1, Math.round((Date.now() - ms) / 60_000));
+  const diff = Date.now() - ms;
+  if (diff <= 0) return "just now";
+  const min = Math.max(1, Math.round(diff / 60_000));
   if (min < 60) return `${min}m`;
   if (min < 24 * 60) return `${Math.round(min / 60)}h`;
   return `${Math.round(min / (24 * 60))}d`;
 };
-
 
 export const fmtTokens = (n: number): string => {
   if (n >= 1_000_000) {
@@ -25,13 +24,11 @@ export const fmtTokens = (n: number): string => {
   return String(n);
 };
 
-
 export const fmtCost = (n?: number): string => {
   if (n === undefined) return "";
   const fixed = n.toFixed(2);
   return `$${fixed.replace(/\.00$/, "")}`;
 };
-
 
 export const fmtDuration = (sec: number): string => {
   const s = Math.max(0, Math.round(sec));
@@ -40,7 +37,6 @@ export const fmtDuration = (sec: number): string => {
   if (m < 60) return `${m}m ${String(s % 60).padStart(2, "0")}s`;
   return `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, "0")}m`;
 };
-
 
 export const fmtRunSummary = (
   elapsedSec: number,

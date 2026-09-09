@@ -3,18 +3,15 @@ import { options } from "@config/options.ts";
 import { sendText } from "@integrations/whatsapp/connection.ts";
 import { normalizePhone } from "@integrations/whatsapp/phone.ts";
 
-
 export type TodayTask = { id: string; text: string; createdAt: number };
 type TodayFile = { day: string; items: TodayTask[] };
 export const whatsappFilePath = (name: string): string =>
   `${options.app.systemDir}/whatsapp/${name}.json`;
 
-
 const todayKey = (now = Date.now()): string => {
   const d = new Date(now);
   return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
 };
-
 
 export const sendWwpMessage = async (phone: string, message: string): Promise<string> => {
   if (!normalizePhone(phone)) throw new Error(`Invalid phone number: ${phone}`);
@@ -22,7 +19,6 @@ export const sendWwpMessage = async (phone: string, message: string): Promise<st
   await sendText(phone, message);
   return `Message sent to +${normalizePhone(phone)}`;
 };
-
 
 export const addTodayTask = async (text: string): Promise<string> => {
   const path = whatsappFilePath("today");
@@ -43,7 +39,6 @@ export const addTodayTask = async (text: string): Promise<string> => {
   return `Added to today's tasks: ${text}`;
 };
 
-
 export const removeTodayTask = async (id: string): Promise<string> => {
   const path = whatsappFilePath("today");
   await withLock(path, async () => {
@@ -57,6 +52,3 @@ export const removeTodayTask = async (id: string): Promise<string> => {
   });
   return `Task ${id} removed`;
 };
-
-
-

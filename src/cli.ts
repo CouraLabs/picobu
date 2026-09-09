@@ -19,18 +19,23 @@ const sessions = program
   .option("--dir <path>", "list another worktree's sessions")
   .action((opts: { dir?: string }) => {
     void (async () => {
-      const cwd = opts.dir ? opts.dir : options.app.cwd;
-      const manager = new SessionManager({ cwd });
-      const rows = await manager.listSessions();
-      if (rows.length === 0) {
-        console.log("No sessions for this folder.");
-        process.exit(0);
-      }
-      console.log(`Sessions in ~/.picobu/sessions/${folderKeyFor(cwd)}`);
-      for (const s of rows) {
-        console.log(
-          `${s.id}  ${new Date(s.mtimeMs).toISOString()}  [${s.state}]  "${s.title ?? s.firstPrompt}"${s.parentSessionId ? `  (sub of ${s.parentSessionId})` : ""}`,
-        );
+      try {
+        const cwd = opts.dir ? opts.dir : options.app.cwd;
+        const manager = new SessionManager({ cwd });
+        const rows = await manager.listSessions();
+        if (rows.length === 0) {
+          console.log("No sessions for this folder.");
+          process.exit(0);
+        }
+        console.log(`Sessions in ~/.picobu/sessions/${folderKeyFor(cwd)}`);
+        for (const s of rows) {
+          console.log(
+            `${s.id}  ${new Date(s.mtimeMs).toISOString()}  [${s.state}]  "${s.title ?? s.firstPrompt}"${s.parentSessionId ? `  (sub of ${s.parentSessionId})` : ""}`,
+          );
+        }
+      } catch (error) {
+        console.error(`List failed: ${error instanceof Error ? error.message : String(error)}`);
+        process.exit(1);
       }
       process.exit(0);
     })();
@@ -76,22 +81,26 @@ sessions
   .description("show the session tree (roots with their sub sessions)")
   .action(() => {
     void (async () => {
-      const manager = new SessionManager();
-      const tree = await manager.listSessionTree();
-      if (tree.length === 0) {
-        console.log("No sessions for this folder.");
-        process.exit(0);
-      }
-      const label = (m: { id: string; title?: string; state: string }): string =>
-        `${m.id}  [${m.state}]  "${m.title ?? "(untitled)"}"`;
-      for (const root of tree) {
-        console.log(label(root));
-        for (const child of root.children) console.log(`  └─ ${label(child)}`);
+      try {
+        const manager = new SessionManager();
+        const tree = await manager.listSessionTree();
+        if (tree.length === 0) {
+          console.log("No sessions for this folder.");
+          process.exit(0);
+        }
+        const label = (m: { id: string; title?: string; state: string }): string =>
+          `${m.id}  [${m.state}]  "${m.title ?? "(untitled)"}"`;
+        for (const root of tree) {
+          console.log(label(root));
+          for (const child of root.children) console.log(`  └─ ${label(child)}`);
+        }
+      } catch (error) {
+        console.error(`Tree failed: ${error instanceof Error ? error.message : String(error)}`);
+        process.exit(1);
       }
       process.exit(0);
     })();
   });
-
 
 const mcp = program
   .command("mcp")
@@ -99,16 +108,21 @@ const mcp = program
 mcp
   .action(() => {
     void (async () => {
-      const rows = await listMcpServers();
-      if (rows.length === 0) {
-        console.log("No MCP servers configured (mcp block in ~/.picobu/options.json or ./.mcp.json).");
-        process.exit(0);
-      }
-      for (const row of rows) {
-        const auth = row.authRequired ? (row.authActive ? "auth: active" : "auth: login needed") : "auth: none";
-        console.log(
-          `${row.id}  ${row.type}  ${row.target}  [${row.source}]  ${row.connected ? "connected" : "disconnected"}  ${auth}${row.error ? `  error: ${row.error}` : ""}`,
-        );
+      try {
+        const rows = await listMcpServers();
+        if (rows.length === 0) {
+          console.log("No MCP servers configured (mcp block in ~/.picobu/options.json or ./.mcp.json).");
+          process.exit(0);
+        }
+        for (const row of rows) {
+          const auth = row.authRequired ? (row.authActive ? "auth: active" : "auth: login needed") : "auth: none";
+          console.log(
+            `${row.id}  ${row.type}  ${row.target}  [${row.source}]  ${row.connected ? "connected" : "disconnected"}  ${auth}${row.error ? `  error: ${row.error}` : ""}`,
+          );
+        }
+      } catch (error) {
+        console.error(`MCP list failed: ${error instanceof Error ? error.message : String(error)}`);
+        process.exit(1);
       }
       process.exit(0);
     })();
@@ -142,14 +156,9 @@ mcp
     })();
   });
 
-
-
-
-
 const bootstrap = async (): Promise<void> => {
   await autoloadLlmProviders();
-  
-  
+
   await ensureOAuthTokens();
   if (options.whatsapp.enabled) void connectToWhatsApp();
 };

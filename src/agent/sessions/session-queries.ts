@@ -7,6 +7,7 @@ import { listSessions } from "@agent/sessions/session-store.ts";
 import {
   deleteSessionMeta,
   readSessionMeta,
+  recoverSessionMeta,
   folderKeyForSession,
   type SessionMeta,
   type SessionState,
@@ -63,6 +64,7 @@ export async function deleteSessionCascade(deps: QueryDeps, id: string): Promise
   const folderKey = await folderKeyForSession(cwd, id);
   const subtree = await collectSubtree(folderKey, cwd, id);
   for (const nodeId of subtree) {
+    if (!live.has(nodeId)) await recoverSessionMeta(folderKey, nodeId);
     const running = live.get(nodeId)?.state === "running"
       || (!live.has(nodeId) && (await readSessionMeta(folderKey, nodeId))?.state === "running");
     if (running) throw new Error(`Session "${nodeId}" is running; stop it before deleting`);
@@ -79,8 +81,10 @@ export async function deleteSessionCascade(deps: QueryDeps, id: string): Promise
 }
 
 async function collectSubtree(folderKey: string, cwd: string, rootId: string): Promise<string[]> {
+  const allMetas = await readAllMetas(folderKey, cwd);
+  if (!allMetas.some((meta) => meta.id === rootId)) throw new Error(`Unknown session "${rootId}"`);
   const byParent = new Map<string, string[]>();
-  for (const meta of await readAllMetas(folderKey, cwd)) {
+  for (const meta of allMetas) {
     if (!meta.parentSessionId) continue;
     const list = byParent.get(meta.parentSessionId) ?? [];
     list.push(meta.id);

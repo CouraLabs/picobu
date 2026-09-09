@@ -5,8 +5,6 @@ import {
 } from "@integrations/whatsapp/actions.ts";
 const sent = z.object({ message: z.string() });
 
-
-
 export const wwpTools: {
   name: string;
   description: string;

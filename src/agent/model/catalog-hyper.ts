@@ -1,6 +1,5 @@
 import type { LlmProviderDefinition } from "@agent/model/types.ts";
 
-
 export const hyper: LlmProviderDefinition = {
   id: "hyper",
   name: "Charm Hyper",

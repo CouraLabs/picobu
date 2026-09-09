@@ -23,7 +23,6 @@ export const icons = {
   hourglass: "⌛",
   pin: "⍟",
 
-  
   arrowLeft: "←",
   arrowRight: "→",
   arrowUp: "↑",

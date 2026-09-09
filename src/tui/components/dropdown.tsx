@@ -22,6 +22,9 @@ export const Dropdown = (props: DropdownProps) => {
   const maxWidth = () => props.maxWidth ?? 20;
   const [hovered, setHovered] = createSignal(false);
   const [selectedIndex, setSelectedIndex] = createSignal(props.selected ?? 0);
+  createEffect(() => {
+    setSelectedIndex(props.selected ?? 0);
+  });
   let buttonRef: BoxRenderable | null = null;
   const labelText = () => props.options[selectedIndex()]?.name ?? props.placeholder ?? "Select…";
   const labelFg = () => (hovered() ? theme().selected(theme().accent) : theme().accent);
@@ -68,6 +71,7 @@ export const DropdownLayer = () => {
   const renderer = useRenderer();
   const [highlighted, setHighlighted] = createSignal(0);
   const [scrollOffset, setScrollOffset] = createSignal(0);
+  let popupRef: BoxRenderable | null = null;
   const state = createMemo(() => dropdownState());
   const open = () => state() !== null;
   const options = () => state()?.options ?? [];
@@ -133,6 +137,7 @@ export const DropdownLayer = () => {
   };
   useKeyboard((key) => {
     if (!open()) return false;
+    if (popupRef && !popupRef.focused && !popupRef.hasFocusedDescendant) return false;
     if (key.name === "escape") {
       closeDropdown();
       return true;
@@ -180,6 +185,7 @@ export const DropdownLayer = () => {
         borderColor={theme().border}
         focusedBorderColor={theme().borderActive}
         backgroundColor={theme().backgroundElement}
+        ref={(r) => (popupRef = r)}
         onMouseScroll={(event) => {
           const direction = event.scroll?.direction;
           if (direction === "down") scrollBy(1);

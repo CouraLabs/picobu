@@ -14,50 +14,31 @@ export const ShellToolArgsSchema = z.object({
     .optional()
     .describe("Maximum seconds the command may run before it is killed (1-600). Default 120."),
 })
-
 export const ShellToolOutputSchema = z.union([
   z.object({ progress: z.string() }),
   z.string(),
 ])
-
 type ShellToolArgs = z.infer<typeof ShellToolArgsSchema>
 type ShellToolChunk = z.infer<typeof ShellToolOutputSchema>
-
 const DEFAULT_TIMEOUT_SECONDS = 120
-// How often streamed output is flushed to the UI while the command runs.
 const PROGRESS_INTERVAL_MS = 300
-// Number of trailing lines shown in the live terminal-style progress preview.
 const PROGRESS_TAIL_LINES = 10
 const PROGRESS_LINE_MAX = 160
-// Hard cap on the output kept for the final result; runaway commands stop
-// accumulating (but keep streaming) once they exceed this.
 const OUTPUT_MAX_CHARS = 100_000
-// Grace period after the process exits for the pipes to drain before they are
-// force-closed; guards against grandchildren holding the pipe FDs open forever.
 const DRAIN_GRACE_MS = 500
-
-/** Minimal process handle shared by the direct-spawn and sandbox paths. */
 type Child = {
   stdout: ReadableStream<Uint8Array>
   stderr: ReadableStream<Uint8Array>
   exited: PromiseLike<number>
   kill: () => void
 }
-
 const truncateLine = (line: string): string =>
   line.length > PROGRESS_LINE_MAX ? `${line.slice(0, PROGRESS_LINE_MAX - 1)}…` : line
-
 const capOutput = (text: string): string => {
   if (text.length <= OUTPUT_MAX_CHARS) return text
   const half = OUTPUT_MAX_CHARS / 2
   return `${text.slice(0, half)}\n…[output truncated]…\n${text.slice(-half)}`
 }
-
-/**
- * Reads a spawn pipe to completion, forwarding decoded text to `sink`.
- * Resolves when the pipe closes, when `cancel` fires (pipes force-closed
- * after the process exited), or on read errors — it never rejects.
- */
 const drainStream = (
   stream: ReadableStream<Uint8Array>,
   sink: (text: string) => void,
@@ -77,17 +58,9 @@ const drainStream = (
         sink(decoder.decode(result.value, { stream: true }))
       }
     } catch {
-      // Pipe destroyed (e.g. process killed); treat as end of stream.
     }
   })()
 }
-
-/**
- * Runs a child to completion while streaming its trailing output as
- * `{ progress }` chunks for a live terminal-style UI preview. Kills the child
- * on abort or after `timeoutSeconds`. Yields the final result string, or
- * throws with the partial output on timeout/abort/non-zero exit.
- */
 const runStreaming = async function* (
   label: string,
   child: Child,
@@ -105,15 +78,11 @@ const runStreaming = async function* (
     timedOut = true;
     child.kill();
   }, timeoutSeconds * 1000);
-
-  // Output accumulators. `stdout`/`stderr` feed the final result; the tail
-  // buffer mirrors both streams in arrival order for the live preview.
   let stdout = "";
   let stderr = "";
   const tailLines: string[] = [];
   let tailPending = "";
   let lastProgress = "";
-
   const pushText = (text: string) => {
     const parts = text.split("\n");
     tailPending += parts[0];
@@ -124,25 +93,21 @@ const runStreaming = async function* (
     if (tailLines.length > PROGRESS_TAIL_LINES) tailLines.splice(0, tailLines.length - PROGRESS_TAIL_LINES);
   };
   const sink = (which: "out" | "err") => (text: string) => {
-    if (which === "out" && stdout.length <= OUTPUT_MAX_CHARS) stdout += text;
-    if (which === "err" && stderr.length <= OUTPUT_MAX_CHARS) stderr += text;
+    if (which === "out" && stdout.length < OUTPUT_MAX_CHARS) stdout += text.slice(0, OUTPUT_MAX_CHARS - stdout.length);
+    if (which === "err" && stderr.length < OUTPUT_MAX_CHARS) stderr += text.slice(0, OUTPUT_MAX_CHARS - stderr.length);
     pushText(text);
   };
   const progressText = (): string => {
     const lines = tailPending.length > 0 ? [...tailLines, truncateLine(tailPending)] : [...tailLines];
     return lines.join("\n").replace(/^\n+/, "");
   };
-
   let resolveCancel: (value: "cancel") => void = () => {};
   const cancel = new Promise<"cancel">((resolve) => (resolveCancel = resolve));
   const drained = Promise.all([
     drainStream(child.stdout, sink("out"), cancel),
     drainStream(child.stderr, sink("err"), cancel),
   ]);
-
   try {
-    // Poll while the command runs, flushing the trailing output to the UI
-    // as preliminary chunks so it renders like a live terminal.
     let exitCode: number | undefined;
     const startedAt = Date.now();
     let lastEmitAt = Date.now();
@@ -163,9 +128,6 @@ const runStreaming = async function* (
         if (progress.length > 0) yield { progress };
         continue;
       }
-      // Output stalled (or none yet): emit an elapsed-time heartbeat so silent
-      // commands still show a running status in the UI instead of a frozen
-      // preview or a bare pending icon.
       if (now - startedAt >= 2_000 && now - lastEmitAt >= 3_000) {
         lastEmitAt = now;
         const elapsed = Math.round((now - startedAt) / 1000);
@@ -177,13 +139,9 @@ const runStreaming = async function* (
         };
       }
     }
-
-    // Give the pipes a short grace period to flush buffered output, then
-    // force-close them so descendants holding the FDs cannot hang us.
     await Promise.race([drained, Bun.sleep(DRAIN_GRACE_MS)]);
     resolveCancel("cancel");
     await drained.catch(() => {});
-
     if (timedOut) {
       throw new Error(
         `command \`${label}\` timed out after ${timeoutSeconds}s and was killed\n` +
@@ -213,7 +171,6 @@ const runStreaming = async function* (
     resolveCancel("cancel");
   }
 }
-
 export function createShellTool() {
   return {
     name: "shell",
@@ -228,7 +185,6 @@ export function createShellTool() {
     handler: async function* (args: ShellToolArgs, toolOptions?: ToolExecuteOptions): AsyncGenerator<ShellToolChunk> {
       const sandbox = toolOptions?.experimental_sandbox;
       const timeoutSeconds = args.timeout ?? DEFAULT_TIMEOUT_SECONDS;
-
       let child: Child;
       if (sandbox) {
         const proc = await sandbox.spawn({
@@ -249,8 +205,6 @@ export function createShellTool() {
           cwd,
           stdout: "pipe",
           stderr: "pipe",
-          // Detached on POSIX so the command runs in its own process group
-          // and a timeout/abort can kill the whole tree, not just the shell.
           detached: process.platform !== "win32",
         });
         child = {
@@ -260,7 +214,6 @@ export function createShellTool() {
           kill: () => killProcessTree(proc),
         };
       }
-
       yield* runStreaming(args.command, child, toolOptions, timeoutSeconds);
     },
   };

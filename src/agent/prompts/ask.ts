@@ -1,4 +1,4 @@
-export const askMarkdown = 
+export const askMarkdown =
 `---
 name: Ask
 description: You answer whatever the user asks, taking data and returning information

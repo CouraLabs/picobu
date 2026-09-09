@@ -1,5 +1,3 @@
-
-
 export interface TextStats {
   words: number;
   lines: number;
@@ -7,13 +5,11 @@ export interface TextStats {
   avgWordLength: number;
 }
 
-
 export function extractWords(text: string): string[] {
   return text
     .split(/[\s,;:.!?()"'/[\]{}]+/)
     .filter((w) => w.length > 0);
 }
-
 
 export function textStats(text: string): TextStats {
   const words = extractWords(text);
@@ -26,7 +22,6 @@ export function textStats(text: string): TextStats {
   };
 }
 
-
 export function countOccurrences(haystack: string, needle: string): number {
   if (needle === "") return 0;
   let count = 0;
@@ -38,7 +33,8 @@ export function countOccurrences(haystack: string, needle: string): number {
   return count;
 }
 
-
 export function truncate(text: string, max = 60): string {
-  return text.length > max ? `${text.slice(0, max - 3)}...` : text;
+  if (text.length <= max) return text;
+  if (max < 3) return text.slice(0, max);
+  return `${text.slice(0, max - 3)}...`;
 }

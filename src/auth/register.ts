@@ -12,9 +12,6 @@ import { fetchModelsDevProvider, modelsFromModelsDev } from "@agent/model/catalo
 import { removeCredential, setCredential } from "@auth/store.ts";
 import { getGitHubCopilotBaseUrl } from "@auth/github-copilot.ts";
 import type { OAuthAuth, OAuthCredential } from "@auth/types.ts";
-
-
-
 type ProviderMeta = {
   type: "openai" | "anthropic" | "openai-compatible";
   baseUrl?: string;
@@ -25,16 +22,13 @@ const PROVIDER_META: Record<string, ProviderMeta> = {
   anthropic: { type: "anthropic", baseUrl: "https://api.anthropic.com/v1", catalogEnv: "ANTHROPIC_API_KEY" },
   "github-copilot": { type: "openai-compatible", catalogEnv: "GITHUB_TOKEN" },
 };
-
-
 export const selectCopilotModels = (
   catalog: ModelsDevProvider,
   availableModelIds: string[] | undefined,
 ): ProviderModelOptions[] => {
-  const ids = availableModelIds ?? [];
-  
-  
-  if (ids.length === 0) return modelsFromModelsDev(catalog);
+  if (availableModelIds === undefined) return modelsFromModelsDev(catalog);
+  const ids = availableModelIds;
+  if (ids.length === 0) return [];
   const wanted = new Set(ids);
   const fromCatalog = modelsFromModelsDev(catalog).filter((m) => wanted.has(m.id));
   const extras = ids
@@ -42,16 +36,12 @@ export const selectCopilotModels = (
     .map((id): ProviderModelOptions => ({ id, name: id, context: 0, output: 0, supports: ["text"] }));
   return [...fromCatalog, ...extras];
 };
-
-
 export const pickDefaultModel = (models: ProviderModelOptions[]): string | undefined =>
   (models.find((m) => m.reasoning === true) ?? models[0])?.id;
 export const registerOAuthProvider = async (auth: OAuthAuth, credential: OAuthCredential): Promise<void> => {
   const meta = PROVIDER_META[auth.id];
   if (!meta) throw new Error(`No registration metadata for OAuth provider "${auth.id}"`);
   await setCredential(auth.id, credential);
-
-  
   const catalog = await fetchModelsDevProvider(meta.catalogEnv);
   const models = catalog
     ? auth.id === "github-copilot"
@@ -80,14 +70,9 @@ export const registerOAuthProvider = async (auth: OAuthAuth, credential: OAuthCr
     providers,
     ...(setDefaultModel ? { harness: { defaultModel: defaultModelKey } } : {}),
   });
-
-  
-  
   options.providers = next.providers;
   if (next.harness) options.harness = next.harness;
 };
-
-
 export const fixHarnessAfterLogout = (
   harness: HarnessOptions | undefined,
   providerId: string,
@@ -109,8 +94,6 @@ export const fixHarnessAfterLogout = (
     },
   };
 };
-
-
 export const repointModelKey = (
   modelKey: string,
   removedProviderId: string,
@@ -119,10 +102,8 @@ export const repointModelKey = (
   if (!modelKey.startsWith(`${removedProviderId}/`)) return modelKey;
   const first = providers[0];
   const model = first ? pickDefaultModel(first.models) ?? first.models[0]?.id : undefined;
-  return first && model ? `${first.id}/${model}` : "";
+  return first && model ? `${first.id}/${model}` : modelKey;
 };
-
-
 export const logoutOAuthProvider = async (
   id: string,
   currentModelKey: string,
@@ -137,7 +118,7 @@ export const logoutOAuthProvider = async (
     const next = await updateSettings({ providers, harness });
     options.providers = next.providers;
     if (next.harness) options.harness = next.harness;
-    }
+  }
   return {
     removed: removedCredential || changed,
     nextModelKey: repointModelKey(currentModelKey, id, options.providers),

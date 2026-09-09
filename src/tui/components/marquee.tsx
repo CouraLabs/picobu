@@ -14,21 +14,18 @@ export type MarqueeProps = {
 
 export const Marquee = (props: MarqueeProps) => {
   const [hovered, setHovered] = createSignal(false);
-  const [visible, setVisible] = createSignal(props.content);
-
   const speedMs = () => props.speed ?? 3000;
   const driver = { phase: 0 };
   const timeline = useTimeline({ autoplay: false, duration: speedMs() * 2, loop: true });
-
   const chars = createMemo(() => Array.from(props.content));
   const overflowCols = createMemo(() =>
     Math.max(0, chars().length - props.maxWidth),
   );
-
   const sliceWindow = (start: number): string => {
     if (overflowCols() === 0) return props.content;
     return chars().slice(start, start + props.maxWidth).join("");
   };
+  const [visible, setVisible] = createSignal(sliceWindow(0));
 
   const resetToHead = (): void => {
     driver.phase = 0;
@@ -50,7 +47,7 @@ export const Marquee = (props: MarqueeProps) => {
     const isHovered = hovered()
     const overflow = overflowCols()
     const active = (isHovered || props.scrolling === true) && overflow > 0
-    
+
     if (active && !timeline.isPlaying) {
       resetToHead();
       timeline.restart()

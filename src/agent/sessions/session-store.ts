@@ -43,7 +43,7 @@ export async function loadSession(
     try {
       value = JSON.parse(raw);
     } catch {
-      continue; 
+      continue;
     }
     if (isTombstone(value)) {
       byId.delete(value.id);
@@ -53,10 +53,10 @@ export async function loadSession(
     try {
       parsed = sessionLineSchema.parse(value);
     } catch {
-      continue; 
+      continue;
     }
     const existing = byId.get(parsed.id);
-    if (existing) existing.line = parsed; 
+    if (existing) existing.line = parsed;
     else byId.set(parsed.id, { line: parsed, index });
   }
   const ordered = [...byId.values()]
@@ -84,7 +84,7 @@ function firstPromptPreview(content: string): string {
     try {
       line = previewLineSchema.parse(JSON.parse(raw));
     } catch {
-      continue; 
+      continue;
     }
     if (line.role !== "user") continue;
     const meta = line.metadata as { compaction?: unknown } | undefined;
@@ -147,25 +147,27 @@ export class SessionSaver {
       mkdirSync(dirname(this.filePath), { recursive: true });
       this.initialized = true;
     }
+    const tasks: Promise<void>[] = [];
+    const enqueue = (operation: () => Promise<void>): void => {
+      const task = this.queue.then(operation);
+      this.queue = task.catch(() => {});
+      tasks.push(task);
+    };
     const currentIds = new Set(messages.map((m) => m.id));
     for (const id of [...this.lastWritten.keys()]) {
       if (currentIds.has(id)) continue;
       this.lastWritten.delete(id);
       const line = JSON.stringify({ id, tombstone: true });
-      this.queue = this.queue.then(() =>
-        withLock(this.filePath, () => appendFile(this.filePath, line + "\n")),
-      );
+      enqueue(() => withLock(this.filePath, () => appendFile(this.filePath, line + "\n")));
     }
     for (const m of messages) {
       if (isStreamingMessage(m)) continue;
       const json = JSON.stringify({ id: m.id, role: m.role, metadata: m.metadata, parts: m.parts });
       if (this.lastWritten.get(m.id) === json) continue;
       this.lastWritten.set(m.id, json);
-      this.queue = this.queue.then(() =>
-        withLock(this.filePath, () => upsertLine(this.filePath, json)),
-      );
+      enqueue(() => withLock(this.filePath, () => upsertLine(this.filePath, json)));
     }
-    return this.queue;
+    return Promise.all(tasks).then(() => {});
   }
   flush(): Promise<void> {
     return this.queue;
@@ -194,5 +196,6 @@ async function upsertLine(filePath: string, json: string): Promise<void> {
   } else {
     lines[existing] = json;
   }
+  mkdirSync(dirname(filePath), { recursive: true });
   await writeFile(filePath, lines.join("\n") + "\n");
 }

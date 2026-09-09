@@ -59,7 +59,7 @@ export class JobTracker {
     this.active += 1;
   }
   releaseSlot(): void {
-    this.active -= 1;
+    if (this.active > 0) this.active -= 1;
     this.slotQueue.shift()?.();
   }
 }

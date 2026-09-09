@@ -10,7 +10,6 @@ export type ForkDeps = {
   startSession: (id: string) => Promise<Session>;
 };
 
-/** Messages up to and including the one with the given id; throws when absent. */
 export function sliceMessagesUpTo<M extends { id: string }>(messages: M[], messageId: string): M[] {
   const index = messages.findIndex((m) => m.id === messageId);
   if (index < 0) throw new Error(`Unknown message "${messageId}"`);
@@ -23,17 +22,17 @@ export async function forkSession(
   opts: { fromCompaction?: boolean; upToMessageId?: string } = {},
 ): Promise<{ sessionId: string }> {
   const { cwd, live } = deps;
-  const folderKey = await folderKeyForSession(cwd, id);
+  const sourceFolderKey = await folderKeyForSession(cwd, id);
   const source = live.get(id);
   if (source?.state === "running") {
     throw new Error(`Session "${id}" is running; stop it before forking`);
   }
-  const meta = await readSessionMeta(folderKey, id);
+  const meta = await readSessionMeta(sourceFolderKey, id);
   if (!source && meta?.state === "running") {
     throw new Error(`Session "${id}" is running; stop it before forking`);
   }
   await source?.flush();
-  const messages = await loadSession(folderKey, id);
+  const messages = await loadSession(sourceFolderKey, id);
   if (!messages) throw new Error(`Unknown session "${id}"`);
   const forkedMessages = opts.upToMessageId
     ? sliceMessagesUpTo(messages, opts.upToMessageId)
@@ -41,18 +40,19 @@ export async function forkSession(
       ? messagesForLlm(messages)
       : messages;
   const forkId = generateSessionId();
-  await writeSessionFile(folderKey, forkId, forkedMessages);
+  const targetFolderKey = folderKeyFor(cwd);
+  await writeSessionFile(targetFolderKey, forkId, forkedMessages);
   if (meta) {
-    await writeSessionMeta(folderKey, forkId, {
+    await writeSessionMeta(targetFolderKey, forkId, {
       ...meta,
       id: forkId,
+      cwd,
       title: meta.title ? `${meta.title} (forked)` : "(forked)",
       parentSessionId: undefined,
       createdAt: Date.now(),
       updatedAt: Date.now(),
     });
   }
-  if (folderKey !== folderKeyFor(cwd)) return { sessionId: forkId };
   const fork = await deps.startSession(forkId);
   return { sessionId: fork.id };
 }

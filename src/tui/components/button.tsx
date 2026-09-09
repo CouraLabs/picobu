@@ -8,24 +8,24 @@ export type ButtonProps = {
   onClick: () => void
 };
 
-export const Button = ({ id, isActive, label, onClick }: ButtonProps) => {
+export const Button = (props: ButtonProps) => {
   const [hovered, setHovered] = createSignal(false);
 
   return (
     <box
-      id={id}
+      id={props.id}
       width={"auto"}
       alignSelf={"flex-start"}
       height={1}
       paddingX={1}
       flexDirection={"row"}
       alignItems={"center"}
-      backgroundColor={isActive ? theme().primary : (hovered() ? theme().accent : theme().backgroundElement)}
+      backgroundColor={props.isActive ? theme().primary : (hovered() ? theme().accent : theme().backgroundElement)}
       onMouseOver={() => setHovered(true)}
       onMouseOut={() => setHovered(false)}
-      onMouseUp={() => onClick()}
+      onMouseUp={() => props.onClick()}
     >
-      <text id={"txt-" + id} selectable={false} fg={hovered() ? theme().selected(theme().accent) : theme().accent}>{label}</text>
+      <text id={"txt-" + props.id} selectable={false} fg={hovered() ? theme().selected(theme().accent) : theme().accent}>{props.label}</text>
     </box>
   )
 }

@@ -59,7 +59,8 @@ export type SessionUsage = LoopUsage & {
 export type SessionPrompt = string | CreateUIMessage<LoopMessage>;
 type PendingPrompt = {
   message: CreateUIMessage<LoopMessage>;
-  onSettled?: () => void;
+  resolve?: () => void;
+  reject?: (error: Error) => void;
 };
 
 export type FlowToolName = "ask" | "plan-write";
@@ -134,7 +135,6 @@ export type Session = {
   summarize: () => Promise<SummarizeResult>;
   undo: () => Promise<UndoResult>;
   redo: () => Promise<UndoResult>;
-  /** Drops every message after the given one from the context and persists the truncation. */
   revertToMessage: (messageId: string) => void;
   addUsage: (detail: CostDetail) => void;
   sendMessage: Chat["sendMessage"];
@@ -159,7 +159,6 @@ export type Session = {
 };
 
 export type CreateSessionInit = Omit<ChatInit<LoopMessage>, "transport"> & {
-  /** Static loop config or a live getter, re-evaluated on every run. */
   config: LoopConfig | (() => LoopConfig);
   onChange?: ChatChangeHandler;
   meta?: {
@@ -258,6 +257,11 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
   let planHandoffCompact = false;
   const consumedPlanExits = new Set<string>();
   const isRunning = (): boolean => chat.status === "submitted" || chat.status === "streaming";
+  const abortFailure = (): Error => {
+    const failure = new Error("Aborted");
+    failure.name = "AbortError";
+    return failure;
+  };
   const drain = async (): Promise<void> => {
     if (draining) return;
     draining = true;
@@ -271,8 +275,9 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
         const item = pendingPrompts.shift()!;
         try {
           await chat.sendMessage(item.message);
-        } finally {
-          item.onSettled?.();
+          item.resolve?.();
+        } catch (error) {
+          item.reject?.(error instanceof Error ? error : new Error(String(error)));
         }
       }
     } finally {
@@ -282,7 +287,8 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
 
   const settlePending = (): void => {
     const pending = pendingPrompts.splice(0);
-    for (const item of pending) item.onSettled?.();
+    const failure = abortFailure();
+    for (const item of pending) item.reject?.(failure);
   };
   const markAborting = (): void => {
     if (isRunning()) aborting = true;
@@ -393,7 +399,7 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
       try {
         billing = resolveModelRef(effectiveConfig().modelKey).modelMeta.billing;
       } catch {
-        billing = undefined; 
+        billing = undefined;
       }
       const ttftMs =
         firstTokenAt !== undefined && runStart !== undefined ? firstTokenAt - runStart : undefined;
@@ -454,9 +460,17 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
         assertNotRunning("compact");
         const text = compactedMessageText(summary);
         if (fork) {
+          const compactedMessageIds = chat.messages.map((message) => message.id);
           const reset: LoopMessage = {
             id: randomUUID(),
             role: "user",
+            metadata: {
+              compaction: {
+                summary,
+                compactedMessageIds,
+                createdAt: Date.now(),
+              },
+            },
             parts: [{ type: "text", text }],
           };
           chat.messages = [reset];
@@ -491,14 +505,14 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
 
   const shouldAutoCompact = (usage: LoopUsage | undefined): boolean => {
     if (!usage) return false;
-    if (effectiveConfig().subagent) return false; 
+    if (effectiveConfig().subagent) return false;
     if (isCompactionCut(chat.messages[chat.messages.length - 1])) return false;
     if (isWaiting(chat.messages)) return false;
     let contextWindow = 0;
     try {
       contextWindow = resolveModelRef(effectiveConfig().modelKey).modelMeta.context;
     } catch {
-      return false; 
+      return false;
     }
     return shouldCompact(usage.inputTokens ?? 0, contextWindow);
   };
@@ -610,8 +624,6 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
       assertNotRunning("revert");
       const index = chat.messages.findIndex((m) => m.id === messageId);
       if (index < 0) throw new Error(`Unknown message "${messageId}"`);
-      // Assigning the state notifies listeners, which persist the truncated
-      // list through the SessionSaver.
       chat.messages = chat.messages.slice(0, index + 1);
     },
     addUsage: (detail: CostDetail) => {
@@ -620,9 +632,10 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
     },
     sendMessage: ((message, requestOptions) => {
       if (message !== undefined && (resuming || isWaiting(chat.messages))) {
-        pendingPrompts.push({ message: toPromptMessage(message as SessionPrompt) });
-        void drain();
-        return Promise.resolve();
+        return new Promise<void>((resolve, reject) => {
+          pendingPrompts.push({ message: toPromptMessage(message as SessionPrompt), resolve, reject });
+          void drain();
+        });
       }
       return chat.sendMessage(message, requestOptions);
     }) as Chat["sendMessage"],
@@ -689,9 +702,6 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
               if (done) controller.close();
               else controller.enqueue(value);
             } catch (error) {
-              // `ai`'s readUIMessageStream closes its controller in a
-              // `.finally()` and can race with stream teardown (run stopped,
-              // session closed); only that known-harmless case is swallowed.
               const message = error instanceof Error ? error.message : String(error);
               if (message.includes("Controller is already closed")) return;
               throw error;
@@ -703,12 +713,12 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
       });
     },
     steer: (prompt) =>
-      new Promise<void>((resolve) => {
+      new Promise<void>((resolve, reject) => {
         if (resuming || isWaiting(chat.messages)) {
-          pendingPrompts.push({ message: toPromptMessage(prompt), onSettled: resolve });
+          pendingPrompts.push({ message: toPromptMessage(prompt), resolve, reject });
           return;
         }
-        pendingPrompts.unshift({ message: toPromptMessage(prompt), onSettled: resolve });
+        pendingPrompts.unshift({ message: toPromptMessage(prompt), resolve, reject });
         if (isRunning()) {
           requestStop();
         } else {

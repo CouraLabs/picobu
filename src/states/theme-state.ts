@@ -23,7 +23,6 @@ function listEntries(): string[] {
     .sort((a, b) => a.localeCompare(b));
 }
 
-
 function resolveEntry(name: string, variant: ThemeVariant): Theme {
   const json = allThemes()[name];
   if (!json) {
@@ -61,8 +60,6 @@ export const setTheme = (name: string, variant: ThemeVariant) => {
   const syntax = generateSyntax(resolved);
   const syntaxMuted = generateSubtleSyntax(resolved);
   setThemeState(() => ({ name, variant, theme: resolved, syntax, syntaxMuted }))
-  // Persist the selection so it survives restarts. Fire-and-forget: the UI
-  // must not block or fail on a config write.
   updateSettings({ tui: { theme: { key: name, variant } } }).catch(() => {})
 };
 export const toggleThemeVariant = () => {
@@ -73,4 +70,3 @@ export const indexOfTheme = (names: string[]): number => {
   const index = names.indexOf(themeInfo().name);
   return index < 0 ? 0 : index;
 };
-

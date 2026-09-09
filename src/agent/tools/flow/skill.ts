@@ -15,7 +15,6 @@ export const SkillToolOutputSchema = z.object({
   content: z.string(),
 });
 
-
 const listSkillFiles = async (dir: string): Promise<string[]> => {
   const files: string[] = [];
   const walk = async (current: string, prefix: string): Promise<void> => {
@@ -34,7 +33,6 @@ const listSkillFiles = async (dir: string): Promise<string[]> => {
   await walk(dir, "");
   return files.sort();
 };
-
 
 export const createSkillTool = (getSkills: () => Command[] = listSkills) => ({
   name: "skill",

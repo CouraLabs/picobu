@@ -155,6 +155,7 @@ export const PlanReview = (props: PlanReviewProps) => {
                       ref={(r) => {
                         lineRefs[index()] = r
                       }}
+                      value={lineComments()[index()] ?? ""}
                       placeholder={`Comment on line ${index() + 1} (optional, clear to remove)`}
                       placeholderColor={theme().textMuted}
                       textColor={theme().text}
@@ -174,6 +175,7 @@ export const PlanReview = (props: PlanReviewProps) => {
             ref={(r) => {
               overallRef = r
             }}
+            value={overall()}
             placeholder="Overall comment (optional, required to request changes)"
             placeholderColor={theme().textMuted}
             textColor={theme().text}

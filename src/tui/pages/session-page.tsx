@@ -32,45 +32,46 @@ const showError = (error: unknown) => {
   ))
 }
 
-const DEBUG_CONSOLE_MAX_LINES = 500
-
-export const SessionPage = ({ sessionId, visible }: SessionPageProps) => {
+export const SessionPage = (props: SessionPageProps) => {
   const [session, setSession] = createSignal<Session | undefined>(undefined)
   const [messages, setMessages] = createSignal<LoopMessage[]>([])
   const [isStreaming, setIsStreaming] = createSignal(false)
   const [waiting, setWaiting] = createSignal(false)
   const [answering, setAnswering] = createSignal(false)
-  const [debugOpen, setDebugOpen] = createSignal(false)
-  const [debugLogs, setDebugLogs] = createSignal<string[]>([])
-  const [activeId, setActiveId] = createSignal<string | undefined>(sessionId)
+  const [activeId, setActiveId] = createSignal<string | undefined>(props.sessionId)
   const [agentId, setAgentId] = createSignal<string | undefined>(undefined)
   const [modelKey, setModelKey] = createSignal<string | undefined>(undefined)
   const [thinking, setThinking] = createSignal<ProviderModelReasoningEffort | undefined>(undefined)
   const sessionMgr = new SessionManager()
 
   useKeyboard((key) => {
-    if (key.ctrl && key.name === "d") {
-      setDebugOpen((open) => !open)
-      return
-    }
     if (dialogStatus().status === "open") return
     const target = session()
     if (!target) return
 
     if (key.name === "tab" && !key.shift) {
       key.preventDefault()
-      const current = AGENT_CYCLE.indexOf(agentId() ?? target.config.agentId)
-      const next = AGENT_CYCLE[(current + 1) % AGENT_CYCLE.length] ?? AGENT_CYCLE[0]!
-      target.switchAgent(next)
-      setAgentId(next)
+      try {
+        const current = AGENT_CYCLE.indexOf(agentId() ?? target.config.agentId)
+        const next = AGENT_CYCLE[(current + 1) % AGENT_CYCLE.length] ?? AGENT_CYCLE[0]!
+        target.switchAgent(next)
+        setAgentId(next)
+      } catch (error) {
+        showError(error)
+      }
       return
     }
     if (key.name === "tab" && key.shift) {
       key.preventDefault()
-      const current = THINKING_LEVELS.indexOf(thinking() as (typeof THINKING_LEVELS)[number])
-      const next = THINKING_LEVELS[(current + 1) % THINKING_LEVELS.length] ?? THINKING_LEVELS[0]!
-      target.switchThinking(next)
-      setThinking(next)
+      try {
+        const current = THINKING_LEVELS.indexOf(thinking() as (typeof THINKING_LEVELS)[number])
+        const len = THINKING_LEVELS.length
+        const next = THINKING_LEVELS[current < 0 ? len - 1 : (current - 1 + len) % len] ?? THINKING_LEVELS[0]!
+        target.switchThinking(next)
+        setThinking(next)
+      } catch (error) {
+        showError(error)
+      }
       return
     }
     if (key.ctrl && key.name === "m") {
@@ -127,21 +128,23 @@ export const SessionPage = ({ sessionId, visible }: SessionPageProps) => {
       showError(new Error("Session is not ready yet, please try again"))
       return
     }
-
-    if (waiting() || answering()) return
-
+    if (waiting() || answering()) {
+      try {
+        target.queue(text)
+      } catch (error) {
+        showError(error)
+      }
+      return
+    }
     if (target.status === "submitted" || target.status === "streaming") {
       target.queue(text)
       return
     }
-
     try {
       await target.sendMessage({ parts: [{ type: "text", text }] })
     } catch (error) {
       showError(error)
     }
-
-    // Chat swallows run failures into session.error instead of throwing.
     if (target.error) showError(target.error)
   }
 
@@ -162,15 +165,12 @@ export const SessionPage = ({ sessionId, visible }: SessionPageProps) => {
         output: response.output,
       })
     } catch (error) {
-      setAnswering(false)
       showError(error)
       throw error
-    }
-
-    if (target.error) {
+    } finally {
       setAnswering(false)
-      showError(target.error)
     }
+    if (target.error) showError(target.error)
   }
 
   const handleRevert = (messageId: string) => {
@@ -209,7 +209,7 @@ export const SessionPage = ({ sessionId, visible }: SessionPageProps) => {
   }
 
   return (
-    <box flexDirection="row" flexGrow={1} flexShrink={1} visible={visible}>
+    <box flexDirection="row" flexGrow={1} flexShrink={1} visible={props.visible}>
       <box flexDirection="column" flexGrow={1} flexShrink={1}>
         <SessionMessages
           messages={messages()}
@@ -227,22 +227,6 @@ export const SessionPage = ({ sessionId, visible }: SessionPageProps) => {
           messages={messages()}
           streaming={isStreaming()}
         />
-      </box>
-      <box
-        flexDirection="column"
-        width="40%"
-        visible={debugOpen()}
-        border
-        borderColor={theme().textMuted}
-        title=" debug (ctrl+d) "
-      >
-        <scrollbox flexGrow={1} flexShrink={1}>
-          <box flexDirection="column">
-            {debugLogs().map((line) => (
-              <text fg={theme().textMuted}>{line}</text>
-            ))}
-          </box>
-        </scrollbox>
       </box>
     </box>
   )

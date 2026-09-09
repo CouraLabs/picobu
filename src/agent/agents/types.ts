@@ -1,4 +1,3 @@
-
 export type AgentCategory = "coding" | "persistent";
 export type AgentType = {
   name: string;

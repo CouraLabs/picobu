@@ -5,7 +5,6 @@ export const PlanExitToolOutputSchema = z.object({
   message: z.string(),
 });
 
-
 export const createPlanExitTool = () => ({
   name: "plan-exit",
   kind: "flow" as const,

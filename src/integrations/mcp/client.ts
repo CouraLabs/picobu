@@ -7,11 +7,7 @@ import { ensureMcpAuth, createMcpAuthProvider } from "@integrations/mcp/auth.ts"
 import { resolveServerEnv, type McpServerOptions } from "@integrations/mcp/config.ts";
 import { mcpToolName } from "@integrations/mcp/tools-info.ts";
 
-
-
-
 const TOOL_TTL_MS = 60_000;
-
 
 type McpServerRuntime = {
   server: McpServerOptions;
@@ -20,7 +16,6 @@ type McpServerRuntime = {
   tools?: ListToolsResult["tools"];
   serverInstructions?: string;
 };
-
 
 export type McpServerSnapshot = {
   id: string;
@@ -32,10 +27,8 @@ export type McpServerSnapshot = {
   tools: ListToolsResult["tools"];
 };
 
-
 type ReattachState = { sessionId?: string; initializeResult?: InitializeResult };
 const reattach = new Map<string, ReattachState>();
-
 
 type McpTools = Awaited<ReturnType<MCPClient["tools"]>>;
 export type McpManager = {
@@ -46,7 +39,6 @@ export type McpManager = {
   readonly generation: number;
   close: () => Promise<void>;
 };
-
 
 export type McpTransportFactory = (server: McpServerOptions) => MCPTransport;
 export const createMcpManager = (
@@ -65,11 +57,12 @@ export const createMcpManager = (
     if (!runtime) {
       runtime = { server };
       runtimes.set(server.id, runtime);
+    } else {
+      runtime.server = server;
     }
     return runtime;
   };
 
-  
   const connect = async (server: McpServerOptions): Promise<void> => {
     const runtime = runtimeFor(server);
     if (runtime.client) return;
@@ -80,8 +73,6 @@ export const createMcpManager = (
         await ensureMcpAuth(server);
         const { headers, env } = resolveServerEnv(server);
         const saved = reattach.get(server.id);
-        
-        
         const transport = opts.transportFactory
           ? opts.transportFactory(server)
           : server.type === "stdio"
@@ -97,21 +88,17 @@ export const createMcpManager = (
               ...(server.auth ? { authProvider: createMcpAuthProvider(server).provider } : {}),
               redirect: "follow" as const,
               terminateSessionOnClose: false as const,
-              ...(saved?.sessionId
-                ? {
-                    initialSessionId: saved.sessionId,
-                    onSessionIdChange: (sessionId: string | undefined) => {
-                      const state = reattach.get(server.id) ?? {};
-                      reattach.set(server.id, { ...state, sessionId });
-                    },
-                    onSessionExpired: (expired: string) => {
-                      const state = reattach.get(server.id);
-                      if (state?.sessionId === expired) {
-                        reattach.set(server.id, { initializeResult: state.initializeResult });
-                      }
-                    },
-                  }
-                : {}),
+              ...(saved?.sessionId ? { initialSessionId: saved.sessionId } : {}),
+              onSessionIdChange: (sessionId: string | undefined) => {
+                const state = reattach.get(server.id) ?? {};
+                reattach.set(server.id, { ...state, sessionId });
+              },
+              onSessionExpired: (expired: string) => {
+                const state = reattach.get(server.id);
+                if (state?.sessionId === expired) {
+                  reattach.set(server.id, { initializeResult: state.initializeResult });
+                }
+              },
             };
         const client = await createMCPClient({
           ...(server.maxRetries ? { maxRetries: server.maxRetries } : {}),
@@ -120,9 +107,6 @@ export const createMcpManager = (
           ...(saved?.initializeResult ? { initialInitializeResult: saved.initializeResult } : {}),
           transport,
         });
-        
-        
-        
         client.onElicitationRequest(ElicitationRequestSchema, async (request) => {
           console.error(
             `picobu: MCP server "${server.id}" requested input ("${request.params.message}") — declined (elicitation UI not supported yet)`,
@@ -149,7 +133,6 @@ export const createMcpManager = (
     return promise;
   };
 
-  
   const connectAll = async (): Promise<void> => {
     const servers = await configServers();
     await Promise.all(servers.map(connect));
@@ -166,8 +149,14 @@ export const createMcpManager = (
     for (const runtime of runtimes.values()) {
       if (!runtime.client) continue;
       try {
-        if (!runtime.tools) runtime.tools = (await runtime.client.listTools()).tools;
         const serverTools = await runtime.client.tools();
+        if (!runtime.tools) {
+          runtime.tools = Object.entries(serverTools).map(([name, tool]) => ({
+            name,
+            description: (tool as { description?: string }).description,
+            inputSchema: (tool as { inputSchema?: unknown }).inputSchema,
+          })) as ListToolsResult["tools"];
+        }
         for (const [name, tool] of Object.entries(serverTools)) {
           namespaced[mcpToolName(runtime.server.id, name)] = tool;
         }

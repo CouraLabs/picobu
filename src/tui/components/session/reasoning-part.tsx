@@ -10,18 +10,36 @@ export type ReasoningPartProps = {
   isStreamingTail: boolean
 }
 
+const MAX_REASONING_EXPANDED = 200
+
 const [expandedKeys, setExpandedKeys] = createSignal<ReadonlySet<string>>(new Set())
 
 export const ReasoningPart = (props: ReasoningPartProps) => {
   const [hovered, setHovered] = createSignal(false)
-  const expanded = (): boolean => expandedKeys().has(props.part.text)
+  const [localExpanded, setLocalExpanded] = createSignal(false)
+  const key = (): string | undefined => props.part.id
+  const expanded = (): boolean => {
+    const k = key()
+    return k === undefined ? localExpanded() : expandedKeys().has(k)
+  }
 
   const toggle = () => {
-    const key = props.part.text
+    const k = key()
+    if (k === undefined) {
+      setLocalExpanded((v) => !v)
+      return
+    }
     setExpandedKeys((prev) => {
       const next = new Set(prev)
-      if (next.has(key)) next.delete(key)
-      else next.add(key)
+      if (next.has(k)) next.delete(k)
+      else {
+        next.add(k)
+        while (next.size > MAX_REASONING_EXPANDED) {
+          const oldest = next.values().next().value
+          if (oldest === undefined) break
+          next.delete(oldest)
+        }
+      }
       return next
     })
   }

@@ -1,7 +1,6 @@
-
 import { options, resolveModelRole, type ProviderModelReasoningEffort } from "@config/options.ts";
 import { createSession } from "@agent/sessions/session.ts";
-const prompt = "Glob the directory and read a random file. Then explain what you read." 
+const prompt = "Glob the directory and read a random file. Then explain what you read."
 let modelKey: string;
 let thinking: ProviderModelReasoningEffort = "medium";
 try {
@@ -27,8 +26,6 @@ console.log(`model:    ${modelKey} (thinking: ${thinking})`);
 console.log(`agent:    ${session.config.agentId}`);
 console.log(`prompt:   ${prompt}\n`);
 
-
-
 const stream = session.streamMessages();
 let chunkCount = 0;
 let streaming = false;
@@ -39,8 +36,21 @@ const consume = (async () => {
     console.log(chunk)
   }
 })();
-await session.sendMessage({ text: prompt });
+let sendError: unknown = undefined;
+try {
+  await session.sendMessage({ text: prompt });
+} catch (error) {
+  sendError = error;
+  try {
+    await stream.cancel();
+  } catch {
+  }
+}
 await consume;
+if (sendError) {
+  console.error("sendMessage failed:", sendError);
+  process.exit(1);
+}
 await session.flush();
 if (streaming) {
   streaming = false;

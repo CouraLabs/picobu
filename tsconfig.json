@@ -36,5 +36,5 @@
       "@wrappers/*": ["./src/wrappers/*"]
     }
   },
-  "include": ["src/**/*"]
+  "include": ["src/**/*", "tests/**/*"]
 }

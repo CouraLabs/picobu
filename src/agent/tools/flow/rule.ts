@@ -11,7 +11,6 @@ export const RuleToolOutputSchema = z.object({
   content: z.string(),
 });
 
-
 export const createRuleTool = (getRules: () => Rule[] = listRules) => ({
   name: "rule",
   kind: "flow" as const,

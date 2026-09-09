@@ -28,18 +28,27 @@ export const AskForm = (props: AskFormProps) => {
   const [sending, setSending] = createSignal(false)
   const inputRefs: (InputRenderable | null)[] = []
 
+  let prevQuestionsKey = JSON.stringify(props.questions)
   createEffect(() => {
-    const count = props.questions.length
-    setAnswers((prev) => (prev.length === count ? prev : [...prev.slice(0, count), ...Array.from({ length: Math.max(0, count - prev.length) }, () => [])]))
-    setComments((prev) => (prev.length === count ? prev : [...prev.slice(0, count), ...Array.from({ length: Math.max(0, count - prev.length) }, () => "")]))
+    const key = JSON.stringify(props.questions)
+    if (key === prevQuestionsKey) return
+    prevQuestionsKey = key
+    setAnswers(props.questions.map(() => []))
+    setComments(props.questions.map(() => ""))
+    setActive(0)
   })
 
   const summaryIndex = () => props.questions.length
   const isLastTab = () => active() >= summaryIndex()
   const readonly = () => !props.interactive || sending() || responded() || (props.status !== undefined && props.status !== "pending")
   const wasDismissed = () => props.status === "cancelled" || (responded() && dismissed() && props.status !== "answered")
-  const settledTerminal = () => props.status !== undefined && props.status !== "pending" && props.status !== "cancelled"
-  const echoed = () => settledTerminal() && !!props.outputMessage
+  const isFailureStatus = () => {
+    const s = props.status ?? ""
+    return s.includes("error") || s.includes("denied")
+  }
+  const settledTerminal = () => props.status !== undefined && props.status !== "pending" && props.status !== "cancelled" && !isFailureStatus()
+  const settledFailure = () => props.status !== undefined && props.status !== "pending" && props.status !== "cancelled" && isFailureStatus()
+  const echoed = () => (settledTerminal() || settledFailure()) && !!props.outputMessage
 
   const toggle = (questionIndex: number, answer: string) => {
     if (readonly()) return
@@ -110,9 +119,11 @@ export const AskForm = (props: AskFormProps) => {
                   when={echoed()}
                   fallback={
                     <Show
-                      when={responded() || settledTerminal()}
+                      when={responded() || settledTerminal() || settledFailure()}
                       fallback={
-                        <text fg={theme().textMuted}>{`${icons.question} Awaiting your answers.`}</text>
+                        <Show when={settledFailure()} fallback={<text fg={theme().textMuted}>{`${icons.question} Awaiting your answers.`}</text>}>
+                          <text fg={theme().error}>{`${icons.cross} Request failed (${props.status}).`}</text>
+                        </Show>
                       }
                     >
                       <For each={props.questions}>
@@ -134,7 +145,7 @@ export const AskForm = (props: AskFormProps) => {
                 >
                   {(message: () => string | undefined) => (
                     <For each={(message() ?? "").split("\n")}>
-                      {(line) => <text fg={theme().textMuted}>{`${icons.success} ${line}`}</text>}
+                      {(line) => <text fg={isFailureStatus() ? theme().error : theme().textMuted}>{`${isFailureStatus() ? icons.cross : icons.success} ${line}`}</text>}
                     </For>
                   )}
                 </Show>
@@ -143,12 +154,14 @@ export const AskForm = (props: AskFormProps) => {
               <text fg={theme().warning}>{`${icons.cross} Dismissed without answering.`}</text>
             </Show>
             <Show
-              when={wasDismissed() || responded() || settledTerminal()}
+              when={wasDismissed() || responded() || settledTerminal() || settledFailure()}
               fallback={
                 <text fg={theme().textMuted}>Awaiting answers.</text>
               }
             >
-              <text fg={theme().success}>{wasDismissed() ? "Dismissed." : "Answers sent."}</text>
+              <Show when={settledFailure()} fallback={<text fg={theme().success}>{wasDismissed() ? "Dismissed." : "Answers sent."}</text>}>
+                <text fg={theme().error}>{`${icons.cross} Failed (${props.status}).`}</text>
+              </Show>
             </Show>
           </box>
         }

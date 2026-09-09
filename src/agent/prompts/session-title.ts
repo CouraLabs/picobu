@@ -39,8 +39,8 @@ export async function generateSessionTitle(prompt: string): Promise<string> {
       .trim()
       .replace(/^["'`]+|["'`]+$/g, "")
       .trim();
-    return title || fallback; 
+    return title || fallback;
   } catch {
-    return fallback; 
+    return fallback;
   }
 }

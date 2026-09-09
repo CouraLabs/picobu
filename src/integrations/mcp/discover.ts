@@ -6,9 +6,6 @@ import {
   type McpServerOptions,
 } from "@integrations/mcp/config.ts";
 
-
-
-
 export const parseProjectMcpJson = (raw: unknown, source = PROJECT_MCP_FILENAME): McpServerOptions[] => {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
     throw new Error(`${source} must contain a JSON object`);
@@ -25,7 +22,6 @@ export const parseProjectMcpJson = (raw: unknown, source = PROJECT_MCP_FILENAME)
   }
 };
 
-
 export const loadProjectMcpServers = async (dir: string): Promise<McpServerOptions[]> => {
   const file = Bun.file(`${dir}/${PROJECT_MCP_FILENAME}`);
   if (!(await file.exists())) return [];
@@ -40,17 +36,34 @@ export const loadProjectMcpServers = async (dir: string): Promise<McpServerOptio
   return parseProjectMcpJson(raw);
 };
 
+export type McpConfigLoadResult = {
+  servers: McpServerOptions[];
+  warning?: string;
+};
 
-export const loadMcpConfig = async (dir: string = options.app.cwd): Promise<McpServerOptions[]> => {
+let lastMcpConfigWarning: string | undefined;
+
+export const getLastMcpConfigWarning = (): string | undefined => lastMcpConfigWarning;
+
+export const loadMcpConfigDetailed = async (
+  dir: string = options.app.cwd,
+): Promise<McpConfigLoadResult> => {
   let projectServers: McpServerOptions[] = [];
+  let warning: string | undefined;
   try {
     projectServers = await loadProjectMcpServers(dir);
   } catch (error) {
-    console.error("picobu:", error instanceof Error ? error.message : error);
+    warning = error instanceof Error ? error.message : String(error);
+    lastMcpConfigWarning = warning;
   }
-  return mergeMcpServers(Object.values(options.mcp.servers), projectServers);
+  if (!warning) lastMcpConfigWarning = undefined;
+  const servers = mergeMcpServers(Object.values(options.mcp.servers), projectServers);
+  return warning ? { servers, warning } : { servers };
 };
 
+export const loadMcpConfig = async (dir: string = options.app.cwd): Promise<McpServerOptions[]> => {
+  return (await loadMcpConfigDetailed(dir)).servers;
+};
 
 export const getMcpServer = async (id: string, dir: string = options.app.cwd): Promise<McpServerOptions | undefined> =>
   (await loadMcpConfig(dir)).find((server) => server.id === id);

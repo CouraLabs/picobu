@@ -1,11 +1,8 @@
 import { options } from "@config/options.ts";
 import { loadMcpConfig, loadProjectMcpServers } from "@integrations/mcp/discover.ts";
-import { isMcpAuthActive } from "@integrations/mcp/auth.ts";
+import { initMcpAuth, isMcpAuthActive } from "@integrations/mcp/auth.ts";
 import { serverTarget } from "@integrations/mcp/config.ts";
 import type { McpManager } from "@integrations/mcp/client.ts";
-
-
-
 
 export type McpServerInfo = {
   id: string;
@@ -18,9 +15,12 @@ export type McpServerInfo = {
   error?: string;
 };
 
-
 export const listMcpServers = async (manager?: McpManager): Promise<McpServerInfo[]> => {
   const servers = await loadMcpConfig(options.app.cwd);
+  try {
+    await initMcpAuth();
+  } catch {
+  }
   const [projectIds, snapshots] = await Promise.all([
     loadProjectMcpServers(options.app.cwd)
       .then((rows) => new Set(rows.map((server) => server.id)))
@@ -33,8 +33,6 @@ export const listMcpServers = async (manager?: McpManager): Promise<McpServerInf
       id: server.id,
       type: server.type,
       target: serverTarget(server),
-      
-      
       source: projectIds.has(server.id) ? "project" : "global",
       connected: snapshot?.connected ?? false,
       authRequired: server.auth === true,

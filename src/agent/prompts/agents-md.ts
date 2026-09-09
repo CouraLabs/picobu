@@ -1,7 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
-
 export async function loadAgentsMarkdown(cwd: string): Promise<string | undefined> {
   for (const name of ["AGENTS.md", "CLAUDE.md"]) {
     try {

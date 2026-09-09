@@ -15,14 +15,12 @@ export const SpawnToolOutputSchema = z.object({
   }),
 });
 
-
 export type SpawnToolContext = {
   manager: SessionManager;
   parentId: string;
   depth: number;
 };
 export type SpawnToolResult = z.infer<typeof SpawnToolOutputSchema>;
-
 
 export const createSpawnTool = (ctx: SpawnToolContext) => ({
   name: "spawn",

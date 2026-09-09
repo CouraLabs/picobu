@@ -9,13 +9,6 @@ export type DiffProps = {
 
 const DIFF_MAX_VISIBLE_LINES = 14
 
-/**
- * Maps a file extension to the tree-sitter filetype OpenTUI has a parser for.
- * Extensions that share their name with the language are handled by the
- * fallback; only divergent ones are listed here. tsx/jsx use the *react
- * aliases OpenTUI registers for its bundled TypeScript/JavaScript grammars —
- * "react" itself is not a filetype anywhere.
- */
 export const EXTENSION_LANGUAGE: Record<string, string> = {
   ts: "typescript",
   tsx: "typescriptreact",
@@ -41,17 +34,14 @@ export const EXTENSION_LANGUAGE: Record<string, string> = {
   "": "plaintext",
 }
 
-/** Tree-sitter filetype for a file path; falls back to the bare extension. */
 export const filetypeFromPath = (path: string): string => {
+  const base = path.split("/").pop() ?? path
+  if (base.startsWith(".") && !base.slice(1).includes(".")) return "plaintext"
   const extension = path.split(".").pop()?.toLowerCase() ?? ""
   if (extension === "" || extension === path.toLowerCase()) return "plaintext"
   return EXTENSION_LANGUAGE[extension] ?? extension
 }
 
-/**
- * Best-effort language for a unified diff, parsed from the `+++ b/path`
- * (or `Index: path`) header. Falls back to plaintext when no path is found.
- */
 const filetypeFromDiff = (diff: string): string => {
   for (const line of diff.split(/\r?\n/)) {
     const header = line.startsWith("+++ ")

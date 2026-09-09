@@ -1,5 +1,3 @@
-
-
 export type InboundEvent = {
   source: "whatsapp";
   title: string;
@@ -8,7 +6,12 @@ export type InboundEvent = {
 type Listener = (event: InboundEvent) => void;
 const listeners = new Set<Listener>();
 const pending: InboundEvent[] = [];
+const MAX_PENDING = 100;
 
+const pushPending = (event: InboundEvent): void => {
+  if (pending.length >= MAX_PENDING) pending.shift();
+  pending.push(event);
+};
 
 export const subscribeInbound = (fn: Listener): (() => void) => {
   listeners.add(fn);
@@ -18,16 +21,13 @@ export const subscribeInbound = (fn: Listener): (() => void) => {
   };
 };
 
-
 export const emitInbound = (event: InboundEvent): void => {
-  const fn = listeners.values().next().value;
-  if (!fn) {
-    pending.push(event);
+  if (listeners.size === 0) {
+    pushPending(event);
     return;
   }
-  fn(event);
+  for (const fn of listeners) fn(event);
 };
-
 
 export const drainInbound = (fn: Listener): void => {
   while (pending.length) {

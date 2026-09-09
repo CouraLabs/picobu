@@ -1,5 +1,4 @@
-
-
+import { randomBytes } from "node:crypto";
 import { createServer, type Server } from "node:http";
 import type { OAuthAuth, OAuthCredential, AuthInteraction } from "@auth/types.ts";
 import { generatePKCE } from "@auth/pkce.ts";
@@ -16,8 +15,7 @@ const SCOPES =
   "user:file_upload";
 const callbackHost = (): string => process.env.PICOBU_OAUTH_CALLBACK_HOST || "127.0.0.1";
 const LOGIN_TIMEOUT_MS = 15 * 60 * 1000;
-
-
+const createOAuthState = (): string => randomBytes(16).toString("hex");
 const withTimeout = async <T>(promise: Promise<T>, ms: number, message: string): Promise<T> => {
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
@@ -61,16 +59,19 @@ function startCallbackServer(expectedState: string): Promise<CallbackServerInfo>
         if (error) {
           res.writeHead(400, { "Content-Type": "text/html; charset=utf-8" });
           res.end(oauthErrorHtml("Anthropic authentication did not complete.", `Error: ${error}`));
+          settleWait?.(null);
           return;
         }
         if (!code || !state) {
           res.writeHead(400, { "Content-Type": "text/html; charset=utf-8" });
           res.end(oauthErrorHtml("Missing code or state parameter."));
+          settleWait?.(null);
           return;
         }
         if (state !== expectedState) {
           res.writeHead(400, { "Content-Type": "text/html; charset=utf-8" });
           res.end(oauthErrorHtml("State mismatch."));
+          settleWait?.(null);
           return;
         }
         res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
@@ -124,6 +125,13 @@ async function postJson(
   return responseBody;
 }
 type AnthropicToken = { access_token: string; refresh_token: string; expires_in: number };
+const validateAnthropicToken = (json: unknown, url: string, body: string): AnthropicToken => {
+  const record = json as { access_token?: unknown; refresh_token?: unknown; expires_in?: unknown } | null;
+  if (!record || typeof record.access_token !== "string" || typeof record.refresh_token !== "string" || typeof record.expires_in !== "number") {
+    throw new Error(`Token response missing fields. url=${url}; body=${body}`);
+  }
+  return { access_token: record.access_token, refresh_token: record.refresh_token, expires_in: record.expires_in };
+};
 async function exchangeAuthorizationCode(
   code: string,
   verifier: string,
@@ -150,10 +158,10 @@ async function exchangeAuthorizationCode(
   }
   let tokenData: AnthropicToken;
   try {
-    tokenData = JSON.parse(responseBody) as AnthropicToken;
+    tokenData = validateAnthropicToken(JSON.parse(responseBody), TOKEN_URL, responseBody);
   } catch (error) {
     throw new Error(
-      `Token exchange returned invalid JSON. url=${TOKEN_URL}; body=${responseBody}; details=${formatErrorDetails(error)}`,
+      `Token exchange returned invalid payload. url=${TOKEN_URL}; body=${responseBody}; details=${formatErrorDetails(error)}`,
     );
   }
   return {
@@ -163,15 +171,19 @@ async function exchangeAuthorizationCode(
     expires: Date.now() + tokenData.expires_in * 1000 - 5 * 60 * 1000,
   };
 }
-const tokenFromPayload = (data: AnthropicToken): OAuthCredential => ({
-  type: "oauth",
-  refresh: data.refresh_token,
-  access: data.access_token,
-  expires: Date.now() + data.expires_in * 1000 - 5 * 60 * 1000,
-});
+const tokenFromPayload = (data: unknown): OAuthCredential => {
+  const token = validateAnthropicToken(data, TOKEN_URL, JSON.stringify(data));
+  return {
+    type: "oauth",
+    refresh: token.refresh_token,
+    access: token.access_token,
+    expires: Date.now() + token.expires_in * 1000 - 5 * 60 * 1000,
+  };
+};
 async function loginAnthropic(interaction: AuthInteraction): Promise<OAuthCredential> {
   const { verifier, challenge } = await generatePKCE();
-  const server = await startCallbackServer(verifier);
+  const oauthState = createOAuthState();
+  const server = await startCallbackServer(oauthState);
   const onAbort = () => server.cancelWait();
   interaction.signal.addEventListener("abort", onAbort, { once: true });
   if (interaction.signal.aborted) onAbort();
@@ -184,7 +196,7 @@ async function loginAnthropic(interaction: AuthInteraction): Promise<OAuthCreden
       scope: SCOPES,
       code_challenge: challenge,
       code_challenge_method: "S256",
-      state: verifier,
+      state: oauthState,
     });
     interaction.notify({
       type: "auth_url",
@@ -211,15 +223,21 @@ async function refreshAnthropicToken(refreshToken: string, signal: AbortSignal):
   } catch (error) {
     throw new Error(`Anthropic token refresh request failed. url=${TOKEN_URL}; details=${formatErrorDetails(error)}`);
   }
-  let data: AnthropicToken;
+  let data: unknown;
   try {
-    data = JSON.parse(responseBody) as AnthropicToken;
+    data = JSON.parse(responseBody);
   } catch (error) {
     throw new Error(
       `Anthropic token refresh returned invalid JSON. url=${TOKEN_URL}; body=${responseBody}; details=${formatErrorDetails(error)}`,
     );
   }
-  return tokenFromPayload(data);
+  try {
+    return tokenFromPayload(data);
+  } catch (error) {
+    throw new Error(
+      `Anthropic token refresh response missing fields. url=${TOKEN_URL}; body=${responseBody}; details=${formatErrorDetails(error)}`,
+    );
+  }
 }
 export const anthropicOAuth: OAuthAuth = {
   id: "anthropic",

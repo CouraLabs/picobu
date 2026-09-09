@@ -9,6 +9,7 @@ import { useTerminalDimensions } from "@opentui/solid"
 import type { ProviderModelReasoningEffort } from "@config/options.ts"
 import "opentui-spinner/solid"
 import { Show } from "solid-js"
+import { createWave, createPulse } from "opentui-spinner"
 
 export type SessionStatusProps = {
   agentId: string | undefined
@@ -57,9 +58,13 @@ export const SessionStatus = (props: SessionStatusProps) => {
   }
 
   const agentColor = (): string | RGBA => {
-    const color = getAgent(props.agentId ?? "").color
-    const t = theme() as unknown as Record<string, unknown>
-    return color !== undefined && t[color] instanceof RGBA ? (t[color] as RGBA) : theme().text
+    try {
+      const color = getAgent(props.agentId ?? "").color
+      const t = theme() as unknown as Record<string, unknown>
+      return color !== undefined && t[color] instanceof RGBA ? (t[color] as RGBA) : theme().text
+    } catch {
+      return theme().text
+    }
   }
 
   const usage = (): UsageWithCost | undefined => latestUsage(props.messages)
@@ -71,12 +76,11 @@ export const SessionStatus = (props: SessionStatusProps) => {
       if (!props.modelKey) return "–"
       try {
         const ref = resolveModelRef(props.modelKey)
-        return `${ref.provider.name} ${ref.modelId}`
+        return `${ref.provider.name ?? ref.provider.id} · ${ref.modelMeta?.name ?? ref.modelId}`
       } catch {
         return props.modelKey
       }
     })()
-    // Reserve room for the telemetry group so the identity truncates first.
     const budget = Math.max(10, dims().width - 4 - agentName().length - thinkingLabel().length - 10 - 52)
     return full.length > budget ? `${full.slice(0, budget - 1)}…` : full
   }
@@ -147,29 +151,24 @@ export const SessionStatus = (props: SessionStatusProps) => {
   }
 
   return (
-    <box flexDirection="row" gap={1} justifyContent="space-between" flexShrink={0} paddingLeft={2} paddingRight={2} overflow="hidden">
+    <box flexDirection="row" gap={1} justifyContent="space-between" flexShrink={0} overflow="hidden">
       <box flexDirection="row" gap={1} flexShrink={1} overflow="hidden">
-        <Show when={props.streaming}>
-          <spinner name="dots" color={theme().primary} />
-        </Show>
         <text fg={agentColor()} flexShrink={0}>{agentName()}</text>
-        <text fg={theme().textMuted} flexShrink={0}>·</text>
+        <Sep />
         <text fg={theme().textMuted} flexShrink={1} overflow="hidden" wrapMode="none">{modelLabel()}</text>
         <Show when={props.thinking && props.modelKey}>
-          <text fg={theme().textMuted} flexShrink={0}>·</text>
+          <Sep />
           <text fg={thinkingColor()} flexShrink={0}>{thinkingLabel()}</text>
         </Show>
       </box>
-      <Sep />
+      <Show when={props.streaming}>
+        <spinner name="dots12" color={theme().accent} />
+      </Show>
       <box flexDirection="row" gap={1} flexShrink={0}>
         <Segment icon={icons.usage} value={contextLabel()} valueColor={contextColor()} />
-        <Sep />
-        <Segment icon={icons.arrowDown} value={tokens("inputTokens")} />
-        <Sep />
-        <Segment icon={icons.arrowUp} value={tokens("outputTokens")} />
-        <Sep />
+        <Segment icon={icons.arrowUp} value={tokens("inputTokens")} />
+        <Segment icon={icons.arrowDown} value={tokens("outputTokens")} />
         <Segment icon={icons.refresh} value={cacheSummary()} />
-        <Sep />
         <Segment icon={icons.cost} value={costValue()} />
       </box>
     </box>

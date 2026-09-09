@@ -17,7 +17,6 @@ import { websearchTool } from "@agent/tools/web/websearch.ts";
 import { webfetchTool } from "@agent/tools/web/webfetch.ts";
 import { wwpTools } from "@integrations/whatsapp/wwp-tools.ts";
 
-
 export type ToolKind = "filesystem" | "flow" | "external" | "integration" | "mcp";
 export type AgentTool = {
   name: string;
@@ -26,12 +25,10 @@ export type AgentTool = {
   info: string;
 };
 
-
 export type ToolExecuteOptions = {
   abortSignal?: AbortSignal;
   experimental_sandbox?: Experimental_SandboxSession;
 };
-
 
 export type ToolSetContext = {
   todoFilePath?: string;
@@ -40,7 +37,6 @@ export type ToolSetContext = {
   checkpointsPath?: string;
   spawn?: SpawnToolContext;
 };
-
 
 export function buildToolSet(ctx: ToolSetContext = {}) {
   const allTools: AgentTool[] = [
@@ -73,11 +69,9 @@ export function buildToolSet(ctx: ToolSetContext = {}) {
   return { getTools, getToolSet };
 }
 
-
 export function toToolSet(tools: AgentTool[]): ToolSet {
   return Object.fromEntries(tools.map((t) => [t.name, t.tool]));
 }
-
 
 export function toolsInfo(tools: AgentTool[]): string {
   return tools.map((t) => t.info).join("\n\n");
@@ -100,9 +94,7 @@ function wrapTool<TSchema extends z.ZodType, TOutput extends z.ZodType>(def: {
       description: def.description,
       inputSchema: def.parameters,
       outputSchema: def.output,
-      
-      
-      
+
       execute: (args, executeOptions) =>
         def.handler(args as z.infer<TSchema>, {
           abortSignal: executeOptions?.abortSignal,

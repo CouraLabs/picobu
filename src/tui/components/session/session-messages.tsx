@@ -27,18 +27,27 @@ export const SessionMessages = (props: SessionMessagesProps) => {
     () => {
       const list = props.messages
       const lastId = list.length > 0 ? list[list.length - 1]!.id : undefined
-      return list.flatMap((m) => m.parts
-        .filter((a) => a.type === "text" || a.type === "reasoning" || isToolPart(a))
-        .map((part, pi) => {
+      return list.flatMap((m) =>
+        m.parts.flatMap((part, originalIndex) => {
+          if (part.type !== "text" && part.type !== "reasoning" && !isToolPart(part)) return []
           const id = (part as { id?: unknown }).id
-          return {
-            part: asToolPart(part) || part.type === "reasoning" ? { ...part } : part,
-            role: m.role,
-            message: m,
-            key: typeof id === "string" && id.length > 0 ? id : `${m.id}:${pi}`,
-            isLastMessage: m.id === lastId,
-          }
-        })
+          const toolCallId = (part as { toolCallId?: unknown }).toolCallId
+          const key =
+            typeof id === "string" && id.length > 0
+              ? id
+              : typeof toolCallId === "string" && toolCallId.length > 0
+                ? `${m.id}:${toolCallId}`
+                : `${m.id}:${originalIndex}`
+          return [
+            {
+              part,
+              role: m.role,
+              message: m,
+              key,
+              isLastMessage: m.id === lastId,
+            },
+          ]
+        }),
       )
     }
   )

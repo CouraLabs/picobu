@@ -40,6 +40,7 @@ export type ToolPartProps = {
 }
 
 const [expandedKeys, setExpandedKeys] = createSignal<ReadonlySet<string>>(new Set())
+const [collapsedKeys, setCollapsedKeys] = createSignal<ReadonlySet<string>>(new Set())
 
 const toneColor = (tone: ToolTone) => {
   switch (tone) {
@@ -137,20 +138,46 @@ export const ToolPart = (props: ToolPartProps) => {
     isAskTool(props.part) || isPlanWriteTool(props.part) ? flowOutputMessage(props.part) : "",
   )
   const flowInteractive = () => props.isLastMessage === true && flowStatus() === "pending"
-  const showAsk = () => questions().length > 0 && flowStatus() !== undefined
-  const showPlan = () => plan() !== undefined && flowStatus() !== undefined
+  const hasToolCallId = () => (props.part.toolCallId ?? "").length > 0
+  const showAsk = () => hasToolCallId() && questions().length > 0 && flowStatus() !== undefined
+  const showPlan = () => hasToolCallId() && plan() !== undefined && flowStatus() !== undefined
+  const pendingWithoutId = () => !hasToolCallId() && (questions().length > 0 || plan() !== undefined) && flowStatus() !== undefined
   const pendingFlow = () => flowInteractive() && (questions().length > 0 || plan() !== undefined)
   const todos = createMemo(() => (isTodoTool(props.part) ? todoItems(props.part) : undefined))
 
   const dims = useTerminalDimensions()
+  const isAutoExpanded = () => todos() !== undefined || pendingFlow()
   const expanded = (): boolean =>
-    todos() !== undefined || pendingFlow() || expandedKeys().has(props.partKey)
+    isAutoExpanded() ? !collapsedKeys().has(props.partKey) : expandedKeys().has(props.partKey)
   const toggle = () => {
     const key = props.partKey
+    if (isAutoExpanded()) {
+      setCollapsedKeys((prev) => {
+        const next = new Set(prev)
+        if (next.has(key)) next.delete(key)
+        else {
+          next.add(key)
+          while (next.size > 200) {
+            const oldest = next.values().next().value
+            if (oldest === undefined) break
+            next.delete(oldest)
+          }
+        }
+        return next
+      })
+      return
+    }
     setExpandedKeys((prev) => {
       const next = new Set(prev)
       if (next.has(key)) next.delete(key)
-      else next.add(key)
+      else {
+        next.add(key)
+        while (next.size > 200) {
+          const oldest = next.values().next().value
+          if (oldest === undefined) break
+          next.delete(oldest)
+        }
+      }
       return next
     })
   }
@@ -255,6 +282,9 @@ export const ToolPart = (props: ToolPartProps) => {
           }
           onCancel={() => props.onFlowResponse?.({ tool: "plan-write", toolCallId: toolCallId(), output: { status: "cancelled", message: "The user dismissed the plan review" } })}
         />
+      </Show>
+      <Show when={pendingWithoutId()}>
+        <text fg={theme().textMuted}>Preparing input…</text>
       </Show>
     </box>
   )

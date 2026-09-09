@@ -44,7 +44,7 @@ export const serializeForCompaction = (messages: UIMessage[]): string =>
           const text = typeof part.text === "string" ? part.text.trim() : "";
           return text ? [`${m.role}: ${text}`] : [];
         }
-        if (part.type === "reasoning") return []; 
+        if (part.type === "reasoning") return [];
         if (isToolPart(part)) {
           return [`tool ${toolPartName(part)} (${String(part.state ?? "unknown")}): ${abbreviate(part.input)} -> ${abbreviate(part.output ?? part.errorText)}`];
         }

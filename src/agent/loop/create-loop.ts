@@ -19,7 +19,6 @@ import { describeError } from "@shared/error-report.ts";
 import { createMcpManager, type McpManager } from "@integrations/mcp/client.ts";
 import { renderMcpServerToolsInfo } from "@integrations/mcp/tools-info.ts";
 
-
 export type AiReasoningEffort = "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "provider-default";
 export type LoopConfig = {
   agentId: string;
@@ -34,12 +33,9 @@ export type LoopConfig = {
   spawn?: SpawnToolContext;
 };
 
-
 type LoopCallOptions = { sessionMode?: "chat" | "persistent" };
 
-
 export type LoopMessage = UIMessage<unknown, never, InferUITools<any>>;
-
 
 export type LoopMessageMetadata = {
   usage?: LoopUsage;
@@ -47,7 +43,6 @@ export type LoopMessageMetadata = {
   cost?: number;
   compaction?: CompactionMetadata;
 };
-
 
 export type CompactionMetadata = {
   summary: string;
@@ -61,11 +56,6 @@ export type Loop = {
   mcp: McpManager;
 };
 
-
-// Like `hasToolCall` from "ai", but ignores invalid tool calls. The AI SDK marks
-// tool calls with schema-invalid input as `invalid` and feeds a tool-error back to
-// the model so it can retry — stopping on those would kill the run before the
-// model ever sees the error (observed with malformed `ask` calls).
 const hasValidToolCall = (...toolNames: string[]) =>
   ({ steps }: { steps: Array<{ toolCalls?: Array<{ toolName: string; invalid?: boolean }> }> }) => {
     const lastStep = steps.at(-1);
@@ -73,7 +63,6 @@ const hasValidToolCall = (...toolNames: string[]) =>
       (toolCall) => toolNames.includes(toolCall.toolName) && !toolCall.invalid,
     ) ?? false;
   };
-
 
 const initialModel = (modelKey: string): LanguageModel => {
   try {
@@ -84,7 +73,6 @@ const initialModel = (modelKey: string): LanguageModel => {
   }
 };
 
-
 const formatStreamError = (error: unknown): string => {
   const report = describeError(error);
   return report.detail ? `${report.message}\n${report.detail}` : report.message;
@@ -92,14 +80,9 @@ const formatStreamError = (error: unknown): string => {
 export function createLoop(getConfig: () => LoopConfig): Loop {
   const initialConfig = getConfig();
   const isPersistent = initialConfig.sessionMode === "persistent";
-  
-  
+
   const cwd = initialConfig.cwd ?? options.app.cwd;
-  
-  
-  
-  
-  
+
   const toolSet = buildToolSet({
     todoFilePath: initialConfig.sessionId
       ? sessionTodoFilePath(folderKeyFor(cwd), initialConfig.sessionId)
@@ -112,13 +95,8 @@ export function createLoop(getConfig: () => LoopConfig): Loop {
     spawn: initialConfig.spawn,
   });
 
-  
-  
   const mcp = createMcpManager();
 
-  
-  
-  
   const mcpInfo = async (agentDef: { tools: string[] }): Promise<string> => {
     const hasMcpTools = agentDef.tools.length === 0 || agentDef.tools.some((name) => name.startsWith("mcp_"));
     if (!hasMcpTools) return "";
@@ -137,30 +115,29 @@ export function createLoop(getConfig: () => LoopConfig): Loop {
       .join("\n\n");
   };
 
-  
-  
-  
-  
-  
-  
-  
-  const systemCache: Record<string, string> = {};
+  const systemCache = new Map<string, string>();
+  const cacheSystem = (cacheKey: string, built: string): void => {
+    if (systemCache.has(cacheKey)) systemCache.delete(cacheKey);
+    systemCache.set(cacheKey, built);
+    if (systemCache.size > 20) {
+      const oldest = systemCache.keys().next().value;
+      if (oldest !== undefined) systemCache.delete(oldest);
+    }
+  };
   const buildSystem = async (agentId: string): Promise<string> => {
-    const cacheKey = `${agentId}:${cwd}:${mcp.generation}`;
-    const cached = systemCache[cacheKey];
-    if (cached !== undefined) return cached;
     const config = getConfig();
     const agent = config.agentOverride ?? getAgent(agentId);
-    
-    
-    
     const skills = listSkills();
-    const hasSkillTool = agent.tools.length === 0 || agent.tools.includes("skill");
     const rules = listRules();
-    const hasRuleTool = agent.tools.length === 0 || agent.tools.includes("rule");
     const subagents = config.spawn ? await listSubagents(cwd) : [];
-    const hasSpawnTool = agent.tools.includes("spawn");
     const agentsAppendix = await loadAgentsMarkdown(cwd);
+    const maxAgents = options.harness.maxAgents ?? 4;
+    const cacheKey = `${agentId}:${cwd}:${mcp.generation}:${JSON.stringify(skills)}:${JSON.stringify(rules)}:${JSON.stringify(subagents)}:${agentsAppendix ?? ""}:${maxAgents}`;
+    const cached = systemCache.get(cacheKey);
+    if (cached !== undefined) return cached;
+    const hasSkillTool = agent.tools.length === 0 || agent.tools.includes("skill");
+    const hasRuleTool = agent.tools.length === 0 || agent.tools.includes("rule");
+    const hasSpawnTool = agent.tools.includes("spawn");
     const mcpDocs = await mcpInfo(agent);
     const built = generateSystemMessage({
       appName: options.app.name,
@@ -174,7 +151,7 @@ export function createLoop(getConfig: () => LoopConfig): Loop {
       ...(subagents.length && hasSpawnTool ? { subagentsInfo: buildSubagentsSection(subagents, options.harness.maxAgents ?? 4) } : {}),
       ...(agentsAppendix ? { agentsAppendix } : {}),
     }).map((s) => `<${s.key}>${s.content}</${s.key}>`).join("\n");
-    systemCache[cacheKey] = built;
+    cacheSystem(cacheKey, built);
     return built;
   };
   const loopAgent = new ToolLoopAgent<LoopCallOptions, any, any, any>({
@@ -185,9 +162,7 @@ export function createLoop(getConfig: () => LoopConfig): Loop {
       const config = getConfig();
       const agentDef = config.agentOverride ?? getAgent(persistent ? "persistent" : config.agentId);
       const resolved = resolveModel(config.modelKey);
-      
-      
-      
+
       const mcpTools = await mcp.tools();
       const base = {
         ...rest,
@@ -203,16 +178,12 @@ export function createLoop(getConfig: () => LoopConfig): Loop {
         ...(agentDef.topP !== undefined ? { topP: agentDef.topP } : {}),
         ...(agentDef.topK !== undefined ? { topK: agentDef.topK } : {}),
       };
-      
-      
-      
-      
+
       const blocking: string[] = config.subagent ? [] : ["ask", "plan-write", "plan-exit"];
       const stopWhen = blocking.length
         ? [isStepCount(100), hasValidToolCall(...blocking)]
         : [isStepCount(100)];
-      
-      
+
       if (!persistent) return { ...base, stopWhen };
       const allMessages = Array.isArray(rest.prompt) ? rest.prompt : [];
       const persistentIndex = allMessages.map((m) => m.role).lastIndexOf("user");
@@ -224,11 +195,6 @@ export function createLoop(getConfig: () => LoopConfig): Loop {
     },
   });
 
-  
-  
-  
-  
-  
   const sandboxSession = initialConfig.sandbox === false
     ? undefined
     : createLocalSandboxSession(cwd, options.app.shell);
@@ -250,8 +216,6 @@ export function createLoop(getConfig: () => LoopConfig): Loop {
     cacheReadTokens: (a?.cacheReadTokens ?? 0) + (b.cacheReadTokens ?? 0),
     cacheWriteTokens: (a?.cacheWriteTokens ?? 0) + (b.cacheWriteTokens ?? 0),
   });
-  // messageMetadata is invoked once per stream part with a fresh scope, so the
-  // running total must live here to accumulate across a run's finish-step parts.
   let runUsage: LoopUsage | undefined;
   const transport = new DirectChatTransport({
     agent,
@@ -260,24 +224,16 @@ export function createLoop(getConfig: () => LoopConfig): Loop {
     sendReasoning: true,
     sendSources: true,
     sendStart: true,
-    
-    
+
     onError: formatStreamError,
-    
-    
-    
-    
-    
-    
-    
-    
+
     messageMetadata: (opts) => {
       const build = (usage: LoopUsage, extra?: Omit<LoopMessageMetadata, "usage" | "cost">): LoopMessageMetadata => {
         let billing: ProviderModelBilling | undefined;
         try {
           billing = resolveModelRef(getConfig().modelKey).modelMeta.billing;
         } catch {
-          billing = undefined; 
+          billing = undefined;
         }
         return { usage, cost: computeCost(usage, billing), ...extra };
       };

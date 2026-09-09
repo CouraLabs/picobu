@@ -8,26 +8,29 @@ import { executorSubagentMarkdown } from "@agent/subagent/executor.ts";
 import { explorerSubagentMarkdown } from "@agent/subagent/explorer.ts";
 import { reviewerSubAgent } from "@agent/subagent/reviewer.ts";
 
-
 export const INTERACTIVE_FLOW_TOOLS: readonly string[] = ["ask", "plan-write", "plan-exit"];
 
-
 export const SUBAGENT_DEPTH_CAP = 3;
-
 
 export const SUBAGENT_RULES = `## Subagent Rules
 - You are a subagent. You cannot interact with the user: there is no ask, no plan submission, no questions. Never wait for user input — it will never come.
 - Conclude your task autonomously with the information in your prompt and what you can gather from the repository. Resolve ambiguities yourself; state assumptions in your final answer instead of asking.
 - When done, produce a complete final report: what you did, what you found/changed, and anything the caller should know. Your last text message is your deliverable — it is summarized and returned to the calling agent.`;
 
-
 export const BUILT_IN_SUBAGENTS: Record<string, AgentType> = {
   executor: createAgent(executorSubagentMarkdown),
   explorer: createAgent(explorerSubagentMarkdown),
   reviewer: createAgent(reviewerSubAgent),
 };
+
 const subagentsDir = (cwd: string): string => join(cwd, ".agents", "agents");
 
+const parseSubagentTools = (value: unknown): string[] => {
+  if (typeof value !== "string") return [];
+  if (value.trim().toLowerCase() === "none") return [NO_TOOLS];
+  if (value.trim() === "" || value.trim() === "*") return [];
+  return value.split(",").map((t) => t.trim()).filter(Boolean);
+};
 
 export async function listSubagents(cwd: string = options.app.cwd): Promise<AgentType[]> {
   const byName = new Map<string, AgentType>();
@@ -47,9 +50,7 @@ export async function listSubagents(cwd: string = options.app.cwd): Promise<Agen
         name,
         description: typeof parsed.description === "string" ? parsed.description : "",
         category: "coding",
-        tools: typeof parsed.tools === "string"
-          ? parsed.tools.split(",").map((t) => t.trim()).filter(Boolean)
-          : [],
+        tools: parseSubagentTools(parsed.tools),
         model: typeof parsed.model === "string" ? parsed.model : undefined,
         prompt: parsed.content,
       });
@@ -60,13 +61,18 @@ export async function listSubagents(cwd: string = options.app.cwd): Promise<Agen
   return [...byName.values()];
 }
 
-
 export async function getSubagent(name: string, cwd: string = options.app.cwd): Promise<AgentType | undefined> {
   return (await listSubagents(cwd)).find((s) => s.name.toLowerCase() === name.toLowerCase());
 }
 
-
 export function prepareSubagent(def: AgentType): AgentType {
+  if (def.tools.includes(NO_TOOLS)) {
+    return {
+      ...def,
+      tools: [NO_TOOLS],
+      prompt: `${def.prompt.trim()}\n\n${SUBAGENT_RULES}`,
+    };
+  }
   const tools = def.tools.filter((t) => !INTERACTIVE_FLOW_TOOLS.includes(t));
   return {
     ...def,

@@ -1,6 +1,3 @@
-
-
-
 export type OAuthCredential = {
   type: "oauth";
   access: string;
@@ -10,7 +7,6 @@ export type OAuthCredential = {
   enterpriseUrl?: string;
   availableModelIds?: string[];
 };
-
 
 export type AuthNotifyEvent =
   | { type: "auth_url"; url: string; instructions?: string }
@@ -23,17 +19,14 @@ export type AuthNotifyEvent =
     }
   | { type: "progress"; message: string };
 
-
 export type AuthInteraction = {
   signal: AbortSignal;
   notify: (event: AuthNotifyEvent) => void;
 };
 
-
 export type AuthLoginOptions = {
   enterpriseDomain?: string;
 };
-
 
 export type OAuthAuth = {
   id: string;

@@ -8,7 +8,9 @@ import { withCostLogging } from "@agent/model/cost.ts";
 import { oauthAuthById } from "@auth/index.ts";
 import { getCredential } from "@auth/store.ts";
 import { initLockDir } from "@shared/lock.ts";
+
 initLockDir(options.app.systemDir);
+
 export type ResolvedModel = {
   provider: ProviderOptions;
   modelId: string;
@@ -16,12 +18,10 @@ export type ResolvedModel = {
   modelMeta: ProviderModelOptions;
 };
 
-
 export const resolveApiKey = (apiKey?: string): string | undefined => {
   if (!apiKey) return undefined;
   return apiKey.startsWith("env:") ? process.env[apiKey.slice(4)] : apiKey;
 };
-
 
 export const resolveAuth = (provider: ProviderOptions): { apiKey?: string; baseUrl?: string } => {
   const ref = provider.apiKey;
@@ -34,11 +34,10 @@ export const resolveAuth = (provider: ProviderOptions): { apiKey?: string; baseU
   const auth = oauthAuthById(id);
   return auth ? auth.toAuth(credential) : { apiKey: credential.access };
 };
+
 export const createModelInstance = (provider: ProviderOptions, modelId: string) => {
   const auth = resolveAuth(provider);
   const apiKey = auth.apiKey;
-
-
   const baseUrl = auth.baseUrl ?? provider.baseUrl;
   const billing = provider.models.find((m) => m.id === modelId)?.billing;
   const finish = (model: Parameters<typeof withCostLogging>[0]) =>
@@ -55,51 +54,81 @@ export const createModelInstance = (provider: ProviderOptions, modelId: string) 
     default:
       throw new Error(`Unsupported provider type: ${provider.type}. Available provider types: openai, anthropic, openai-compatible, openai-responses`);
   }
-}
-
+};
 
 export const resolveModelRef = (modelKey?: string): Omit<ResolvedModel, "model"> => {
   const target = modelKey ?? options.harness?.defaultModel;
-  const slash = target?.indexOf("/") ?? -1;
-  const targetProviderId = target && slash > 0 ? target.slice(0, slash) : undefined;
-  const targetModelId = target && slash > 0 ? target.slice(slash + 1) : undefined;
-  const provider = targetProviderId ? options.providers.find((p) => p.id === targetProviderId) : undefined;
-  const selectedProvider = provider ?? options.providers[0];
-  if (!selectedProvider) {
-    throw new Error("No AI provider configured in options (see ~/.picobu/options.json)");
+  if (!target) {
+    const selectedProvider = options.providers[0];
+    if (!selectedProvider) {
+      throw new Error("No AI provider configured in options (see ~/.picobu/options.json)");
+    }
+    const modelId = selectedProvider.models[0]?.id;
+    if (!modelId) {
+      throw new Error(`No model available for provider "${selectedProvider.id}"`);
+    }
+    const modelMeta = selectedProvider.models.find((m) => m.id === modelId);
+    if (!modelMeta) {
+      throw new Error(`No model metadata found for provider "${selectedProvider.id}" model "${modelId}"`);
+    }
+    return { provider: selectedProvider, modelId, modelMeta };
   }
-  const modelId = targetModelId && selectedProvider.models.some((m) => m.id === targetModelId) ? targetModelId : selectedProvider.models[0]?.id;
-  if (!modelId) {
-    throw new Error(`No model available for provider "${selectedProvider.id}"`);
+  const slash = target.indexOf("/");
+  if (slash <= 0) {
+    const provider = options.providers.find((p) => p.id === target);
+    if (!provider) {
+      throw new Error(`Unknown provider "${target}". Known providers: ${options.providers.map((p) => p.id).join(", ") || "none"}`);
+    }
+    const modelId = provider.models[0]?.id;
+    if (!modelId) {
+      throw new Error(`No model available for provider "${provider.id}"`);
+    }
+    const modelMeta = provider.models.find((m) => m.id === modelId);
+    if (!modelMeta) {
+      throw new Error(`No model metadata found for provider "${provider.id}" model "${modelId}"`);
+    }
+    return { provider, modelId, modelMeta };
   }
-  const modelMeta = selectedProvider.models.find((m) => m.id === modelId);
+  const targetProviderId = target.slice(0, slash);
+  const targetModelId = target.slice(slash + 1);
+  const provider = options.providers.find((p) => p.id === targetProviderId);
+  if (!provider) {
+    throw new Error(`Unknown provider "${targetProviderId}". Known providers: ${options.providers.map((p) => p.id).join(", ") || "none"}`);
+  }
+  if (!targetModelId) {
+    throw new Error(`Unknown model "${target}". Expected "<providerId>/<modelId>"`);
+  }
+  const modelMeta = provider.models.find((m) => m.id === targetModelId);
   if (!modelMeta) {
-    throw new Error(`No model metadata found for provider "${selectedProvider.id}" model "${modelId}"`);
+    throw new Error(`Unknown model "${targetModelId}" for provider "${targetProviderId}". Known models: ${provider.models.map((m) => m.id).join(", ") || "none"}`);
   }
-  return { provider: selectedProvider, modelId, modelMeta };
+  return { provider, modelId: targetModelId, modelMeta };
 };
+
 export const resolveModel = (modelKey?: string): ResolvedModel => {
   const ref = resolveModelRef(modelKey);
   return { ...ref, model: createModelInstance(ref.provider, ref.modelId) };
 };
-export const resolveDefaultModel = (): ResolvedModel => resolveModel(options.harness?.defaultModel);
 
+export const resolveDefaultModel = (): ResolvedModel => resolveModel(options.harness?.defaultModel);
 
 export const resolveDefaultModelKey = (): string => {
   const ref = resolveModelRef(options.harness?.defaultModel);
   return `${ref.provider.id}/${ref.modelId}`;
 };
+
 export type ModelEntry = {
-  key: string;        
+  key: string;
   providerId: string;
   providerName: string;
   modelId: string;
-  modelName: string;  
+  modelName: string;
   supports: ProviderModelCapability[];
   context: number;
   output: number;
   billing?: ProviderModelBilling;
 };
+
 export function listModels(): ModelEntry[] {
   return options.providers.flatMap((p) =>
     p.models.map((m) => ({

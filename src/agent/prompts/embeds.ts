@@ -1,10 +1,8 @@
-
 export type FileEmbedding = {
   mimeType: string;
   filename?: string;
   dataUrl: string;
 };
-
 
 export type PromptFile = {
   type: "file";
@@ -17,7 +15,6 @@ export type ResolvedPrompt = {
   files: PromptFile[];
 };
 
-
 const EITHER_TOKEN = /\[([TF])#(\d+) [^\[\]]+\]/g;
 export const countLines = (text: string): number => {
   if (!text) return 0;
@@ -28,10 +25,8 @@ export const textEmbedLabel = (key: string, lineCount: number): string =>
 export const fileEmbedLabel = (key: string, mimeType: string): string =>
   `[${key} File ${mimeType}]`;
 
-
 export const bytesToDataUrl = (bytes: Uint8Array, mimeType: string): string =>
   `data:${mimeType};base64,${Buffer.from(bytes).toString("base64")}`;
-
 
 export const resolvePrompt = (
   rawText: string,

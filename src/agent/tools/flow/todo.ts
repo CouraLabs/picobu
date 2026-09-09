@@ -26,7 +26,6 @@ export const TodoToolOutputSchema = z.object({
   message: z.string(),
 });
 
-
 export const createTodoTool = (todoFilePath: string) => ({
   name: "todo",
   kind: "flow" as const,

@@ -9,7 +9,6 @@ export const PlanWriteToolOutputSchema = z.discriminatedUnion("status", [
   z.object({ status: z.literal("cancelled"), message: z.string() }),
 ]);
 
-
 export const createPlanWriteTool = () => ({
   name: "plan-write",
   kind: "flow" as const,

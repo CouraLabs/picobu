@@ -1,5 +1,3 @@
-
-
 import { randomBytes } from "node:crypto";
 import { createServer } from "node:http";
 import type { OAuthAuth, OAuthCredential, AuthInteraction } from "@auth/types.ts";
@@ -22,8 +20,6 @@ const CALLBACK_PORT = 1455;
 const LOGIN_TIMEOUT_MS = 15 * 60 * 1000;
 const callbackHost = (): string => process.env.PICOBU_OAUTH_CALLBACK_HOST || "127.0.0.1";
 const createState = (): string => randomBytes(16).toString("hex");
-
-
 const withTimeout = async <T>(promise: Promise<T>, ms: number, message: string): Promise<T> => {
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
@@ -37,20 +33,18 @@ const withTimeout = async <T>(promise: Promise<T>, ms: number, message: string):
     clearTimeout(timer);
   }
 };
-
-
 export const decodeJwt = (token: string): JwtPayload | null => {
   try {
     const parts = token.split(".");
     if (parts.length !== 3) return null;
     const payload = parts[1] ?? "";
-    return JSON.parse(atob(payload)) as JwtPayload;
+    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
+    return JSON.parse(Buffer.from(padded, "base64").toString("utf-8")) as JwtPayload;
   } catch {
     return null;
   }
 };
-
-
 export const getAccountId = (accessToken: string): string | null => {
   const payload = decodeJwt(accessToken);
   const accountId = payload?.[JWT_CLAIM_PATH]?.chatgpt_account_id;
@@ -139,10 +133,19 @@ function startLocalOAuthServer(state: string): Promise<CallbackServerInfo> {
         res.end(oauthErrorHtml("Callback route not found."));
         return;
       }
+      const error = url.searchParams.get("error");
+      if (error) {
+        res.statusCode = 400;
+        res.setHeader("Content-Type", "text/html; charset=utf-8");
+        res.end(oauthErrorHtml("OpenAI authentication did not complete.", `Error: ${error}`));
+        settleWait?.(null);
+        return;
+      }
       if (url.searchParams.get("state") !== state) {
         res.statusCode = 400;
         res.setHeader("Content-Type", "text/html; charset=utf-8");
         res.end(oauthErrorHtml("State mismatch."));
+        settleWait?.(null);
         return;
       }
       const code = url.searchParams.get("code");
@@ -150,6 +153,7 @@ function startLocalOAuthServer(state: string): Promise<CallbackServerInfo> {
         res.statusCode = 400;
         res.setHeader("Content-Type", "text/html; charset=utf-8");
         res.end(oauthErrorHtml("Missing authorization code."));
+        settleWait?.(null);
         return;
       }
       res.statusCode = 200;
@@ -162,7 +166,7 @@ function startLocalOAuthServer(state: string): Promise<CallbackServerInfo> {
       res.end(oauthErrorHtml("Internal error while processing OAuth callback."));
     }
   });
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     server
       .listen(CALLBACK_PORT, callbackHost(), () => {
         resolve({
@@ -173,18 +177,8 @@ function startLocalOAuthServer(state: string): Promise<CallbackServerInfo> {
           waitForCode: () => waitForCodePromise,
         });
       })
-      .on("error", () => {
-        settleWait?.(null);
-        resolve({
-          close: () => {
-            try {
-              server.close();
-            } catch {
-            }
-          },
-          cancelWait: () => {},
-          waitForCode: async () => null,
-        });
+      .on("error", (err) => {
+        reject(err);
       });
   });
 }

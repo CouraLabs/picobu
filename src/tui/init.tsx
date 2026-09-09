@@ -10,10 +10,6 @@ import {
 import { createSignal, Show } from "solid-js"
 import { render } from "@opentui/solid"
 import { App } from "@tui/layout/app.tsx"
-// Registers the local parser WASMs (see `src/wrappers/parsers/`) as global
-// overrides and creates the shared Tree-sitter client. Must complete before
-// the first markdown/code render (no internal fallback) — the splash covers
-// the load time so startup doesn't show a frozen frame.
 import { getSharedTreeSitterClient, registerParsers } from "@wrappers/treesitter-wrapper.ts"
 import { ClipboardProvider } from "./hooks/clipboard-provider.tsx"
 import { setClipboardService } from "./hooks/clipboard.state.ts"
@@ -23,12 +19,6 @@ export type TuiAppOptions = {
   debug?: boolean
 }
 
-// `ai`'s readUIMessageStream closes its controller in a `.finally()` and can
-// race with stream teardown (run stopped, session closed) — the resulting
-// "Controller is already closed" rejection is harmless and unactionable.
-// Everything else is a real bug: restore the default (fatal) behavior by
-// removing this filter and re-raising, so unexpected rejections still print
-// a stack and exit non-zero instead of being silently logged.
 const HARMLESS_REJECTION = "Controller is already closed"
 const onUnhandledRejection = (reason: unknown): void => {
   const message = reason instanceof Error ? reason.message : String(reason)
@@ -57,7 +47,7 @@ export async function runTui(options: TuiAppOptions = {}): Promise<void> {
       process.exit(0)
     }
   })
-  
+
   const clipboardService = createClipboard({ host: createHostClipboard(), terminal: createRendererClipboardAdapter(renderer)})
   setClipboardService(clipboardService)
 
@@ -66,7 +56,7 @@ export async function runTui(options: TuiAppOptions = {}): Promise<void> {
       enabled: true,
       corner: DebugOverlayCorner.bottomRight,
     })
-    
+
     renderer.console.show()
 
     renderer.on(
@@ -79,9 +69,6 @@ export async function runTui(options: TuiAppOptions = {}): Promise<void> {
   }
 
   engine.attach(renderer)
-
-  // Splash first, parsers second: parser loading blocks the first meaningful
-  // render, so show the logo immediately and swap in the app when ready.
   const [ready, setReady] = createSignal(false)
   await render(() => (
     <Show when={ready()} fallback={<Splash />}>
@@ -90,10 +77,9 @@ export async function runTui(options: TuiAppOptions = {}): Promise<void> {
       </ClipboardProvider>
     </Show>
   ), renderer)
-
-  await registerParsers()
-  // A failed worker init only costs syntax highlighting (blocks render
-  // unstyled), so swallow it rather than taking down the TUI.
+  await registerParsers().catch((error) => {
+    console.error("picobu: parser registration failed, code blocks will render unstyled:", error)
+  })
   await getSharedTreeSitterClient().catch((error) => {
     console.error("picobu: tree-sitter init failed, code blocks will render unstyled:", error)
   })

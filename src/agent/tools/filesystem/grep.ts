@@ -1,5 +1,5 @@
 import { rgPath } from "@vscode/ripgrep";
-import { resolve } from "node:path";
+import { isAbsolute, relative, resolve } from "node:path";
 import z from "zod";
 import { detectFiletype } from "@shared/filetype.ts";
 import { agentDirsUnder, insideAgentDir } from "@agent/tools/filesystem/agent-dirs.ts";
@@ -10,16 +10,15 @@ const GrepToolOutputSchema = z.object({
   content: z.string(),
 });
 export const GrepToolArgsSchema = z.object({
-  pattern: z.string(),
+  pattern: z.string().min(1),
   path: z.string().optional(),
-})
-
-
-async function runArgv(argv: string[], toolOptions?: ToolExecuteOptions) {
+});
+async function runArgv(argv: string[], cwd: string, toolOptions?: ToolExecuteOptions) {
   const sandbox = toolOptions?.experimental_sandbox as LocalSandboxSession | undefined;
-  if (sandbox && typeof sandbox.exec === "function") return sandbox.exec(argv);
+  if (sandbox && typeof sandbox.exec === "function") return sandbox.exec(argv, { cwd });
   const proc = Bun.spawn({
     cmd: argv,
+    cwd,
     stdout: "pipe",
     stderr: "pipe",
   });
@@ -39,25 +38,24 @@ export const grepTool = {
   skipPermission: true,
   defer: "auto",
   handler: async (args: z.infer<typeof GrepToolArgsSchema>, toolOptions?: ToolExecuteOptions): Promise<z.infer<typeof GrepToolOutputSchema>> => {
-    
-    
-    const searchPath = args.path
-      ? resolve(sandboxRoot(toolOptions?.experimental_sandbox) ?? process.cwd(), args.path)
-      : (sandboxRoot(toolOptions?.experimental_sandbox) ?? process.cwd());
+    const sandbox = sandboxRoot(toolOptions?.experimental_sandbox);
+    const root = sandbox ?? process.cwd();
+    const searchPath = args.path ? resolve(root, args.path) : root;
+    if (sandbox) {
+      const rel = relative(resolve(sandbox), resolve(searchPath));
+      if (rel !== "" && (rel === ".." || rel.startsWith("../") || isAbsolute(rel))) {
+        throw new Error(`Path escapes working directory: ${args.path}`);
+      }
+    }
     const base = resolve(searchPath);
-
-    
-    
-    
-    
     const bypassFilters = insideAgentDir(base);
     const flags = bypassFilters ? ["--hidden", "--no-ignore-vcs"] : [];
-    const proc = await runArgv([rgPath, "-n", "--no-heading", "--color", "never", ...flags, args.pattern, searchPath], toolOptions);
+    const proc = await runArgv([rgPath, "-n", "--no-heading", "--color", "never", ...flags, "-e", args.pattern, "--", searchPath], root, toolOptions);
     if (proc.exitCode !== 0 && proc.exitCode !== 1) throw new Error(`rg failed (exit ${proc.exitCode}): ${proc.stderr.trim()}`);
     const lines = new Set(proc.stdout.trim().split("\n").filter(Boolean));
     if (!bypassFilters) {
       for (const dir of await agentDirsUnder(base)) {
-        const pass = await runArgv([rgPath, "-n", "--no-heading", "--color", "never", "--hidden", "--no-ignore-vcs", args.pattern, dir], toolOptions);
+        const pass = await runArgv([rgPath, "-n", "--no-heading", "--color", "never", "--hidden", "--no-ignore-vcs", "-e", args.pattern, "--", dir], root, toolOptions);
         if (pass.exitCode !== 0 && pass.exitCode !== 1)
           throw new Error(`rg failed (exit ${pass.exitCode}): ${pass.stderr.trim()}`);
         for (const line of pass.stdout.trim().split("\n").filter(Boolean)) lines.add(line);

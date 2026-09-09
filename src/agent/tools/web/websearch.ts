@@ -11,18 +11,17 @@ export const WebsearchResultSchema = z.object({
   url: z.string(),
   snippet: z.string(),
   content: z.string().nullable(),
+  error: z.string().optional(),
 });
 export const WebsearchToolOutputSchema = z.object({
   query: z.string(),
   results: z.array(WebsearchResultSchema),
 });
 
-
 export const WebsearchProgressSchema = z.object({
   progress: z.string(),
   results: z.array(WebsearchResultSchema).optional(),
 });
-
 
 export const WebsearchStreamChunkSchema = z.union([
   WebsearchToolOutputSchema,
@@ -30,12 +29,10 @@ export const WebsearchStreamChunkSchema = z.union([
 ]);
 const SEARCH_ENDPOINT = "https://html.duckduckgo.com/html/";
 
-
 export type ParsedSearchPage = {
   results: { title: string; url: string; snippet: string }[];
   nextOffset: number | null;
 };
-
 
 function decodeEntities(text: string): string {
   return text
@@ -47,21 +44,20 @@ function decodeEntities(text: string): string {
     .replaceAll("&#39;", "'");
 }
 
-
 export function resolveDdgHref(href: string): string | null {
   try {
     const url = new URL(decodeEntities(href), SEARCH_ENDPOINT);
     const uddg = url.searchParams.get("uddg");
-    return uddg ?? url.toString();
+    if (uddg) return uddg;
+    if (url.hostname.includes("duckduckgo.com")) return null;
+    return url.toString();
   } catch {
     return null;
   }
 }
 
-
 export function parseSearchPage(html: string): ParsedSearchPage {
-  const titles: { title: string; url: string }[] = [];
-  const snippets: string[] = [];
+  const results: { title: string; url: string; snippet: string }[] = [];
   const anchorRe = /<a\b([^>]*)>([\s\S]*?)<\/a>/g;
   for (const match of html.matchAll(anchorRe)) {
     const attrs = match[1] ?? "";
@@ -70,19 +66,17 @@ export function parseSearchPage(html: string): ParsedSearchPage {
       const href = /href="([^"]*)"/.exec(attrs)?.[1];
       const url = href ? resolveDdgHref(href) : null;
       if (!url) continue;
-      titles.push({ title: htmlToMarkdown(inner).replaceAll("\n", " "), url });
+      results.push({ title: htmlToMarkdown(inner).replaceAll("\n", " "), url, snippet: "" });
     } else if (/class="[^"]*\bresult__snippet\b/.test(attrs)) {
-      snippets.push(htmlToMarkdown(inner).replaceAll("\n", " "));
+      const snippet = htmlToMarkdown(inner).replaceAll("\n", " ");
+      for (let i = results.length - 1; i >= 0; i--) {
+        if (!results[i]?.snippet) {
+          results[i]!.snippet = snippet;
+          break;
+        }
+      }
     }
   }
-  const results = titles.map((t, i) => ({
-    title: t.title,
-    url: t.url,
-    snippet: snippets[i] ?? "",
-  }));
-
-  
-  
   let nextOffset: number | null = null;
   for (const match of html.matchAll(/[?&](?:amp;)?s=(\d+)/g)) {
     const value = Number(match[1]);
@@ -90,6 +84,7 @@ export function parseSearchPage(html: string): ParsedSearchPage {
   }
   return { results, nextOffset };
 }
+
 export const websearchTool = {
   name: "websearch",
   description:
@@ -131,20 +126,8 @@ export const websearchTool = {
       if (parsed.nextOffset === null) break;
       offset = parsed.nextOffset;
     }
-
-    
-    
-    
-    
-    
-    // Fetch page content with a sliding window of concurrent renders. Each
-    // launch and each completion emits a progress chunk so the UI shows
-    // continuous activity — a batch-wide Promise.all would go silent for the
-    // whole window, which on slow sites can be tens of seconds.
     const total = results.length;
     const FETCH_CONCURRENCY = 4;
-    // Content enrichment is best-effort; cap each page well below renderPage's
-    // 30s default so one hung page can't stall a whole concurrency window.
     const FETCH_TIMEOUT_MS = 15_000;
     const hostOf = (url: string): string => {
       try {
@@ -161,8 +144,9 @@ export const websearchTool = {
       slot.promise = (async () => {
         try {
           result.content = (await fetchAsMarkdown(result.url, { timeout: FETCH_TIMEOUT_MS })).content;
-        } catch {
+        } catch (error) {
           result.content = null;
+          result.error = error instanceof Error ? error.message : String(error);
         } finally {
           slot.done = true;
           completed++;

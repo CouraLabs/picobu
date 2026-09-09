@@ -30,7 +30,6 @@ export type GenerateSystemMessageParams = {
   agentsAppendix?: string;
 };
 
-
 export function buildSkillsSection(
   skills: { name: string; description: string }[],
 ): string {
@@ -42,7 +41,6 @@ export function buildSkillsSection(
     ...skills.map((s) => `- ${s.name}: ${s.description}`),
   ].join("\n");
 }
-
 
 export function buildSubagentsSection(
   subagents: { name: string; description: string }[],
@@ -60,7 +58,6 @@ export function buildSubagentsSection(
   ].join("\n");
 }
 
-
 export function buildRulesSection(
   rules: { name: string; description: string }[],
 ): string {
@@ -71,7 +68,6 @@ export function buildRulesSection(
     ...rules.map((r) => `- ${r.name}: ${r.description}`),
   ].join("\n");
 }
-
 
 export function generateSystemMessage(
   params: GenerateSystemMessageParams,

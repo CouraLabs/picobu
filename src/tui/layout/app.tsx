@@ -25,7 +25,7 @@ export const App = () => {
         <box id="app-header-right" flexDirection="row" gap={1}>
           <Dropdown
             options={themes.map((name) => ({ name, value: name }))}
-            onSelect={(option) => setTheme(String(option.value), "dark")}
+            onSelect={(option) => setTheme(String(option.value), themeInfo().variant)}
             selected={indexOfTheme(themes)}
             placeholder="Select theme…"
           />

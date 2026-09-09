@@ -6,7 +6,6 @@ import { type AiReasoningEffort } from "@agent/loop/create-loop.ts";
 import { serializeForCompaction } from "@agent/sessions/session-compaction.ts";
 import type { ProviderModelReasoningEffort } from "@config/options.ts";
 
-
 export const summarizerPrompt =
 `Summarize the conversation below for a coding-agent session. Capture, in this order:
 1. The user's goal and any decisions that were made.
@@ -24,7 +23,6 @@ export type SummarizeResult = {
   usage: LoopUsage;
   cost: number | undefined;
 };
-
 
 export async function summarizeSession({ messages, modelKey, thinking }: SummarizeParams): Promise<SummarizeResult> {
   const transcript = serializeForCompaction(messages);

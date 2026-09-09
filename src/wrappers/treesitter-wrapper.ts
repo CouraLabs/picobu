@@ -10,29 +10,24 @@ import { join } from "node:path";
 export { destroyTreeSitterClient } from "@opentui/core";
 export type ParserDescriptor = FiletypeParserOptions;
 
-
 export type CreateTreeSitterClientOptions = {
   dataPath?: string;
   initTimeout?: number;
 };
 
-
 export function loadParsers(): Promise<ParserDescriptor[]> {
   return getParsers();
 }
 
-
 export async function registerParsers(): Promise<void> {
   addDefaultParsers(await loadParsers());
 }
-
 
 export async function attachParsers(client: TreeSitterClient): Promise<void> {
   for (const parser of await loadParsers()) {
     client.addFiletypeParser(parser);
   }
 }
-
 
 export async function createTreeSitterClient(options?: CreateTreeSitterClientOptions): Promise<TreeSitterClient> {
   const client = new TreeSitterClient({
@@ -49,23 +44,24 @@ export async function createTreeSitterClient(options?: CreateTreeSitterClientOpt
   return client;
 }
 
-
 export async function getSharedTreeSitterClient(): Promise<TreeSitterClient> {
-  if (!sharedClient) {
-    const client = getTreeSitterClient();
-    await client.initialize();
-    await attachParsers(client);
-    sharedClient = client;
+  if (sharedClient) return sharedClient
+  if (!sharedClientPromise) {
+    sharedClientPromise = (async () => {
+      const client = getTreeSitterClient()
+      await attachParsers(client)
+      await client.initialize()
+      sharedClient = client
+      return client
+    })().catch((error) => {
+      sharedClientPromise = undefined
+      throw error
+    })
   }
-  return sharedClient;
+  return sharedClientPromise
 }
 
-let sharedClient: TreeSitterClient | undefined;
+let sharedClient: TreeSitterClient | undefined
+let sharedClientPromise: Promise<TreeSitterClient> | undefined
 
-/**
- * The shared client once `getSharedTreeSitterClient()` has resolved, or
- * `undefined` before that (or if initialization failed). Markdown and code
- * renderables take the client as a prop and have no internal fallback, so
- * components read this synchronously after startup has awaited resolution.
- */
-export const getSharedTreeSitterClientSync = (): TreeSitterClient | undefined => sharedClient;
+export const getSharedTreeSitterClientSync = (): TreeSitterClient | undefined => sharedClient

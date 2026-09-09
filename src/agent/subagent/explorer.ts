@@ -23,6 +23,6 @@ Guidelines:
 
 Complete the user's search request efficiently and report your findings clearly.
 
-Input: 
+Input:
 <SPAWN_PROMPT>
 `;

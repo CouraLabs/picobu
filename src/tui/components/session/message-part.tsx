@@ -1,4 +1,5 @@
 import type { LoopMessage } from "@agent/loop/create-loop.ts"
+import type { MouseEvent } from "@opentui/core"
 import { theme } from "@states/theme-state.ts"
 import { dialogStatus } from "@states/dialog.state.ts"
 import { ReasoningPart } from "@tui/components/session/reasoning-part.tsx"
@@ -23,7 +24,6 @@ export type MessagePartViewProps = {
   role: LoopMessage["role"]
   part: MessagePart
   message: LoopMessage
-  /** Clicking the message bubble opens its action dialog (revert/copy/fork). */
   onOpen?: (message: LoopMessage) => void
 }
 
@@ -47,8 +47,9 @@ export const MessagePartView = (props: MessagePartViewProps) => {
   const hoverProps = {
     onMouseOver: () => setHovered(true),
     onMouseOut: () => setHovered(false),
-    onMouseUp: () => {
+    onMouseUp: (e: MouseEvent) => {
       if (dialogStatus().status === "open") return
+      if (e.button !== 2 && !e.modifiers?.ctrl && !e.modifiers?.alt && !e.modifiers?.shift) return
       props.onOpen?.(props.message)
     },
   }

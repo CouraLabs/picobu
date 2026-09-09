@@ -1,7 +1,6 @@
 import type { AuthInteraction, AuthNotifyEvent } from "@auth/types.ts";
 import { openInBrowser } from "@shared/open-url.ts";
 
-
 export const createInteraction = (
   providerId: string,
   providerName: string,

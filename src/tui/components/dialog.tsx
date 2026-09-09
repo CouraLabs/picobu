@@ -51,9 +51,6 @@ export const Dialog = () => {
         maxWidth={"90%"}
         maxHeight={"90%"}
       >
-        {/* Invoke the factory here, inside the renderer context — creating these
-            nodes in async code (e.g. a catch block after `await`) has no
-            RendererContext and throws "No renderer found". */}
         {dialogStatus().content?.()}
       </box>
     </box>

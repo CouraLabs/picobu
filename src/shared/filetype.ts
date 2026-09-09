@@ -1,4 +1,3 @@
-
 const EXT_TO_FILETYPE: Record<string, string> = {
   ".ts": "typescript",
   ".tsx": "tsx",
@@ -36,7 +35,6 @@ const EXT_TO_FILETYPE: Record<string, string> = {
   ".css": "css",
   ".php": "php",
 };
-
 
 export function detectFiletype(path: string): string {
   const name = path.split("/").pop() ?? path;

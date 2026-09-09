@@ -11,7 +11,6 @@ export type WhatsAppState = {
 const MAX_LOG = 100;
 export type WhatsAppStoreState = WhatsAppState;
 
-
 const createStore = (initial: WhatsAppState) => {
   let context = initial;
   const define = <P,>(event: (s: WhatsAppState, e: P) => WhatsAppState) => {
@@ -46,7 +45,6 @@ const createStore = (initial: WhatsAppState) => {
   };
   return store;
 };
-
 
 export const whatsappStore = createStore({
   status: "disconnected",

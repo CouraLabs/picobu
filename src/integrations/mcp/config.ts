@@ -1,5 +1,3 @@
-
-
 export type McpServerOptions = {
   id: string;
   type: "http" | "sse" | "stdio";
@@ -17,9 +15,7 @@ export type McpOptions = {
 };
 export const DEFAULT_MCP_OPTIONS: McpOptions = { servers: {} };
 
-
 export const PROJECT_MCP_FILENAME = ".mcp.json";
-
 
 export const resolveEnvRef = (value: string): string => {
   if (!value.startsWith("env:")) return value;
@@ -31,12 +27,10 @@ export const resolveEnvRef = (value: string): string => {
   return resolved;
 };
 
-
 export const resolveEnvMap = (
   map: Record<string, string> | undefined,
 ): Record<string, string> | undefined =>
   map ? Object.fromEntries(Object.entries(map).map(([k, v]) => [k, resolveEnvRef(v)])) : undefined;
-
 
 export const resolveServerEnv = (
   server: McpServerOptions,
@@ -45,10 +39,8 @@ export const resolveServerEnv = (
   ...(server.env ? { env: resolveEnvMap(server.env) } : {}),
 });
 
-
 export const serverTarget = (server: McpServerOptions): string =>
   server.type === "stdio" ? [server.command, ...(server.args ?? [])].join(" ") : (server.url ?? "");
-
 
 const inferType = (raw: Record<string, unknown>): "http" | "sse" | "stdio" | undefined => {
   if (raw.type === "http" || raw.type === "sse" || raw.type === "stdio") return raw.type;
@@ -56,7 +48,6 @@ const inferType = (raw: Record<string, unknown>): "http" | "sse" | "stdio" | und
   if (typeof raw.command === "string") return "stdio";
   return undefined;
 };
-
 
 export const normalizeServer = (id: string, raw: unknown): McpServerOptions => {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
@@ -94,10 +85,11 @@ export const normalizeServer = (id: string, raw: unknown): McpServerOptions => {
   }
   if (typeof record.auth === "boolean") server.auth = record.auth;
   if (typeof record.instructions === "string") server.instructions = record.instructions;
-  if (typeof record.maxRetries === "number") server.maxRetries = record.maxRetries;
+  if (typeof record.maxRetries === "number" && Number.isFinite(record.maxRetries)) {
+    server.maxRetries = Math.max(0, Math.floor(record.maxRetries));
+  }
   return server;
 };
-
 
 export const normalizeServerMap = (raw: unknown): McpServerOptions[] => {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
@@ -105,7 +97,6 @@ export const normalizeServerMap = (raw: unknown): McpServerOptions[] => {
   }
   return Object.entries(raw as Record<string, unknown>).map(([id, entry]) => normalizeServer(id, entry));
 };
-
 
 export const mergeMcpServers = (
   globalServers: McpServerOptions[],

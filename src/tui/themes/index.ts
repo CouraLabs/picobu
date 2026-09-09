@@ -107,10 +107,6 @@ export function selectedForeground(theme: Theme, bg?: RGBA): RGBA {
     return theme.selectedListItemText
   }
 
-  
-  
-  
-  
   const surface = bg ?? (theme.background.a === 0 ? theme.primary : theme.backgroundPanel)
   const { r, g, b } = surface
   const luminance = 0.299 * r + 0.587 * g + 0.114 * b
@@ -225,11 +221,6 @@ export function resolveTheme(theme: ThemeJson, mode: "dark" | "light") {
       }),
   ) as Partial<Record<ThemeColor, RGBA>>
 
-  
-  
-  
-  
-  
   const hasSelectedListItemText = theme.theme.selectedListItemText !== undefined
   if (hasSelectedListItemText) {
     resolved.selectedListItemText = resolveColor(theme.theme.selectedListItemText!)
@@ -239,14 +230,12 @@ export function resolveTheme(theme: ThemeJson, mode: "dark" | "light") {
     resolved.selectedListItemText = luminance > 0.5 ? RGBA.fromInts(20, 20, 26) : RGBA.fromInts(242, 242, 245)
   }
 
-  
   if (theme.theme.backgroundMenu !== undefined) {
     resolved.backgroundMenu = resolveColor(theme.theme.backgroundMenu)
   } else {
     resolved.backgroundMenu = resolved.backgroundElement
   }
 
-  
   const thinkingOpacity = theme.theme.thinkingOpacity ?? 0.6
   return {
     ...resolved,
@@ -277,7 +266,6 @@ function ansiToRgba(code: number): RGBA {
     return RGBA.fromHex(ansiColors[code] ?? "#000000")
   }
 
-  
   if (code < 232) {
     const index = code - 16
     const b = index % 6
@@ -287,13 +275,11 @@ function ansiToRgba(code: number): RGBA {
     return RGBA.fromInts(val(r), val(g), val(b))
   }
 
-  
   if (code < 256) {
     const gray = (code - 232) * 10 + 8
     return RGBA.fromInts(gray, gray, gray)
   }
 
-  
   return RGBA.fromInts(0, 0, 0)
 }
 export function tint(base: RGBA, overlay: RGBA, alpha: number): RGBA {
@@ -319,11 +305,9 @@ export function generateSystem(colors: TerminalColors, mode: "dark" | "light"): 
     return ansiToRgba(i)
   }
 
-  
   const grays = generateGrayScale(bg, isDark)
   const textMuted = generateMutedTextColor(bg, isDark)
 
-  
   const ansiColors = {
     black: col(0),
     red: col(1),
@@ -349,29 +333,24 @@ export function generateSystem(colors: TerminalColors, mode: "dark" | "light"): 
       secondary: ansiColors.magenta,
       accent: ansiColors.cyan,
 
-      
       error: ansiColors.red,
       warning: ansiColors.yellow,
       success: ansiColors.green,
       info: ansiColors.cyan,
 
-      
       text: fg,
       textMuted,
       selectedListItemText: bg,
 
-      
       background: transparent,
       backgroundPanel: grays[2]!,
       backgroundElement: grays[3]!,
       backgroundMenu: grays[3],
 
-      
       borderSubtle: grays[6]!,
       border: grays[7]!,
       borderActive: grays[8]!,
 
-      
       diffAdded: ansiColors.green,
       diffRemoved: ansiColors.red,
       diffContext: grays[7]!,
@@ -385,7 +364,6 @@ export function generateSystem(colors: TerminalColors, mode: "dark" | "light"): 
       diffAddedLineNumberBg,
       diffRemovedLineNumberBg,
 
-      
       markdownText: fg,
       markdownHeading: fg,
       markdownLink: ansiColors.blue,
@@ -401,7 +379,6 @@ export function generateSystem(colors: TerminalColors, mode: "dark" | "light"): 
       markdownImageText: ansiColors.cyan,
       markdownCodeBlock: fg,
 
-      
       syntaxComment: textMuted,
       syntaxKeyword: ansiColors.magenta,
       syntaxFunction: ansiColors.blue,
@@ -417,7 +394,6 @@ export function generateSystem(colors: TerminalColors, mode: "dark" | "light"): 
 function generateGrayScale(bg: RGBA, isDark: boolean): Record<number, RGBA> {
   const grays: Record<number, RGBA> = {}
 
-  
   const bgR = bg.r * 255
   const bgG = bg.g * 255
   const bgB = bg.b * 255
@@ -467,13 +443,13 @@ function generateMutedTextColor(bg: RGBA, isDark: boolean): RGBA {
   let grayValue: number
   if (isDark) {
     if (bgLum < 10) {
-      grayValue = 180 
+      grayValue = 180
     } else {
       grayValue = Math.min(Math.floor(160 + bgLum * 0.3), 200)
     }
   } else {
     if (bgLum > 245) {
-      grayValue = 75 
+      grayValue = 75
     } else {
       grayValue = Math.max(Math.floor(100 - (255 - bgLum) * 0.2), 60)
     }

@@ -1,4 +1,3 @@
-
 export const compactorPrompt =
 `You are a session compactor. You receive the transcript of a coding-agent session (user requests, assistant answers, tool calls with abbreviated inputs and outputs) and produce a dense summary that lets the agent continue the work in a fresh session with no memory of the original conversation.
 - Write the summary so the agent can resume seamlessly: it is the only context the fresh session will have.

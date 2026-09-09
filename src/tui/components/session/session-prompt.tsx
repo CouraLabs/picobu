@@ -10,7 +10,6 @@ export type SessionPromptProps = {
 }
 
 export const SessionPrompt = (props: SessionPromptProps) => {
-  const { onPrompt } = props
   let textareaRef: TextareaRenderable | null = null
 
   onMount(() => {
@@ -25,22 +24,15 @@ export const SessionPrompt = (props: SessionPromptProps) => {
   const handleMouseDown = (e: MouseEvent) => {
     if (!textareaRef) return
     textareaRef.focus();
-
     const info = textareaRef.editorView.getLineInfo();
     const lineSources = info.lineSources;
     const lineStartCols = info.lineStartCols;
     const lineWidthCols = info.lineWidthCols;
     if (!lineSources.length) return;
-
-    // Widget-relative cell of the click. Mouse events report terminal-absolute
-    // coordinates, so subtract the textarea's own screen origin.
     const localX = e.x - textareaRef.screenX;
     const localY = e.y - textareaRef.screenY;
     const visualRow = localY + textareaRef.scrollY;
     const col = Math.max(0, localX);
-
-    // Line k represents source line `lineSources[k]`, starting at display
-    // column `lineStartCols[k]`. Pick the visual line under the cursor.
     let sourceRow = 0;
     let baseCol = 0;
     let maxCol = 0;
@@ -57,21 +49,21 @@ export const SessionPrompt = (props: SessionPromptProps) => {
       }
     }
     if (!found) {
-      // Click beyond the last visual line: place at the end of the last source line.
       const last = lineSources.length - 1;
       sourceRow = lineSources[last] ?? 0;
       baseCol = lineStartCols[last] ?? 0;
       maxCol = (lineStartCols[last] ?? 0) + (lineWidthCols[last] ?? 0);
     }
-
-    const targetCol = Math.min(Math.max(col, baseCol), Math.max(baseCol, maxCol - 1));
+    const targetCol = Math.min(Math.max(col, baseCol), Math.max(baseCol, maxCol));
     textareaRef.setCursor(sourceRow, targetCol);
   };
 
   const submit = () => {
     if (waitingMode()) return;
-    if (textareaRef?.plainText.trim() === "/") return;
-    textareaRef?.plainText && onPrompt(textareaRef?.plainText);
+    const text = textareaRef?.plainText ?? "";
+    if (text.trim().length === 0) return;
+    if (text.trim() === "/") return;
+    props.onPrompt(text);
     textareaRef?.clear();
   };
 
@@ -79,7 +71,7 @@ export const SessionPrompt = (props: SessionPromptProps) => {
   const titleColor = () => waitingMode() ? theme().info : queueMode() ? theme().info : steeringMode ? theme().error : commandOpen ? theme().accent : theme().textMuted
   const title = () => waitingMode() ? " Prompt - Waiting " : queueMode() ? " Prompt - Queue " : steeringMode ? " Prompt Steering " : commandOpen ? " Command " : " Prompt "
   const placeholder = () => waitingMode() ? "Answer the questions above…" : queueMode() ? "Queued until the run finishes…" : "What are we going to build?"
-  
+
   return (
     <box
       flexDirection="row"

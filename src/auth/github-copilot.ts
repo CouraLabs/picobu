@@ -1,5 +1,3 @@
-
-
 import type { OAuthAuth, OAuthCredential, AuthInteraction, AuthLoginOptions } from "@auth/types.ts";
 import { pollOAuthDeviceCodeFlow } from "@auth/device-code.ts";
 const decode = (s: string): string => atob(s);
@@ -20,14 +18,13 @@ type DeviceCodeResponse = {
 };
 type DeviceTokenSuccessResponse = { access_token: string; token_type?: string; scope?: string };
 type DeviceTokenErrorResponse = { error: string; error_description?: string; interval?: number };
-
-
 export const normalizeDomain = (input: string): string | null => {
   const trimmed = input.trim();
   if (!trimmed) return null;
   try {
     const url = trimmed.includes("://") ? new URL(trimmed) : new URL(`https://${trimmed}`);
-    return url.hostname;
+    if (!url.hostname) return null;
+    return url.host.toLowerCase();
   } catch {
     return null;
   }
@@ -37,8 +34,6 @@ const getUrls = (domain: string): { deviceCodeUrl: string; accessTokenUrl: strin
   accessTokenUrl: `https://${domain}/login/oauth/access_token`,
   copilotTokenUrl: `https://api.${domain}/copilot_internal/v2/token`,
 });
-
-
 const getBaseUrlFromToken = (token: string): string | null => {
   const match = token.match(/proxy-ep=([^;]+)/);
   if (!match) return null;
@@ -46,8 +41,6 @@ const getBaseUrlFromToken = (token: string): string | null => {
   const apiHost = proxyHost.replace(/^proxy\./, "api.");
   return `https://${apiHost}`;
 };
-
-
 export const getGitHubCopilotBaseUrl = (token?: string, enterpriseDomain?: string): string => {
   if (token) {
     const fromToken = getBaseUrlFromToken(token);
@@ -58,8 +51,6 @@ export const getGitHubCopilotBaseUrl = (token?: string, enterpriseDomain?: strin
 };
 const asRecord = (value: unknown): Record<string, unknown> | undefined =>
   value && typeof value === "object" ? (value as Record<string, unknown>) : undefined;
-
-
 export const parseGitHubCopilotModelCatalog = (raw: unknown, allowPolicyFallback: boolean): string[] => {
   const data = asRecord(raw)?.data;
   if (!Array.isArray(data)) {
@@ -79,10 +70,14 @@ export const parseGitHubCopilotModelCatalog = (raw: unknown, allowPolicyFallback
       },
     ];
   });
+  const hasExplicitPickerSetting = data.some((rawItem) => typeof asRecord(rawItem)?.model_picker_enabled === "boolean");
   const pickerModelIds = accountModels
     .filter((m) => m.pickerEnabled && m.policyState !== "disabled")
     .map((m) => m.id);
-  if (pickerModelIds.length > 0 || !allowPolicyFallback) {
+  if (pickerModelIds.length > 0) {
+    return pickerModelIds;
+  }
+  if (!allowPolicyFallback || hasExplicitPickerSetting) {
     return pickerModelIds;
   }
   return accountModels.filter((m) => m.policyState === "enabled").map((m) => m.id);
@@ -123,17 +118,27 @@ async function startDeviceFlow(domain: string, signal: AbortSignal): Promise<Dev
   ) {
     throw new Error("Invalid device code response fields");
   }
-
-  
-  
   let parsedUri: URL;
   try {
     parsedUri = new URL(verificationUri);
   } catch {
     throw new Error("Untrusted verification_uri in device code response");
   }
-  if (parsedUri.protocol !== "https:" && parsedUri.protocol !== "http:") {
+  const verificationHost = parsedUri.hostname.toLowerCase();
+  const isLocalhost = verificationHost === "localhost" || verificationHost === "127.0.0.1" || verificationHost === "::1";
+  if (parsedUri.protocol === "http:") {
+    if (!isLocalhost) throw new Error("Untrusted verification_uri in device code response");
+  } else if (parsedUri.protocol !== "https:") {
     throw new Error("Untrusted verification_uri in device code response");
+  }
+  if (!isLocalhost) {
+    const expectedHost = domain.toLowerCase().split(":")[0] ?? "";
+    const trusted =
+      verificationHost === expectedHost ||
+      verificationHost === "github.com" ||
+      verificationHost.endsWith(".github.com") ||
+      (expectedHost !== "github.com" && expectedHost.length > 0 && verificationHost.endsWith(`.${expectedHost}`));
+    if (!trusted) throw new Error("Untrusted verification_uri in device code response");
   }
   return {
     device_code: device,

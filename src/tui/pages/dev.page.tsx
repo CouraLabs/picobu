@@ -1,5 +1,5 @@
 import { openDialog } from "@states/dialog.state.ts"
-import { indexOfTheme, setTheme, themes } from "@states/theme-state.ts"
+import { indexOfTheme, setTheme, themeInfo, themes } from "@states/theme-state.ts"
 import { Button } from "@tui/components/button.tsx"
 import { Dropdown } from "@tui/components/dropdown.tsx"
 import { Marquee } from "@tui/components/marquee.tsx"
@@ -13,7 +13,7 @@ export const DevPage = () => {
       />
       <Dropdown
         options={themes.map((name) => ({ name, value: name }))}
-        onSelect={(option) => setTheme(String(option.value), "dark")}
+        onSelect={(option) => setTheme(String(option.value), themeInfo().variant)}
         selected={indexOfTheme(themes)}
         placeholder="Select theme…"
         maxWidth={24}

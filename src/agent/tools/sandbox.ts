@@ -1,13 +1,10 @@
-import { isAbsolute, join } from "node:path";
+import { isAbsolute, relative, resolve, sep } from "node:path";
 import { mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
 import type { Experimental_SandboxProcess, Experimental_SandboxSession } from "ai";
 
-
 type SandboxProcessOptions = Parameters<Experimental_SandboxSession["run"]>[0];
 export type ShellSpec = { cmd: string[] };
-
-
 export function shellSpec(shellLabel: string): ShellSpec {
   const [platform, shell] = shellLabel.split(":");
   if (platform === "Windows") {
@@ -34,7 +31,6 @@ export function shellSpec(shellLabel: string): ShellSpec {
   return { cmd: [Bun.env.SHELL || "/bin/sh", "-c"] };
 }
 
-
 export type LocalSandboxSession = Experimental_SandboxSession & {
   readonly root: string;
   exec(
@@ -42,29 +38,36 @@ export type LocalSandboxSession = Experimental_SandboxSession & {
     opts?: { cwd?: string; env?: Record<string, string>; abortSignal?: AbortSignal },
   ): Promise<{ exitCode: number; stdout: string; stderr: string }>;
 };
-
-
 export const sandboxRoot = (sandbox: unknown): string | undefined =>
   typeof sandbox === "object" && sandbox !== null && "root" in sandbox && typeof (sandbox as LocalSandboxSession).root === "string"
     ? (sandbox as LocalSandboxSession).root
     : undefined;
 const MISSING = "ENOENT";
-
-/** Kills the process and its whole tree; the child runs detached (setsid) on POSIX. */
 export const killProcessTree = (proc: Bun.Subprocess): void => {
   try {
     if (process.platform !== "win32" && proc.pid) process.kill(-proc.pid, "SIGKILL");
     else proc.kill(9);
   } catch {
-    // Already exited.
   }
 };
-
-
 export function createLocalSandboxSession(root: string, shellLabel: string): LocalSandboxSession {
   const spec = shellSpec(shellLabel);
-  const resolveInRoot = (p: string | undefined): string =>
-    p ? (isAbsolute(p) ? p : join(root, p)) : root;
+  const normalizedRoot = resolve(root);
+  const isInsideRoot = (candidate: string): boolean => {
+    const rel = relative(normalizedRoot, candidate);
+    return rel === "" || (rel !== ".." && !rel.startsWith(`..${sep}`) && !isAbsolute(rel));
+  };
+  const resolveInRoot = (p: string | undefined): string => {
+    if (!p) return normalizedRoot;
+    if (isAbsolute(p)) {
+      const normalized = resolve(p);
+      if (!isInsideRoot(normalized)) throw new Error(`Path escapes sandbox root: ${p}`);
+      return normalized;
+    }
+    const joined = resolve(normalizedRoot, p);
+    if (!isInsideRoot(joined)) throw new Error(`Path escapes sandbox root: ${p}`);
+    return joined;
+  };
   const start = (
     cmd: string[],
     opts: { cwd?: string; env?: Record<string, string>; abortSignal?: AbortSignal },
@@ -75,8 +78,6 @@ export function createLocalSandboxSession(root: string, shellLabel: string): Loc
       env: opts.env ? { ...Bun.env, ...opts.env } : Bun.env,
       stdout: "pipe",
       stderr: "pipe",
-      // Own process group so a kill takes down the whole tree, including
-      // grandchildren that would otherwise keep the output pipes open.
       detached: process.platform !== "win32",
     });
     const onAbort = () => {
@@ -120,18 +121,30 @@ export function createLocalSandboxSession(root: string, shellLabel: string): Loc
     return { exitCode, stdout, stderr };
   };
   const readStream = (path: string, abortSignal?: AbortSignal): Promise<ReadableStream<Uint8Array> | null> =>
-    new Promise((resolve) => {
-      const file = Bun.file(path);
-      if (abortSignal?.aborted) return resolve(null);
+    new Promise((resolveStream) => {
+      let resolved: string;
+      try {
+        resolved = resolveInRoot(path);
+      } catch {
+        return resolveStream(null);
+      }
+      const file = Bun.file(resolved);
+      if (abortSignal?.aborted) return resolveStream(null);
       file
         .exists()
-        .then((exists) => resolve(exists ? file.stream() : null))
-        .catch(() => resolve(null));
+        .then((exists) => resolveStream(exists ? file.stream() : null))
+        .catch(() => resolveStream(null));
     });
   const readText = async (path: string, opts?: { startLine?: number; endLine?: number }): Promise<string | null> => {
+    let resolved: string;
+    try {
+      resolved = resolveInRoot(path);
+    } catch {
+      return null;
+    }
     let text: string;
     try {
-      const file = Bun.file(path);
+      const file = Bun.file(resolved);
       if (!(await file.exists())) return null;
       text = await file.text();
     } catch {
@@ -144,12 +157,18 @@ export function createLocalSandboxSession(root: string, shellLabel: string): Loc
     return lines.slice(startLine - 1, endLine).join("\n");
   };
   return {
-    root,
-    description: `Local sandbox: shell commands run via the user's shell in ${root}; relative file paths resolve against this root.`,
-    readFile: (opts) => readStream(resolveInRoot(opts.path), opts.abortSignal),
+    root: normalizedRoot,
+    description: `Local sandbox: shell commands run via the user's shell in ${normalizedRoot}; relative file paths resolve against this root.`,
+    readFile: (opts) => readStream(opts.path, opts.abortSignal),
     readBinaryFile: async (opts) => {
+      let resolved: string;
       try {
-        const file = Bun.file(resolveInRoot(opts.path));
+        resolved = resolveInRoot(opts.path);
+      } catch {
+        return null;
+      }
+      try {
+        const file = Bun.file(resolved);
         if (!(await file.exists())) return null;
         return new Uint8Array(await file.arrayBuffer());
       } catch {
@@ -158,7 +177,7 @@ export function createLocalSandboxSession(root: string, shellLabel: string): Loc
     },
     readTextFile: async (opts) => {
       try {
-        return await readText(resolveInRoot(opts.path), opts);
+        return await readText(opts.path, opts);
       } catch (error) {
         if ((error as { code?: string })?.code === MISSING) return null;
         return null;

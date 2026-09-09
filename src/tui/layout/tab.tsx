@@ -10,11 +10,11 @@ export type TabProps = {
   onChange: (tab: string) => void;
 }
 
-export const Tab = ({ tabs, curr, onChange }: TabProps) => {
+export const Tab = (props: TabProps) => {
   return (
     <box flexDirection="row" gap={1}>
-      <For each={tabs}>
-        {(item) => <Button isActive={curr === item.id} id={item.id} label={item.label} onClick={() => onChange(item.id)} />}
+      <For each={props.tabs}>
+        {(item) => <Button isActive={props.curr === item.id} id={item.id} label={item.label} onClick={() => props.onChange(item.id)} />}
       </For>
     </box>
   )

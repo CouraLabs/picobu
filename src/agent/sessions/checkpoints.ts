@@ -22,7 +22,7 @@ export class CheckpointStore {
   private pointer = -1;
   private loaded = false;
   constructor(readonly path: string) {}
-  
+
   async load(): Promise<void> {
     let content: string;
     try {
@@ -45,17 +45,24 @@ export class CheckpointStore {
     this.pointer = records.length - 1;
     this.loaded = true;
   }
-  
+
   async record(entry: Omit<CheckpointRecord, "seq">): Promise<void> {
     if (!this.loaded) await this.load();
+    const previousLength = this.records.length;
+    const discardedRedo = this.pointer + 1 < previousLength;
     const next = this.records.slice(0, this.pointer + 1);
     const record: CheckpointRecord = { ...entry, seq: next.length };
     next.push(record);
     this.records = next;
     this.pointer = next.length - 1;
+    const snapshot = [...next];
     await withLock(this.path, async () => {
       mkdirSync(dirname(this.path), { recursive: true });
-      await appendFile(this.path, `${JSON.stringify(record)}\n`);
+      if (discardedRedo) {
+        await writeFile(this.path, snapshot.map((item) => JSON.stringify(item)).join("\n") + "\n");
+      } else {
+        await appendFile(this.path, `${JSON.stringify(record)}\n`);
+      }
     });
   }
   get canUndo(): boolean {
@@ -64,7 +71,7 @@ export class CheckpointStore {
   get canRedo(): boolean {
     return this.pointer < this.records.length - 1;
   }
-  
+
   async undo(): Promise<UndoResult> {
     if (!this.loaded) await this.load();
     if (!this.canUndo) return { applied: 0, paths: [] };
@@ -73,7 +80,7 @@ export class CheckpointStore {
     await this.apply(record.path, record.before);
     return { applied: 1, paths: [record.path] };
   }
-  
+
   async redo(): Promise<UndoResult> {
     if (!this.loaded) await this.load();
     if (!this.canRedo) return { applied: 0, paths: [] };
@@ -82,7 +89,7 @@ export class CheckpointStore {
     await this.apply(record.path, record.after);
     return { applied: 1, paths: [record.path] };
   }
-  
+
   private async apply(path: string, content: string | null): Promise<void> {
     await withLock(path, async () => {
       if (content === null) {

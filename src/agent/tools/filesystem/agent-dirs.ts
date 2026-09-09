@@ -2,7 +2,6 @@ import { stat } from "node:fs/promises";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { options } from "@config/options.ts";
 
-
 const AGENT_SUBDIRS = ["skills", "workflows", "prompts", "commands", "rules"];
 export const agentDirCandidates = (base: string): string[] => [
   join(base, ".agents"),
@@ -17,8 +16,6 @@ const dirExists = async (p: string): Promise<boolean> => {
     return false;
   }
 };
-
-
 export const agentDirsUnder = async (base: string): Promise<string[]> => {
   const root = resolve(base);
   const out: string[] = [];
@@ -28,14 +25,12 @@ export const agentDirsUnder = async (base: string): Promise<string[]> => {
     if (seen.has(dir)) continue;
     seen.add(dir);
     const rel = relative(root, dir);
-    if (!rel || rel.startsWith("..") || isAbsolute(rel)) continue;
+    if (!rel || rel === ".." || rel.startsWith("../") || isAbsolute(rel)) continue;
     if (!(await dirExists(dir))) continue;
     out.push(dir);
   }
   return out;
 };
-
-
 export const insideAgentDir = (path: string): boolean => {
   const systemSubdirs = AGENT_SUBDIRS.map((s) => resolve(join(options.app.systemDir, s)));
   let dir = resolve(path);
@@ -43,7 +38,7 @@ export const insideAgentDir = (path: string): boolean => {
     if (basename(dir) === ".agents") return true;
     for (const sub of systemSubdirs) {
       const rel = relative(sub, dir);
-      if (!rel.startsWith("..") && !isAbsolute(rel)) return true;
+      if (rel !== ".." && !rel.startsWith("../") && !isAbsolute(rel)) return true;
     }
     const parent = dirname(dir);
     if (parent === dir) return false;

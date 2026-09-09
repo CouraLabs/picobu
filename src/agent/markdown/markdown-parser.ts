@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+
 export type Frontmatter = Record<string, unknown>;
 export type ParsedMarkdown<F extends Frontmatter = Frontmatter> = F & {
   content: string;
@@ -8,34 +9,45 @@ export type MarkdownParam = {
   value: string;
 };
 
-
-
-
-const DELIMITER = /(?:^|\r?\n)---\s*(?:\r?\n|$)/;
 const NEWLINE = /\r?\n/;
-
+const FRONTMATTER_DELIMITER = /^---\s*$/;
+const FRONTMATTER_SCAN_LINES = 20;
+const STRING_FRONTMATTER_KEYS = new Set([
+  "name",
+  "title",
+  "description",
+  "category",
+  "tools",
+  "model",
+  "color",
+  "path",
+  "aliases",
+]);
 
 export function parseMarkdown<F extends Frontmatter = Frontmatter>(
   raw: string,
   params: MarkdownParam[] = [],
 ): ParsedMarkdown<F> {
   const source = raw.replace(/^\uFEFF/, "");
-  const opening = DELIMITER.exec(source);
-  if (!opening) return { content: applyParams(raw, params) } as ParsedMarkdown<F>;
-  const bodyStart = opening.index + opening[0].length;
-  const closing = DELIMITER.exec(source.slice(bodyStart));
-
-  
-  if (!closing) return { content: applyParams(raw, params) } as ParsedMarkdown<F>;
-  const yamlRaw = source.slice(bodyStart, bodyStart + closing.index);
-  const contentStart = bodyStart + closing.index + closing[0].length;
-  const content = applyParams(source.slice(contentStart), params);
+  const lines = source.split(NEWLINE);
+  const first = lines[0]?.trim() ?? "";
+  if (!FRONTMATTER_DELIMITER.test(first)) return { content: applyParams(raw, params) } as ParsedMarkdown<F>;
+  let closingIndex = -1;
+  const limit = Math.min(lines.length, FRONTMATTER_SCAN_LINES);
+  for (let i = 1; i < limit; i++) {
+    if (FRONTMATTER_DELIMITER.test(lines[i]?.trim() ?? "")) {
+      closingIndex = i;
+      break;
+    }
+  }
+  if (closingIndex === -1) return { content: applyParams("", params) } as ParsedMarkdown<F>;
+  const yamlRaw = lines.slice(1, closingIndex).join("\n");
+  const content = applyParams(lines.slice(closingIndex + 1).join("\n"), params);
   return {
     ...parseYamlBlock(yamlRaw),
     content,
   } as ParsedMarkdown<F>;
 }
-
 
 export async function parseMarkdownFile<F extends Frontmatter = Frontmatter>(
   filePath: string,
@@ -43,6 +55,7 @@ export async function parseMarkdownFile<F extends Frontmatter = Frontmatter>(
 ): Promise<ParsedMarkdown<F>> {
   return parseMarkdown<F>(await readFile(filePath, "utf8"), params);
 }
+
 function applyParams(content: string, params: MarkdownParam[]): string {
   if (params.length === 0) return content;
   let result = content;
@@ -51,7 +64,6 @@ function applyParams(content: string, params: MarkdownParam[]): string {
   }
   return result;
 }
-
 
 function parseYamlBlock(raw: string): Frontmatter {
   const result: Frontmatter = {};
@@ -73,11 +85,13 @@ function parseYamlBlock(raw: string): Frontmatter {
     ) {
       value = value.slice(1, -1);
     }
-    result[key] = coerceScalar(value);
+    result[key] = coerceScalar(key, value);
   }
   return result;
 }
-function coerceScalar(value: string): unknown {
+
+function coerceScalar(key: string, value: string): unknown {
+  if (STRING_FRONTMATTER_KEYS.has(key.toLowerCase())) return value;
   if (value === "true") return true;
   if (value === "false") return false;
   if (/^-?\d+$/.test(value)) return Number(value);

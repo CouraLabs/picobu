@@ -102,8 +102,13 @@ export class SessionManager {
   async startSession(init: CreateSessionOptions = {}): Promise<Session> {
     const id = init.id ?? generateSessionId();
     const folderKey = folderKeyFor(this.cwd);
-
-    if (!this.live.has(id)) await recoverSessionMeta(folderKey, id);
+    const existing = this.live.get(id);
+    if (existing) {
+      this.live.delete(id);
+      await existing.close().catch(() => {});
+    } else {
+      await recoverSessionMeta(folderKey, id);
+    }
     const session = await createSession({
       config: () => this.baseConfig({ agentId: init.agentId, modelKey: init.modelKey, sessionId: id }),
       id,

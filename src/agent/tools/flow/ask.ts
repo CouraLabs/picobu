@@ -18,7 +18,6 @@ export const AskToolOutputSchema = z.discriminatedUnion("status", [
   z.object({ status: z.literal("cancelled"), message: z.string() }),
 ]);
 
-
 export const createAskTool = () => ({
   name: "ask",
   kind: "flow" as const,

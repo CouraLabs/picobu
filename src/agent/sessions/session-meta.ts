@@ -5,13 +5,7 @@ import { z } from "zod";
 import { withLock } from "@shared/lock.ts";
 import { folderKeyFor, sessionsRoot } from "@agent/sessions/session-paths.ts";
 
-
-
-
-
-
 export type SessionState = "waiting" | "finished" | "error" | "running";
-
 
 export const BLOCKING_FLOW_TOOLS: readonly string[] = ["ask", "plan-write"];
 type LooseToolPart = {
@@ -19,7 +13,6 @@ type LooseToolPart = {
   toolName?: unknown;
   output?: unknown;
 };
-
 
 export function isWaiting(messages: { role: string; parts: unknown[] }[]): boolean {
   const last = messages[messages.length - 1];
@@ -33,11 +26,6 @@ export function isWaiting(messages: { role: string; parts: unknown[] }[]): boole
     return typeof output === "object" && output !== null && (output as { status?: unknown }).status === "pending";
   });
 }
-
-
-
-
-
 
 export type CostDetail = {
   source: "run" | "subagent";
@@ -54,7 +42,6 @@ export type CostDetail = {
   cacheCost?: number;
 };
 
-
 export type CostDetails = {
   totalCost?: number;
   inputCost?: number;
@@ -62,7 +49,6 @@ export type CostDetails = {
   cacheCost?: number;
   details: CostDetail[];
 };
-
 
 export type SessionTotals = {
   inputTokens: number;
@@ -79,7 +65,6 @@ export const emptyTotals = (): SessionTotals => ({
   cacheWriteTokens: 0,
   costDetails: { details: [] },
 });
-
 
 export function addToTotals(totals: SessionTotals, detail: CostDetail): SessionTotals {
   const costDetails: CostDetails = {
@@ -101,10 +86,6 @@ export function addToTotals(totals: SessionTotals, detail: CostDetail): SessionT
     costDetails,
   };
 }
-
-
-
-
 
 const totalsSchema: z.ZodType<SessionTotals> = z.object({
   inputTokens: z.number(),
@@ -132,13 +113,10 @@ const metaSchema = z.object({
   totals: totalsSchema.optional(),
 });
 
-
 export type SessionMeta = z.infer<typeof metaSchema>;
-
 
 export const sessionMetaPath = (folderKey: string, sessionId: string): string =>
   join(sessionsRoot(), folderKey, `${sessionId}.meta.json`);
-
 
 export async function readSessionMeta(folderKey: string, sessionId: string): Promise<SessionMeta | null> {
   let raw: string;
@@ -150,10 +128,9 @@ export async function readSessionMeta(folderKey: string, sessionId: string): Pro
   try {
     return metaSchema.parse(JSON.parse(raw));
   } catch {
-    return null; 
+    return null;
   }
 }
-
 
 export async function writeSessionMeta(folderKey: string, sessionId: string, meta: SessionMeta): Promise<void> {
   const path = sessionMetaPath(folderKey, sessionId);
@@ -162,7 +139,6 @@ export async function writeSessionMeta(folderKey: string, sessionId: string, met
     await writeFile(path, `${JSON.stringify(meta, null, 2)}\n`);
   });
 }
-
 
 export async function folderKeyForSession(cwd: string, sessionId: string): Promise<string> {
   const meta = await readSessionMeta(folderKeyFor(cwd), sessionId);
@@ -180,7 +156,7 @@ export async function updateSessionMeta(
     try {
       current = metaSchema.parse(JSON.parse(await readFile(path, "utf8")));
     } catch {
-      return null; 
+      return null;
     }
     const next: SessionMeta = { ...current, ...patch, id: sessionId, updatedAt: Date.now() };
     mkdirSync(join(sessionsRoot(), folderKey), { recursive: true });
@@ -194,7 +170,6 @@ export async function deleteSessionMeta(folderKey: string, sessionId: string): P
   } catch {
   }
 }
-
 
 export async function recoverSessionMeta(folderKey: string, sessionId: string): Promise<SessionMeta | null> {
   const meta = await readSessionMeta(folderKey, sessionId);

@@ -93,7 +93,7 @@ export const ModelSelect = (props: ModelSelectProps) => {
   })
 
   return (
-    <box flexDirection="column" width={84} padding={1} gap={1}>
+    <box flexDirection="column" width={84} paddingY={1} paddingX={2} gap={1}>
       <box flexDirection="row" gap={1} flexShrink={0}>
         <text fg={theme().textMuted} selectable={false}>{icons.search}</text>
         <input
@@ -120,9 +120,10 @@ export const ModelSelect = (props: ModelSelectProps) => {
               flexShrink={0}
               paddingLeft={1}
               paddingRight={1}
-              backgroundColor={highlight() === index() ? theme().backgroundElement : undefined}
+              backgroundColor={highlight() === index() ? theme().textMuted : undefined}
               onMouseOver={() => setHighlight(index())}
               onMouseUp={() => select(index())}
+              onMouseScroll={(e) => {e.preventDefault(); e.stopPropagation()}}
             >
               <Show when={row.key === props.currentModelKey}>
                 <text fg={theme().success} selectable={false}>{icons.success}</text>

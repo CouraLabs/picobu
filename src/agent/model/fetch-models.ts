@@ -1,7 +1,6 @@
 import { z } from "zod";
 import type { ProviderModelCapability, ProviderModelOptions } from "@config/options.ts";
 
-
 const ModelsEntrySchema = z.object({
   id: z.string(),
   display_name: z.string().optional(),
@@ -31,7 +30,6 @@ const ModelsEntrySchema = z.object({
 });
 const ModelsResponseSchema = z.object({ data: z.array(ModelsEntrySchema) });
 
-
 const toProviderModel = (entry: z.infer<typeof ModelsEntrySchema>): ProviderModelOptions | null => {
   if (!entry.id) return null;
   const efforts = (entry.reasoning?.effort_levels ?? [])
@@ -59,7 +57,6 @@ const toProviderModel = (entry: z.infer<typeof ModelsEntrySchema>): ProviderMode
   };
 };
 
-
 export const parseModelsResponse = (payload: unknown): ProviderModelOptions[] => {
   const parsed = ModelsResponseSchema.safeParse(payload);
   if (!parsed.success) return [];
@@ -68,7 +65,6 @@ export const parseModelsResponse = (payload: unknown): ProviderModelOptions[] =>
     return model ? [model] : [];
   });
 };
-
 
 export const fetchModels = async (url: string, apiKey: string): Promise<ProviderModelOptions[]> => {
   const res = await fetch(url, {
