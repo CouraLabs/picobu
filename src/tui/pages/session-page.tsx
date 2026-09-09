@@ -1,7 +1,9 @@
 import type { LoopMessage } from "@agent/loop/create-loop.ts"
 import { SessionManager } from "@agent/sessions/session-manager.ts"
 import type { Session } from "@agent/sessions/session.ts"
+import { isWaiting } from "@agent/sessions/session-meta.ts"
 import { SessionMessages } from "@tui/components/session/session-messages.tsx"
+import type { ToolFlowResponse } from "@tui/components/session/tools/tool-part.tsx"
 import { SessionStatus, THINKING_LEVELS } from "@tui/components/session/session-status.tsx"
 import { SessionPrompt } from "@tui/components/session/session-prompt.tsx"
 import { ModelSelect } from "@tui/components/session/model-select.tsx"
@@ -36,6 +38,8 @@ export const SessionPage = ({ sessionId, visible }: SessionPageProps) => {
   const [session, setSession] = createSignal<Session | undefined>(undefined)
   const [messages, setMessages] = createSignal<LoopMessage[]>([])
   const [isStreaming, setIsStreaming] = createSignal(false)
+  const [waiting, setWaiting] = createSignal(false)
+  const [answering, setAnswering] = createSignal(false)
   const [debugOpen, setDebugOpen] = createSignal(false)
   const [debugLogs, setDebugLogs] = createSignal<string[]>([])
   const [activeId, setActiveId] = createSignal<string | undefined>(sessionId)
@@ -102,7 +106,10 @@ export const SessionPage = ({ sessionId, visible }: SessionPageProps) => {
         id,
         onChange: (state) => {
           setMessages([...state.messages])
-          setIsStreaming(() => state.status === "submitted" || state.status === "streaming")
+          const streaming = state.status === "submitted" || state.status === "streaming"
+          setIsStreaming(() => streaming)
+          if (streaming || state.status === "error") setAnswering(false)
+          setWaiting(() => isWaiting(state.messages))
         },
       })
       setSession(session)
@@ -121,6 +128,8 @@ export const SessionPage = ({ sessionId, visible }: SessionPageProps) => {
       return
     }
 
+    if (waiting() || answering()) return
+
     if (target.status === "submitted" || target.status === "streaming") {
       target.queue(text)
       return
@@ -134,6 +143,34 @@ export const SessionPage = ({ sessionId, visible }: SessionPageProps) => {
 
     // Chat swallows run failures into session.error instead of throwing.
     if (target.error) showError(target.error)
+  }
+
+  const handleFlowResponse = async (response: ToolFlowResponse) => {
+    const target = session()
+    if (!target) {
+      showError(new Error("Session is not ready yet, please try again"))
+      return
+    }
+    setAnswering(true)
+    try {
+      if (response.tool === "plan-write" && response.output.status === "approved") {
+        target.setPlanHandoffCompact(response.compact !== false)
+      }
+      await target.respondFlowTool({
+        tool: response.tool,
+        toolCallId: response.toolCallId,
+        output: response.output,
+      })
+    } catch (error) {
+      setAnswering(false)
+      showError(error)
+      throw error
+    }
+
+    if (target.error) {
+      setAnswering(false)
+      showError(target.error)
+    }
   }
 
   const handleRevert = (messageId: string) => {
@@ -163,6 +200,8 @@ export const SessionPage = ({ sessionId, visible }: SessionPageProps) => {
       setSession(undefined)
       setMessages([])
       setIsStreaming(false)
+      setWaiting(false)
+      setAnswering(false)
       await openSession(forkId)
     } catch (error) {
       showError(error)
@@ -175,12 +214,12 @@ export const SessionPage = ({ sessionId, visible }: SessionPageProps) => {
         <SessionMessages
           messages={messages()}
           isStreaming={isStreaming()}
-          onPrompt={handlePrompt}
+          onFlowResponse={handleFlowResponse}
           onMessageOpen={(message) =>
             openMessageActions({ message, onRevert: handleRevert, onFork: (id) => void handleFork(id) })
           }
         />
-        <SessionPrompt onPrompt={handlePrompt} streaming={isStreaming()} />
+        <SessionPrompt onPrompt={handlePrompt} streaming={isStreaming()} waiting={waiting() || answering()} />
         <SessionStatus
           agentId={agentId()}
           modelKey={modelKey()}

@@ -10,6 +10,7 @@ export const shouldCompact = (contextUsed: number, contextWindow: number): boole
   contextWindow > 0 && contextUsed / contextWindow >= COMPACT_THRESHOLD;
 
 const MAX_TOOL_CHARS = 200;
+const MAX_INTENT_CHARS = 2000;
 const abbreviate = (value: unknown): string => {
   let text: string;
   try {
@@ -83,8 +84,51 @@ export function messagesForLlm<M extends UIMessage>(messages: M[]): M[] {
 const COMPACTION_HEADER = "[Session compacted";
 export { COMPACTION_HEADER };
 
+const PLAN_HANDOFF_HEADER = "[Plan handoff";
+export { PLAN_HANDOFF_HEADER };
+
 export const compactedMessageText = (summary: string): string =>
   `${COMPACTION_HEADER} — the earlier conversation was replaced by this summary.]\n\n${summary}`;
+
+export type PlanHandoffCutInput = {
+  messages: UIMessage[];
+  plan: string;
+  verdict: string;
+};
+
+export const buildPlanHandoffCut = ({ messages, plan, verdict }: PlanHandoffCutInput): {
+  text: string;
+  summary: string;
+  compactedMessageIds: string[];
+} => {
+  let intent = "";
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i];
+    if (!m || m.role !== "user" || isCompactionCut(m)) continue;
+    const text = (m.parts ?? [])
+      .filter((p): p is { type: "text"; text: string } => p.type === "text")
+      .map((p) => p.text.trim())
+      .filter(Boolean)
+      .join("\n");
+    if (text) {
+      intent = text.length > MAX_INTENT_CHARS ? `${text.slice(0, MAX_INTENT_CHARS)}…` : text;
+      break;
+    }
+  }
+  const summary = [
+    intent ? `Original request:\n${intent}` : "",
+    `Approved plan:\n${plan}`,
+    verdict.trim() ? `Review comments:\n${verdict.trim()}` : "",
+    "Implement the approved plan now as the Coder, starting with the first phase.",
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+  return {
+    text: `${PLAN_HANDOFF_HEADER} — context compacted for implementation.]\n\n${summary}`,
+    summary,
+    compactedMessageIds: messages.map((m) => m.id),
+  };
+};
 
 export async function compactSession({
   messages,

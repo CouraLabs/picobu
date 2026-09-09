@@ -53,6 +53,7 @@ export type CompactionMetadata = {
   summary: string;
   compactedMessageIds: string[];
   createdAt: number;
+  kind?: "compact" | "plan-handoff";
 };
 export type Loop = {
   agent: ToolLoopAgent<any, any, any, any>;
@@ -206,20 +207,19 @@ export function createLoop(getConfig: () => LoopConfig): Loop {
       
       
       
-      const blocking: string[] = config.subagent ? [] : ["ask", "plan-write"];
+      const blocking: string[] = config.subagent ? [] : ["ask", "plan-write", "plan-exit"];
       const stopWhen = blocking.length
         ? [isStepCount(100), hasValidToolCall(...blocking)]
         : [isStepCount(100)];
       
       
       if (!persistent) return { ...base, stopWhen };
-      const lastUser = Array.isArray(rest.prompt)
-        ? rest.prompt.filter((m) => m.role === "user").at(-1)
-        : undefined;
+      const allMessages = Array.isArray(rest.prompt) ? rest.prompt : [];
+      const persistentIndex = allMessages.map((m) => m.role).lastIndexOf("user");
       return {
         ...base,
-        prompt: lastUser ? [lastUser] : rest.prompt,
-        stopWhen: [isStepCount(100), hasValidToolCall("ask", "plan-write")],
+        prompt: persistentIndex >= 0 ? allMessages.slice(persistentIndex) : rest.prompt,
+        stopWhen: [isStepCount(100), hasValidToolCall("ask", "plan-write", "plan-exit")],
       };
     },
   });

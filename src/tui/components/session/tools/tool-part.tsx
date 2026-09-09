@@ -6,6 +6,9 @@ import { Diff } from "@tui/components/diff.tsx"
 import { useTerminalDimensions } from "@opentui/solid"
 import { createMemo, createSignal, Show } from "solid-js"
 import {
+  flowOutputMessage,
+  flowOutputStatus,
+  planText,
   previewToolInput,
   summarizeToolInput,
   summarizeToolOutput,
@@ -18,19 +21,24 @@ import {
   type ToolTone,
 } from "./tool-summary.ts"
 import { AskForm } from "./ask-form.tsx"
+import { PlanReview, type PlanVerdict } from "./plan-review.tsx"
 import { TodoList } from "./todo-list.tsx"
 import type { TodoItem } from "@agent/tools/flow/todo.ts"
 
-export type ToolPartProps = {
-  part: ToolPartLike
-  /** Stable identity of the part within the session, tracking collapse state. */
-  partKey: string
-  /** Sends a follow-up user prompt; used by the interactive `ask` form. */
-  onPrompt?: (text: string) => void
+export type ToolFlowResponse = {
+  tool: "ask" | "plan-write"
+  toolCallId: string
+  output: { status: string; message: string }
+  compact?: boolean
 }
 
-/** Collapse state lives outside the component so scroll virtualization, which
- * remounts children, does not reset it (same pattern as `ReasoningPart`). */
+export type ToolPartProps = {
+  part: ToolPartLike
+  partKey: string
+  isLastMessage?: boolean
+  onFlowResponse?: (response: ToolFlowResponse) => void | Promise<void>
+}
+
 const [expandedKeys, setExpandedKeys] = createSignal<ReadonlySet<string>>(new Set())
 
 const toneColor = (tone: ToolTone) => {
@@ -52,6 +60,9 @@ const toneColor = (tone: ToolTone) => {
 
 const isAskTool = (part: ToolPartLike): boolean =>
   part.type === "tool-ask" || (part.type === "dynamic-tool" && part.toolName === "ask")
+
+const isPlanWriteTool = (part: ToolPartLike): boolean =>
+  part.type === "tool-plan-write" || (part.type === "dynamic-tool" && part.toolName === "plan-write")
 
 const isTodoTool = (part: ToolPartLike): boolean =>
   part.type === "tool-todo" || (part.type === "dynamic-tool" && part.toolName === "todo")
@@ -79,7 +90,6 @@ const todoItems = (part: ToolPartLike): TodoItem[] | undefined => {
   return undefined
 }
 
-/** Lines of the written file shown in the `code` preview; the rest is cut. */
 const CODE_PREVIEW_MAX_LINES = 20
 
 const writeContent = (part: ToolPartLike): string | undefined => {
@@ -99,14 +109,6 @@ const writePath = (part: ToolPartLike): string => {
   return typeof path === "string" ? path : ""
 }
 
-/**
- * Renders a single tool invocation as a tone-tinted block: a left rule in the
- * state's color groups the header (`◐ Read src/foo.tsx`) with its body —
- * the tool's latest streaming progress message while it runs, a muted
- * one-line output preview once it finishes, the written file highlighted in a
- * `code` block for `write`, the unified diff for `edit`, and the interactive
- * form for `ask`.
- */
 export const ToolPart = (props: ToolPartProps) => {
   const [hovered, setHovered] = createSignal(false)
   const name = createMemo(() => toolDisplayName(props.part))
@@ -116,8 +118,6 @@ export const ToolPart = (props: ToolPartProps) => {
     const known = summarizeToolInput(name(), props.part.input)
     return known === "?" ? previewToolInput(props.part.input) : known
   })
-  // Preliminary outputs are streaming chunks, not the final result: render the
-  // tool's progress message instead of an output preview.
   const runningProgress = createMemo(() => toolProgress(props.part))
   const outputPreview = createMemo(() =>
     runningProgress() ? undefined : summarizeToolOutput(name(), props.part.output, props.part.errorText),
@@ -129,11 +129,22 @@ export const ToolPart = (props: ToolPartProps) => {
     props.part.state === "output-available" ? writeContent(props.part) : undefined,
   )
   const questions = createMemo(() => (isAskTool(props.part) ? toolAskQuestions(props.part.input) : []))
+  const plan = createMemo(() => (isPlanWriteTool(props.part) ? planText(props.part.input) : undefined))
+  const flowStatus = createMemo(() =>
+    isAskTool(props.part) || isPlanWriteTool(props.part) ? flowOutputStatus(props.part) : undefined,
+  )
+  const flowMessage = createMemo(() =>
+    isAskTool(props.part) || isPlanWriteTool(props.part) ? flowOutputMessage(props.part) : "",
+  )
+  const flowInteractive = () => props.isLastMessage === true && flowStatus() === "pending"
+  const showAsk = () => questions().length > 0 && flowStatus() !== undefined
+  const showPlan = () => plan() !== undefined && flowStatus() !== undefined
+  const pendingFlow = () => flowInteractive() && (questions().length > 0 || plan() !== undefined)
   const todos = createMemo(() => (isTodoTool(props.part) ? todoItems(props.part) : undefined))
 
   const dims = useTerminalDimensions()
   const expanded = (): boolean =>
-    todos() !== undefined || questions().length > 0 || expandedKeys().has(props.partKey)
+    todos() !== undefined || pendingFlow() || expandedKeys().has(props.partKey)
   const toggle = () => {
     const key = props.partKey
     setExpandedKeys((prev) => {
@@ -144,8 +155,6 @@ export const ToolPart = (props: ToolPartProps) => {
     })
   }
 
-  // Collapsed content is a single clipped line: name plus the most informative
-  // detail available (streaming progress, output summary, then input summary).
   const collapsedLine = createMemo(() => {
     const detail = [summary(), runningProgress() ?? outputPreview()]
       .filter((part) => typeof part === "string" && part.length > 0)
@@ -153,10 +162,11 @@ export const ToolPart = (props: ToolPartProps) => {
     return `${name()} ${detail}`
   })
   const clipToWidth = (line: string): string => {
-    // 6 covers the left border + padding, the icon, the gaps and a margin.
     const max = Math.max(8, dims().width - 6 - view().icon.length)
     return line.length > max ? `${line.slice(0, max - 1)}…` : line
   }
+
+  const toolCallId = () => props.part.toolCallId ?? ""
 
   return (
     <box
@@ -224,8 +234,27 @@ export const ToolPart = (props: ToolPartProps) => {
         {(preview: string) => <text fg={theme().textMuted}>{preview}</text>}
       </Show>
       </Show>
-      <Show when={questions().length > 0}>
-        <AskForm questions={questions()} onConfirm={(text) => props.onPrompt?.(text)} />
+      <Show when={showAsk()}>
+        <AskForm
+          questions={questions()}
+          status={flowStatus()}
+          outputMessage={flowMessage()}
+          interactive={flowInteractive()}
+          onConfirm={(text) => props.onFlowResponse?.({ tool: "ask", toolCallId: toolCallId(), output: { status: "answered", message: text } })}
+          onCancel={() => props.onFlowResponse?.({ tool: "ask", toolCallId: toolCallId(), output: { status: "cancelled", message: "The user dismissed the questions without answering" } })}
+        />
+      </Show>
+      <Show when={showPlan()}>
+        <PlanReview
+          plan={plan() ?? ""}
+          status={flowStatus()}
+          outputMessage={flowMessage()}
+          interactive={flowInteractive()}
+          onVerdict={(status: PlanVerdict, message: string, compact: boolean) =>
+            props.onFlowResponse?.({ tool: "plan-write", toolCallId: toolCallId(), output: { status, message }, compact })
+          }
+          onCancel={() => props.onFlowResponse?.({ tool: "plan-write", toolCallId: toolCallId(), output: { status: "cancelled", message: "The user dismissed the plan review" } })}
+        />
       </Show>
     </box>
   )

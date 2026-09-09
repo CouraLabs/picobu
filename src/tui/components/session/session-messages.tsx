@@ -1,6 +1,6 @@
 import type { LoopMessage } from "@agent/loop/create-loop.ts"
 import { isToolPart, asToolPart, type ToolPartLike } from "@tui/components/session/tools/tool-summary.ts"
-import { ToolPart } from "@tui/components/session/tools/tool-part.tsx"
+import { ToolPart, type ToolFlowResponse } from "@tui/components/session/tools/tool-part.tsx"
 import { MessagePartView } from "@tui/components/session/message-part.tsx"
 import { theme } from "@states/theme-state.ts"
 import { createMemo, Index, Show } from "solid-js"
@@ -8,7 +8,7 @@ import { createMemo, Index, Show } from "solid-js"
 export type SessionMessagesProps = {
   messages: LoopMessage[]
   isStreaming?: boolean
-  onPrompt?: (text: string) => void
+  onFlowResponse?: (response: ToolFlowResponse) => void | Promise<void>
   onMessageOpen?: (message: LoopMessage) => void
 }
 
@@ -19,22 +19,28 @@ type RenderPart = {
   part: MessagePart
   message: LoopMessage
   key: string
+  isLastMessage: boolean
 }
 
 export const SessionMessages = (props: SessionMessagesProps) => {
   const allMessageParts = createMemo<RenderPart[]>(
-    () => props.messages.flatMap((m) => m.parts
-      .filter((a) => a.type === "text" || a.type === "reasoning" || isToolPart(a))
-      .map((part, pi) => {
-        const id = (part as { id?: unknown }).id
-        return {
-          part: asToolPart(part) || part.type === "reasoning" ? { ...part } : part,
-          role: m.role,
-          message: m,
-          key: typeof id === "string" && id.length > 0 ? id : `${m.id}:${pi}`,
-        }
-      })
-    )
+    () => {
+      const list = props.messages
+      const lastId = list.length > 0 ? list[list.length - 1]!.id : undefined
+      return list.flatMap((m) => m.parts
+        .filter((a) => a.type === "text" || a.type === "reasoning" || isToolPart(a))
+        .map((part, pi) => {
+          const id = (part as { id?: unknown }).id
+          return {
+            part: asToolPart(part) || part.type === "reasoning" ? { ...part } : part,
+            role: m.role,
+            message: m,
+            key: typeof id === "string" && id.length > 0 ? id : `${m.id}:${pi}`,
+            isLastMessage: m.id === lastId,
+          }
+        })
+      )
+    }
   )
 
   return (
@@ -66,7 +72,7 @@ export const SessionMessages = (props: SessionMessagesProps) => {
 
               return (
                 <box marginTop={afterUserOrReasoning ? 1 : 0}>
-                  <ToolPart part={toolPart()} partKey={entry().key} onPrompt={props.onPrompt} />
+                  <ToolPart part={toolPart()} partKey={entry().key} isLastMessage={entry().isLastMessage} onFlowResponse={props.onFlowResponse} />
                 </box>
               )
             }}

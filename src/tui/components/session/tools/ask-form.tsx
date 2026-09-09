@@ -7,8 +7,11 @@ import type { AskQuestionView } from "./tool-summary.ts"
 
 export type AskFormProps = {
   questions: AskQuestionView[]
-  /** Called with the formatted answers when the user confirms the summary. */
-  onConfirm: (answersText: string) => void
+  status?: string
+  outputMessage?: string
+  interactive: boolean
+  onConfirm: (answersText: string) => void | Promise<void>
+  onCancel: () => void | Promise<void>
 }
 
 const TAB_MAX_WIDTH = 24
@@ -16,24 +19,15 @@ const COMMENT_MAX_WIDTH = 48
 
 const truncate = (text: string, max: number): string => (text.length > max ? `${text.slice(0, max - 1)}…` : text)
 
-/**
- * Interactive form for a pending `ask` invocation: one tab per question with
- * radio (type `single`) or checkbox (type `multiple`) options plus an optional
- * free-text comment, and a final summary tab with a confirm button shown only
- * once every question has at least one answer. Confirming emits the answers as
- * compact "Title: answer" lines so the host can send them back as a follow-up
- * user prompt. After confirming the form collapses into a read-only summary.
- */
 export const AskForm = (props: AskFormProps) => {
-  // One tab per question plus the trailing summary tab (index === questions.length).
   const [active, setActive] = createSignal(0)
   const [answers, setAnswers] = createSignal<string[][]>(props.questions.map(() => []))
   const [comments, setComments] = createSignal<string[]>(props.questions.map(() => ""))
-  const [sent, setSent] = createSignal(false)
+  const [responded, setResponded] = createSignal(false)
+  const [dismissed, setDismissed] = createSignal(false)
+  const [sending, setSending] = createSignal(false)
   const inputRefs: (InputRenderable | null)[] = []
 
-  // Questions may stream in after mount (partial tool-input deltas): keep the
-  // per-question state arrays aligned with the question list.
   createEffect(() => {
     const count = props.questions.length
     setAnswers((prev) => (prev.length === count ? prev : [...prev.slice(0, count), ...Array.from({ length: Math.max(0, count - prev.length) }, () => [])]))
@@ -42,20 +36,24 @@ export const AskForm = (props: AskFormProps) => {
 
   const summaryIndex = () => props.questions.length
   const isLastTab = () => active() >= summaryIndex()
+  const readonly = () => !props.interactive || sending() || responded() || (props.status !== undefined && props.status !== "pending")
+  const wasDismissed = () => props.status === "cancelled" || (responded() && dismissed() && props.status !== "answered")
+  const settledTerminal = () => props.status !== undefined && props.status !== "pending" && props.status !== "cancelled"
+  const echoed = () => settledTerminal() && !!props.outputMessage
 
   const toggle = (questionIndex: number, answer: string) => {
-    if (sent()) return
+    if (readonly()) return
     setAnswers((prev) =>
       prev.map((selected, index) => {
         if (index !== questionIndex) return selected
         if (selected.includes(answer)) return selected.filter((a) => a !== answer)
-        // Radio questions hold a single choice; checkbox questions accumulate.
         return props.questions[index]?.type === "single" ? [answer] : [...selected, answer]
       }),
     )
   }
 
   const setComment = (questionIndex: number, value: string) => {
+    if (readonly()) return
     setComments((prev) => prev.map((comment, index) => (index === questionIndex ? value : comment)))
   }
 
@@ -70,10 +68,30 @@ export const AskForm = (props: AskFormProps) => {
       })
       .join("\n")
 
-  const confirm = () => {
-    if (sent()) return
-    setSent(true)
-    props.onConfirm(buildAnswersText())
+  const confirm = async () => {
+    if (readonly()) return
+    setSending(true)
+    try {
+      await props.onConfirm(buildAnswersText())
+      setDismissed(false)
+      setResponded(true)
+    } catch {
+    } finally {
+      setSending(false)
+    }
+  }
+
+  const cancel = async () => {
+    if (readonly()) return
+    setSending(true)
+    try {
+      await props.onCancel()
+      setDismissed(true)
+      setResponded(true)
+    } catch {
+    } finally {
+      setSending(false)
+    }
   }
 
   const tabColor = (tabIndex: number) => (active() === tabIndex ? theme().text : theme().textMuted)
@@ -82,26 +100,56 @@ export const AskForm = (props: AskFormProps) => {
   return (
     <box flexDirection="column" marginTop={1}>
       <Show
-        when={!sent()}
+        when={!readonly()}
         fallback={
           <box flexDirection="column" gap={1}>
-            <For each={props.questions}>
-              {(question, index) => {
-                // A single string per line: <text> children must be strings,
-                // nested renderables are not supported here.
-                const comment = comments()[index()]?.trim()
-                const line =
-                  `${icons.success} ${truncate(question.title, TAB_MAX_WIDTH)}: ` +
-                  `${(answers()[index()] ?? []).join(", ") || "(no answer)"}` +
-                  (comment ? ` · ${comment}` : "")
-                return (
-                  <box flexDirection="column">
-                    <text fg={theme().textMuted}>{line}</text>
-                  </box>
-                )
-              }}
-            </For>
-            <text fg={theme().success}>Answers sent.</text>
+            <Show
+              when={wasDismissed()}
+              fallback={
+                <Show
+                  when={echoed()}
+                  fallback={
+                    <Show
+                      when={responded() || settledTerminal()}
+                      fallback={
+                        <text fg={theme().textMuted}>{`${icons.question} Awaiting your answers.`}</text>
+                      }
+                    >
+                      <For each={props.questions}>
+                        {(question, index) => {
+                          const comment = comments()[index()]?.trim()
+                          const line =
+                            `${icons.success} ${truncate(question.title, TAB_MAX_WIDTH)}: ` +
+                            `${(answers()[index()] ?? []).join(", ") || "(no answer)"}` +
+                            (comment ? ` · ${comment}` : "")
+                          return (
+                            <box flexDirection="column">
+                              <text fg={theme().textMuted}>{line}</text>
+                            </box>
+                          )
+                        }}
+                      </For>
+                    </Show>
+                  }
+                >
+                  {(message: () => string | undefined) => (
+                    <For each={(message() ?? "").split("\n")}>
+                      {(line) => <text fg={theme().textMuted}>{`${icons.success} ${line}`}</text>}
+                    </For>
+                  )}
+                </Show>
+              }
+            >
+              <text fg={theme().warning}>{`${icons.cross} Dismissed without answering.`}</text>
+            </Show>
+            <Show
+              when={wasDismissed() || responded() || settledTerminal()}
+              fallback={
+                <text fg={theme().textMuted}>Awaiting answers.</text>
+              }
+            >
+              <text fg={theme().success}>{wasDismissed() ? "Dismissed." : "Answers sent."}</text>
+            </Show>
           </box>
         }
       >
@@ -201,11 +249,12 @@ export const AskForm = (props: AskFormProps) => {
             </For>
           </box>
         </Show>
-        <Show when={isLastTab() && allAnswered()}>
-          <box marginTop={1}>
+        <box flexDirection="row" gap={1} marginTop={1}>
+          <Show when={isLastTab() && allAnswered()}>
             <Button label={`${icons.send} Confirm answers`} isActive onClick={confirm} />
-          </box>
-        </Show>
+          </Show>
+          <Button label={`${icons.cross} Dismiss`} onClick={cancel} />
+        </box>
       </Show>
     </box>
   )

@@ -38,6 +38,7 @@ import { checkpointsPath, CheckpointStore, type UndoResult } from "@agent/sessio
 import { summarizeSession, type SummarizeResult } from "@agent/prompts/summarizer.ts";
 import { dropUnansweredPrompt, stripUnreplayableReasoning } from "@agent/sessions/session-messages.ts";
 import {
+  buildPlanHandoffCut,
   compactedMessageText,
   compactSession,
   isCompactionCut,
@@ -59,6 +60,51 @@ export type SessionPrompt = string | CreateUIMessage<LoopMessage>;
 type PendingPrompt = {
   message: CreateUIMessage<LoopMessage>;
   onSettled?: () => void;
+};
+
+export type FlowToolName = "ask" | "plan-write";
+export type FlowToolOutput = { status: string; message: string };
+export type RespondFlowToolInput = {
+  tool: FlowToolName;
+  toolCallId: string;
+  output: FlowToolOutput;
+};
+
+type LooseFlowPart = {
+  type?: unknown;
+  toolName?: unknown;
+  toolCallId?: unknown;
+  state?: unknown;
+  input?: unknown;
+  output?: unknown;
+};
+
+const flowToolPartName = (part: LooseFlowPart): string | undefined => {
+  if (part.type === "dynamic-tool") return typeof part.toolName === "string" ? part.toolName : undefined;
+  if (typeof part.type === "string" && part.type.startsWith("tool-")) return part.type.slice("tool-".length);
+  return undefined;
+};
+
+const findFlowPart = (
+  messages: LoopMessage[],
+  tool: string,
+  toolCallId: string,
+): { message: LoopMessage; part: LooseFlowPart } | undefined => {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const message = messages[i]!;
+    for (const raw of message.parts ?? []) {
+      const part = raw as LooseFlowPart;
+      if (flowToolPartName(part) !== tool) continue;
+      if (part.toolCallId !== toolCallId) continue;
+      return { message, part };
+    }
+  }
+  return undefined;
+};
+
+const flowOutputStatus = (part: LooseFlowPart): string | undefined => {
+  const output = part.output as { status?: unknown } | undefined;
+  return typeof output?.status === "string" ? output.status : undefined;
 };
 
 export const toPromptMessage = (prompt: SessionPrompt): CreateUIMessage<LoopMessage> =>
@@ -97,6 +143,8 @@ export type Session = {
   abort: () => void;
   clearError: Chat["clearError"];
   addToolOutput: Chat["addToolOutput"];
+  respondFlowTool: (input: RespondFlowToolInput) => Promise<void>;
+  setPlanHandoffCompact: (compact: boolean) => void;
   switchAgent: (agentId: string) => void;
   switchModel: (modelKey: string) => void;
   switchThinking: (thinking: ProviderModelReasoningEffort) => void;
@@ -204,15 +252,22 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
   const pendingPrompts: PendingPrompt[] = [];
   let draining = false;
   let compaction: Promise<void> | undefined;
+  let resumeOnce = false;
+  let planHandoffOnce = false;
+  let resuming = false;
+  let planHandoffCompact = false;
+  const consumedPlanExits = new Set<string>();
   const isRunning = (): boolean => chat.status === "submitted" || chat.status === "streaming";
   const drain = async (): Promise<void> => {
     if (draining) return;
     draining = true;
     try {
       while (pendingPrompts.length > 0 && !isRunning()) {
+        if (isWaiting(chat.messages)) break;
         const pendingCompaction = compaction;
         if (pendingCompaction) await pendingCompaction;
         if (isRunning()) break;
+        if (isWaiting(chat.messages)) break;
         const item = pendingPrompts.shift()!;
         try {
           await chat.sendMessage(item.message);
@@ -251,6 +306,17 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
   let lastDerivedState: SessionState | undefined;
   const chat = new Chat({
     ...chatInit,
+    sendAutomaticallyWhen: () => {
+      if (resumeOnce) {
+        resumeOnce = false;
+        return true;
+      }
+      if (planHandoffOnce) {
+        planHandoffOnce = false;
+        return true;
+      }
+      return false;
+    },
     id,
     transport,
     state: createHeadlessChatState(initialMessages ?? [], (state) => {
@@ -260,6 +326,7 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
       } else if (state.status === "streaming" && firstTokenAt === undefined) {
         firstTokenAt = Date.now();
       }
+      if (resuming && state.status !== "ready") resuming = false;
       const derived = deriveState(chat);
       if (derived !== lastDerivedState) {
         lastDerivedState = derived;
@@ -276,6 +343,49 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
         aborting = false;
         const kept = dropUnansweredPrompt(chat.messages);
         if (kept.length !== chat.messages.length) chat.messages = kept;
+      }
+      const finished = options.message as LoopMessage;
+      const freshExits = (finished.parts ?? [])
+        .map((p) => p as LooseFlowPart)
+        .filter((p) => flowToolPartName(p) === "plan-exit" && p.state === "output-available")
+        .map((p) => (typeof p.toolCallId === "string" ? p.toolCallId : undefined))
+        .filter((id): id is string => !!id && !consumedPlanExits.has(id));
+      for (const id of freshExits) consumedPlanExits.add(id);
+      if (freshExits.length > 0) {
+        overrides.agentId = "coder";
+        resuming = true;
+        if (planHandoffCompact) {
+          const planPart = (finished.parts ?? []).map((p) => p as LooseFlowPart).find(
+            (p) => flowToolPartName(p) === "plan-write" && flowOutputStatus(p) === "approved",
+          );
+          const planInput = planPart?.input as { plan?: unknown } | undefined;
+          const planText = typeof planInput?.plan === "string" ? planInput.plan : undefined;
+          const verdictText =
+            typeof (planPart?.output as { message?: unknown } | undefined)?.message === "string"
+              ? String((planPart?.output as { message: string }).message)
+              : "";
+          if (planText) {
+            const cut = buildPlanHandoffCut({ messages: chat.messages, plan: planText, verdict: verdictText });
+            chat.messages = [
+              ...chat.messages,
+              {
+                id: randomUUID(),
+                role: "user",
+                metadata: {
+                  compaction: {
+                    summary: cut.summary,
+                    compactedMessageIds: cut.compactedMessageIds,
+                    createdAt: Date.now(),
+                    kind: "plan-handoff",
+                  },
+                },
+                parts: [{ type: "text", text: cut.text }],
+              } as LoopMessage,
+            ];
+          }
+        }
+        planHandoffCompact = false;
+        planHandoffOnce = true;
       }
       const meta = options.message.metadata as LoopMessageMetadata | undefined;
       const usage = meta?.usage;
@@ -508,7 +618,14 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
       totals = addToTotals(totals, detail);
       persistMeta({ totals });
     },
-    sendMessage: (message, requestOptions) => chat.sendMessage(message, requestOptions),
+    sendMessage: ((message, requestOptions) => {
+      if (message !== undefined && (resuming || isWaiting(chat.messages))) {
+        pendingPrompts.push({ message: toPromptMessage(message as SessionPrompt) });
+        void drain();
+        return Promise.resolve();
+      }
+      return chat.sendMessage(message, requestOptions);
+    }) as Chat["sendMessage"],
     regenerate: (options) => chat.regenerate(options),
     stop: () => {
       markAborting();
@@ -520,6 +637,28 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
     },
     clearError: () => chat.clearError(),
     addToolOutput: (options) => chat.addToolOutput(options),
+    respondFlowTool: async ({ tool, toolCallId, output }) => {
+      if (tool !== "ask" && tool !== "plan-write") throw new Error(`Unknown flow tool "${tool}"`);
+      if (isRunning()) throw new Error("Cannot answer while a run is in progress");
+      const last = chat.messages[chat.messages.length - 1];
+      if (!last || last.role !== "assistant") throw new Error("No pending question to answer");
+      const found = findFlowPart(chat.messages, tool, toolCallId);
+      if (!found || found.message.id !== last.id) throw new Error("No pending question to answer");
+      if (flowOutputStatus(found.part) !== "pending") throw new Error("This question was already answered");
+      if (tool === "plan-write" && output.status !== "approved") planHandoffCompact = false;
+      resumeOnce = true;
+      resuming = true;
+      try {
+        await chat.addToolOutput({ tool: tool as never, toolCallId, output: output as never });
+      } catch (error) {
+        resumeOnce = false;
+        resuming = false;
+        throw error;
+      }
+    },
+    setPlanHandoffCompact: (compact) => {
+      planHandoffCompact = compact;
+    },
     switchAgent: (agentId) => {
       if (!AGENTS[agentId]) throw new Error(`Unknown agent "${agentId}". Known agents: ${Object.keys(AGENTS).join(", ")}`);
       overrides.agentId = agentId;
@@ -565,6 +704,10 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
     },
     steer: (prompt) =>
       new Promise<void>((resolve) => {
+        if (resuming || isWaiting(chat.messages)) {
+          pendingPrompts.push({ message: toPromptMessage(prompt), onSettled: resolve });
+          return;
+        }
         pendingPrompts.unshift({ message: toPromptMessage(prompt), onSettled: resolve });
         if (isRunning()) {
           requestStop();

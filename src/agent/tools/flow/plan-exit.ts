@@ -10,8 +10,8 @@ export const createPlanExitTool = () => ({
   name: "plan-exit",
   kind: "flow" as const,
   description: [
-    "Flow handoff: switch the running loop from the Plan agent to the Coder agent so the approved plan",
-    "starts being implemented. Call ONLY after the user has explicitly accepted the plan.",
+    "Flow handoff: stop the Plan run so the next request switches this loop to the Coder agent",
+    "and the approved plan starts being implemented. Call ONLY after the user has explicitly accepted the plan.",
     "Returns a message instructing the (now Coder) agent to implement the plan.",
   ].join(" "),
   parameters: PlanExitToolArgsSchema,

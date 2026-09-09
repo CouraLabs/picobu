@@ -6,6 +6,7 @@ import { icons } from "@tui/themes/icons.ts";
 export type SessionPromptProps = {
   onPrompt: (text: string) => void
   streaming?: boolean
+  waiting?: boolean
 }
 
 export const SessionPrompt = (props: SessionPromptProps) => {
@@ -17,6 +18,7 @@ export const SessionPrompt = (props: SessionPromptProps) => {
   })
 
   const queueMode = () => props.streaming === true;
+  const waitingMode = () => props.waiting === true;
   const steeringMode = false;
   const commandOpen = false;
 
@@ -67,10 +69,16 @@ export const SessionPrompt = (props: SessionPromptProps) => {
   };
 
   const submit = () => {
+    if (waitingMode()) return;
     if (textareaRef?.plainText.trim() === "/") return;
     textareaRef?.plainText && onPrompt(textareaRef?.plainText);
     textareaRef?.clear();
   };
+
+  const borderColor = () => waitingMode() ? theme().info : queueMode() ? theme().info : steeringMode ? theme().error : commandOpen ? theme().accent : theme().border
+  const titleColor = () => waitingMode() ? theme().info : queueMode() ? theme().info : steeringMode ? theme().error : commandOpen ? theme().accent : theme().textMuted
+  const title = () => waitingMode() ? " Prompt - Waiting " : queueMode() ? " Prompt - Queue " : steeringMode ? " Prompt Steering " : commandOpen ? " Command " : " Prompt "
+  const placeholder = () => waitingMode() ? "Answer the questions above…" : queueMode() ? "Queued until the run finishes…" : "What are we going to build?"
   
   return (
     <box
@@ -78,20 +86,20 @@ export const SessionPrompt = (props: SessionPromptProps) => {
       gap={1}
       flexShrink={0}
       border={['top', 'bottom']}
-      borderStyle={queueMode() ? "double" : steeringMode ? "heavy" : "single"}
-      borderColor={queueMode() ? theme().info : steeringMode ? theme().error : commandOpen ? theme().accent : theme().border}
-      titleColor={queueMode() ? theme().info : steeringMode ? theme().error : commandOpen ? theme().accent : theme().textMuted}
-      title={queueMode() ? " Prompt - Queue " : steeringMode ? " Prompt Steering " : commandOpen ? " Command " : " Prompt "}
+      borderStyle={queueMode() || waitingMode() ? "double" : steeringMode ? "heavy" : "single"}
+      borderColor={borderColor()}
+      titleColor={titleColor()}
+      title={title()}
       titleAlignment="right"
       onMouseDown={() => textareaRef?.focus()}
     >
-      <text flexShrink={0} fg={queueMode() ? theme().info : steeringMode ? theme().error : commandOpen ? theme().accent : theme().textMuted}>{icons.promptBig}</text>
+      <text flexShrink={0} fg={waitingMode() ? theme().info : queueMode() ? theme().info : steeringMode ? theme().error : commandOpen ? theme().accent : theme().textMuted}>{icons.promptBig}</text>
       <box flexGrow={1} flexShrink={1} onMouseDown={handleMouseDown}>
         <textarea
           ref={(r) => textareaRef = r}
           id="prompt"
           maxHeight={10}
-          placeholder={queueMode() ? "Queued until the run finishes…" : "What are we going to build?"}
+          placeholder={placeholder()}
           placeholderColor={theme().textMuted}
           cursorColor={theme().accent}
           textColor={theme().text}

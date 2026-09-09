@@ -12,6 +12,7 @@ import { icons } from "@tui/themes/icons.ts"
 export type ToolPartLike = {
   type: string
   toolName?: string
+  toolCallId?: string
   state?: string
   input?: unknown
   output?: unknown
@@ -121,6 +122,12 @@ export const summarizeToolInput = (name: string, input: unknown): string => {
       const title = first && typeof first.title === "string" ? first.title : undefined
       return title ?? "?"
     }
+    case "plan-write": {
+      const plan = field("plan")
+      if (plan === undefined) return "?"
+      const lines = plan.length === 0 ? 0 : plan.split("\n").length
+      return `${lines} lines`
+    }
     case "todo": {
       const actionType = typeof args.actionType === "string" ? args.actionType : ""
       const action = (args.action ?? {}) as Record<string, unknown>
@@ -212,6 +219,12 @@ export const summarizeToolOutput = (name: string, output: unknown, errorText?: s
       const message = args && typeof args.message === "string" ? args.message : undefined
       return message !== undefined && message.length > 0 ? singleLine(message, OUTPUT_PREVIEW_MAX) : undefined
     }
+    case "plan-write": {
+      const message = args && typeof args.message === "string" ? args.message : undefined
+      const status = args && typeof args.status === "string" ? args.status : undefined
+      const label = status !== undefined && status !== "pending" ? `${status} · ` : ""
+      return message !== undefined && message.length > 0 ? `${label}${singleLine(message, OUTPUT_PREVIEW_MAX)}` : (status ? label.trim() : undefined)
+    }
     case "todo": {
       const items = args && Array.isArray(args.items) ? args.items : undefined
       if (!items) break
@@ -258,11 +271,6 @@ export type AskQuestionView = {
   options: AskOptionView[]
 }
 
-/**
- * Questions of an `ask` invocation with their full shape. Malformed or
- * partially-streamed entries are skipped; a missing `type` defaults to
- * `single` and options without an answer are dropped.
- */
 export const toolAskQuestions = (input: unknown): AskQuestionView[] => {
   const questions = (input as { questions?: unknown } | undefined)?.questions
   if (!Array.isArray(questions)) return []
@@ -280,4 +288,19 @@ export const toolAskQuestions = (input: unknown): AskQuestionView[] => {
     if (parsedOptions.length === 0) return []
     return [{ title, question: typeof question === "string" ? question : "", type: parsedType, options: parsedOptions }]
   })
+}
+
+export const flowOutputStatus = (part: ToolPartLike): string | undefined => {
+  const output = part.output as { status?: unknown } | undefined
+  return output !== null && typeof output === "object" && typeof output.status === "string" ? output.status : undefined
+}
+
+export const flowOutputMessage = (part: ToolPartLike): string => {
+  const output = part.output as { message?: unknown } | undefined
+  return output !== null && typeof output === "object" && typeof output.message === "string" ? output.message : ""
+}
+
+export const planText = (input: unknown): string | undefined => {
+  const plan = (input as { plan?: unknown } | undefined)?.plan
+  return typeof plan === "string" && plan.length > 0 ? plan : undefined
 }
