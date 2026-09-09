@@ -1,11 +1,11 @@
 import { createMCPClient, ElicitationRequestSchema, type InitializeResult, type ListToolsResult, type MCPClient, type MCPTransport } from "@ai-sdk/mcp";
 import { Experimental_StdioMCPTransport } from "@ai-sdk/mcp/mcp-stdio";
 import { options } from "@config/options.ts";
-import { describeError } from "@shared/error-report.ts";
+import { createMcpAuthProvider, ensureMcpAuth } from "@integrations/mcp/auth.ts";
+import { type McpServerOptions, resolveServerEnv } from "@integrations/mcp/config.ts";
 import { loadMcpConfig } from "@integrations/mcp/discover.ts";
-import { ensureMcpAuth, createMcpAuthProvider } from "@integrations/mcp/auth.ts";
-import { resolveServerEnv, type McpServerOptions } from "@integrations/mcp/config.ts";
 import { mcpToolName } from "@integrations/mcp/tools-info.ts";
+import { describeError } from "@shared/error-report.ts";
 
 const TOOL_TTL_MS = 60_000;
 
@@ -41,17 +41,12 @@ export type McpManager = {
 };
 
 export type McpTransportFactory = (server: McpServerOptions) => MCPTransport;
-export const createMcpManager = (
-  opts: { dir?: string; servers?: McpServerOptions[]; transportFactory?: McpTransportFactory } = {},
-): McpManager => {
+export const createMcpManager = (opts: { dir?: string; servers?: McpServerOptions[]; transportFactory?: McpTransportFactory } = {}): McpManager => {
   const runtimes = new Map<string, McpServerRuntime>();
   const connecting = new Map<string, Promise<void>>();
   let generation = 0;
-  let toolCache:
-    | { namespaced: McpTools; expiresAt: number }
-    | undefined;
-  const configServers = async (): Promise<McpServerOptions[]> =>
-    opts.servers ?? (await loadMcpConfig(opts.dir ?? options.app.cwd));
+  let toolCache: { namespaced: McpTools; expiresAt: number } | undefined;
+  const configServers = async (): Promise<McpServerOptions[]> => opts.servers ?? (await loadMcpConfig(opts.dir ?? options.app.cwd));
   const runtimeFor = (server: McpServerOptions): McpServerRuntime => {
     let runtime = runtimes.get(server.id);
     if (!runtime) {
@@ -76,30 +71,30 @@ export const createMcpManager = (
         const transport = opts.transportFactory
           ? opts.transportFactory(server)
           : server.type === "stdio"
-          ? new Experimental_StdioMCPTransport({
-              command: server.command!,
-              ...(server.args ? { args: server.args } : {}),
-              ...(env ? { env } : {}),
-            })
-          : {
-              type: server.type,
-              url: server.url!,
-              ...(headers ? { headers } : {}),
-              ...(server.auth ? { authProvider: createMcpAuthProvider(server).provider } : {}),
-              redirect: "follow" as const,
-              terminateSessionOnClose: false as const,
-              ...(saved?.sessionId ? { initialSessionId: saved.sessionId } : {}),
-              onSessionIdChange: (sessionId: string | undefined) => {
-                const state = reattach.get(server.id) ?? {};
-                reattach.set(server.id, { ...state, sessionId });
-              },
-              onSessionExpired: (expired: string) => {
-                const state = reattach.get(server.id);
-                if (state?.sessionId === expired) {
-                  reattach.set(server.id, { initializeResult: state.initializeResult });
-                }
-              },
-            };
+            ? new Experimental_StdioMCPTransport({
+                command: server.command!,
+                ...(server.args ? { args: server.args } : {}),
+                ...(env ? { env } : {}),
+              })
+            : {
+                type: server.type,
+                url: server.url!,
+                ...(headers ? { headers } : {}),
+                ...(server.auth ? { authProvider: createMcpAuthProvider(server).provider } : {}),
+                redirect: "follow" as const,
+                terminateSessionOnClose: false as const,
+                ...(saved?.sessionId ? { initialSessionId: saved.sessionId } : {}),
+                onSessionIdChange: (sessionId: string | undefined) => {
+                  const state = reattach.get(server.id) ?? {};
+                  reattach.set(server.id, { ...state, sessionId });
+                },
+                onSessionExpired: (expired: string) => {
+                  const state = reattach.get(server.id);
+                  if (state?.sessionId === expired) {
+                    reattach.set(server.id, { initializeResult: state.initializeResult });
+                  }
+                },
+              };
         const client = await createMCPClient({
           ...(server.maxRetries ? { maxRetries: server.maxRetries } : {}),
           clientName: "picobu",
@@ -108,9 +103,7 @@ export const createMcpManager = (
           transport,
         });
         client.onElicitationRequest(ElicitationRequestSchema, async (request) => {
-          console.error(
-            `picobu: MCP server "${server.id}" requested input ("${request.params.message}") — declined (elicitation UI not supported yet)`,
-          );
+          console.error(`picobu: MCP server "${server.id}" requested input ("${request.params.message}") — declined (elicitation UI not supported yet)`);
           return { action: "decline" };
         });
         runtime.client = client;
@@ -198,8 +191,7 @@ export const createMcpManager = (
         if (!runtime.client) return;
         try {
           await runtime.client.close();
-        } catch {
-        }
+        } catch {}
         runtime.client = undefined;
         runtime.tools = undefined;
       }),

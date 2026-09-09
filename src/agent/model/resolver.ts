@@ -1,13 +1,13 @@
-import { createAnthropic } from "@ai-sdk/anthropic";
-import { createOpenAI } from "@ai-sdk/openai";
-import { createOpenResponses } from "@ai-sdk/open-responses";
-import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
-import type { LanguageModel } from "ai";
-import { options, type ProviderModelBilling, type ProviderModelCapability, type ProviderModelOptions, type ProviderOptions } from "@config/options.ts";
 import { withCostLogging } from "@agent/model/cost.ts";
+import { createAnthropic } from "@ai-sdk/anthropic";
+import { createOpenResponses } from "@ai-sdk/open-responses";
+import { createOpenAI } from "@ai-sdk/openai";
+import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { oauthAuthById } from "@auth/index.ts";
 import { getCredential } from "@auth/store.ts";
+import { options, type ProviderModelBilling, type ProviderModelCapability, type ProviderModelOptions, type ProviderOptions } from "@config/options.ts";
 import { initLockDir } from "@shared/lock.ts";
+import type { LanguageModel } from "ai";
 
 initLockDir(options.app.systemDir);
 
@@ -40,8 +40,7 @@ export const createModelInstance = (provider: ProviderOptions, modelId: string) 
   const apiKey = auth.apiKey;
   const baseUrl = auth.baseUrl ?? provider.baseUrl;
   const billing = provider.models.find((m) => m.id === modelId)?.billing;
-  const finish = (model: Parameters<typeof withCostLogging>[0]) =>
-    withCostLogging(model, `${provider.id}/${modelId}`, billing);
+  const finish = (model: Parameters<typeof withCostLogging>[0]) => withCostLogging(model, `${provider.id}/${modelId}`, billing);
   switch (provider.type) {
     case "openai":
       return finish(createOpenAI({ baseURL: baseUrl, apiKey, headers: provider.headers })(modelId));

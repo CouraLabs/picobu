@@ -1,9 +1,9 @@
 import { describe, expect, mock, test } from "bun:test";
+import { describeError, type ErrorReport, reportFromText, withSessionId } from "../../src/shared/error-report.ts";
 import { clip, fmtCost, fmtDuration, fmtRunSummary, fmtTokens, relTime } from "../../src/shared/format.ts";
-import { countOccurrences, extractWords, textStats } from "../../src/shared/text-stats.ts";
-import { describeError, reportFromText, withSessionId, type ErrorReport } from "../../src/shared/error-report.ts";
 import { notifyCompletion, notifyFailure } from "../../src/shared/notify.ts";
 import { openInBrowser } from "../../src/shared/open-url.ts";
+import { countOccurrences, extractWords, textStats } from "../../src/shared/text-stats.ts";
 
 mock.module("node:child_process", () => {
   const calls: unknown[][] = [];
@@ -197,7 +197,10 @@ describe("open-url exports", () => {
   test("uses Bun.spawn with platform command", async () => {
     const calls = childCalls();
     calls.length = 0;
-    const seen = await withBunSpawn(() => ({ unref() {} }), () => openInBrowser("example.com/x"));
+    const seen = await withBunSpawn(
+      () => ({ unref() {} }),
+      () => openInBrowser("example.com/x"),
+    );
     expect(seen.length).toBe(1);
     if (process.platform === "darwin") {
       expect((seen[0]?.[0] as { cmd?: unknown }).cmd).toEqual(["open", "example.com/x"]);
@@ -207,9 +210,12 @@ describe("open-url exports", () => {
   test("falls back to node spawn when Bun.spawn throws", async () => {
     const calls = childCalls();
     calls.length = 0;
-    await withBunSpawn(() => {
-      throw new Error("spawn unavailable");
-    }, () => openInBrowser("example.com/y"));
+    await withBunSpawn(
+      () => {
+        throw new Error("spawn unavailable");
+      },
+      () => openInBrowser("example.com/y"),
+    );
     expect(calls.length).toBe(1);
     if (process.platform === "darwin") {
       const args = calls[0] ?? [];

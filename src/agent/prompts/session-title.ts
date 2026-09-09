@@ -1,8 +1,8 @@
-import { generateText } from "ai";
-import { options, resolveModelRole, type ProviderModelReasoningEffort } from "@config/options.ts";
-import { resolveModel } from "@agent/model/resolver.ts";
 import type { AiReasoningEffort } from "@agent/loop/create-loop.ts";
+import { resolveModel } from "@agent/model/resolver.ts";
+import { options, resolveModelRole } from "@config/options.ts";
 import { truncate } from "@shared/text-stats.ts";
+import { generateText } from "ai";
 
 export const sessionTitlePrompt = [
   "Generate a concise thread title for conversation retrieval.",
@@ -28,12 +28,7 @@ export async function generateSessionTitle(prompt: string): Promise<string> {
     const { text } = await generateText({
       model,
       reasoning: thinking as AiReasoningEffort as any,
-      prompt: [
-        sessionTitlePrompt,
-        "",
-        "User request:",
-        trimmed.slice(0, MAX_PROMPT_CHARS),
-      ].join("\n"),
+      prompt: [sessionTitlePrompt, "", "User request:", trimmed.slice(0, MAX_PROMPT_CHARS)].join("\n"),
     });
     const title = (text.split("\n")[0] ?? "")
       .trim()

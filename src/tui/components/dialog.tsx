@@ -1,8 +1,8 @@
-import { BoxRenderable, RGBA, type MouseEvent } from "@opentui/core"
-import { theme } from "@states/theme-state.ts"
-import { closeDialog, dialogStatus } from "@states/dialog.state.ts"
-import { useKeyboard } from "@opentui/solid"
-import { createEffect } from "solid-js"
+import { type BoxRenderable, type MouseEvent, RGBA } from "@opentui/core";
+import { useKeyboard } from "@opentui/solid";
+import { closeDialog, dialogStatus } from "@states/dialog.state.ts";
+import { theme } from "@states/theme-state.ts";
+import { createEffect } from "solid-js";
 
 export const Dialog = () => {
   let backdropRef: BoxRenderable | null = null;
@@ -15,33 +15,36 @@ export const Dialog = () => {
       return true;
     }
     return false;
-  })
+  });
 
-  const handleBackdropMouseDown = (event: MouseEvent) => {
-    if (event.target === backdropRef) closeDialog()
-  }
+  const handleBackdropMouseUp = (event: MouseEvent) => {
+    if (event.target === backdropRef) {
+      event.stopPropagation();
+      closeDialog();
+    }
+  };
 
   createEffect(() => {
     if (dialogStatus().status === "open") panelRef?.focus();
-  })
+  });
 
   return (
     <box
-      ref={(r) => backdropRef = r}
+      ref={(r) => (backdropRef = r)}
       position={"absolute"}
       width={"100%"}
       height={"100%"}
       justifyContent={"center"}
       alignItems={"center"}
       backgroundColor={RGBA.fromValues(0, 0, 0, 0.6)}
-      visible={dialogStatus().status === 'close' ? false : true}
+      visible={dialogStatus().status !== "close"}
       zIndex={500}
       focusable={true}
       focused={dialogStatus().status === "open"}
-      onMouseDown={handleBackdropMouseDown}
+      onMouseUp={handleBackdropMouseUp}
     >
       <box
-        ref={(r) => panelRef = r}
+        ref={(r) => (panelRef = r)}
         backgroundColor={theme().backgroundPanel}
         focusable
         flexDirection={"column"}
@@ -54,5 +57,5 @@ export const Dialog = () => {
         {dialogStatus().content?.()}
       </box>
     </box>
-  )
-}
+  );
+};

@@ -8,17 +8,11 @@ export function folderKeyFor(cwd: string): string {
   return key || "default";
 }
 export function generateSessionId(): string {
-  return createHash("sha1")
-    .update(`${process.cwd()}|${Date.now()}|${randomUUID()}`)
-    .digest("hex")
-    .slice(0, 16);
+  return createHash("sha1").update(`${process.cwd()}|${Date.now()}|${randomUUID()}`).digest("hex").slice(0, 16);
 }
 export const sessionsRoot = (): string => join(options.app.systemDir, "sessions");
 export const sessionDir = (folderKey: string): string => join(sessionsRoot(), folderKey);
-export const sessionFilePath = (folderKey: string, sessionId: string): string =>
-  join(sessionDir(folderKey), `${sessionId}.jsonl`);
-export const sessionTodoFilePath = (folderKey: string, sessionId: string): string =>
-  join(sessionDir(folderKey), sessionId, "session-todo.json");
+export const sessionFilePath = (folderKey: string, sessionId: string): string => join(sessionDir(folderKey), `${sessionId}.jsonl`);
+export const sessionTodoFilePath = (folderKey: string, sessionId: string): string => join(sessionDir(folderKey), sessionId, "session-todo.json");
 export const persistentRoot = (): string => join(sessionsRoot(), "persitent");
-export const persistentTurnFilePath = (timestamp: number, turn: number): string =>
-  join(persistentRoot(), `${timestamp}-${turn}.jsonl`);
+export const persistentTurnFilePath = (timestamp: number, turn: number): string => join(persistentRoot(), `${timestamp}-${turn}.jsonl`);

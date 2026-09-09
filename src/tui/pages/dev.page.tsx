@@ -1,8 +1,8 @@
-import { openDialog } from "@states/dialog.state.ts"
-import { indexOfTheme, setTheme, themeInfo, themes } from "@states/theme-state.ts"
-import { Button } from "@tui/components/button.tsx"
-import { Dropdown } from "@tui/components/dropdown.tsx"
-import { Marquee } from "@tui/components/marquee.tsx"
+import { openDialog } from "@states/dialog.state.ts";
+import { indexOfTheme, setTheme, themeInfo, themes } from "@states/theme-state.ts";
+import { Button } from "@tui/components/button.tsx";
+import { Dropdown } from "@tui/components/dropdown.tsx";
+import { Marquee } from "@tui/components/marquee.tsx";
 
 export const DevPage = () => {
   return (
@@ -29,5 +29,5 @@ export const DevPage = () => {
         }
       />
     </box>
-  )
-}
+  );
+};

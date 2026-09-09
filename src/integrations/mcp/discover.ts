@@ -1,10 +1,5 @@
 import { options } from "@config/options.ts";
-import {
-  mergeMcpServers,
-  normalizeServerMap,
-  PROJECT_MCP_FILENAME,
-  type McpServerOptions,
-} from "@integrations/mcp/config.ts";
+import { type McpServerOptions, mergeMcpServers, normalizeServerMap, PROJECT_MCP_FILENAME } from "@integrations/mcp/config.ts";
 
 export const parseProjectMcpJson = (raw: unknown, source = PROJECT_MCP_FILENAME): McpServerOptions[] => {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
@@ -29,9 +24,7 @@ export const loadProjectMcpServers = async (dir: string): Promise<McpServerOptio
   try {
     raw = await file.json();
   } catch (error) {
-    throw new Error(
-      `${PROJECT_MCP_FILENAME} is not valid JSON: ${error instanceof Error ? error.message : String(error)}`,
-    );
+    throw new Error(`${PROJECT_MCP_FILENAME} is not valid JSON: ${error instanceof Error ? error.message : String(error)}`);
   }
   return parseProjectMcpJson(raw);
 };
@@ -45,9 +38,7 @@ let lastMcpConfigWarning: string | undefined;
 
 export const getLastMcpConfigWarning = (): string | undefined => lastMcpConfigWarning;
 
-export const loadMcpConfigDetailed = async (
-  dir: string = options.app.cwd,
-): Promise<McpConfigLoadResult> => {
+export const loadMcpConfigDetailed = async (dir: string = options.app.cwd): Promise<McpConfigLoadResult> => {
   let projectServers: McpServerOptions[] = [];
   let warning: string | undefined;
   try {

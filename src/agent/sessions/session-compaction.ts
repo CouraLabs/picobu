@@ -1,13 +1,12 @@
+import type { AiReasoningEffort, LoopMessageMetadata } from "@agent/loop/create-loop.ts";
+import { resolveModel } from "@agent/model/resolver.ts";
+import { compactorPrompt } from "@agent/prompts/compactor.ts";
+import type { ProviderModelReasoningEffort } from "@config/options.ts";
 import { generateText, Output, type UIMessage } from "ai";
 import { z } from "zod";
-import { compactorPrompt } from "@agent/prompts/compactor.ts";
-import { resolveModel } from "@agent/model/resolver.ts";
-import type { AiReasoningEffort, LoopMessageMetadata } from "@agent/loop/create-loop.ts";
-import type { ProviderModelReasoningEffort } from "@config/options.ts";
 
 export const COMPACT_THRESHOLD = 0.8;
-export const shouldCompact = (contextUsed: number, contextWindow: number): boolean =>
-  contextWindow > 0 && contextUsed / contextWindow >= COMPACT_THRESHOLD;
+export const shouldCompact = (contextUsed: number, contextWindow: number): boolean => contextWindow > 0 && contextUsed / contextWindow >= COMPACT_THRESHOLD;
 
 const MAX_TOOL_CHARS = 200;
 const MAX_INTENT_CHARS = 2000;
@@ -30,10 +29,8 @@ type LoosePart = {
   output?: unknown;
   errorText?: unknown;
 };
-const isToolPart = (part: LoosePart): boolean =>
-  part.type === "dynamic-tool" || part.type.startsWith("tool-");
-const toolPartName = (part: LoosePart): string =>
-  part.type === "dynamic-tool" ? String(part.toolName ?? "unknown") : part.type.slice("tool-".length);
+const isToolPart = (part: LoosePart): boolean => part.type === "dynamic-tool" || part.type.startsWith("tool-");
+const toolPartName = (part: LoosePart): string => (part.type === "dynamic-tool" ? String(part.toolName ?? "unknown") : part.type.slice("tool-".length));
 
 export const serializeForCompaction = (messages: UIMessage[]): string =>
   messages
@@ -82,13 +79,14 @@ export function messagesForLlm<M extends UIMessage>(messages: M[]): M[] {
 }
 
 const COMPACTION_HEADER = "[Session compacted";
+
 export { COMPACTION_HEADER };
 
 const PLAN_HANDOFF_HEADER = "[Plan handoff";
+
 export { PLAN_HANDOFF_HEADER };
 
-export const compactedMessageText = (summary: string): string =>
-  `${COMPACTION_HEADER} — the earlier conversation was replaced by this summary.]\n\n${summary}`;
+export const compactedMessageText = (summary: string): string => `${COMPACTION_HEADER} — the earlier conversation was replaced by this summary.]\n\n${summary}`;
 
 export type PlanHandoffCutInput = {
   messages: UIMessage[];
@@ -96,7 +94,11 @@ export type PlanHandoffCutInput = {
   verdict: string;
 };
 
-export const buildPlanHandoffCut = ({ messages, plan, verdict }: PlanHandoffCutInput): {
+export const buildPlanHandoffCut = ({
+  messages,
+  plan,
+  verdict,
+}: PlanHandoffCutInput): {
   text: string;
   summary: string;
   compactedMessageIds: string[];
@@ -130,11 +132,7 @@ export const buildPlanHandoffCut = ({ messages, plan, verdict }: PlanHandoffCutI
   };
 };
 
-export async function compactSession({
-  messages,
-  modelKey,
-  thinking,
-}: CompactSessionParams): Promise<{ summary: string }> {
+export async function compactSession({ messages, modelKey, thinking }: CompactSessionParams): Promise<{ summary: string }> {
   const transcript = serializeForCompaction(messages);
   if (!transcript) throw new Error("Nothing to compact: the session has no content");
   const { model } = resolveModel(modelKey);

@@ -1,5 +1,6 @@
-import type { OAuthAuth, OAuthCredential, AuthInteraction, AuthLoginOptions } from "@auth/types.ts";
 import { pollOAuthDeviceCodeFlow } from "@auth/device-code.ts";
+import type { AuthInteraction, AuthLoginOptions, OAuthAuth, OAuthCredential } from "@auth/types.ts";
+
 const decode = (s: string): string => atob(s);
 const CLIENT_ID = decode("SXYxLmI1MDdhMDhjODdlY2ZlOTg=");
 const COPILOT_HEADERS = {
@@ -49,8 +50,7 @@ export const getGitHubCopilotBaseUrl = (token?: string, enterpriseDomain?: strin
   if (enterpriseDomain) return `https://copilot-api.${enterpriseDomain}`;
   return "https://api.individual.githubcopilot.com";
 };
-const asRecord = (value: unknown): Record<string, unknown> | undefined =>
-  value && typeof value === "object" ? (value as Record<string, unknown>) : undefined;
+const asRecord = (value: unknown): Record<string, unknown> | undefined => (value && typeof value === "object" ? (value as Record<string, unknown>) : undefined);
 export const parseGitHubCopilotModelCatalog = (raw: unknown, allowPolicyFallback: boolean): string[] => {
   const data = asRecord(raw)?.data;
   if (!Array.isArray(data)) {
@@ -71,9 +71,7 @@ export const parseGitHubCopilotModelCatalog = (raw: unknown, allowPolicyFallback
     ];
   });
   const hasExplicitPickerSetting = data.some((rawItem) => typeof asRecord(rawItem)?.model_picker_enabled === "boolean");
-  const pickerModelIds = accountModels
-    .filter((m) => m.pickerEnabled && m.policyState !== "disabled")
-    .map((m) => m.id);
+  const pickerModelIds = accountModels.filter((m) => m.pickerEnabled && m.policyState !== "disabled").map((m) => m.id);
   if (pickerModelIds.length > 0) {
     return pickerModelIds;
   }
@@ -148,11 +146,7 @@ async function startDeviceFlow(domain: string, signal: AbortSignal): Promise<Dev
     expires_in: expiresIn,
   };
 }
-async function pollForGitHubAccessToken(
-  domain: string,
-  device: DeviceCodeResponse,
-  signal: AbortSignal,
-): Promise<string> {
+async function pollForGitHubAccessToken(domain: string, device: DeviceCodeResponse, signal: AbortSignal): Promise<string> {
   const { accessTokenUrl } = getUrls(domain);
   return pollOAuthDeviceCodeFlow<string>({
     intervalSeconds: device.interval,
@@ -189,11 +183,7 @@ async function pollForGitHubAccessToken(
     },
   });
 }
-async function refreshGitHubCopilotAccessToken(
-  refreshToken: string,
-  enterpriseDomain: string | undefined,
-  signal: AbortSignal,
-): Promise<OAuthCredential> {
+async function refreshGitHubCopilotAccessToken(refreshToken: string, enterpriseDomain: string | undefined, signal: AbortSignal): Promise<OAuthCredential> {
   const domain = enterpriseDomain || "github.com";
   const { copilotTokenUrl } = getUrls(domain);
   const raw = await fetchJson(copilotTokenUrl, {
@@ -214,11 +204,7 @@ async function refreshGitHubCopilotAccessToken(
     enterpriseUrl: enterpriseDomain,
   };
 }
-async function fetchGitHubCopilotModels(
-  copilotToken: string,
-  enterpriseDomain: string | undefined,
-  signal: AbortSignal,
-): Promise<unknown> {
+async function fetchGitHubCopilotModels(copilotToken: string, enterpriseDomain: string | undefined, signal: AbortSignal): Promise<unknown> {
   const baseUrl = getGitHubCopilotBaseUrl(copilotToken, enterpriseDomain);
   return fetchJson(`${baseUrl}/models`, {
     headers: {
@@ -235,12 +221,9 @@ const copilotEnterpriseDomain = (credential: OAuthCredential): string | undefine
   if (typeof enterpriseUrl !== "string" || !enterpriseUrl) return undefined;
   return normalizeDomain(enterpriseUrl) ?? undefined;
 };
-async function loginGitHubCopilot(
-  interaction: AuthInteraction,
-  options?: AuthLoginOptions,
-): Promise<OAuthCredential> {
+async function loginGitHubCopilot(interaction: AuthInteraction, options?: AuthLoginOptions): Promise<OAuthCredential> {
   const input = options?.enterpriseDomain?.trim() ?? "";
-  const enterpriseDomain = input ? normalizeDomain(input) ?? undefined : undefined;
+  const enterpriseDomain = input ? (normalizeDomain(input) ?? undefined) : undefined;
   if (input && !enterpriseDomain) throw new Error("Invalid GitHub Enterprise URL/domain");
   const domain = enterpriseDomain || "github.com";
   const device = await startDeviceFlow(domain, interaction.signal);
@@ -252,33 +235,17 @@ async function loginGitHubCopilot(
     expiresInSeconds: device.expires_in,
   });
   const githubAccessToken = await pollForGitHubAccessToken(domain, device, interaction.signal);
-  const credentials = await refreshGitHubCopilotAccessToken(
-    githubAccessToken,
-    enterpriseDomain,
-    interaction.signal,
-  );
+  const credentials = await refreshGitHubCopilotAccessToken(githubAccessToken, enterpriseDomain, interaction.signal);
   interaction.notify({ type: "progress", message: "Fetching your Copilot model catalog…" });
-  const catalog = await fetchGitHubCopilotModels(
-    credentials.access,
-    enterpriseDomain,
-    interaction.signal,
-  );
+  const catalog = await fetchGitHubCopilotModels(credentials.access, enterpriseDomain, interaction.signal);
   const baseUrl = getGitHubCopilotBaseUrl(credentials.access, enterpriseDomain);
   const allowPolicyFallback = baseUrl === "https://api.individual.githubcopilot.com";
   const availableModelIds = parseGitHubCopilotModelCatalog(catalog, allowPolicyFallback);
   return { ...credentials, availableModelIds };
 }
 async function refreshGitHubCopilotToken(credential: OAuthCredential, signal: AbortSignal): Promise<OAuthCredential> {
-  const credentials = await refreshGitHubCopilotAccessToken(
-    credential.refresh,
-    copilotEnterpriseDomain(credential),
-    signal,
-  );
-  const catalog = await fetchGitHubCopilotModels(
-    credentials.access,
-    copilotEnterpriseDomain(credential),
-    signal,
-  );
+  const credentials = await refreshGitHubCopilotAccessToken(credential.refresh, copilotEnterpriseDomain(credential), signal);
+  const catalog = await fetchGitHubCopilotModels(credentials.access, copilotEnterpriseDomain(credential), signal);
   const baseUrl = getGitHubCopilotBaseUrl(credentials.access, copilotEnterpriseDomain(credential));
   const allowPolicyFallback = baseUrl === "https://api.individual.githubcopilot.com";
   const availableModelIds = parseGitHubCopilotModelCatalog(catalog, allowPolicyFallback);

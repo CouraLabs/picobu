@@ -1,7 +1,7 @@
 import { mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
-import z from "zod";
 import { withLock } from "@shared/lock.ts";
+import z from "zod";
 export const TodoItemSchema = z.object({
   phase: z.string(),
   title: z.string(),
@@ -15,10 +15,12 @@ export const TodoToolArgsSchema = z.object({
   action: z.object({
     del: z.object({ index: z.number().int().min(0) }).optional(),
     ins: z.array(TodoItemSchema).optional(),
-    upd: z.object({
-      index: z.number().int().min(0),
-      item: TodoItemSchema,
-    }).optional(),
+    upd: z
+      .object({
+        index: z.number().int().min(0),
+        item: TodoItemSchema,
+      })
+      .optional(),
   }),
 });
 export const TodoToolOutputSchema = z.object({
@@ -37,9 +39,7 @@ export const createTodoTool = (todoFilePath: string) => ({
   ].join(" "),
   parameters: TodoToolArgsSchema,
   output: TodoToolOutputSchema,
-  handler: async (
-    args: z.infer<typeof TodoToolArgsSchema>,
-  ): Promise<z.infer<typeof TodoToolOutputSchema>> =>
+  handler: async (args: z.infer<typeof TodoToolArgsSchema>): Promise<z.infer<typeof TodoToolOutputSchema>> =>
     withLock(todoFilePath, async () => {
       let items: TodoItem[] = [];
       const file = Bun.file(todoFilePath);

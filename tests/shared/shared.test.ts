@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test";
-import { countOccurrences, extractWords, textStats, truncate } from "../../src/shared/text-stats.ts";
-import { clip, fmtCost, fmtDuration, fmtTokens, relTime } from "../../src/shared/format.ts";
-import { detectFiletype } from "../../src/shared/filetype.ts";
 import { computeCost } from "../../src/agent/model/cost.ts";
 import { mcpToolName } from "../../src/integrations/mcp/tools-info.ts";
+import { detectFiletype } from "../../src/shared/filetype.ts";
+import { clip, fmtCost, fmtDuration, fmtTokens, relTime } from "../../src/shared/format.ts";
+import { countOccurrences, extractWords, textStats, truncate } from "../../src/shared/text-stats.ts";
 
 describe("text stats", () => {
   test("splits on punctuation and whitespace", () => {

@@ -1,8 +1,8 @@
-import { homedir } from "node:os";
 import { mkdirSync } from "node:fs";
-import { detectShell } from "@shared/shell.ts";
-import { acquireLock } from "@shared/lock.ts";
+import { homedir } from "node:os";
 import { DEFAULT_MCP_OPTIONS, type McpOptions } from "@integrations/mcp/config.ts";
+import { acquireLock } from "@shared/lock.ts";
+import { detectShell } from "@shared/shell.ts";
 export type ProviderModelBilling = {
   multiplier?: number;
   input?: number;
@@ -12,14 +12,7 @@ export type ProviderModelBilling = {
   batchSize?: number;
 };
 export type ProviderModelCapability = "text" | "vision" | (string & {});
-export type ProviderModelReasoningEffort =
-  | "none"
-  | "low"
-  | "medium"
-  | "high"
-  | "xhigh"
-  | "max"
-  | (string & {});
+export type ProviderModelReasoningEffort = "none" | "low" | "medium" | "high" | "xhigh" | "max" | (string & {});
 export type ProviderModelOptions = {
   id: string;
   name: string;
@@ -41,12 +34,7 @@ export type ProviderOptions = {
   headers?: Record<string, string>;
   models: ProviderModelOptions[];
 };
-export type ModelRoleId =
-  | "tiny"
-  | "flash"
-  | "flashThinking"
-  | "heavy"
-  | "heavyThinkingLevel";
+export type ModelRoleId = "tiny" | "flash" | "flashThinking" | "heavy" | "heavyThinkingLevel";
 export type ModelRoles = {
   tiny?: string;
   flash?: string;
@@ -148,16 +136,11 @@ const ROLE_DEFAULT_THINKING: Record<ModelRoleId, ProviderModelReasoningEffort | 
   heavy: undefined,
   heavyThinkingLevel: "high",
 };
-export function resolveModelRole(
-  harness: HarnessOptions | undefined,
-  role: ModelRoleId,
-): { modelKey: string; thinking: ProviderModelReasoningEffort | undefined } {
+export function resolveModelRole(harness: HarnessOptions | undefined, role: ModelRoleId): { modelKey: string; thinking: ProviderModelReasoningEffort | undefined } {
   const modelRoles = harness?.modelRoles;
   const modelKey = modelRoles?.[ROLE_MODEL_FIELD[role]] ?? harness?.defaultModel;
   if (!modelKey) {
-    throw new Error(
-      `No defaultModel is set. Add "harness.defaultModel": "<providerId>/<modelId>" to ${globals.app.systemDir}/options.json`,
-    );
+    throw new Error(`No defaultModel is set. Add "harness.defaultModel": "<providerId>/<modelId>" to ${globals.app.systemDir}/options.json`);
   }
   let thinking: ProviderModelReasoningEffort | undefined = ROLE_DEFAULT_THINKING[role];
   if (role === "flashThinking") thinking = modelRoles?.flashThinking ?? "medium";
@@ -185,57 +168,77 @@ export const loadOptions = async (): Promise<Options> => {
     mcp: { ...DEFAULT_MCP_OPTIONS, ...externalOpts.mcp },
   } satisfies Options;
 };
+const sortKeys = (value: unknown): unknown => {
+  if (Array.isArray(value)) return value.map(sortKeys);
+  if (typeof value === "object" && value !== null) {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+        .map(([key, entry]) => [key, sortKeys(entry)]),
+    );
+  }
+  return value;
+};
+const stableStringify = (value: unknown): string => JSON.stringify(sortKeys(value));
 async function readExternalOptions(): Promise<OptionsExternal> {
   const systemDir = globals.app.systemDir;
   mkdirSync(systemDir, { recursive: true });
   const externalOptsPath = `${systemDir}/options.json`;
-  const externalOptsFile = Bun.file(externalOptsPath);
-  let externalOpts: OptionsExternal & { defaults?: { model?: string } } = {};
-  if (await externalOptsFile.exists()) {
-    try {
-      externalOpts = (await externalOptsFile.json()) as OptionsExternal & {
-        defaults?: { model?: string };
-      };
-    } catch {
-      externalOpts = {};
+  const lock = await acquireLock(externalOptsPath);
+  try {
+    const externalOptsFile = Bun.file(externalOptsPath);
+    let externalOpts: OptionsExternal & { defaults?: { model?: string } } = {};
+    if (await externalOptsFile.exists()) {
+      try {
+        externalOpts = (await externalOptsFile.json()) as OptionsExternal & {
+          defaults?: { model?: string };
+        };
+      } catch {
+        try {
+          const raw = await externalOptsFile.text();
+          await Bun.write(`${externalOptsPath}.corrupt-${Date.now()}`, raw);
+        } catch {}
+        externalOpts = {};
+      }
     }
-  }
-  if (externalOpts.theme !== undefined) {
-    externalOpts = {
+    if (externalOpts.theme !== undefined) {
+      externalOpts = {
+        ...externalOpts,
+        tui: {
+          theme: externalOpts.tui?.theme ?? externalOpts.theme,
+          maxMessages: normalizeMaxMessages(externalOpts.tui?.maxMessages),
+        },
+        theme: undefined,
+      };
+    }
+    if (externalOpts.defaults?.model && !externalOpts.harness?.defaultModel) {
+      externalOpts = {
+        ...externalOpts,
+        harness: { ...externalOpts.harness, defaultModel: externalOpts.defaults.model },
+        defaults: undefined,
+      } as OptionsExternal;
+    }
+    const seeded: OptionsExternal = {
       ...externalOpts,
       tui: {
-        theme: externalOpts.tui?.theme ?? externalOpts.theme,
+        ...externalOpts.tui,
+        theme: externalOpts.tui?.theme ?? DEFAULT_THEME_PREFS,
         maxMessages: normalizeMaxMessages(externalOpts.tui?.maxMessages),
       },
       theme: undefined,
+      web: { ...DEFAULT_WEB_OPTIONS, ...externalOpts.web },
+      whatsapp: { ...DEFAULT_WHATSAPP_OPTIONS, ...externalOpts.whatsapp },
+      mcp: { ...DEFAULT_MCP_OPTIONS, ...externalOpts.mcp },
     };
+    if (stableStringify(seeded) !== stableStringify(externalOpts)) {
+      await Bun.write(externalOptsPath, JSON.stringify(seeded, null, 2));
+    }
+    return seeded;
+  } finally {
+    lock.release();
   }
-  if (externalOpts.defaults?.model && !externalOpts.harness?.defaultModel) {
-    externalOpts = {
-      ...externalOpts,
-      harness: { ...externalOpts.harness, defaultModel: externalOpts.defaults.model },
-      defaults: undefined,
-    } as OptionsExternal;
-  }
-  const seeded: OptionsExternal = {
-    ...externalOpts,
-    tui: {
-      theme: externalOpts.tui?.theme ?? DEFAULT_THEME_PREFS,
-      maxMessages: normalizeMaxMessages(externalOpts.tui?.maxMessages),
-    },
-    theme: undefined,
-    web: { ...DEFAULT_WEB_OPTIONS, ...externalOpts.web },
-    whatsapp: { ...DEFAULT_WHATSAPP_OPTIONS, ...externalOpts.whatsapp },
-    mcp: { ...DEFAULT_MCP_OPTIONS, ...externalOpts.mcp },
-  };
-  if (JSON.stringify(seeded) !== JSON.stringify(externalOpts)) {
-    await Bun.write(externalOptsPath, JSON.stringify(seeded, null, 2));
-  }
-  return seeded;
 }
-export const updateSettings = async (
-  patch: Partial<Pick<OptionsExternal, "providers" | "harness" | "tui" | "web" | "whatsapp" | "mcp">>,
-): Promise<Options> => {
+export const updateSettings = async (patch: Partial<Pick<OptionsExternal, "providers" | "harness" | "tui" | "web" | "whatsapp" | "mcp">>): Promise<Options> => {
   const systemDir = globals.app.systemDir;
   mkdirSync(systemDir, { recursive: true });
   const externalOptsPath = `${systemDir}/options.json`;

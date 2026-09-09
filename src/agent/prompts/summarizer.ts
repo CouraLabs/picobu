@@ -1,13 +1,12 @@
-import { generateText } from "ai";
-import type { UIMessage } from "ai";
-import { resolveModel, resolveModelRef } from "@agent/model/resolver.ts";
+import type { AiReasoningEffort } from "@agent/loop/create-loop.ts";
 import { computeCost, type LoopUsage } from "@agent/model/cost.ts";
-import { type AiReasoningEffort } from "@agent/loop/create-loop.ts";
+import { resolveModel, resolveModelRef } from "@agent/model/resolver.ts";
 import { serializeForCompaction } from "@agent/sessions/session-compaction.ts";
-import type { ProviderModelReasoningEffort } from "@config/options.ts";
+import type { ProviderModelBilling, ProviderModelReasoningEffort } from "@config/options.ts";
+import type { UIMessage } from "ai";
+import { generateText } from "ai";
 
-export const summarizerPrompt =
-`Summarize the conversation below for a coding-agent session. Capture, in this order:
+export const summarizerPrompt = `Summarize the conversation below for a coding-agent session. Capture, in this order:
 1. The user's goal and any decisions that were made.
 2. The work completed: files changed, commands run, findings.
 3. The current state: what exists now, what was verified.
@@ -42,7 +41,7 @@ export async function summarizeSession({ messages, modelKey, thinking }: Summari
     cacheReadTokens: usage.inputTokenDetails?.cacheReadTokens ?? 0,
     cacheWriteTokens: usage.inputTokenDetails?.cacheWriteTokens ?? 0,
   };
-  let billing;
+  let billing: ProviderModelBilling | undefined;
   try {
     billing = resolveModelRef(modelKey).modelMeta.billing;
   } catch {

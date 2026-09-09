@@ -1,8 +1,9 @@
 import { readdir } from "node:fs/promises";
+import type { Dirent } from "node:fs";
 import { dirname, join } from "node:path";
-import z from "zod";
-import { listSkills, type Command } from "@agent/commands/index.ts";
+import { type Command, listSkills } from "@agent/commands/index.ts";
 import { parseMarkdownFile } from "@agent/markdown/markdown-parser.ts";
+import z from "zod";
 export const SkillToolArgsSchema = z.object({
   name: z.string(),
 });
@@ -18,7 +19,7 @@ export const SkillToolOutputSchema = z.object({
 const listSkillFiles = async (dir: string): Promise<string[]> => {
   const files: string[] = [];
   const walk = async (current: string, prefix: string): Promise<void> => {
-    let entries;
+    let entries: Dirent[];
     try {
       entries = await readdir(current, { withFileTypes: true });
     } catch {
@@ -42,12 +43,13 @@ export const createSkillTool = (getSkills: () => Command[] = listSkills) => ({
     "The output carries the skill's SKILL.md content, its folder path (skillDir), and the relative paths of its",
     "related files (files). After loading, follow the instructions; when they reference related files, read them",
     "from skillDir with the read tool.",
+    "Users may request several skills at once with /skill:<name> tokens chained at the start of their prompt",
+    '(e.g. "/skill:review /skill:tests check this diff"): call the skill tool once per requested skill, then',
+    "process the rest of the prompt.",
   ].join(" "),
   parameters: SkillToolArgsSchema,
   output: SkillToolOutputSchema,
-  handler: async (
-    args: z.infer<typeof SkillToolArgsSchema>,
-  ): Promise<z.infer<typeof SkillToolOutputSchema>> => {
+  handler: async (args: z.infer<typeof SkillToolArgsSchema>): Promise<z.infer<typeof SkillToolOutputSchema>> => {
     const skills = getSkills();
     const skill = skills.find((s) => s.name.toLowerCase() === args.name.trim().toLowerCase());
     if (!skill) {

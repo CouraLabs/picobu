@@ -18,8 +18,7 @@ export const createPlanExitTool = () => ({
   handler: (): z.infer<typeof PlanExitToolOutputSchema> => {
     return {
       switchedTo: "coder",
-      message:
-        "Plan approved. Switched from Plan to Coder — implement the approved plan now, starting with the first phase.",
+      message: "Plan approved. Switched from Plan to Coder — implement the approved plan now, starting with the first phase.",
     };
   },
 });

@@ -1,10 +1,11 @@
-import { rgPath } from "@vscode/ripgrep";
 import { isAbsolute, relative, resolve } from "node:path";
-import z from "zod";
-import { detectFiletype } from "@shared/filetype.ts";
 import { agentDirsUnder, insideAgentDir } from "@agent/tools/filesystem/agent-dirs.ts";
-import { sandboxRoot, type LocalSandboxSession } from "@agent/tools/sandbox.ts";
+import { type LocalSandboxSession, sandboxRoot } from "@agent/tools/sandbox.ts";
 import type { ToolExecuteOptions } from "@agent/tools/toolset.ts";
+import { detectFiletype } from "@shared/filetype.ts";
+import { rgPath } from "@vscode/ripgrep";
+import z from "zod";
+
 const GrepToolOutputSchema = z.object({
   filetype: z.string(),
   content: z.string(),
@@ -30,7 +31,7 @@ async function runArgv(argv: string[], cwd: string, toolOptions?: ToolExecuteOpt
 export const grepTool = {
   name: "grep",
   description:
-    'Search a file or directory for text matching a regex pattern using ripgrep; returns matching lines. Respects .gitignore files (agent config folders like .agents/ are always included).',
+    "Search a file or directory for text matching a regex pattern using ripgrep; returns matching lines. Respects .gitignore files (agent config folders like .agents/ are always included).",
   parameters: GrepToolArgsSchema,
   output: GrepToolOutputSchema,
   isTerminal: false,
@@ -56,12 +57,11 @@ export const grepTool = {
     if (!bypassFilters) {
       for (const dir of await agentDirsUnder(base)) {
         const pass = await runArgv([rgPath, "-n", "--no-heading", "--color", "never", "--hidden", "--no-ignore-vcs", "-e", args.pattern, "--", dir], root, toolOptions);
-        if (pass.exitCode !== 0 && pass.exitCode !== 1)
-          throw new Error(`rg failed (exit ${pass.exitCode}): ${pass.stderr.trim()}`);
+        if (pass.exitCode !== 0 && pass.exitCode !== 1) throw new Error(`rg failed (exit ${pass.exitCode}): ${pass.stderr.trim()}`);
         for (const line of pass.stdout.trim().split("\n").filter(Boolean)) lines.add(line);
       }
     }
     if (lines.size === 0) return { filetype: "text", content: `No matches for /${args.pattern}/ in ${searchPath}` };
     return { filetype: detectFiletype(searchPath), content: [...lines].join("\n") };
-  }
+  },
 };

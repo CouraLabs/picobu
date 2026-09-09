@@ -1,9 +1,9 @@
+import { mkdirSync } from "node:fs";
 import { appendFile, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { mkdirSync } from "node:fs";
-import { z } from "zod";
-import { withLock } from "@shared/lock.ts";
 import { options } from "@config/options.ts";
+import { withLock } from "@shared/lock.ts";
+import { z } from "zod";
 export const CheckpointRecordSchema = z.object({
   seq: z.number().int().min(0),
   tool: z.enum(["write", "edit"]),
@@ -13,8 +13,7 @@ export const CheckpointRecordSchema = z.object({
 });
 export type CheckpointRecord = z.infer<typeof CheckpointRecordSchema>;
 
-export const checkpointsPath = (folderKey: string, sessionId: string): string =>
-  join(options.app.systemDir, "sessions", folderKey, sessionId, "checkpoints.jsonl");
+export const checkpointsPath = (folderKey: string, sessionId: string): string => join(options.app.systemDir, "sessions", folderKey, sessionId, "checkpoints.jsonl");
 export type UndoResult = { applied: number; paths: string[] };
 
 export class CheckpointStore {
@@ -38,8 +37,7 @@ export class CheckpointStore {
       if (!raw.trim()) continue;
       try {
         records.push(CheckpointRecordSchema.parse(JSON.parse(raw)));
-      } catch {
-      }
+      } catch {}
     }
     this.records = records;
     this.pointer = records.length - 1;

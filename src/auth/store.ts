@@ -1,8 +1,8 @@
-import { mkdirSync } from "node:fs";
+import { chmodSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
+import type { OAuthCredential } from "@auth/types.ts";
 import { options } from "@config/options.ts";
 import { acquireLock } from "@shared/lock.ts";
-import type { OAuthCredential } from "@auth/types.ts";
 export type AuthFile = Record<string, OAuthCredential>;
 const DEFAULT_PATH = join(options.app.systemDir, "auth.json");
 let authFilePath = DEFAULT_PATH;
@@ -26,8 +26,7 @@ export const readAuthFile = async (path: string): Promise<AuthFile> => {
     try {
       const raw = await Bun.file(path).text();
       await Bun.write(`${path}.corrupt-${Date.now()}`, raw);
-    } catch {
-    }
+    } catch {}
     return {};
   }
 };
@@ -45,6 +44,9 @@ const persist = async (mutate: (current: AuthFile) => AuthFile | null): Promise<
     if (updated === null) return null;
     mkdirSync(dirname(authFilePath), { recursive: true });
     await Bun.write(authFilePath, JSON.stringify(updated, null, 2));
+    try {
+      chmodSync(authFilePath, 0o600);
+    } catch {}
     cache = updated;
     return updated;
   } finally {
@@ -55,9 +57,11 @@ export const setCredential = async (id: string, credential: OAuthCredential): Pr
   await persist((current) => ({ ...current, [id]: credential }));
 };
 export const removeCredential = async (id: string): Promise<boolean> => {
-  return (await persist((current) => {
-    if (!current[id]) return null;
-    const { [id]: _removed, ...rest } = current;
-    return rest;
-  })) !== null;
+  return (
+    (await persist((current) => {
+      if (!current[id]) return null;
+      const { [id]: _removed, ...rest } = current;
+      return rest;
+    })) !== null
+  );
 };

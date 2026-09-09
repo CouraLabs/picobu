@@ -1,21 +1,21 @@
-import { tool, type Experimental_SandboxSession, type Tool, type ToolSet } from "ai";
-import z from "zod";
-import { readTool } from "@agent/tools/filesystem/read.ts";
-import { createWriteTool } from "@agent/tools/filesystem/write.ts";
 import { createEditTool } from "@agent/tools/filesystem/edit.ts";
 import { globTool } from "@agent/tools/filesystem/glob.ts";
 import { grepTool } from "@agent/tools/filesystem/grep.ts";
+import { readTool } from "@agent/tools/filesystem/read.ts";
 import { createShellTool } from "@agent/tools/filesystem/shell.ts";
-import { createTodoTool } from "@agent/tools/flow/todo.ts";
+import { createWriteTool } from "@agent/tools/filesystem/write.ts";
 import { createAskTool } from "@agent/tools/flow/ask.ts";
-import { createSkillTool } from "@agent/tools/flow/skill.ts";
-import { createRuleTool } from "@agent/tools/flow/rule.ts";
 import { createPlanExitTool } from "@agent/tools/flow/plan-exit.ts";
 import { createPlanWriteTool } from "@agent/tools/flow/plan-write.ts";
+import { createRuleTool } from "@agent/tools/flow/rule.ts";
+import { createSkillTool } from "@agent/tools/flow/skill.ts";
 import { createSpawnTool, type SpawnToolContext } from "@agent/tools/flow/spawn.ts";
-import { websearchTool } from "@agent/tools/web/websearch.ts";
+import { createTodoTool } from "@agent/tools/flow/todo.ts";
 import { webfetchTool } from "@agent/tools/web/webfetch.ts";
+import { websearchTool } from "@agent/tools/web/websearch.ts";
 import { wwpTools } from "@integrations/whatsapp/wwp-tools.ts";
+import { type Experimental_SandboxSession, type Tool, type ToolSet, tool } from "ai";
+import z from "zod";
 
 export type ToolKind = "filesystem" | "flow" | "external" | "integration" | "mcp";
 export type AgentTool = {
@@ -52,20 +52,13 @@ export function buildToolSet(ctx: ToolSetContext = {}) {
     ...(ctx.todoFilePath ? [wrapTool(createTodoTool(ctx.todoFilePath))] : []),
     wrapTool(createSkillTool()),
     wrapTool(createRuleTool()),
-    ...(ctx.sessionId
-      ? [
-          ...(ctx.interactive === false
-            ? []
-            : [wrapTool(createAskTool()), wrapTool(createPlanExitTool()), wrapTool(createPlanWriteTool())]),
-        ]
-      : []),
+    ...(ctx.sessionId ? [...(ctx.interactive === false ? [] : [wrapTool(createAskTool()), wrapTool(createPlanExitTool()), wrapTool(createPlanWriteTool())])] : []),
     ...(ctx.sessionId && ctx.spawn ? [wrapTool(createSpawnTool(ctx.spawn))] : []),
   ];
-  const getTools = (names?: string[]): AgentTool[] =>
-    names?.length ? allTools.filter((t) => names.includes(t.name)) : allTools;
+  const getTools = (names?: string[]): AgentTool[] => (names?.length ? allTools.filter((t) => names.includes(t.name)) : allTools);
   const getToolSet = (names?: string[]): ToolSet => {
     return toToolSet(getTools(names));
-  }
+  };
   return { getTools, getToolSet };
 }
 
@@ -82,10 +75,7 @@ function wrapTool<TSchema extends z.ZodType, TOutput extends z.ZodType>(def: {
   parameters: TSchema;
   output: TOutput;
   kind?: ToolKind;
-  handler: (
-    args: z.infer<TSchema>,
-    options?: ToolExecuteOptions,
-  ) => Promise<z.infer<TOutput>> | AsyncIterable<z.infer<TOutput>> | z.infer<TOutput>;
+  handler: (args: z.infer<TSchema>, options?: ToolExecuteOptions) => Promise<z.infer<TOutput>> | AsyncIterable<z.infer<TOutput>> | z.infer<TOutput>;
 }): AgentTool {
   return {
     name: def.name,
@@ -104,19 +94,7 @@ function wrapTool<TSchema extends z.ZodType, TOutput extends z.ZodType>(def: {
     info: renderToolInfo(def.name, def.description, def.parameters),
   };
 }
-function renderToolInfo(
-  name: string,
-  description: string,
-  parameters: z.ZodType,
-): string {
+function renderToolInfo(name: string, description: string, parameters: z.ZodType): string {
   const schema = JSON.stringify(z.toJSONSchema(parameters), null, 2);
-  return [
-    `### ${name}`,
-    description,
-    "",
-    "JSON Schema:",
-    "```json",
-    schema,
-    "```",
-  ].join("\n");
+  return [`### ${name}`, description, "", "JSON Schema:", "```json", schema, "```"].join("\n");
 }

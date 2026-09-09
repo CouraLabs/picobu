@@ -1,7 +1,7 @@
-import { wrapLanguageModel, type LanguageModelMiddleware } from "ai";
 import type { LanguageModelV2, LanguageModelV3, LanguageModelV4, LanguageModelV4Usage } from "@ai-sdk/provider";
 import type { ProviderModelBilling } from "@config/options.ts";
 import { fmtTokens } from "@shared/format.ts";
+import { type LanguageModelMiddleware, wrapLanguageModel } from "ai";
 
 export type LoopUsage = {
   inputTokens?: number;
@@ -18,25 +18,19 @@ export const computeCost = (usage: LoopUsage, billing?: ProviderModelBilling): n
   const cacheWrite = Math.max(0, usage.cacheWriteTokens ?? 0);
   const uncached = Math.max(0, input - cacheRead - cacheWrite);
   return (
-    (
-      uncached * (billing.input ?? 0)
-      + output * (billing.output ?? 0)
-      + cacheRead * (billing.cacheRead ?? 0)
-      + cacheWrite * (billing.cacheWrite ?? 0)
-    ) / 1_000_000) * (billing.multiplier ?? 1);
+    ((uncached * (billing.input ?? 0) + output * (billing.output ?? 0) + cacheRead * (billing.cacheRead ?? 0) + cacheWrite * (billing.cacheWrite ?? 0)) / 1_000_000) *
+    (billing.multiplier ?? 1)
+  );
 };
 
-export const computeCostSplit = (
-  usage: LoopUsage,
-  billing?: ProviderModelBilling,
-): { inputCost: number; outputCost: number; cacheCost: number } | undefined => {
+export const computeCostSplit = (usage: LoopUsage, billing?: ProviderModelBilling): { inputCost: number; outputCost: number; cacheCost: number } | undefined => {
   if (!billing) return undefined;
   const input = Math.max(0, usage.inputTokens ?? 0);
   const output = Math.max(0, usage.outputTokens ?? 0);
   const cacheRead = Math.max(0, usage.cacheReadTokens ?? 0);
   const cacheWrite = Math.max(0, usage.cacheWriteTokens ?? 0);
   const uncached = Math.max(0, input - cacheRead - cacheWrite);
-  const m = (tokens: number, rate: number | undefined) => (tokens * (rate ?? 0) / 1_000_000) * (billing.multiplier ?? 1);
+  const m = (tokens: number, rate: number | undefined) => ((tokens * (rate ?? 0)) / 1_000_000) * (billing.multiplier ?? 1);
   return {
     inputCost: m(uncached, billing.input),
     outputCost: m(output, billing.output),
@@ -81,7 +75,7 @@ export const costLoggingMiddleware = (modelKey: string, billing?: ProviderModelB
     }
   },
   wrapStream: async ({ doStream }) => {
-    let result;
+    let result: Awaited<ReturnType<typeof doStream>>;
     try {
       result = await doStream();
     } catch (error) {
@@ -113,8 +107,5 @@ export const costLoggingMiddleware = (modelKey: string, billing?: ProviderModelB
   },
 });
 
-export const withCostLogging = (
-  model: LanguageModelV2 | LanguageModelV3 | LanguageModelV4,
-  modelKey: string,
-  billing?: ProviderModelBilling,
-): LanguageModelV4 => wrapLanguageModel({ model, middleware: costLoggingMiddleware(modelKey, billing) });
+export const withCostLogging = (model: LanguageModelV2 | LanguageModelV3 | LanguageModelV4, modelKey: string, billing?: ProviderModelBilling): LanguageModelV4 =>
+  wrapLanguageModel({ model, middleware: costLoggingMiddleware(modelKey, billing) });

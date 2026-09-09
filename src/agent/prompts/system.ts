@@ -1,6 +1,5 @@
-import { parseMarkdown, type MarkdownParam } from "@agent/markdown/markdown-parser.ts";
-export const systemMarkdown =
-`# System Preamble
+import { type MarkdownParam, parseMarkdown } from "@agent/markdown/markdown-parser.ts";
+export const systemMarkdown = `# System Preamble
 You are {APP_NAME}, a godlike general-purpose autonomous agent, you code, send and receive messages, and integrate with external systems and skill/app frameworks. You always adapt your approach to the task. Treat real progress, not approval, as success. Be precise, direct, and genuinely collaborative; never cheerlead, inflate, or reassure artificially.
 # Communication Style
 Speak concise and pragmatic: use as few words as possible and go straight to what matters. Lead with the answer or the result, not the preamble. Skip filler, hedging, restatements of the request, and pleasantries. Cut anything that doesn't change what the user does next; expand only when detail is needed to be correct or actionable.
@@ -30,9 +29,7 @@ export type GenerateSystemMessageParams = {
   agentsAppendix?: string;
 };
 
-export function buildSkillsSection(
-  skills: { name: string; description: string }[],
-): string {
+export function buildSkillsSection(skills: { name: string; description: string }[]): string {
   return [
     "The skills below are installed. When the user's request or the task's subject matches a skill's description,",
     "call the `skill` tool with that skill's exact name to load its full instructions, then follow them.",
@@ -42,10 +39,7 @@ export function buildSkillsSection(
   ].join("\n");
 }
 
-export function buildSubagentsSection(
-  subagents: { name: string; description: string }[],
-  maxAgents: number,
-): string {
+export function buildSubagentsSection(subagents: { name: string; description: string }[], maxAgents: number): string {
   return [
     "The sub agents below can be run as isolated sub sessions with the `spawn` tool. When a task is",
     "delegable (research, exploration, review, an independent unit of work), call `spawn` with the",
@@ -58,9 +52,7 @@ export function buildSubagentsSection(
   ].join("\n");
 }
 
-export function buildRulesSection(
-  rules: { name: string; description: string }[],
-): string {
+export function buildRulesSection(rules: { name: string; description: string }[]): string {
   return [
     "The rules below are installed. When the current task matches a rule's description,",
     "call the `rule` tool with that rule's exact name to load its instructions, then follow them.",
@@ -69,9 +61,7 @@ export function buildRulesSection(
   ].join("\n");
 }
 
-export function generateSystemMessage(
-  params: GenerateSystemMessageParams,
-): SystemPromptSection[] {
+export function generateSystemMessage(params: GenerateSystemMessageParams): SystemPromptSection[] {
   const paramsList: MarkdownParam[] = [
     { param: "{APP_NAME}", value: params.appName },
     { param: "{APP_CWD}", value: params.cwd },

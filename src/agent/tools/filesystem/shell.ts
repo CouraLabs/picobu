@@ -1,72 +1,52 @@
-import { resolve } from "node:path";
-import z from "zod";
-import { options } from "@config/options.ts";
+import { isAbsolute, relative, resolve } from "node:path";
 import { killProcessTree, shellSpec } from "@agent/tools/sandbox.ts";
 import type { ToolExecuteOptions } from "@agent/tools/toolset.ts";
+import { options } from "@config/options.ts";
+import z from "zod";
 export const ShellToolArgsSchema = z.object({
   command: z.string(),
   cwd: z.string().optional(),
-  timeout: z
-    .number()
-    .int()
-    .min(1)
-    .max(600)
-    .optional()
-    .describe("Maximum seconds the command may run before it is killed (1-600). Default 120."),
-})
-export const ShellToolOutputSchema = z.union([
-  z.object({ progress: z.string() }),
-  z.string(),
-])
-type ShellToolArgs = z.infer<typeof ShellToolArgsSchema>
-type ShellToolChunk = z.infer<typeof ShellToolOutputSchema>
-const DEFAULT_TIMEOUT_SECONDS = 120
-const PROGRESS_INTERVAL_MS = 300
-const PROGRESS_TAIL_LINES = 10
-const PROGRESS_LINE_MAX = 160
-const OUTPUT_MAX_CHARS = 100_000
-const DRAIN_GRACE_MS = 500
+  timeout: z.number().int().min(1).max(600).optional().describe("Maximum seconds the command may run before it is killed (1-600). Default 120."),
+});
+export const ShellToolOutputSchema = z.union([z.object({ progress: z.string() }), z.string()]);
+type ShellToolArgs = z.infer<typeof ShellToolArgsSchema>;
+type ShellToolChunk = z.infer<typeof ShellToolOutputSchema>;
+const DEFAULT_TIMEOUT_SECONDS = 120;
+const PROGRESS_INTERVAL_MS = 300;
+const PROGRESS_TAIL_LINES = 10;
+const PROGRESS_LINE_MAX = 160;
+const OUTPUT_MAX_CHARS = 100_000;
+const DRAIN_GRACE_MS = 500;
 type Child = {
-  stdout: ReadableStream<Uint8Array>
-  stderr: ReadableStream<Uint8Array>
-  exited: PromiseLike<number>
-  kill: () => void
-}
-const truncateLine = (line: string): string =>
-  line.length > PROGRESS_LINE_MAX ? `${line.slice(0, PROGRESS_LINE_MAX - 1)}…` : line
+  stdout: ReadableStream<Uint8Array>;
+  stderr: ReadableStream<Uint8Array>;
+  exited: PromiseLike<number>;
+  kill: () => void;
+};
+const truncateLine = (line: string): string => (line.length > PROGRESS_LINE_MAX ? `${line.slice(0, PROGRESS_LINE_MAX - 1)}…` : line);
 const capOutput = (text: string): string => {
-  if (text.length <= OUTPUT_MAX_CHARS) return text
-  const half = OUTPUT_MAX_CHARS / 2
-  return `${text.slice(0, half)}\n…[output truncated]…\n${text.slice(-half)}`
-}
-const drainStream = (
-  stream: ReadableStream<Uint8Array>,
-  sink: (text: string) => void,
-  cancel: Promise<"cancel">,
-): Promise<void> => {
-  const reader = stream.getReader()
-  const decoder = new TextDecoder()
+  if (text.length <= OUTPUT_MAX_CHARS) return text;
+  const half = OUTPUT_MAX_CHARS / 2;
+  return `${text.slice(0, half)}\n…[output truncated]…\n${text.slice(-half)}`;
+};
+const drainStream = (stream: ReadableStream<Uint8Array>, sink: (text: string) => void, cancel: Promise<"cancel">): Promise<void> => {
+  const reader = stream.getReader();
+  const decoder = new TextDecoder();
   return (async () => {
     try {
       while (true) {
-        const result = await Promise.race([reader.read(), cancel])
+        const result = await Promise.race([reader.read(), cancel]);
         if (result === "cancel") {
-          void reader.cancel().catch(() => {})
-          return
+          void reader.cancel().catch(() => {});
+          return;
         }
-        if (result.done) return
-        sink(decoder.decode(result.value, { stream: true }))
+        if (result.done) return;
+        sink(decoder.decode(result.value, { stream: true }));
       }
-    } catch {
-    }
-  })()
-}
-const runStreaming = async function* (
-  label: string,
-  child: Child,
-  toolOptions: ToolExecuteOptions | undefined,
-  timeoutSeconds: number,
-): AsyncGenerator<ShellToolChunk> {
+    } catch {}
+  })();
+};
+const runStreaming = async function* (label: string, child: Child, toolOptions: ToolExecuteOptions | undefined, timeoutSeconds: number): AsyncGenerator<ShellToolChunk> {
   let aborted = false;
   let timedOut = false;
   const onAbort = () => {
@@ -103,19 +83,13 @@ const runStreaming = async function* (
   };
   let resolveCancel: (value: "cancel") => void = () => {};
   const cancel = new Promise<"cancel">((resolve) => (resolveCancel = resolve));
-  const drained = Promise.all([
-    drainStream(child.stdout, sink("out"), cancel),
-    drainStream(child.stderr, sink("err"), cancel),
-  ]);
+  const drained = Promise.all([drainStream(child.stdout, sink("out"), cancel), drainStream(child.stderr, sink("err"), cancel)]);
   try {
     let exitCode: number | undefined;
     const startedAt = Date.now();
     let lastEmitAt = Date.now();
     while (true) {
-      const result = await Promise.race([
-        child.exited,
-        Bun.sleep(PROGRESS_INTERVAL_MS).then(() => "tick" as const),
-      ]);
+      const result = await Promise.race([child.exited, Bun.sleep(PROGRESS_INTERVAL_MS).then(() => "tick" as const)]);
       if (result !== "tick") {
         exitCode = result;
         break;
@@ -132,10 +106,7 @@ const runStreaming = async function* (
         lastEmitAt = now;
         const elapsed = Math.round((now - startedAt) / 1000);
         yield {
-          progress:
-            progress.length > 0
-              ? `${progress}\n(${elapsed}s, still running…)`
-              : `(${elapsed}s, waiting for output…)`,
+          progress: progress.length > 0 ? `${progress}\n(${elapsed}s, still running…)` : `(${elapsed}s, waiting for output…)`,
         };
       }
     }
@@ -150,19 +121,12 @@ const runStreaming = async function* (
       );
     }
     if (aborted) {
-      throw new Error(
-        `command \`${label}\` was aborted\n` +
-          (stdout.trim() ? `stdout:\n${capOutput(stdout).trim()}` : ""),
-      );
+      throw new Error(`command \`${label}\` was aborted\n` + (stdout.trim() ? `stdout:\n${capOutput(stdout).trim()}` : ""));
     }
     if (exitCode !== 0) {
       const stdoutTrim = capOutput(stdout).trim();
       const stderrTrim = capOutput(stderr).trim();
-      throw new Error(
-        `command \`${label}\` exited ${exitCode}\n` +
-          (stderrTrim ? `stderr:\n${stderrTrim}\n` : "") +
-          (stdoutTrim ? `stdout:\n${stdoutTrim}` : ""),
-      );
+      throw new Error(`command \`${label}\` exited ${exitCode}\n` + (stderrTrim ? `stderr:\n${stderrTrim}\n` : "") + (stdoutTrim ? `stdout:\n${stdoutTrim}` : ""));
     }
     yield capOutput(stdout).trimEnd() || "(no output)";
   } finally {
@@ -170,7 +134,7 @@ const runStreaming = async function* (
     toolOptions?.abortSignal?.removeEventListener("abort", onAbort);
     resolveCancel("cancel");
   }
-}
+};
 export function createShellTool() {
   return {
     name: "shell",
@@ -199,7 +163,12 @@ export function createShellTool() {
           kill: () => void proc.kill(),
         };
       } else {
-        const cwd = args.cwd ? resolve(args.cwd) : process.cwd();
+        const base = process.cwd();
+        const cwd = args.cwd ? resolve(base, args.cwd) : base;
+        const rel = relative(base, cwd);
+        if (rel !== "" && (rel === ".." || rel.startsWith("../") || isAbsolute(rel))) {
+          throw new Error(`Working directory escapes allowed root: ${args.cwd}`);
+        }
         const proc = Bun.spawn({
           cmd: [...shellSpec(options.app.shell).cmd, args.command],
           cwd,

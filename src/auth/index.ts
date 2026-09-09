@@ -1,10 +1,11 @@
 import { anthropicOAuth } from "@auth/anthropic.ts";
 import { githubCopilotOAuth } from "@auth/github-copilot.ts";
-import { openaiOAuth } from "@auth/openai.ts";
 import { createInteraction } from "@auth/interaction.ts";
+import { openaiOAuth } from "@auth/openai.ts";
 import { registerOAuthProvider } from "@auth/register.ts";
 import { getCredential, initAuth, listCredentials, setCredential } from "@auth/store.ts";
 import type { OAuthAuth } from "@auth/types.ts";
+
 const REFRESH_GRACE_MS = 5 * 60 * 1000;
 export const OAUTH_AUTHS: OAuthAuth[] = [openaiOAuth, anthropicOAuth, githubCopilotOAuth];
 const PROVIDER_ALIASES: Record<string, string> = { copilot: "github-copilot", claude: "anthropic", chatgpt: "openai" };
@@ -29,8 +30,7 @@ export const startLogin = async (id: string, opts?: string): Promise<void> => {
   if (previousTask) {
     try {
       await previousTask;
-    } catch {
-    }
+    } catch {}
   }
   const auth = oauthAuthById(id);
   if (!auth) {
@@ -49,9 +49,7 @@ export const startLogin = async (id: string, opts?: string): Promise<void> => {
       controller.signal.throwIfAborted();
       console.log(`Logged in as ${auth.name} — provider & models registered`);
     } catch (error) {
-      console.error(
-        `Login failed for ${auth.id}: ${error instanceof Error ? error.message : String(error)}`,
-      );
+      console.error(`Login failed for ${auth.id}: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
       if (activeLoginAbort === controller) activeLoginAbort = null;
     }

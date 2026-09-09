@@ -38,11 +38,7 @@ export const fmtDuration = (sec: number): string => {
   return `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, "0")}m`;
 };
 
-export const fmtRunSummary = (
-  elapsedSec: number,
-  outputTokens: number | null,
-  cost: number | null,
-): string | null => {
+export const fmtRunSummary = (elapsedSec: number, outputTokens: number | null, cost: number | null): string | null => {
   const parts: string[] = [];
   if (elapsedSec >= 1) parts.push(fmtDuration(elapsedSec));
   if (outputTokens !== null && outputTokens > 0) parts.push(`${fmtTokens(outputTokens)} out`);

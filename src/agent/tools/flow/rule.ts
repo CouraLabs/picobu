@@ -1,6 +1,6 @@
-import z from "zod";
-import { listRules, type Rule } from "@agent/rules/rules.ts";
 import { parseMarkdownFile } from "@agent/markdown/markdown-parser.ts";
+import { listRules, type Rule } from "@agent/rules/rules.ts";
+import z from "zod";
 export const RuleToolArgsSchema = z.object({
   name: z.string(),
 });
@@ -20,9 +20,7 @@ export const createRuleTool = (getRules: () => Rule[] = listRules) => ({
   ].join(" "),
   parameters: RuleToolArgsSchema,
   output: RuleToolOutputSchema,
-  handler: async (
-    args: z.infer<typeof RuleToolArgsSchema>,
-  ): Promise<z.infer<typeof RuleToolOutputSchema>> => {
+  handler: async (args: z.infer<typeof RuleToolArgsSchema>): Promise<z.infer<typeof RuleToolOutputSchema>> => {
     const rules = getRules();
     const rule = rules.find((r) => r.name.toLowerCase() === args.name.trim().toLowerCase());
     if (!rule) {

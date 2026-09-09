@@ -1,8 +1,6 @@
+import { addTodayTask, sendWwpMessage } from "@integrations/whatsapp/actions.ts";
 import z from "zod";
-import {
-  sendWwpMessage,
-  addTodayTask,
-} from "@integrations/whatsapp/actions.ts";
+
 const sent = z.object({ message: z.string() });
 
 export const wwpTools: {
@@ -15,8 +13,7 @@ export const wwpTools: {
 }[] = [
   {
     name: "wwp-msg",
-    description:
-      "Send a WhatsApp text message to a phone number. Use when a WhatsApp user asks to message someone.",
+    description: "Send a WhatsApp text message to a phone number. Use when a WhatsApp user asks to message someone.",
     parameters: z.object({ phone: z.string(), message: z.string() }),
     output: sent,
     kind: "integration" as const,
@@ -31,5 +28,5 @@ export const wwpTools: {
     output: sent,
     kind: "integration" as const,
     handler: async (args: { text: string }) => ({ message: await addTodayTask(args.text) }),
-  }
+  },
 ];

@@ -2,50 +2,38 @@ import { describe, expect, mock, test } from "bun:test";
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { options, type ProviderOptions } from "../../src/config/options.ts";
-import { NO_TOOLS, createAgent } from "../../src/agent/agents/create-agent.ts";
+import type { Provider as ModelsDevProvider } from "@opencode-ai/models";
+import { createAgent, NO_TOOLS } from "../../src/agent/agents/create-agent.ts";
 import { AGENTS, DEFAULT_AGENT_ID, getAgent, getDefaultAgent, listAgents } from "../../src/agent/agents/registry.ts";
 import {
   BUILT_IN_SUBAGENTS,
-  INTERACTIVE_FLOW_TOOLS,
-  SUBAGENT_DEPTH_CAP,
-  SUBAGENT_RULES,
   getSubagent,
+  INTERACTIVE_FLOW_TOOLS,
   listSubagents,
   prepareSubagent,
+  SUBAGENT_DEPTH_CAP,
+  SUBAGENT_RULES,
 } from "../../src/agent/agents/subagents.ts";
-import type { Provider as ModelsDevProvider } from "@opencode-ai/models";
-import { fetchModelsDevProvider, modelsFromModelsDev } from "../../src/agent/model/catalog-models-dev.ts";
+import { buildCommandPrompt, loadCommandCatalog, loadCommandCatalogSync } from "../../src/agent/commands/discovery.ts";
+import type { Command } from "../../src/agent/commands/types.ts";
 import { hyper } from "../../src/agent/model/catalog-hyper.ts";
+import { fetchModelsDevProvider, modelsFromModelsDev } from "../../src/agent/model/catalog-models-dev.ts";
+import { computeCostSplit, costLoggingMiddleware, withCostLogging } from "../../src/agent/model/cost.ts";
 import { parseModelsResponse } from "../../src/agent/model/fetch-models.ts";
 import { LLM_PROVIDERS, upsertProvider } from "../../src/agent/model/registry.ts";
 import { createModelInstance, listModels, resolveApiKey, resolveAuth } from "../../src/agent/model/resolver.ts";
-import { computeCostSplit, costLoggingMiddleware, withCostLogging } from "../../src/agent/model/cost.ts";
-import { listRules, loadRules } from "../../src/agent/rules/rules.ts";
-import { buildCommandPrompt, loadCommandCatalog, loadCommandCatalogSync } from "../../src/agent/commands/discovery.ts";
-import type { Command } from "../../src/agent/commands/types.ts";
+import { loadAgentsMarkdown } from "../../src/agent/prompts/agents-md.ts";
 import { askMarkdown } from "../../src/agent/prompts/ask.ts";
 import { coderMarkdown } from "../../src/agent/prompts/coder.ts";
-import { planMarkdown } from "../../src/agent/prompts/plan.ts";
-import { persistentMarkdown } from "../../src/agent/prompts/persistent.ts";
 import { compactorPrompt } from "../../src/agent/prompts/compactor.ts";
-import { summarizerPrompt } from "../../src/agent/prompts/summarizer.ts";
+import { bytesToDataUrl, countLines, fileEmbedLabel, resolvePrompt, textEmbedLabel } from "../../src/agent/prompts/embeds.ts";
+import { persistentMarkdown } from "../../src/agent/prompts/persistent.ts";
+import { planMarkdown } from "../../src/agent/prompts/plan.ts";
 import { generateSessionTitle, sessionTitlePrompt } from "../../src/agent/prompts/session-title.ts";
-import {
-  buildRulesSection,
-  buildSkillsSection,
-  buildSubagentsSection,
-  generateSystemMessage,
-  systemMarkdown,
-} from "../../src/agent/prompts/system.ts";
-import {
-  bytesToDataUrl,
-  countLines,
-  fileEmbedLabel,
-  resolvePrompt,
-  textEmbedLabel,
-} from "../../src/agent/prompts/embeds.ts";
-import { loadAgentsMarkdown } from "../../src/agent/prompts/agents-md.ts";
+import { summarizerPrompt } from "../../src/agent/prompts/summarizer.ts";
+import { buildRulesSection, buildSkillsSection, buildSubagentsSection, generateSystemMessage, systemMarkdown } from "../../src/agent/prompts/system.ts";
+import { listRules, loadRules } from "../../src/agent/rules/rules.ts";
+import { options, type ProviderOptions } from "../../src/config/options.ts";
 
 mock.module("@opencode-ai/models", () => ({
   Models: {
@@ -393,7 +381,13 @@ describe("cost logging middleware", () => {
       const out = await (mw.wrapStream as unknown as (opts: unknown) => Promise<{ stream: ReadableStream<unknown> }>)({
         doStream: async () => ({ stream: source }),
       });
-      await out.stream.pipeTo(new WritableStream<unknown>({ write(chunk) { seen.push(chunk); } }));
+      await out.stream.pipeTo(
+        new WritableStream<unknown>({
+          write(chunk) {
+            seen.push(chunk);
+          },
+        }),
+      );
     });
     expect(seen.length).toBe(2);
     expect(lines.some((line) => line.includes("stream-key"))).toBe(true);
@@ -402,7 +396,11 @@ describe("cost logging middleware", () => {
   test("wrapStream flush without finish still logs", async () => {
     const mw = costLoggingMiddleware("flush-key", undefined);
     const lines = await captureConsoleError(async () => {
-      const source = new ReadableStream<unknown>({ start(controller) { controller.close(); } });
+      const source = new ReadableStream<unknown>({
+        start(controller) {
+          controller.close();
+        },
+      });
       const out = await (mw.wrapStream as unknown as (opts: unknown) => Promise<{ stream: ReadableStream<unknown> }>)({
         doStream: async () => ({ stream: source }),
       });

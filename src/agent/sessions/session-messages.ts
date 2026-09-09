@@ -1,11 +1,6 @@
 import type { UIMessage } from "ai";
 
-const KEEP_TOOL_STATES = new Set([
-  "output-available",
-  "output-error",
-  "output-denied",
-  "approval-responded",
-]);
+const KEEP_TOOL_STATES = new Set(["output-available", "output-error", "output-denied", "approval-responded"]);
 
 function isPreliminaryToolPart(part: unknown): boolean {
   return typeof part === "object" && part !== null && "preliminary" in part && part.preliminary === true;
@@ -28,9 +23,7 @@ export function stripUnreplayableReasoning<M extends UIMessage>(messages: M[]): 
     let changed = false;
     const parts = m.parts.filter((part) => {
       if (part.type !== "reasoning") return true;
-      const meta = (
-        part as { providerMetadata?: { anthropic?: { signature?: unknown; redactedData?: unknown } } }
-      ).providerMetadata;
+      const meta = (part as { providerMetadata?: { anthropic?: { signature?: unknown; redactedData?: unknown } } }).providerMetadata;
       const replayable = Boolean(meta?.anthropic?.signature || meta?.anthropic?.redactedData);
       if (!replayable) changed = true;
       return replayable;

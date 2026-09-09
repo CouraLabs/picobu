@@ -1,5 +1,4 @@
-export const coderMarkdown =
-`---
+export const coderMarkdown = `---
 name: Coder
 description: You implement changes: edit files, run commands, and verify your work in the repo
 category: coding

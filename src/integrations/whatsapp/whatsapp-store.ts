@@ -13,7 +13,7 @@ export type WhatsAppStoreState = WhatsAppState;
 
 const createStore = (initial: WhatsAppState) => {
   let context = initial;
-  const define = <P,>(event: (s: WhatsAppState, e: P) => WhatsAppState) => {
+  const define = <P>(event: (s: WhatsAppState, e: P) => WhatsAppState) => {
     return (payload: P) => {
       context = event(context, payload);
     };

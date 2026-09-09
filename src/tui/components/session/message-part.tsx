@@ -1,72 +1,65 @@
-import type { LoopMessage } from "@agent/loop/create-loop.ts"
-import type { MouseEvent } from "@opentui/core"
-import { theme } from "@states/theme-state.ts"
-import { dialogStatus } from "@states/dialog.state.ts"
-import { ReasoningPart } from "@tui/components/session/reasoning-part.tsx"
-import { createMemo, createSignal, Show } from "solid-js"
-import { isReasoningUIPart } from "ai"
-import { getSharedTreeSitterClientSync } from "@wrappers/treesitter-wrapper.ts"
+import type { LoopMessage } from "@agent/loop/create-loop.ts";
+import { dialogStatus } from "@states/dialog.state.ts";
+import { theme } from "@states/theme-state.ts";
+import { ReasoningPart } from "@tui/components/session/reasoning-part.tsx";
+import { getSharedTreeSitterClientSync } from "@wrappers/treesitter-wrapper.ts";
+import { isReasoningUIPart } from "ai";
+import { createMemo, createSignal, Show } from "solid-js";
 
-type MessagePart = LoopMessage["parts"][number]
+type MessagePart = LoopMessage["parts"][number];
 
 const partContent = (part: MessagePart): string => {
   switch (part.type) {
     case "text":
-      return part.text
+      return part.text;
     case "reasoning":
-      return part.text
+      return part.text;
     default:
-      return JSON.stringify(part)
+      return JSON.stringify(part);
   }
-}
+};
 
 export type MessagePartViewProps = {
-  role: LoopMessage["role"]
-  part: MessagePart
-  message: LoopMessage
-  onOpen?: (message: LoopMessage) => void
-}
+  role: LoopMessage["role"];
+  part: MessagePart;
+  message: LoopMessage;
+  onOpen?: (message: LoopMessage) => void;
+};
 
 export const MessagePartView = (props: MessagePartViewProps) => {
-  const [hovered, setHovered] = createSignal(false)
-  const borderColor = () => (hovered() ? theme().accent : defaultBorderColor())
+  const [hovered, setHovered] = createSignal(false);
+  const borderColor = () => (hovered() ? theme().accent : defaultBorderColor());
 
   const defaultBorderColor = () => {
-    if (props.role === "user") return theme().border
-    if (reasoningPart()) return theme().textMuted
-    return theme().primary
-  }
+    if (props.role === "user") return theme().border;
+    if (reasoningPart()) return theme().textMuted;
+    return theme().primary;
+  };
 
   const reasoningPart = createMemo(() => {
     const part = props.part;
-    if(isReasoningUIPart(part))
-      return part
-    return null
-  })
+    if (isReasoningUIPart(part)) return part;
+    return null;
+  });
 
   const hoverProps = {
     onMouseOver: () => setHovered(true),
     onMouseOut: () => setHovered(false),
-    onMouseUp: (e: MouseEvent) => {
-      if (dialogStatus().status === "open") return
-      if (e.button !== 2 && !e.modifiers?.ctrl && !e.modifiers?.alt && !e.modifiers?.shift) return
-      props.onOpen?.(props.message)
+    onMouseUp: () => {
+      if (dialogStatus().status === "open") return;
+      props.onOpen?.(props.message);
     },
-  }
+  };
 
   return (
     <Show
       when={props.role !== "user"}
       fallback={
         <box marginTop={1} border={["left"]} borderStyle={hovered() ? "double" : "heavy"} borderColor={borderColor()} paddingLeft={1} {...hoverProps}>
-          <markdown
-            syntaxStyle={theme().syntax}
-            treeSitterClient={getSharedTreeSitterClientSync()}
-            conceal
-            content={partContent(props.part)}
-          />
+          <markdown syntaxStyle={theme().syntax} treeSitterClient={getSharedTreeSitterClientSync()} conceal content={partContent(props.part)} />
         </box>
-      }>
+      }
+    >
       <Show
         when={reasoningPart()}
         fallback={
@@ -80,13 +73,14 @@ export const MessagePartView = (props: MessagePartViewProps) => {
               content={partContent(props.part)}
             />
           </box>
-        }>
+        }
+      >
         {(rp: () => NonNullable<ReturnType<typeof reasoningPart>>) => (
           <box marginTop={1} border={["left"]} borderStyle={hovered() ? "double" : "heavy"} borderColor={borderColor()} paddingLeft={1} {...hoverProps}>
-            <ReasoningPart part={rp()} isStreamingTail={rp().state === 'streaming'} />
+            <ReasoningPart part={rp()} isStreamingTail={rp().state === "streaming"} />
           </box>
         )}
       </Show>
     </Show>
-  )
-}
+  );
+};

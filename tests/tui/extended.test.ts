@@ -118,8 +118,8 @@ describe("theme state", () => {
     expect(snapshot.theme.afterToggle).toEqual({ name: "dracula", variant: "dark" });
     expect(snapshot.theme.afterToggleBack).toEqual({ name: "dracula", variant: "light" });
   });
-  test("setTheme rejects unknown themes", () => {
-    expect(snapshot.theme.unknownThemeError.startsWith('Unknown theme "missing-theme"')).toBe(true);
+  test("setTheme falls back to tacos for unknown themes", () => {
+    expect(snapshot.theme.unknownThemeError).toBe("tacos");
   });
 });
 

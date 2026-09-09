@@ -1,7 +1,7 @@
-import z from "zod";
+import { renderPage } from "@agent/tools/web/browser.ts";
 import { htmlToMarkdown } from "@agent/tools/web/html-to-markdown.ts";
 import { fetchAsMarkdown } from "@agent/tools/web/webfetch.ts";
-import { renderPage } from "@agent/tools/web/browser.ts";
+import z from "zod";
 export const WebsearchToolArgsSchema = z.object({
   query: z.string().min(1),
   deepness: z.number().min(1).max(5).default(1),
@@ -23,10 +23,7 @@ export const WebsearchProgressSchema = z.object({
   results: z.array(WebsearchResultSchema).optional(),
 });
 
-export const WebsearchStreamChunkSchema = z.union([
-  WebsearchToolOutputSchema,
-  WebsearchProgressSchema,
-]);
+export const WebsearchStreamChunkSchema = z.union([WebsearchToolOutputSchema, WebsearchProgressSchema]);
 const SEARCH_ENDPOINT = "https://html.duckduckgo.com/html/";
 
 export type ParsedSearchPage = {
@@ -35,13 +32,7 @@ export type ParsedSearchPage = {
 };
 
 function decodeEntities(text: string): string {
-  return text
-    .replaceAll("&amp;", "&")
-    .replaceAll("&lt;", "<")
-    .replaceAll("&gt;", ">")
-    .replaceAll("&quot;", '"')
-    .replaceAll("&#x27;", "'")
-    .replaceAll("&#39;", "'");
+  return text.replaceAll("&amp;", "&").replaceAll("&lt;", "<").replaceAll("&gt;", ">").replaceAll("&quot;", '"').replaceAll("&#x27;", "'").replaceAll("&#39;", "'");
 }
 
 export function resolveDdgHref(href: string): string | null {
@@ -92,9 +83,7 @@ export const websearchTool = {
   parameters: WebsearchToolArgsSchema,
   output: WebsearchStreamChunkSchema,
   kind: "external" as const,
-  handler: async function* (
-    args: z.infer<typeof WebsearchToolArgsSchema>,
-  ): AsyncGenerator<z.infer<typeof WebsearchStreamChunkSchema>> {
+  handler: async function* (args: z.infer<typeof WebsearchToolArgsSchema>): AsyncGenerator<z.infer<typeof WebsearchStreamChunkSchema>> {
     const seen = new Set<string>();
     const results: z.infer<typeof WebsearchResultSchema>[] = [];
     const snapshot = () => results.map((r) => ({ ...r }));
@@ -111,9 +100,7 @@ export const websearchTool = {
         if (rendered.status >= 400) throw new Error(`HTTP ${rendered.status}`);
         html = rendered.body;
       } catch (error) {
-        throw new Error(
-          `DuckDuckGo search failed for "${args.query}" (page ${page + 1}): ${error instanceof Error ? error.message : String(error)}`,
-        );
+        throw new Error(`DuckDuckGo search failed for "${args.query}" (page ${page + 1}): ${error instanceof Error ? error.message : String(error)}`);
       }
       pages++;
       const parsed = parseSearchPage(html);

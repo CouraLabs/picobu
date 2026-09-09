@@ -1,16 +1,13 @@
-import { resolveModelRef } from "@agent/model/resolver.ts";
-import {
-  createSession,
-  toPromptMessage,
-  type Session,
-  type SessionPrompt,
-} from "@agent/sessions/session.ts";
-import { generateSessionId } from "@agent/sessions/session-paths.ts";
 import { getSubagent, listSubagents, prepareSubagent, SUBAGENT_DEPTH_CAP } from "@agent/agents/subagents.ts";
 import type { LoopConfig } from "@agent/loop/create-loop.ts";
-import { lastAssistantText } from "@agent/sessions/session-messages.ts";
+import { resolveModelRef } from "@agent/model/resolver.ts";
+import { generateSessionTitle } from "@agent/prompts/session-title.ts";
+import { createSession, type Session, type SessionPrompt, toPromptMessage } from "@agent/sessions/session.ts";
 import type { JobTracker } from "@agent/sessions/session-jobs.ts";
 import type { SessionManager } from "@agent/sessions/session-manager.ts";
+import { lastAssistantText } from "@agent/sessions/session-messages.ts";
+import { generateSessionId } from "@agent/sessions/session-paths.ts";
+import { truncate } from "@shared/text-stats.ts";
 
 export type SpawnSubSessionParams = {
   parentId: string;
@@ -39,6 +36,7 @@ export async function spawnSubSession(
   ctx: SpawnContext,
   { parentId, subagent, prompt, depth }: SpawnSubSessionParams,
 ): Promise<{
+  sessionId: string;
   summary: string;
   usage: { inputTokens: number; outputTokens: number; cacheRead: number; cacheWrite: number; cost?: number };
 }> {
@@ -79,17 +77,50 @@ export async function spawnSubSession(
       const ref = resolveModelRef(def.model);
       if (`${ref.provider.id}/${ref.modelId}` === def.model) modelKey = def.model;
     }
+    const promptText =
+      typeof prompt === "string"
+        ? prompt
+        : Array.isArray((prompt as { parts?: unknown }).parts)
+          ? (prompt as { parts: Array<{ type?: unknown; text?: unknown }> }).parts
+              .filter((entry) => entry.type === "text" && typeof entry.text === "string")
+              .map((entry) => entry.text as string)
+              .join("\n")
+          : "";
+    const fallbackTitle = promptText.trim() ? `${subagent}: ${truncate(promptText.replace(/\s+/g, " ").trim())}` : `${subagent}: sub session`;
     const child = await createSession({
-      config: () => ctx.baseConfig({ modelKey, sessionId, agentOverride: prepared, subagent: true, spawn: { manager: ctx.manager, parentId: sessionId, depth: depth + 1 } }),
+      config: () =>
+        ctx.baseConfig({ modelKey, sessionId, agentOverride: prepared, subagent: true, spawn: { manager: ctx.manager, parentId: sessionId, depth: depth + 1 } }),
       id: sessionId,
-      meta: { cwd: ctx.cwd, parentSessionId: parentId, title: `${subagent}: sub session` },
+      meta: { cwd: ctx.cwd, parentSessionId: parentId, title: fallbackTitle },
     });
     ctx.live.set(sessionId, child);
+    if (promptText.trim()) {
+      generateSessionTitle(promptText)
+        .then((generated) => {
+          child.setTitle(generated);
+        })
+        .catch(() => {});
+    }
     try {
       await child.sendMessage(toPromptMessage(prompt));
       if (child.error) throw child.error;
-      const result = await child.summarize().catch(() => undefined);
-      const summary = result?.summary ?? lastAssistantText(child.messages) ?? "(sub agent produced no output)";
+      const report = lastAssistantText(child.messages);
+      let summary = report;
+      if (!summary) {
+        const result = await child.summarize().catch(() => undefined);
+        if (result) {
+          child.addUsage({
+            source: "run",
+            modelKey,
+            inputTokens: result.usage.inputTokens ?? 0,
+            outputTokens: result.usage.outputTokens ?? 0,
+            cacheReadTokens: result.usage.cacheReadTokens ?? 0,
+            cacheWriteTokens: result.usage.cacheWriteTokens ?? 0,
+            cost: result.cost,
+          });
+        }
+        summary = result?.summary ?? "(sub agent produced no output)";
+      }
       const childTotals = child.totals;
       parent?.addUsage({
         source: "subagent",
@@ -104,6 +135,7 @@ export async function spawnSubSession(
       });
       ctx.jobs.patch(sessionId, { state: "finished" });
       return {
+        sessionId,
         summary,
         usage: {
           inputTokens: childTotals.inputTokens,

@@ -1,17 +1,11 @@
-import type { Provider as ModelsDevProvider } from "@opencode-ai/models";
-import {
-  options,
-  updateSettings,
-  type HarnessOptions,
-  type HarnessOptionsInput,
-  type ProviderModelOptions,
-  type ProviderOptions,
-} from "@config/options.ts";
-import { upsertProvider } from "@agent/model/registry.ts";
 import { fetchModelsDevProvider, modelsFromModelsDev } from "@agent/model/catalog-models-dev.ts";
-import { removeCredential, setCredential } from "@auth/store.ts";
+import { upsertProvider } from "@agent/model/registry.ts";
 import { getGitHubCopilotBaseUrl } from "@auth/github-copilot.ts";
+import { removeCredential, setCredential } from "@auth/store.ts";
 import type { OAuthAuth, OAuthCredential } from "@auth/types.ts";
+import { type HarnessOptions, type HarnessOptionsInput, options, type ProviderModelOptions, type ProviderOptions, updateSettings } from "@config/options.ts";
+import type { Provider as ModelsDevProvider } from "@opencode-ai/models";
+
 type ProviderMeta = {
   type: "openai" | "anthropic" | "openai-compatible";
   baseUrl?: string;
@@ -22,10 +16,7 @@ const PROVIDER_META: Record<string, ProviderMeta> = {
   anthropic: { type: "anthropic", baseUrl: "https://api.anthropic.com/v1", catalogEnv: "ANTHROPIC_API_KEY" },
   "github-copilot": { type: "openai-compatible", catalogEnv: "GITHUB_TOKEN" },
 };
-export const selectCopilotModels = (
-  catalog: ModelsDevProvider,
-  availableModelIds: string[] | undefined,
-): ProviderModelOptions[] => {
+export const selectCopilotModels = (catalog: ModelsDevProvider, availableModelIds: string[] | undefined): ProviderModelOptions[] => {
   if (availableModelIds === undefined) return modelsFromModelsDev(catalog);
   const ids = availableModelIds;
   if (ids.length === 0) return [];
@@ -36,18 +27,13 @@ export const selectCopilotModels = (
     .map((id): ProviderModelOptions => ({ id, name: id, context: 0, output: 0, supports: ["text"] }));
   return [...fromCatalog, ...extras];
 };
-export const pickDefaultModel = (models: ProviderModelOptions[]): string | undefined =>
-  (models.find((m) => m.reasoning === true) ?? models[0])?.id;
+export const pickDefaultModel = (models: ProviderModelOptions[]): string | undefined => (models.find((m) => m.reasoning === true) ?? models[0])?.id;
 export const registerOAuthProvider = async (auth: OAuthAuth, credential: OAuthCredential): Promise<void> => {
   const meta = PROVIDER_META[auth.id];
   if (!meta) throw new Error(`No registration metadata for OAuth provider "${auth.id}"`);
   await setCredential(auth.id, credential);
   const catalog = await fetchModelsDevProvider(meta.catalogEnv);
-  const models = catalog
-    ? auth.id === "github-copilot"
-      ? selectCopilotModels(catalog, credential.availableModelIds)
-      : modelsFromModelsDev(catalog)
-    : [];
+  const models = catalog ? (auth.id === "github-copilot" ? selectCopilotModels(catalog, credential.availableModelIds) : modelsFromModelsDev(catalog)) : [];
   if (models.length === 0) {
     throw new Error(`Could not load ${auth.name} models from the models.dev catalog`);
   }
@@ -56,10 +42,7 @@ export const registerOAuthProvider = async (auth: OAuthAuth, credential: OAuthCr
     id: auth.id,
     name: auth.name,
     type: meta.type,
-    baseUrl:
-      requestAuth.baseUrl ??
-      meta.baseUrl ??
-      getGitHubCopilotBaseUrl(credential.access, credential.enterpriseUrl),
+    baseUrl: requestAuth.baseUrl ?? meta.baseUrl ?? getGitHubCopilotBaseUrl(credential.access, credential.enterpriseUrl),
     apiKey: `auth:${auth.id}`,
     models,
   };
@@ -73,16 +56,11 @@ export const registerOAuthProvider = async (auth: OAuthAuth, credential: OAuthCr
   options.providers = next.providers;
   if (next.harness) options.harness = next.harness;
 };
-export const fixHarnessAfterLogout = (
-  harness: HarnessOptions | undefined,
-  providerId: string,
-  providers: ProviderOptions[],
-): HarnessOptionsInput => {
+export const fixHarnessAfterLogout = (harness: HarnessOptions | undefined, providerId: string, providers: ProviderOptions[]): HarnessOptionsInput => {
   const first = providers[0];
-  const firstModel = first ? pickDefaultModel(first.models) ?? first.models[0]?.id : undefined;
+  const firstModel = first ? (pickDefaultModel(first.models) ?? first.models[0]?.id) : undefined;
   const fallback = first && firstModel ? `${first.id}/${firstModel}` : undefined;
-  const repoint = (selector?: string): string | undefined =>
-    selector && selector.startsWith(`${providerId}/`) ? fallback : selector;
+  const repoint = (selector?: string): string | undefined => (selector && selector.startsWith(`${providerId}/`) ? fallback : selector);
   return {
     ...(harness ?? {}),
     defaultModel: repoint(harness?.defaultModel),
@@ -94,26 +72,17 @@ export const fixHarnessAfterLogout = (
     },
   };
 };
-export const repointModelKey = (
-  modelKey: string,
-  removedProviderId: string,
-  providers: ProviderOptions[],
-): string => {
+export const repointModelKey = (modelKey: string, removedProviderId: string, providers: ProviderOptions[]): string => {
   if (!modelKey.startsWith(`${removedProviderId}/`)) return modelKey;
   const first = providers[0];
-  const model = first ? pickDefaultModel(first.models) ?? first.models[0]?.id : undefined;
+  const model = first ? (pickDefaultModel(first.models) ?? first.models[0]?.id) : undefined;
   return first && model ? `${first.id}/${model}` : modelKey;
 };
-export const logoutOAuthProvider = async (
-  id: string,
-  currentModelKey: string,
-): Promise<{ removed: boolean; nextModelKey: string }> => {
+export const logoutOAuthProvider = async (id: string, currentModelKey: string): Promise<{ removed: boolean; nextModelKey: string }> => {
   const removedCredential = await removeCredential(id);
   const providers = options.providers.filter((p) => p.apiKey !== `auth:${id}`);
   const harness = fixHarnessAfterLogout(options.harness, id, providers);
-  const changed =
-    providers.length !== options.providers.length ||
-    JSON.stringify(harness) !== JSON.stringify(options.harness);
+  const changed = providers.length !== options.providers.length || JSON.stringify(harness) !== JSON.stringify(options.harness);
   if (changed) {
     const next = await updateSettings({ providers, harness });
     options.providers = next.providers;

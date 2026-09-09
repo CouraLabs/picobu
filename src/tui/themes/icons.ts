@@ -148,4 +148,5 @@ export const icons = {
   hash: "#",
   at: "@",
   asterisk: "✱",
-}
+  pencil: "✎",
+};

@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import { htmlToMarkdown } from "../../src/agent/tools/web/html-to-markdown.ts";
 import { assertSafeUrl } from "../../src/agent/tools/web/browser.ts";
-import { WebfetchToolArgsSchema, fetchAsMarkdown } from "../../src/agent/tools/web/webfetch.ts";
-import { WebsearchToolArgsSchema, parseSearchPage, resolveDdgHref } from "../../src/agent/tools/web/websearch.ts";
+import { htmlToMarkdown } from "../../src/agent/tools/web/html-to-markdown.ts";
+import { fetchAsMarkdown, WebfetchToolArgsSchema } from "../../src/agent/tools/web/webfetch.ts";
+import { parseSearchPage, resolveDdgHref, WebsearchToolArgsSchema } from "../../src/agent/tools/web/websearch.ts";
 
 describe("htmlToMarkdown", () => {
   test("converts h1 to atx heading", () => {
@@ -20,7 +20,7 @@ describe("htmlToMarkdown", () => {
     expect(out).toContain("const a = 1;");
   });
   test("strips script style noscript iframe", () => {
-    const out = htmlToMarkdown("<p>keep</p><script>alert(1)</script><style>p{}</style><noscript>ns</noscript><iframe src=\"x\"></iframe>");
+    const out = htmlToMarkdown('<p>keep</p><script>alert(1)</script><style>p{}</style><noscript>ns</noscript><iframe src="x"></iframe>');
     expect(out).toBe("keep");
     expect(out).not.toContain("alert");
   });

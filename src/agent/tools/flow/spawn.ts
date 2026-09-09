@@ -1,10 +1,11 @@
-import z from "zod";
 import type { SessionManager } from "@agent/sessions/session-manager.ts";
+import z from "zod";
 export const SpawnToolArgsSchema = z.object({
   subagent: z.string().min(1),
   prompt: z.string().min(1),
 });
 export const SpawnToolOutputSchema = z.object({
+  sessionId: z.string().optional(),
   summary: z.string(),
   usage: z.object({
     inputTokens: z.number(),
@@ -26,7 +27,7 @@ export const createSpawnTool = (ctx: SpawnToolContext) => ({
   name: "spawn",
   kind: "flow" as const,
   description: [
-    "Run a subagent as an isolated sub session and wait for its final report.",
+    "Run/spawn/call a subagent as an isolated sub session and wait for its final report.",
     "Write a self-contained prompt: sub agents cannot ask questions — resolve everything from the prompt and the repository.",
     "Several spawns in one step run in parallel; the step continues once all have settled.",
   ].join(" "),

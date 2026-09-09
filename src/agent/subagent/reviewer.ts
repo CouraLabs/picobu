@@ -1,5 +1,4 @@
-export const reviewerSubAgent = `
----
+export const reviewerSubAgent = `---
 name: Reviewer
 description: Subagent: Review the code based on what the user input
 tools: read, grep, glob, shell

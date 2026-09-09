@@ -2,7 +2,19 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { mcpToolName, renderMcpServerToolsInfo, renderMcpToolInfo } from "../../src/integrations/mcp/tools-info.ts";
+import {
+  createMcpAuthProvider,
+  getMcpCredential,
+  initMcpAuth,
+  initMcpAuthFilePath,
+  isMcpAuthActive,
+  MCP_REDIRECT_URL,
+  readMcpAuthFile,
+  removeMcpCredential,
+  resetMcpAuthCache,
+  setMcpCredential,
+} from "../../src/integrations/mcp/auth.ts";
+import { createMcpManager } from "../../src/integrations/mcp/client.ts";
 import {
   DEFAULT_MCP_OPTIONS,
   mergeMcpServers,
@@ -13,19 +25,7 @@ import {
   serverTarget,
 } from "../../src/integrations/mcp/config.ts";
 import { parseProjectMcpJson } from "../../src/integrations/mcp/discover.ts";
-import { createMcpManager } from "../../src/integrations/mcp/client.ts";
-import {
-  MCP_REDIRECT_URL,
-  createMcpAuthProvider,
-  getMcpCredential,
-  initMcpAuth,
-  initMcpAuthFilePath,
-  isMcpAuthActive,
-  readMcpAuthFile,
-  removeMcpCredential,
-  resetMcpAuthCache,
-  setMcpCredential,
-} from "../../src/integrations/mcp/auth.ts";
+import { mcpToolName, renderMcpServerToolsInfo, renderMcpToolInfo } from "../../src/integrations/mcp/tools-info.ts";
 import { initLockDir } from "../../src/shared/lock.ts";
 
 describe("mcpToolName", () => {
@@ -230,9 +230,13 @@ describe("mcp auth file", () => {
     expect(isMcpAuthActive("nope")).toBe(false);
     await setMcpCredential("plain", { tokens: { access_token: "a", token_type: "bearer" } } as unknown as Parameters<typeof setMcpCredential>[1]);
     expect(isMcpAuthActive("plain")).toBe(true);
-    await setMcpCredential("old", { tokens: { access_token: "a", token_type: "bearer" }, expiresAt: Date.now() - 1000 } as unknown as Parameters<typeof setMcpCredential>[1]);
+    await setMcpCredential("old", { tokens: { access_token: "a", token_type: "bearer" }, expiresAt: Date.now() - 1000 } as unknown as Parameters<
+      typeof setMcpCredential
+    >[1]);
     expect(isMcpAuthActive("old")).toBe(false);
-    await setMcpCredential("fresh", { tokens: { access_token: "a", token_type: "bearer" }, expiresAt: Date.now() + 10 * 60 * 1000 } as unknown as Parameters<typeof setMcpCredential>[1]);
+    await setMcpCredential("fresh", { tokens: { access_token: "a", token_type: "bearer" }, expiresAt: Date.now() + 10 * 60 * 1000 } as unknown as Parameters<
+      typeof setMcpCredential
+    >[1]);
     expect(isMcpAuthActive("fresh")).toBe(true);
   });
   test("removeMcpCredential reports removal once", async () => {

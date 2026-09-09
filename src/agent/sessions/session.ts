@@ -1,54 +1,48 @@
 import { randomUUID } from "node:crypto";
-import {
-  generateId,
-  readUIMessageStream,
-  type AsyncIterableStream,
-  type ChatInit,
-  type ChatStatus,
-  type ChatTransport,
-  type CreateUIMessage,
-  type UIMessageChunk,
-} from "ai";
-import {
-  createLoop,
-  type Loop,
-  type LoopConfig,
-  type LoopMessage,
-  type LoopMessageMetadata,
-} from "@agent/loop/create-loop.ts";
-import { computeCost, computeCostSplit, type LoopUsage } from "@agent/model/cost.ts";
-import {
-  addToTotals,
-  emptyTotals,
-  isWaiting,
-  readSessionMeta,
-  updateSessionMeta,
-  writeSessionMeta,
-  type CostDetail,
-  type SessionMeta,
-  type SessionState,
-  type SessionTotals,
-} from "@agent/sessions/session-meta.ts";
-import { resolveModelRef } from "@agent/model/resolver.ts";
-import { options, type ProviderModelBilling, type ProviderModelReasoningEffort } from "@config/options.ts";
 import { AGENTS, listAgents } from "@agent/agents/registry.ts";
+import { type Command, listCommands, listSkills } from "@agent/commands/index.ts";
+import { createLoop, type LoopConfig, type LoopMessage, type LoopMessageMetadata } from "@agent/loop/create-loop.ts";
+import { computeCost, computeCostSplit, type LoopUsage } from "@agent/model/cost.ts";
+import { resolveModelRef } from "@agent/model/resolver.ts";
+import { type SummarizeResult, summarizeSession } from "@agent/prompts/summarizer.ts";
 import { listRules, type Rule } from "@agent/rules/rules.ts";
-import { listCommands, listSkills, type Command } from "@agent/commands/index.ts";
-import { checkpointsPath, CheckpointStore, type UndoResult } from "@agent/sessions/checkpoints.ts";
-import { summarizeSession, type SummarizeResult } from "@agent/prompts/summarizer.ts";
-import { dropUnansweredPrompt, stripUnreplayableReasoning } from "@agent/sessions/session-messages.ts";
+import { CheckpointStore, checkpointsPath, type UndoResult } from "@agent/sessions/checkpoints.ts";
 import {
   buildPlanHandoffCut,
+  type CompactResult,
   compactedMessageText,
   compactSession,
   isCompactionCut,
   messagesForLlm,
   shouldCompact,
-  type CompactResult,
 } from "@agent/sessions/session-compaction.ts";
-import { loadSession, SessionSaver } from "@agent/sessions/session-store.ts";
+import { Chat, type ChatChangeHandler, createHeadlessChatState } from "@agent/sessions/session-headless-chat.ts";
+import { dropUnansweredPrompt, stripUnreplayableReasoning } from "@agent/sessions/session-messages.ts";
+import {
+  addToTotals,
+  type CostDetail,
+  emptyTotals,
+  isWaiting,
+  readSessionMeta,
+  type SessionMeta,
+  type SessionState,
+  type SessionTotals,
+  updateSessionMeta,
+  writeSessionMeta,
+} from "@agent/sessions/session-meta.ts";
 import { folderKeyFor, generateSessionId, sessionFilePath } from "@agent/sessions/session-paths.ts";
-import { Chat, createHeadlessChatState, type ChatChangeHandler } from "@agent/sessions/session-headless-chat.ts";
+import { loadSession, SessionSaver } from "@agent/sessions/session-store.ts";
+import { options, type ProviderModelBilling, type ProviderModelReasoningEffort } from "@config/options.ts";
+import {
+  type AsyncIterableStream,
+  type ChatInit,
+  type ChatStatus,
+  type ChatTransport,
+  type CreateUIMessage,
+  generateId,
+  readUIMessageStream,
+  type UIMessageChunk,
+} from "ai";
 
 export type SessionUsage = LoopUsage & {
   tps?: number;
@@ -86,11 +80,7 @@ const flowToolPartName = (part: LooseFlowPart): string | undefined => {
   return undefined;
 };
 
-const findFlowPart = (
-  messages: LoopMessage[],
-  tool: string,
-  toolCallId: string,
-): { message: LoopMessage; part: LooseFlowPart } | undefined => {
+const findFlowPart = (messages: LoopMessage[], tool: string, toolCallId: string): { message: LoopMessage; part: LooseFlowPart } | undefined => {
   for (let i = messages.length - 1; i >= 0; i--) {
     const message = messages[i]!;
     for (const raw of message.parts ?? []) {
@@ -109,9 +99,7 @@ const flowOutputStatus = (part: LooseFlowPart): string | undefined => {
 };
 
 export const toPromptMessage = (prompt: SessionPrompt): CreateUIMessage<LoopMessage> =>
-  typeof prompt === "string"
-    ? ({ parts: [{ type: "text", text: prompt }] } as CreateUIMessage<LoopMessage>)
-    : prompt;
+  typeof prompt === "string" ? ({ parts: [{ type: "text", text: prompt }] } as CreateUIMessage<LoopMessage>) : prompt;
 
 export type Session = {
   readonly id: string;
@@ -120,6 +108,7 @@ export type Session = {
   readonly messages: LoopMessage[];
   readonly lastMessage: LoopMessage | undefined;
   readonly config: LoopConfig;
+  readonly title: string | undefined;
   readonly skills: Command[];
   readonly workflows: Command[];
   readonly rules: Rule[];
@@ -133,6 +122,7 @@ export type Session = {
   readonly totals: SessionTotals;
   readonly state: SessionState;
   summarize: () => Promise<SummarizeResult>;
+  setTitle: (title: string) => void;
   undo: () => Promise<UndoResult>;
   redo: () => Promise<UndoResult>;
   revertToMessage: (messageId: string) => void;
@@ -149,6 +139,8 @@ export type Session = {
   switchModel: (modelKey: string) => void;
   switchThinking: (thinking: ProviderModelReasoningEffort) => void;
   queue: (prompt: SessionPrompt) => void;
+  readonly queuedCount: number;
+  dequeueNewest: () => boolean;
   stream: () => AsyncGenerator<UIMessageChunk>;
   streamMessages: () => AsyncIterableStream<LoopMessage>;
   steer: (prompt: SessionPrompt) => Promise<void>;
@@ -171,31 +163,11 @@ export type CreateSessionInit = Omit<ChatInit<LoopMessage>, "transport"> & {
   forkOnCompact?: boolean;
 };
 
-const deriveState = (chat: {
-  status: ChatStatus;
-  error: Error | undefined;
-  messages: LoopMessage[];
-}): SessionState =>
-  chat.status === "submitted" || chat.status === "streaming"
-    ? "running"
-    : chat.error
-      ? "error"
-      : isWaiting(chat.messages)
-        ? "waiting"
-        : "finished";
+const deriveState = (chat: { status: ChatStatus; error: Error | undefined; messages: LoopMessage[] }): SessionState =>
+  chat.status === "submitted" || chat.status === "streaming" ? "running" : chat.error ? "error" : isWaiting(chat.messages) ? "waiting" : "finished";
 
 export async function createSession(init: CreateSessionInit): Promise<Session> {
-  const {
-    config: configInit,
-    onChange,
-    messages,
-    onFinish,
-    id: sessionId,
-    meta: metaInit,
-    autoCompact,
-    forkOnCompact,
-    ...chatInit
-  } = init;
+  const { config: configInit, onChange, messages, onFinish, id: sessionId, meta: metaInit, autoCompact, forkOnCompact, ...chatInit } = init;
   const forkHost = metaInit?.forkHost;
   const getConfig = typeof configInit === "function" ? configInit : () => configInit;
   const id = sessionId ?? generateSessionId();
@@ -227,6 +199,7 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
     });
   };
   let totals: SessionTotals = meta.totals ?? emptyTotals();
+  let title: string | undefined = meta.title;
 
   const streamListeners = new Set<(chunk: UIMessageChunk) => void>();
   const runEndListeners = new Set<() => void>();
@@ -361,15 +334,11 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
         overrides.agentId = "coder";
         resuming = true;
         if (planHandoffCompact) {
-          const planPart = (finished.parts ?? []).map((p) => p as LooseFlowPart).find(
-            (p) => flowToolPartName(p) === "plan-write" && flowOutputStatus(p) === "approved",
-          );
+          const planPart = (finished.parts ?? []).map((p) => p as LooseFlowPart).find((p) => flowToolPartName(p) === "plan-write" && flowOutputStatus(p) === "approved");
           const planInput = planPart?.input as { plan?: unknown } | undefined;
           const planText = typeof planInput?.plan === "string" ? planInput.plan : undefined;
           const verdictText =
-            typeof (planPart?.output as { message?: unknown } | undefined)?.message === "string"
-              ? String((planPart?.output as { message: string }).message)
-              : "";
+            typeof (planPart?.output as { message?: unknown } | undefined)?.message === "string" ? String((planPart?.output as { message: string }).message) : "";
           if (planText) {
             const cut = buildPlanHandoffCut({ messages: chat.messages, plan: planText, verdict: verdictText });
             chat.messages = [
@@ -401,12 +370,8 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
       } catch {
         billing = undefined;
       }
-      const ttftMs =
-        firstTokenAt !== undefined && runStart !== undefined ? firstTokenAt - runStart : undefined;
-      const tps =
-        usage?.outputTokens && firstTokenAt !== undefined
-          ? (usage.outputTokens / Math.max(1, Date.now() - firstTokenAt)) * 1000
-          : undefined;
+      const ttftMs = firstTokenAt !== undefined && runStart !== undefined ? firstTokenAt - runStart : undefined;
+      const tps = usage?.outputTokens && firstTokenAt !== undefined ? (usage.outputTokens / Math.max(1, Date.now() - firstTokenAt)) * 1000 : undefined;
       lastUsage = {
         ...(usage ?? {}),
         ttftMs,
@@ -495,7 +460,10 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
       }
     })();
 
-    const settled = run.then(() => {}, () => {});
+    const settled = run.then(
+      () => {},
+      () => {},
+    );
     compaction = settled;
     settled.then(() => {
       if (compaction === settled) compaction = undefined;
@@ -575,6 +543,13 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
     },
     get config() {
       return effectiveConfig();
+    },
+    get title() {
+      return title;
+    },
+    setTitle: (next: string) => {
+      title = next;
+      persistMeta({ title: next });
     },
     get skills() {
       return listSkills();
@@ -690,6 +665,15 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
       pendingPrompts.push({ message: toPromptMessage(prompt) });
       void drain();
     },
+    get queuedCount() {
+      return pendingPrompts.length;
+    },
+    dequeueNewest: () => {
+      const item = pendingPrompts.pop();
+      if (!item) return false;
+      item.reject?.(Object.assign(new Error("Dequeued"), { name: "AbortError" }));
+      return true;
+    },
     stream: streamChunks,
     streamMessages: () => {
       const chunks = streamChunks();
@@ -742,8 +726,7 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
         markAborting();
         try {
           await chat.stop();
-        } catch {
-        }
+        } catch {}
       }
       await saver.flush();
       await loop.mcp.close();

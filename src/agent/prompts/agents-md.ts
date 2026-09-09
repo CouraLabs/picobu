@@ -6,8 +6,7 @@ export async function loadAgentsMarkdown(cwd: string): Promise<string | undefine
     try {
       const content = await readFile(join(cwd, name), "utf8");
       if (content.trim()) return content;
-    } catch {
-    }
+    } catch {}
   }
   return undefined;
 }

@@ -2,20 +2,21 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { readTool, ReadToolArgsSchema } from "../../src/agent/tools/filesystem/read.ts";
-import { createWriteTool, WriteToolArgsSchema } from "../../src/agent/tools/filesystem/write.ts";
-import { createEditTool } from "../../src/agent/tools/filesystem/edit.ts";
-import { globTool, GlobToolArgsSchema } from "../../src/agent/tools/filesystem/glob.ts";
-import { grepTool, GrepToolArgsSchema } from "../../src/agent/tools/filesystem/grep.ts";
-import { createShellTool, ShellToolArgsSchema, ShellToolOutputSchema } from "../../src/agent/tools/filesystem/shell.ts";
 import { agentDirCandidates, agentDirsUnder, insideAgentDir } from "../../src/agent/tools/filesystem/agent-dirs.ts";
+import { createEditTool } from "../../src/agent/tools/filesystem/edit.ts";
+import { GlobToolArgsSchema, globTool } from "../../src/agent/tools/filesystem/glob.ts";
+import { GrepToolArgsSchema, grepTool } from "../../src/agent/tools/filesystem/grep.ts";
+import { ReadToolArgsSchema, readTool } from "../../src/agent/tools/filesystem/read.ts";
+import { createShellTool, ShellToolArgsSchema, ShellToolOutputSchema } from "../../src/agent/tools/filesystem/shell.ts";
+import { createWriteTool, WriteToolArgsSchema } from "../../src/agent/tools/filesystem/write.ts";
 import { createLocalSandboxSession, sandboxRoot, shellSpec } from "../../src/agent/tools/sandbox.ts";
-import { initLockDir, withLock } from "../../src/shared/lock.ts";
-import { detectFiletype } from "../../src/shared/filetype.ts";
-import { detectShell } from "../../src/shared/shell.ts";
-import { options } from "../../src/config/options.ts";
 import { buildToolSet } from "../../src/agent/tools/toolset.ts";
+import { options } from "../../src/config/options.ts";
+import { detectFiletype } from "../../src/shared/filetype.ts";
+import { initLockDir, withLock } from "../../src/shared/lock.ts";
+import { detectShell } from "../../src/shared/shell.ts";
 import { createTreeSitterClient, getSharedTreeSitterClientSync, loadParsers } from "../../src/wrappers/treesitter-wrapper.ts";
+
 describe("write/read roundtrip via tools", () => {
   let dir = "";
   beforeEach(async () => {
@@ -77,11 +78,15 @@ describe("edit handler", () => {
   test("ambiguous match errors", async () => {
     const sb = { root: dir };
     await createWriteTool().handler({ path: "amb.txt", contents: "foo foo" }, { experimental_sandbox: sb as never });
-    await expect(createEditTool().handler({ path: "amb.txt", oldString: "foo", newString: "bar" }, { experimental_sandbox: sb as never })).rejects.toThrow("refusing ambiguous");
+    await expect(createEditTool().handler({ path: "amb.txt", oldString: "foo", newString: "bar" }, { experimental_sandbox: sb as never })).rejects.toThrow(
+      "refusing ambiguous",
+    );
   });
   test("missing file errors", async () => {
     const sb = { root: dir };
-    await expect(createEditTool().handler({ path: "missing.txt", oldString: "a", newString: "b" }, { experimental_sandbox: sb as never })).rejects.toThrow("File not found");
+    await expect(createEditTool().handler({ path: "missing.txt", oldString: "a", newString: "b" }, { experimental_sandbox: sb as never })).rejects.toThrow(
+      "File not found",
+    );
   });
 });
 describe("glob and grep", () => {
@@ -338,7 +343,9 @@ describe("filetype and shell detect", () => {
 });
 describe("toolset registry", () => {
   test("base set lists filesystem and discovery tools", () => {
-    const names = buildToolSet({}).getTools().map((t) => t.name);
+    const names = buildToolSet({})
+      .getTools()
+      .map((t) => t.name);
     for (const want of ["read", "write", "edit", "glob", "grep", "shell", "skill", "rule"]) {
       expect(names).toContain(want);
     }
@@ -351,7 +358,9 @@ describe("toolset registry", () => {
     const dir = await mkdtemp(join(tmpdir(), "picobu-tools-"));
     try {
       const fake = { spawnSubSession: async () => ({ summary: "s", usage: { inputTokens: 0, outputTokens: 0, cacheRead: 0, cacheWrite: 0 } }) };
-      const names = buildToolSet({ todoFilePath: join(dir, "todos.json"), sessionId: "s1", spawn: { manager: fake as never, parentId: "p", depth: 0 } }).getTools().map((t) => t.name);
+      const names = buildToolSet({ todoFilePath: join(dir, "todos.json"), sessionId: "s1", spawn: { manager: fake as never, parentId: "p", depth: 0 } })
+        .getTools()
+        .map((t) => t.name);
       for (const want of ["todo", "ask", "plan-exit", "plan-write", "spawn"]) {
         expect(names).toContain(want);
       }
@@ -361,7 +370,9 @@ describe("toolset registry", () => {
   });
   test("interactive false omits ask and plan tools but keeps spawn", () => {
     const fake = { spawnSubSession: async () => ({ summary: "s", usage: { inputTokens: 0, outputTokens: 0, cacheRead: 0, cacheWrite: 0 } }) };
-    const names = buildToolSet({ sessionId: "s1", interactive: false, spawn: { manager: fake as never, parentId: "p", depth: 0 } }).getTools().map((t) => t.name);
+    const names = buildToolSet({ sessionId: "s1", interactive: false, spawn: { manager: fake as never, parentId: "p", depth: 0 } })
+      .getTools()
+      .map((t) => t.name);
     expect(names).not.toContain("ask");
     expect(names).not.toContain("plan-write");
     expect(names).not.toContain("plan-exit");

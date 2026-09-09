@@ -2,12 +2,12 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { jidToPhone } from "../../src/integrations/whatsapp/phone.ts";
-import { contactsFilePath, listWwpContacts, mergeContacts, recordWwpContacts } from "../../src/integrations/whatsapp/contacts.ts";
-import { whatsappStore } from "../../src/integrations/whatsapp/whatsapp-store.ts";
-import { addTodayTask, removeTodayTask, sendWwpMessage, whatsappFilePath } from "../../src/integrations/whatsapp/actions.ts";
-import { wwpTools } from "../../src/integrations/whatsapp/wwp-tools.ts";
 import { options } from "../../src/config/options.ts";
+import { addTodayTask, removeTodayTask, sendWwpMessage, whatsappFilePath } from "../../src/integrations/whatsapp/actions.ts";
+import { contactsFilePath, listWwpContacts, mergeContacts, recordWwpContacts } from "../../src/integrations/whatsapp/contacts.ts";
+import { jidToPhone } from "../../src/integrations/whatsapp/phone.ts";
+import { whatsappStore } from "../../src/integrations/whatsapp/whatsapp-store.ts";
+import { wwpTools } from "../../src/integrations/whatsapp/wwp-tools.ts";
 import { initLockDir } from "../../src/shared/lock.ts";
 
 describe("jidToPhone", () => {
@@ -31,7 +31,11 @@ describe("jidToPhone", () => {
 describe("mergeContacts", () => {
   test("skips corrupt entries without string phones", () => {
     const merged = mergeContacts(
-      [{ phone: "1555", name: "A", lastAt: 1 }, { phone: 42, name: "x", lastAt: 2 } as unknown as { phone: string; name: string | null; lastAt: number }, {} as unknown as { phone: string; name: string | null; lastAt: number }],
+      [
+        { phone: "1555", name: "A", lastAt: 1 },
+        { phone: 42, name: "x", lastAt: 2 } as unknown as { phone: string; name: string | null; lastAt: number },
+        {} as unknown as { phone: string; name: string | null; lastAt: number },
+      ],
       [{ phone: "", name: "y", lastAt: 3 } as unknown as { phone: string; name?: string | null; lastAt: number }],
     );
     expect(merged).toEqual([{ phone: "1555", name: "A", lastAt: 1 }]);
@@ -39,7 +43,10 @@ describe("mergeContacts", () => {
   test("keeps prior name trims incoming and takes max lastAt", () => {
     const merged = mergeContacts(
       [{ phone: "+1 (555)", name: "Old", lastAt: 10 }],
-      [{ phone: "1555", lastAt: 20 }, { phone: "999", name: "  New  ", lastAt: 3 }],
+      [
+        { phone: "1555", lastAt: 20 },
+        { phone: "999", name: "  New  ", lastAt: 3 },
+      ],
     );
     expect(merged).toEqual([
       { phone: "1555", name: "Old", lastAt: 20 },
@@ -47,11 +54,14 @@ describe("mergeContacts", () => {
     ]);
   });
   test("sorts by lastAt descending", () => {
-    const merged = mergeContacts([], [
-      { phone: "111", lastAt: 1 },
-      { phone: "222", lastAt: 9 },
-      { phone: "333", lastAt: 5 },
-    ]);
+    const merged = mergeContacts(
+      [],
+      [
+        { phone: "111", lastAt: 1 },
+        { phone: "222", lastAt: 9 },
+        { phone: "333", lastAt: 5 },
+      ],
+    );
     expect(merged.map((c) => c.phone)).toEqual(["222", "333", "111"]);
   });
 });
@@ -73,10 +83,7 @@ describe("contacts file", () => {
     expect(await listWwpContacts(dir)).toEqual([]);
   });
   test("list skips corrupt entries and normalizes phones", async () => {
-    await Bun.write(
-      contactsFilePath(dir),
-      JSON.stringify({ contacts: [{ phone: "+1-555", name: "A", lastAt: 5 }, { nope: 1 }, { phone: 42 }, { phone: "   " }, null] }),
-    );
+    await Bun.write(contactsFilePath(dir), JSON.stringify({ contacts: [{ phone: "+1-555", name: "A", lastAt: 5 }, { nope: 1 }, { phone: 42 }, { phone: "   " }, null] }));
     expect(await listWwpContacts(dir)).toEqual([{ phone: "1555", name: "A", lastAt: 5 }]);
   });
   test("record and list roundtrip in tmp", async () => {

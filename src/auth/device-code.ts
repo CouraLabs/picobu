@@ -5,13 +5,8 @@ const SLOW_DOWN_TIMEOUT_MESSAGE =
 const MINIMUM_INTERVAL_MS = 1000;
 const DEFAULT_POLL_INTERVAL_SECONDS = 5;
 const SLOW_DOWN_INTERVAL_INCREMENT_MS = 5000;
-type OAuthDeviceCodeIncompletePollResult =
-  | { status: "pending" }
-  | { status: "slow_down"; intervalSeconds?: number }
-  | { status: "failed"; message: string };
-export type OAuthDeviceCodePollResult<T> =
-  | OAuthDeviceCodeIncompletePollResult
-  | { status: "complete"; value: T };
+type OAuthDeviceCodeIncompletePollResult = { status: "pending" } | { status: "slow_down"; intervalSeconds?: number } | { status: "failed"; message: string };
+export type OAuthDeviceCodePollResult<T> = OAuthDeviceCodeIncompletePollResult | { status: "complete"; value: T };
 export type OAuthDeviceCodePollOptions<T> = {
   intervalSeconds?: number;
   expiresInSeconds?: number;
@@ -37,14 +32,8 @@ export function abortableSleep(ms: number, signal: AbortSignal, cancelMessage: s
   });
 }
 export async function pollOAuthDeviceCodeFlow<T>(options: OAuthDeviceCodePollOptions<T>): Promise<T> {
-  const deadline =
-    typeof options.expiresInSeconds === "number"
-      ? Date.now() + options.expiresInSeconds * 1000
-      : Number.POSITIVE_INFINITY;
-  let intervalMs = Math.max(
-    MINIMUM_INTERVAL_MS,
-    Math.floor((options.intervalSeconds ?? DEFAULT_POLL_INTERVAL_SECONDS) * 1000),
-  );
+  const deadline = typeof options.expiresInSeconds === "number" ? Date.now() + options.expiresInSeconds * 1000 : Number.POSITIVE_INFINITY;
+  let intervalMs = Math.max(MINIMUM_INTERVAL_MS, Math.floor((options.intervalSeconds ?? DEFAULT_POLL_INTERVAL_SECONDS) * 1000));
   let slowDownResponses = 0;
   if (options.waitBeforeFirstPoll) {
     const remainingMs = deadline - Date.now();
@@ -66,9 +55,7 @@ export async function pollOAuthDeviceCodeFlow<T>(options: OAuthDeviceCodePollOpt
     if (result.status === "slow_down") {
       slowDownResponses += 1;
       intervalMs =
-        typeof result.intervalSeconds === "number" &&
-        Number.isFinite(result.intervalSeconds) &&
-        result.intervalSeconds > 0
+        typeof result.intervalSeconds === "number" && Number.isFinite(result.intervalSeconds) && result.intervalSeconds > 0
           ? Math.max(MINIMUM_INTERVAL_MS, Math.floor(result.intervalSeconds * 1000))
           : Math.max(MINIMUM_INTERVAL_MS, intervalMs + SLOW_DOWN_INTERVAL_INCREMENT_MS);
     }

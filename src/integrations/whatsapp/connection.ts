@@ -1,15 +1,12 @@
-import { mkdirSync, rmSync } from "node:fs";
-import P from "pino";
-import makeWASocket, {
-  Browsers,
-  DisconnectReason,
-  useMultiFileAuthState,
-} from "@whiskeysockets/baileys";
+import { chmodSync, mkdirSync, rmSync } from "node:fs";
 import { options } from "@config/options.ts";
-import { whatsappStore } from "@integrations/whatsapp/whatsapp-store.ts";
 import { emitInbound } from "@integrations/whatsapp/bus.ts";
 import { recordWwpContacts } from "@integrations/whatsapp/contacts.ts";
 import { isPhoneAllowed, jidToPhone, phoneToJid } from "@integrations/whatsapp/phone.ts";
+import { whatsappStore } from "@integrations/whatsapp/whatsapp-store.ts";
+import makeWASocket, { Browsers, DisconnectReason, useMultiFileAuthState } from "@whiskeysockets/baileys";
+import P from "pino";
+
 type BaileysSocket = ReturnType<typeof makeWASocket>;
 
 export const whatsappAuthDir = (): string => `${options.app.systemDir}/whatsapp/auth`;
@@ -27,8 +24,7 @@ const log = (message: string): void => {
   whatsappStore.trigger.log({ message });
 };
 
-export const isConnected = (): boolean =>
-  whatsappStore.getSnapshot().context.status === "connected";
+export const isConnected = (): boolean => whatsappStore.getSnapshot().context.status === "connected";
 
 export const isSocketActive = (): boolean => sock !== null;
 
@@ -45,6 +41,9 @@ const doConnect = async (): Promise<void> => {
   whatsappStore.trigger.setStatus({ status: "connecting" });
   try {
     mkdirSync(whatsappAuthDir(), { recursive: true });
+    try {
+      chmodSync(whatsappAuthDir(), 0o700);
+    } catch {}
     const { state, saveCreds } = await useMultiFileAuthState(whatsappAuthDir());
     const s = makeWASocket({
       auth: state,
@@ -59,11 +58,13 @@ const doConnect = async (): Promise<void> => {
     s.ev.on("messages.upsert", ({ messages }) => handleIncoming(messages));
     s.ev.on("contacts.upsert", (contacts) => void recordWwpContacts(contacts.map(toContactInput)));
     s.ev.on("contacts.update", (contacts) => void recordWwpContacts(contacts.map(toContactInput)));
-    s.ev.on("messaging-history.set", ({ contacts, chats }) =>
-      void recordWwpContacts([
-        ...contacts.filter((c) => !c.id?.endsWith("@g.us")).map(toContactInput),
-        ...chats.filter((c) => c.id && !c.id.endsWith("@g.us")).map(toChatContactInput),
-      ]),
+    s.ev.on(
+      "messaging-history.set",
+      ({ contacts, chats }) =>
+        void recordWwpContacts([
+          ...contacts.filter((c) => !c.id?.endsWith("@g.us")).map(toContactInput),
+          ...chats.filter((c) => c.id && !c.id.endsWith("@g.us")).map(toChatContactInput),
+        ]),
     );
   } catch (error) {
     sock = null;
@@ -92,11 +93,14 @@ export const requestPairingCode = async (phone: string): Promise<string> => {
   return code;
 };
 
-const handleConnectionUpdate = (s: BaileysSocket, update: {
-  connection?: "connecting" | "open" | "close";
-  lastDisconnect?: { error?: unknown };
-  qr?: string;
-}): void => {
+const handleConnectionUpdate = (
+  s: BaileysSocket,
+  update: {
+    connection?: "connecting" | "open" | "close";
+    lastDisconnect?: { error?: unknown };
+    qr?: string;
+  },
+): void => {
   if (update.qr) {
     whatsappStore.trigger.setQr({ qr: update.qr });
     log("QR code ready — scan it on the WhatsApp tab");
@@ -112,13 +116,11 @@ const handleConnectionUpdate = (s: BaileysSocket, update: {
   }
   if (update.connection === "close") {
     sock = null;
-    const code = (update.lastDisconnect?.error as { output?: { statusCode?: number } } | undefined)
-      ?.output?.statusCode;
+    const code = (update.lastDisconnect?.error as { output?: { statusCode?: number } } | undefined)?.output?.statusCode;
     if (code === DisconnectReason.loggedOut) {
       try {
         rmSync(whatsappAuthDir(), { recursive: true, force: true });
-      } catch {
-      }
+      } catch {}
       whatsappStore.trigger.setStatus({ status: "disconnected" });
       whatsappStore.trigger.setQr({ qr: null });
       log("Logged out — a new QR code is required to connect again");
@@ -134,7 +136,9 @@ const handleConnectionUpdate = (s: BaileysSocket, update: {
     log(`Connection lost — reconnecting (${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`);
     reconnectTimer = setTimeout(() => {
       reconnectTimer = undefined;
-      void connectToWhatsApp();
+      void connectToWhatsApp().catch((error) => {
+        log(`Reconnect failed: ${error instanceof Error ? error.message : String(error)}`);
+      });
     }, RECONNECT_DELAY_MS);
   }
 };
@@ -147,7 +151,7 @@ const handleIncoming = (messages: readonly unknown[]): void => {
     if (jid === "status@broadcast" || jid.endsWith("@g.us")) continue;
     const isLidJid = jid.endsWith("@lid");
     if (isLidJid && !m.key.remoteJidAlt) continue;
-    const phone = jidToPhone(isLidJid ? m.key.remoteJidAlt ?? jid : jid);
+    const phone = jidToPhone(isLidJid ? (m.key.remoteJidAlt ?? jid) : jid);
     if (!phone) continue;
     if (!isLidJid) {
       void recordWwpContacts([{ phone, name: m.pushName ?? null, lastAt: Date.now() }]);
@@ -156,10 +160,7 @@ const handleIncoming = (messages: readonly unknown[]): void => {
     if (!text) continue;
     if (text.startsWith(AGENT_ECHO_PREFIX)) continue;
     if (m.key.fromMe && phone !== pairedPhone && phone !== pairedLid) continue;
-    const allowed =
-      isPhoneAllowed(phone, options.whatsapp.allowedNumbers) ||
-      phone === pairedPhone ||
-      phone === pairedLid;
+    const allowed = isPhoneAllowed(phone, options.whatsapp.allowedNumbers) || phone === pairedPhone || phone === pairedLid;
     if (!allowed) {
       log(`Ignored message from non-allowed number ${phone}`);
       continue;
@@ -222,8 +223,7 @@ export const disconnectFromWhatsApp = (): void => {
   if (!sock) return;
   try {
     sock.end(undefined);
-  } catch {
-  }
+  } catch {}
   sock = null;
   reconnectAttempts = 0;
   if (reconnectTimer) {

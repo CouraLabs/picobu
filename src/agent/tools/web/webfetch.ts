@@ -1,6 +1,6 @@
-import z from "zod";
-import { htmlToMarkdown } from "@agent/tools/web/html-to-markdown.ts";
 import { assertSafeUrl, renderPage } from "@agent/tools/web/browser.ts";
+import { htmlToMarkdown } from "@agent/tools/web/html-to-markdown.ts";
+import z from "zod";
 export const WebfetchToolArgsSchema = z.object({
   url: z.string().url(),
 });
@@ -14,15 +14,9 @@ export const WebfetchProgressSchema = z.object({
   progress: z.string(),
 });
 
-export const WebfetchStreamChunkSchema = z.union([
-  WebfetchToolOutputSchema,
-  WebfetchProgressSchema,
-]);
+export const WebfetchStreamChunkSchema = z.union([WebfetchToolOutputSchema, WebfetchProgressSchema]);
 
-export async function fetchAsMarkdown(
-  url: string,
-  opts: { timeout?: number; allowPrivate?: boolean } = {},
-): Promise<z.infer<typeof WebfetchToolOutputSchema>> {
+export async function fetchAsMarkdown(url: string, opts: { timeout?: number; allowPrivate?: boolean } = {}): Promise<z.infer<typeof WebfetchToolOutputSchema>> {
   assertSafeUrl(url, opts.allowPrivate ?? false);
   let rendered: Awaited<ReturnType<typeof renderPage>>;
   try {
@@ -43,9 +37,7 @@ export const webfetchTool = {
   parameters: WebfetchToolArgsSchema,
   output: WebfetchStreamChunkSchema,
   kind: "external" as const,
-  handler: async function* (
-    args: z.infer<typeof WebfetchToolArgsSchema>,
-  ): AsyncGenerator<z.infer<typeof WebfetchStreamChunkSchema>> {
+  handler: async function* (args: z.infer<typeof WebfetchToolArgsSchema>): AsyncGenerator<z.infer<typeof WebfetchStreamChunkSchema>> {
     yield { progress: "Rendering in headless Chrome…" };
     const result = await fetchAsMarkdown(args.url);
     yield result;

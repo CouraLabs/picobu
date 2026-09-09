@@ -1,8 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { RGBA, type TerminalColors } from "@opentui/core";
 import { EXTENSION_LANGUAGE, filetypeFromPath } from "../../src/tui/components/diff.tsx";
-import { icons } from "../../src/tui/themes/icons.ts";
-import { allThemes, generateSystem, hasTheme, isTheme, resolveTheme, terminalMode, tint, type ThemeJson } from "../../src/tui/themes/index.ts";
 import {
   asToolPart,
   diffStats,
@@ -14,13 +12,15 @@ import {
   rawToolName,
   summarizeToolInput,
   summarizeToolOutput,
+  type ToolPartLike,
   toolAskQuestions,
   toolDiff,
   toolDisplayName,
   toolProgress,
   toolStateView,
-  type ToolPartLike,
 } from "../../src/tui/components/session/tools/tool-summary.ts";
+import { icons } from "../../src/tui/themes/icons.ts";
+import { allThemes, generateSystem, hasTheme, isTheme, resolveTheme, type ThemeJson, terminalMode, tint } from "../../src/tui/themes/index.ts";
 
 const part = (overrides: Partial<ToolPartLike> & Record<string, unknown> = {}): ToolPartLike => ({ type: "tool-read", ...overrides });
 
@@ -108,7 +108,7 @@ describe("summarizeToolInput", () => {
     expect(summarizeToolInput("ask", {})).toBe("?");
   });
   test("plan-write counts lines", () => {
-    expect(summarizeToolInput("plan-write", { plan: "a\nb\nc" })).toBe("3 lines");
+    expect(summarizeToolInput("plan-write", { plan: "a\nb\nc" })).toBe("a · 3 lines");
     expect(summarizeToolInput("plan-write", { plan: "" })).toBe("0 lines");
     expect(summarizeToolInput("plan-write", {})).toBe("?");
   });

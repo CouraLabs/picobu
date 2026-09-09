@@ -1,9 +1,9 @@
 import { join } from "node:path";
 import { auth, type OAuthClientInformation, type OAuthClientMetadata, type OAuthClientProvider, type OAuthTokens } from "@ai-sdk/mcp";
 import { options } from "@config/options.ts";
+import type { McpServerOptions } from "@integrations/mcp/config.ts";
 import { acquireLock } from "@shared/lock.ts";
 import { openInBrowser } from "@shared/open-url.ts";
-import type { McpServerOptions } from "@integrations/mcp/config.ts";
 
 const REFRESH_GRACE_MS = 5 * 60 * 1000;
 
@@ -58,7 +58,10 @@ const persist = (mutate: (current: McpAuthFile) => McpAuthFile): Promise<void> =
       lock.release();
     }
   });
-  persistChain = run.then(() => {}, () => {});
+  persistChain = run.then(
+    () => {},
+    () => {},
+  );
   return run;
 };
 
@@ -89,12 +92,9 @@ export const isMcpAuthActive = (serverId: string, now = Date.now()): boolean => 
 
 const rootDomain = (host: string): string => host.toLowerCase().split(".").slice(-2).join(".");
 
-const isLocalHost = (host: string): boolean =>
-  host === "localhost" || host === "127.0.0.1" || host === "::1";
+const isLocalHost = (host: string): boolean => host === "localhost" || host === "127.0.0.1" || host === "::1";
 
-export const createMcpAuthProvider = (
-  server: McpServerOptions,
-): { provider: OAuthClientProvider; lastAuthorizationUrl: () => URL | undefined } => {
+export const createMcpAuthProvider = (server: McpServerOptions): { provider: OAuthClientProvider; lastAuthorizationUrl: () => URL | undefined } => {
   const serverId = server.id;
   const serverUrl = server.url!;
   let lastAuthorizationUrl: URL | undefined;
@@ -161,15 +161,11 @@ export const createMcpAuthProvider = (
       const expected = new URL(serverUrl);
       const actual = new URL(authorizationServerUrl);
       if (actual.protocol !== "https:" && !isLocalHost(actual.hostname)) {
-        throw new Error(
-          `MCP server "${serverId}" advertised an insecure OAuth authorization server: ${actual.origin} (https required)`,
-        );
+        throw new Error(`MCP server "${serverId}" advertised an insecure OAuth authorization server: ${actual.origin} (https required)`);
       }
       if (actual.origin === expected.origin) return;
       if (rootDomain(actual.hostname) === rootDomain(expected.hostname) && actual.hostname.includes(".")) return;
-      throw new Error(
-        `MCP server "${serverId}" advertised an unexpected OAuth authorization server: ${actual.origin} (expected ${expected.origin})`,
-      );
+      throw new Error(`MCP server "${serverId}" advertised an unexpected OAuth authorization server: ${actual.origin} (expected ${expected.origin})`);
     },
   };
   return { provider, lastAuthorizationUrl: () => lastAuthorizationUrl };
@@ -220,10 +216,13 @@ export const ensureMcpAuth = async (server: McpServerOptions): Promise<void> => 
 
 const waitForCallback = (): Promise<CallbackResult> =>
   new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => {
-      server.stop();
-      reject(new Error(`Timed out waiting for the OAuth redirect on ${MCP_REDIRECT_URL}`));
-    }, 5 * 60 * 1000);
+    const timeout = setTimeout(
+      () => {
+        server.stop();
+        reject(new Error(`Timed out waiting for the OAuth redirect on ${MCP_REDIRECT_URL}`));
+      },
+      5 * 60 * 1000,
+    );
     const server = Bun.serve({
       port: CALLBACK_PORT,
       async fetch(request) {

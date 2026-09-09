@@ -3,9 +3,16 @@ import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Provider as ModelsDevProvider } from "@opencode-ai/models";
-import { generatePKCE } from "../../src/auth/pkce.ts";
+import { modelsFromModelsDev } from "../../src/agent/model/catalog-models-dev.ts";
+import { anthropicOAuth } from "../../src/auth/anthropic.ts";
+import { abortableSleep, CANCEL_MESSAGE, pollOAuthDeviceCodeFlow } from "../../src/auth/device-code.ts";
+import { getGitHubCopilotBaseUrl, githubCopilotOAuth } from "../../src/auth/github-copilot.ts";
+import { OAUTH_AUTHS, oauthAuthById, startLogin } from "../../src/auth/index.ts";
+import { createInteraction } from "../../src/auth/interaction.ts";
 import { oauthErrorHtml, oauthSuccessHtml } from "../../src/auth/oauth-pages.ts";
-import { CANCEL_MESSAGE, abortableSleep, pollOAuthDeviceCodeFlow } from "../../src/auth/device-code.ts";
+import { openaiOAuth } from "../../src/auth/openai.ts";
+import { generatePKCE } from "../../src/auth/pkce.ts";
+import { fixHarnessAfterLogout, pickDefaultModel, repointModelKey, selectCopilotModels } from "../../src/auth/register.ts";
 import {
   authFilePathOf,
   getCredential,
@@ -17,22 +24,9 @@ import {
   resetAuthCache,
   setCredential,
 } from "../../src/auth/store.ts";
-import { fixHarnessAfterLogout, pickDefaultModel, repointModelKey, selectCopilotModels } from "../../src/auth/register.ts";
-import { OAUTH_AUTHS, oauthAuthById, startLogin } from "../../src/auth/index.ts";
-import { getGitHubCopilotBaseUrl, githubCopilotOAuth } from "../../src/auth/github-copilot.ts";
-import { anthropicOAuth } from "../../src/auth/anthropic.ts";
-import { openaiOAuth } from "../../src/auth/openai.ts";
-import {
-  DEFAULT_THEME_PREFS,
-  DEFAULT_TUI_OPTIONS,
-  DEFAULT_WEB_OPTIONS,
-  DEFAULT_WHATSAPP_OPTIONS,
-  resolveModelRole,
-} from "../../src/config/options.ts";
-import type { ProviderOptions } from "../../src/config/options.ts";
 import type { OAuthCredential } from "../../src/auth/types.ts";
-import { createInteraction } from "../../src/auth/interaction.ts";
-import { modelsFromModelsDev } from "../../src/agent/model/catalog-models-dev.ts";
+import type { ProviderOptions } from "../../src/config/options.ts";
+import { DEFAULT_THEME_PREFS, DEFAULT_TUI_OPTIONS, DEFAULT_WEB_OPTIONS, DEFAULT_WHATSAPP_OPTIONS, resolveModelRole } from "../../src/config/options.ts";
 import { initLockDir } from "../../src/shared/lock.ts";
 
 const realFetch = globalThis.fetch;
@@ -65,26 +59,29 @@ function credentialForAccess(access: string): OAuthCredential {
 }
 
 function mockFetchWithJson(payload: unknown): void {
-  globalThis.fetch = (async () => ({
-    ok: true,
-    json: async () => payload,
-  }) as unknown as Response) as unknown as typeof fetch;
+  globalThis.fetch = (async () =>
+    ({
+      ok: true,
+      json: async () => payload,
+    }) as unknown as Response) as unknown as typeof fetch;
 }
 
 function mockFetchWithText(body: string): void {
-  globalThis.fetch = (async () => ({
-    ok: true,
-    text: async () => body,
-  }) as unknown as Response) as unknown as typeof fetch;
+  globalThis.fetch = (async () =>
+    ({
+      ok: true,
+      text: async () => body,
+    }) as unknown as Response) as unknown as typeof fetch;
 }
 
 function mockFetchFailure(status: number, body: string): void {
-  globalThis.fetch = (async () => ({
-    ok: false,
-    status,
-    statusText: "Request failed",
-    text: async () => body,
-  }) as unknown as Response) as unknown as typeof fetch;
+  globalThis.fetch = (async () =>
+    ({
+      ok: false,
+      status,
+      statusText: "Request failed",
+      text: async () => body,
+    }) as unknown as Response) as unknown as typeof fetch;
 }
 
 function providerWithModelIds(id: string, ids: string[]): ProviderOptions {
@@ -135,7 +132,7 @@ describe("oauthSuccessHtml", () => {
     expect(html).toContain("Anthropic authentication completed. You can close this window.");
   });
   test("escapes markup in success message", () => {
-    const html = oauthSuccessHtml("<script>alert(\"x\")</script>");
+    const html = oauthSuccessHtml('<script>alert("x")</script>');
     expect(html).not.toContain("<script>");
     expect(html).toContain("&lt;script&gt;");
   });
@@ -161,11 +158,11 @@ describe("oauthErrorHtml", () => {
     expect(html).toContain("sk-ant-secret-value-123");
   });
   test("omits details block when details absent", () => {
-    expect(oauthErrorHtml("nope")).not.toContain("<div class=\"details\">");
+    expect(oauthErrorHtml("nope")).not.toContain('<div class="details">');
   });
   test("includes details block when details present", () => {
     const html = oauthErrorHtml("nope", "some detail");
-    expect(html).toContain("<div class=\"details\">");
+    expect(html).toContain('<div class="details">');
     expect(html).toContain("some detail");
   });
 });
@@ -353,9 +350,7 @@ describe("repointModelKey", () => {
     expect(repointModelKey("github-copilot/model-x", "github-copilot", [])).toBe("github-copilot/model-x");
   });
   test("repoints to first provider default model", () => {
-    expect(repointModelKey("github-copilot/x", "github-copilot", [providerWithModelIds("openai", ["g1"])])).toBe(
-      "openai/g1",
-    );
+    expect(repointModelKey("github-copilot/x", "github-copilot", [providerWithModelIds("openai", ["g1"])])).toBe("openai/g1");
   });
   test("prefers reasoning model of fallback provider", () => {
     const fallback: ProviderOptions = {
@@ -394,11 +389,9 @@ describe("selectCopilotModels", () => {
 
 describe("fixHarnessAfterLogout", () => {
   test("repoints logged-out selectors to fallback and keeps others", () => {
-    const next = fixHarnessAfterLogout(
-      { defaultModel: "github-copilot/x", modelRoles: { tiny: "github-copilot/x", flash: "other/y" } },
-      "github-copilot",
-      [providerWithModelIds("openai", ["fallback"])],
-    );
+    const next = fixHarnessAfterLogout({ defaultModel: "github-copilot/x", modelRoles: { tiny: "github-copilot/x", flash: "other/y" } }, "github-copilot", [
+      providerWithModelIds("openai", ["fallback"]),
+    ]);
     expect(next.defaultModel).toBe("openai/fallback");
     expect(next.modelRoles?.tiny).toBe("openai/fallback");
     expect(next.modelRoles?.flash).toBe("other/y");
@@ -444,9 +437,7 @@ describe("anthropicOAuth", () => {
   });
   test("rejects refresh payload with missing fields", async () => {
     mockFetchWithText(JSON.stringify({ access_token: "only-access" }));
-    await expect(anthropicOAuth.refresh(credentialForAccess("old"), AbortSignal.timeout(5000))).rejects.toThrow(
-      "missing fields",
-    );
+    await expect(anthropicOAuth.refresh(credentialForAccess("old"), AbortSignal.timeout(5000))).rejects.toThrow("missing fields");
   });
   test("rejects failed http refresh", async () => {
     mockFetchFailure(401, "unauthorized");
@@ -469,9 +460,7 @@ describe("openaiOAuth", () => {
   });
   test("rejects refresh payload with missing fields", async () => {
     mockFetchWithJson({ access_token: "only-access" });
-    await expect(openaiOAuth.refresh(credentialForAccess("old"), new AbortController().signal)).rejects.toThrow(
-      "missing fields",
-    );
+    await expect(openaiOAuth.refresh(credentialForAccess("old"), new AbortController().signal)).rejects.toThrow("missing fields");
   });
   test("rejects failed http refresh", async () => {
     mockFetchFailure(401, "bad credentials");
@@ -481,9 +470,7 @@ describe("openaiOAuth", () => {
     const header = base64UrlEncodeText(JSON.stringify({ alg: "none" }));
     const payload = base64UrlEncodeText(JSON.stringify({ sub: "user-without-claim" }));
     mockFetchWithJson({ access_token: `${header}.${payload}.sig`, refresh_token: "r1", expires_in: 3600 });
-    await expect(openaiOAuth.refresh(credentialForAccess("old"), new AbortController().signal)).rejects.toThrow(
-      "accountId",
-    );
+    await expect(openaiOAuth.refresh(credentialForAccess("old"), new AbortController().signal)).rejects.toThrow("accountId");
   });
   test("refreshes credential and extracts account id", async () => {
     const token = openAiAccessTokenWithAccount("acc-1");
@@ -506,9 +493,7 @@ describe("getGitHubCopilotBaseUrl", () => {
     expect(getGitHubCopilotBaseUrl("prefix;proxy-ep=proxy.myhost.com;suffix")).toBe("https://api.myhost.com");
   });
   test("prefers token proxy over enterprise domain", () => {
-    expect(getGitHubCopilotBaseUrl("prefix;proxy-ep=proxy.myhost.com;suffix", "example.ghe.com")).toBe(
-      "https://api.myhost.com",
-    );
+    expect(getGitHubCopilotBaseUrl("prefix;proxy-ep=proxy.myhost.com;suffix", "example.ghe.com")).toBe("https://api.myhost.com");
   });
   test("maps credential to auth with default base url", () => {
     expect(githubCopilotOAuth.id).toBe("github-copilot");
@@ -566,10 +551,7 @@ describe("resolveModelRole", () => {
   });
   test("honors explicit thinking levels", () => {
     const flash = resolveModelRole({ defaultModel: "openai/g1", modelRoles: { flashThinking: "high" } }, "flashThinking");
-    const heavy = resolveModelRole(
-      { defaultModel: "openai/g1", modelRoles: { heavyThinkingLevel: "low" } },
-      "heavyThinkingLevel",
-    );
+    const heavy = resolveModelRole({ defaultModel: "openai/g1", modelRoles: { heavyThinkingLevel: "low" } }, "heavyThinkingLevel");
     expect(flash.thinking).toBe("high");
     expect(heavy.thinking).toBe("low");
   });
@@ -582,9 +564,7 @@ describe("createInteraction", () => {
     console.log = (...args: unknown[]) => {
       logs.push(args.map((part) => String(part)).join(" "));
     };
-    (Bun as unknown as { spawn: typeof Bun.spawn }).spawn = (() => ({ unref() {} }) as unknown as ReturnType<
-      typeof Bun.spawn
-    >) as typeof Bun.spawn;
+    (Bun as unknown as { spawn: typeof Bun.spawn }).spawn = (() => ({ unref() {} }) as unknown as ReturnType<typeof Bun.spawn>) as typeof Bun.spawn;
   });
   afterEach(() => {
     console.log = realConsoleLog;

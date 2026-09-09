@@ -1,32 +1,32 @@
 import { describe, expect, test } from "bun:test";
-import { openDialog, closeDialog, dialogStatus } from "../../src/states/dialog.state.ts";
-import { openDropdown, closeDropdown, dropdownState } from "../../src/states/dropdown.state.ts";
-import { themeInfo, setTheme, toggleThemeVariant } from "../../src/states/theme-state.ts";
-import { setClipboardService, getClipboardService } from "../../src/tui/hooks/clipboard.state.ts";
+import { closeDialog, dialogStatus, openDialog } from "../../src/states/dialog.state.ts";
+import { closeDropdown, dropdownState, openDropdown } from "../../src/states/dropdown.state.ts";
+import { setTheme, themeInfo, toggleThemeVariant } from "../../src/states/theme-state.ts";
 import { Button } from "../../src/tui/components/button.tsx";
 import { Dialog } from "../../src/tui/components/dialog.tsx";
 import { Dropdown } from "../../src/tui/components/dropdown.tsx";
 import { Marquee } from "../../src/tui/components/marquee.tsx";
-import { Spinner } from "../../src/tui/components/spinner.tsx";
-import { Splash } from "../../src/tui/components/splash.tsx";
-import { SessionHeader } from "../../src/tui/components/session/session-header.tsx";
-import { SessionStatus } from "../../src/tui/components/session/session-status.tsx";
-import { SessionMessages } from "../../src/tui/components/session/session-messages.tsx";
-import { SessionPrompt } from "../../src/tui/components/session/session-prompt.tsx";
-import { MessagePartView } from "../../src/tui/components/session/message-part.tsx";
 import { messageText, openMessageActions } from "../../src/tui/components/session/message-actions.tsx";
+import { MessagePartView } from "../../src/tui/components/session/message-part.tsx";
 import { ModelSelect } from "../../src/tui/components/session/model-select.tsx";
 import { ReasoningPart } from "../../src/tui/components/session/reasoning-part.tsx";
-import { ToolPart } from "../../src/tui/components/session/tools/tool-part.tsx";
-import { TodoList } from "../../src/tui/components/session/tools/todo-list.tsx";
+import { SessionHeader } from "../../src/tui/components/session/session-header.tsx";
+import { SessionMessages } from "../../src/tui/components/session/session-messages.tsx";
+import { SessionPrompt } from "../../src/tui/components/session/session-prompt.tsx";
+import { SessionStatus } from "../../src/tui/components/session/session-status.tsx";
 import { AskForm } from "../../src/tui/components/session/tools/ask-form.tsx";
 import { PlanReview } from "../../src/tui/components/session/tools/plan-review.tsx";
-import { Tab } from "../../src/tui/layout/tab.tsx";
-import { App } from "../../src/tui/layout/app.tsx";
-import { SessionPage } from "../../src/tui/pages/session-page.tsx";
-import { DevPage } from "../../src/tui/pages/dev.page.tsx";
-import { runTui } from "../../src/tui/init.tsx";
+import { TodoList } from "../../src/tui/components/session/tools/todo-list.tsx";
+import { ToolPart } from "../../src/tui/components/session/tools/tool-part.tsx";
+import { Spinner } from "../../src/tui/components/spinner.tsx";
+import { Splash } from "../../src/tui/components/splash.tsx";
+import { getClipboardService, setClipboardService } from "../../src/tui/hooks/clipboard.state.ts";
 import { ClipboardProvider } from "../../src/tui/hooks/clipboard-provider.tsx";
+import { runTui } from "../../src/tui/init.tsx";
+import { App } from "../../src/tui/layout/app.tsx";
+import { Tab } from "../../src/tui/layout/tab.tsx";
+import { DevPage } from "../../src/tui/pages/dev.page.tsx";
+import { SessionPage } from "../../src/tui/pages/session-page.tsx";
 
 describe("tui module surface", () => {
   test("dialog opens and closes", () => {
@@ -52,7 +52,30 @@ describe("tui module surface", () => {
     expect(getClipboardService()).toBeNull();
   });
   test("components expose functions", () => {
-    for (const component of [Button, Dialog, Dropdown, Marquee, Spinner, Splash, SessionHeader, SessionStatus, SessionMessages, SessionPrompt, MessagePartView, ModelSelect, ReasoningPart, ToolPart, TodoList, AskForm, PlanReview, Tab, App, SessionPage, DevPage, ClipboardProvider]) {
+    for (const component of [
+      Button,
+      Dialog,
+      Dropdown,
+      Marquee,
+      Spinner,
+      Splash,
+      SessionHeader,
+      SessionStatus,
+      SessionMessages,
+      SessionPrompt,
+      MessagePartView,
+      ModelSelect,
+      ReasoningPart,
+      ToolPart,
+      TodoList,
+      AskForm,
+      PlanReview,
+      Tab,
+      App,
+      SessionPage,
+      DevPage,
+      ClipboardProvider,
+    ]) {
       expect(typeof component).toBe("function");
     }
     expect(typeof openMessageActions).toBe("function");

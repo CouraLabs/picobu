@@ -1,14 +1,14 @@
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import type { JSX } from "@opentui/solid/jsx-runtime";
 import type { ClipboardService } from "@opentui/core";
+import type { JSX } from "@opentui/solid/jsx-runtime";
 import { closeDialog, dialogStatus, openDialog } from "../../src/states/dialog.state.ts";
+import type { DropdownOpenState } from "../../src/states/dropdown.state.ts";
 import { closeDropdown, dropdownState, openDropdown } from "../../src/states/dropdown.state.ts";
-import { getClipboardService, setClipboardService } from "../../src/tui/hooks/clipboard.state.ts";
 import { indexOfTheme, setTheme, theme, themeInfo, themes, toggleThemeVariant } from "../../src/states/theme-state.ts";
 import type { DropdownOption } from "../../src/tui/components/dropdown.tsx";
-import type { DropdownOpenState } from "../../src/states/dropdown.state.ts";
+import { getClipboardService, setClipboardService } from "../../src/tui/hooks/clipboard.state.ts";
 
 const view = (): JSX.Element => null as never;
 const other = (): JSX.Element => null as never;
@@ -57,11 +57,7 @@ closeDropdown();
 const dropdownNull = dropdownState() === null;
 openDropdown(fixture(0));
 const opened = dropdownState();
-const dropdownOpened =
-  opened !== null &&
-  opened.options.map((o) => o.name).join(",") === "a,b" &&
-  opened.placement.x === 1 &&
-  opened.selected === 0;
+const dropdownOpened = opened !== null && opened.options.map((o) => o.name).join(",") === "a,b" && opened.placement.x === 1 && opened.selected === 0;
 openDropdown(fixture(1));
 const dropdownReselected = dropdownState()?.selected === 1;
 closeDropdown();
@@ -90,11 +86,8 @@ const themeAfterToggle = themeInfo();
 toggleThemeVariant();
 const themeAfterToggleBack = themeInfo();
 let unknownThemeError = "";
-try {
-  setTheme("missing-theme", "dark");
-} catch (error) {
-  unknownThemeError = error instanceof Error ? error.message : String(error);
-}
+setTheme("missing-theme", "dark");
+unknownThemeError = themeInfo().name;
 
 const result = {
   home: homedir(),

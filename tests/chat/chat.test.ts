@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { drainInbound, emitInbound, subscribeInbound } from "../../src/integrations/whatsapp/bus.ts";
-import { isPhoneAllowed, normalizePhone, normalizedAllowList, phoneToJid } from "../../src/integrations/whatsapp/phone.ts";
+import { isPhoneAllowed, normalizedAllowList, normalizePhone, phoneToJid } from "../../src/integrations/whatsapp/phone.ts";
 
 describe("inbound bus", () => {
   test("delivers to every subscriber", () => {

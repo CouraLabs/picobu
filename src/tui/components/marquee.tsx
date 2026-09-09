@@ -1,5 +1,5 @@
-import { useTimeline } from "@opentui/solid";
 import type { RGBA } from "@opentui/core";
+import { useTimeline } from "@opentui/solid";
 import { theme } from "@states/theme-state.ts";
 import { createEffect, createMemo, createSignal } from "solid-js";
 
@@ -18,12 +18,12 @@ export const Marquee = (props: MarqueeProps) => {
   const driver = { phase: 0 };
   const timeline = useTimeline({ autoplay: false, duration: speedMs() * 2, loop: true });
   const chars = createMemo(() => Array.from(props.content));
-  const overflowCols = createMemo(() =>
-    Math.max(0, chars().length - props.maxWidth),
-  );
+  const overflowCols = createMemo(() => Math.max(0, chars().length - props.maxWidth));
   const sliceWindow = (start: number): string => {
     if (overflowCols() === 0) return props.content;
-    return chars().slice(start, start + props.maxWidth).join("");
+    return chars()
+      .slice(start, start + props.maxWidth)
+      .join("");
   };
   const [visible, setVisible] = createSignal(sliceWindow(0));
 
@@ -44,13 +44,13 @@ export const Marquee = (props: MarqueeProps) => {
   });
 
   createEffect(() => {
-    const isHovered = hovered()
-    const overflow = overflowCols()
-    const active = (isHovered || props.scrolling === true) && overflow > 0
+    const isHovered = hovered();
+    const overflow = overflowCols();
+    const active = (isHovered || props.scrolling === true) && overflow > 0;
 
     if (active && !timeline.isPlaying) {
       resetToHead();
-      timeline.restart()
+      timeline.restart();
     } else if (!active) {
       timeline.pause();
       resetToHead();

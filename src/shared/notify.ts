@@ -41,15 +41,13 @@ function osNotify(title: string, message: string, style: NotifyStyle = {}): void
       child.on("error", () => {});
       child.unref();
     }
-  } catch {
-  }
+  } catch {}
 }
 
 function bell(): void {
   try {
     process.stdout.write("\x07");
-  } catch {
-  }
+  } catch {}
 }
 
 export function notifyCompletion(message = "Run complete"): void {

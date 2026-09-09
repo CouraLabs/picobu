@@ -1,12 +1,8 @@
-import {
-  addDefaultParsers,
-  getTreeSitterClient,
-  TreeSitterClient,
-  type FiletypeParserOptions,
-} from "@opentui/core";
-import { getParsers } from "@wrappers/parsers/assets.ts";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { addDefaultParsers, type FiletypeParserOptions, getTreeSitterClient, TreeSitterClient } from "@opentui/core";
+import { getParsers } from "@wrappers/parsers/assets.ts";
+
 export { destroyTreeSitterClient } from "@opentui/core";
 export type ParserDescriptor = FiletypeParserOptions;
 
@@ -45,23 +41,23 @@ export async function createTreeSitterClient(options?: CreateTreeSitterClientOpt
 }
 
 export async function getSharedTreeSitterClient(): Promise<TreeSitterClient> {
-  if (sharedClient) return sharedClient
+  if (sharedClient) return sharedClient;
   if (!sharedClientPromise) {
     sharedClientPromise = (async () => {
-      const client = getTreeSitterClient()
-      await attachParsers(client)
-      await client.initialize()
-      sharedClient = client
-      return client
+      const client = getTreeSitterClient();
+      await attachParsers(client);
+      await client.initialize();
+      sharedClient = client;
+      return client;
     })().catch((error) => {
-      sharedClientPromise = undefined
-      throw error
-    })
+      sharedClientPromise = undefined;
+      throw error;
+    });
   }
-  return sharedClientPromise
+  return sharedClientPromise;
 }
 
-let sharedClient: TreeSitterClient | undefined
-let sharedClientPromise: Promise<TreeSitterClient> | undefined
+let sharedClient: TreeSitterClient | undefined;
+let sharedClientPromise: Promise<TreeSitterClient> | undefined;
 
-export const getSharedTreeSitterClientSync = (): TreeSitterClient | undefined => sharedClient
+export const getSharedTreeSitterClientSync = (): TreeSitterClient | undefined => sharedClient;

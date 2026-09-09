@@ -1,9 +1,9 @@
 import { mkdirSync, readFileSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { z } from "zod";
 import { options } from "@config/options.ts";
 import { withLock } from "@shared/lock.ts";
+import { z } from "zod";
 
 export const PROMPT_HISTORY_LIMIT = 10;
 const promptHistorySchema = z.object({ prompts: z.array(z.string()) });

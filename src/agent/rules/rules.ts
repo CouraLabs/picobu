@@ -1,8 +1,8 @@
-import { readdir, stat, readFile } from "node:fs/promises";
-import { readdirSync, statSync, readFileSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import { readdir, readFile, stat } from "node:fs/promises";
 import { basename, extname, join } from "node:path";
-import { options } from "@config/options.ts";
 import { parseMarkdown } from "@agent/markdown/markdown-parser.ts";
+import { options } from "@config/options.ts";
 
 export type Rule = {
   name: string;
@@ -10,11 +10,7 @@ export type Rule = {
   path: string;
 };
 
-const ruleRoots = (cwd: string): string[] => [
-  join(cwd, ".agents", "rules"),
-  join(options.app.systemDir, "rules"),
-  join(options.app.homeDir, ".agents", "rules"),
-];
+const ruleRoots = (cwd: string): string[] => [join(cwd, ".agents", "rules"), join(options.app.systemDir, "rules"), join(options.app.homeDir, ".agents", "rules")];
 
 const dirExists = async (p: string): Promise<boolean> => {
   try {
@@ -45,10 +41,7 @@ async function scanRules(root: string, taken: Set<string>, out: Rule[]): Promise
     const full = join(root, file);
     try {
       const parsed = parseMarkdown(await readFile(full, "utf8"));
-      const name =
-        typeof parsed.name === "string" && parsed.name.trim()
-          ? parsed.name.trim()
-          : basename(full, extname(full));
+      const name = typeof parsed.name === "string" && parsed.name.trim() ? parsed.name.trim() : basename(full, extname(full));
       const description = typeof parsed.description === "string" ? parsed.description : "";
       if (!description.trim()) continue;
       const key = name.toLowerCase();
@@ -74,10 +67,7 @@ function scanRulesSync(root: string, taken: Set<string>, out: Rule[]): void {
     const full = join(root, file);
     try {
       const parsed = parseMarkdown(readFileSync(full, "utf8"));
-      const name =
-        typeof parsed.name === "string" && parsed.name.trim()
-          ? parsed.name.trim()
-          : basename(full, extname(full));
+      const name = typeof parsed.name === "string" && parsed.name.trim() ? parsed.name.trim() : basename(full, extname(full));
       const description = typeof parsed.description === "string" ? parsed.description : "";
       if (!description.trim()) continue;
       const key = name.toLowerCase();

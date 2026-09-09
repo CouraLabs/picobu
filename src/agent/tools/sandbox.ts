@@ -1,6 +1,5 @@
-import { isAbsolute, relative, resolve, sep } from "node:path";
 import { mkdir } from "node:fs/promises";
-import { dirname } from "node:path";
+import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import type { Experimental_SandboxProcess, Experimental_SandboxSession } from "ai";
 
 type SandboxProcessOptions = Parameters<Experimental_SandboxSession["run"]>[0];
@@ -33,10 +32,7 @@ export function shellSpec(shellLabel: string): ShellSpec {
 
 export type LocalSandboxSession = Experimental_SandboxSession & {
   readonly root: string;
-  exec(
-    argv: string[],
-    opts?: { cwd?: string; env?: Record<string, string>; abortSignal?: AbortSignal },
-  ): Promise<{ exitCode: number; stdout: string; stderr: string }>;
+  exec(argv: string[], opts?: { cwd?: string; env?: Record<string, string>; abortSignal?: AbortSignal }): Promise<{ exitCode: number; stdout: string; stderr: string }>;
 };
 export const sandboxRoot = (sandbox: unknown): string | undefined =>
   typeof sandbox === "object" && sandbox !== null && "root" in sandbox && typeof (sandbox as LocalSandboxSession).root === "string"
@@ -47,8 +43,7 @@ export const killProcessTree = (proc: Bun.Subprocess): void => {
   try {
     if (process.platform !== "win32" && proc.pid) process.kill(-proc.pid, "SIGKILL");
     else proc.kill(9);
-  } catch {
-  }
+  } catch {}
 };
 export function createLocalSandboxSession(root: string, shellLabel: string): LocalSandboxSession {
   const spec = shellSpec(shellLabel);
@@ -112,11 +107,7 @@ export function createLocalSandboxSession(root: string, shellLabel: string): Loc
       env: opts.env,
       abortSignal: opts.abortSignal,
     });
-    const [stdout, stderr, exitCode] = await Promise.all([
-      new Response(proc.stdout).text(),
-      new Response(proc.stderr).text(),
-      proc.exited,
-    ]);
+    const [stdout, stderr, exitCode] = await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text(), proc.exited]);
     done(opts, onAbort, exitCode);
     return { exitCode, stdout, stderr };
   };
@@ -203,11 +194,7 @@ export function createLocalSandboxSession(root: string, shellLabel: string): Loc
     run,
     exec: async (argv, opts = {}) => {
       const { proc, onAbort } = start(argv, opts);
-      const [stdout, stderr, exitCode] = await Promise.all([
-        new Response(proc.stdout).text(),
-        new Response(proc.stderr).text(),
-        proc.exited,
-      ]);
+      const [stdout, stderr, exitCode] = await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text(), proc.exited]);
       done(opts, onAbort, exitCode);
       return { exitCode, stdout, stderr };
     },

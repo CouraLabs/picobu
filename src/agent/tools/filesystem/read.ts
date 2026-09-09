@@ -1,9 +1,10 @@
 import { isAbsolute, relative, resolve } from "node:path";
-import z from "zod";
-import { withLock } from "@shared/lock.ts";
-import { detectFiletype } from "@shared/filetype.ts";
 import { sandboxRoot } from "@agent/tools/sandbox.ts";
 import type { ToolExecuteOptions } from "@agent/tools/toolset.ts";
+import { detectFiletype } from "@shared/filetype.ts";
+import { withLock } from "@shared/lock.ts";
+import z from "zod";
+
 const ReadToolOutputSchema = z.object({
   filetype: z.string(),
   content: z.string(),
@@ -35,7 +36,7 @@ const sliceLines = (text: string, fromLine: number | null, toLine: number | null
 };
 export const readTool = {
   name: "read",
-  description: 'Reads a file on specified path',
+  description: "Reads a file on specified path",
   parameters: ReadToolArgsSchema,
   output: ReadToolOutputSchema,
   defer: "auto",
@@ -86,5 +87,5 @@ export const readTool = {
       }
       return { filetype: detectFiletype(path), content: wanted.join("\n") };
     });
-  }
+  },
 };

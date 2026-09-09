@@ -1,15 +1,11 @@
+import { readdirSync, readFileSync, statSync, type Dirent } from "node:fs";
 import { readdir, readFile, stat } from "node:fs/promises";
-import { readdirSync, readFileSync, statSync } from "node:fs";
 import { basename, extname, join } from "node:path";
-import { options } from "@config/options.ts";
-import { parseMarkdown, parseMarkdownFile } from "@agent/markdown/markdown-parser.ts";
 import type { Command } from "@agent/commands/types.ts";
+import { parseMarkdown, parseMarkdownFile } from "@agent/markdown/markdown-parser.ts";
+import { options } from "@config/options.ts";
 
-const skillRoots = (cwd: string): string[] => [
-  join(cwd, ".agents", "skills"),
-  join(options.app.systemDir, "skills"),
-  join(options.app.homeDir, ".agents", "skills"),
-];
+const skillRoots = (cwd: string): string[] => [join(cwd, ".agents", "skills"), join(options.app.systemDir, "skills"), join(options.app.homeDir, ".agents", "skills")];
 
 const workflowRoots = (cwd: string): string[] => [
   join(cwd, ".agents", "workflows"),
@@ -30,9 +26,7 @@ const humanize = (s: string): string =>
     .map((w) => w[0]?.toUpperCase() + w.slice(1))
     .join(" ");
 
-const collides = (taken: Set<string>, entry: Command): boolean =>
-  taken.has(entry.name.toLowerCase()) ||
-  entry.aliases.some((a) => taken.has(a.toLowerCase()));
+const collides = (taken: Set<string>, entry: Command): boolean => taken.has(entry.name.toLowerCase()) || entry.aliases.some((a) => taken.has(a.toLowerCase()));
 
 const tryRegister = (taken: Set<string>, list: Command[], entry: Command): boolean => {
   if (collides(taken, entry)) return false;
@@ -76,7 +70,7 @@ const fileExistsSync = (p: string): boolean => {
 
 async function scanSkills(root: string, taken: Set<string>, out: Command[]): Promise<void> {
   if (!(await dirExists(root))) return;
-  let entries;
+  let entries: Dirent[];
   try {
     entries = await readdir(root, { withFileTypes: true });
   } catch (err) {
@@ -91,10 +85,7 @@ async function scanSkills(root: string, taken: Set<string>, out: Command[]): Pro
     if (!(await fileExists(skillFile))) continue;
     try {
       const parsed = await parseMarkdownFile(skillFile);
-      const name =
-        typeof parsed.name === "string" && parsed.name.trim()
-          ? parsed.name.trim()
-          : entry.name;
+      const name = typeof parsed.name === "string" && parsed.name.trim() ? parsed.name.trim() : entry.name;
       const description = typeof parsed.description === "string" ? parsed.description : "";
       if (!description.trim()) continue;
       tryRegister(taken, out, {
@@ -124,10 +115,7 @@ async function scanWorkflows(root: string, taken: Set<string>, out: Command[]): 
     const full = join(root, file);
     try {
       const parsed = await parseMarkdownFile(full);
-      const name =
-        typeof parsed.name === "string" && parsed.name.trim()
-          ? parsed.name.trim()
-          : humanize(basename(full, extname(full)));
+      const name = typeof parsed.name === "string" && parsed.name.trim() ? parsed.name.trim() : humanize(basename(full, extname(full)));
       const description = typeof parsed.description === "string" ? parsed.description : "";
       tryRegister(taken, out, {
         kind: "workflow",
@@ -145,7 +133,7 @@ async function scanWorkflows(root: string, taken: Set<string>, out: Command[]): 
 
 function scanSkillsSync(root: string, taken: Set<string>, out: Command[]): void {
   if (!dirExistsSync(root)) return;
-  let entries;
+  let entries: Dirent[];
   try {
     entries = readdirSync(root, { withFileTypes: true });
   } catch (err) {
@@ -160,10 +148,7 @@ function scanSkillsSync(root: string, taken: Set<string>, out: Command[]): void 
     if (!fileExistsSync(skillFile)) continue;
     try {
       const parsed = parseMarkdown(readFileSync(skillFile, "utf8"));
-      const name =
-        typeof parsed.name === "string" && parsed.name.trim()
-          ? parsed.name.trim()
-          : entry.name;
+      const name = typeof parsed.name === "string" && parsed.name.trim() ? parsed.name.trim() : entry.name;
       const description = typeof parsed.description === "string" ? parsed.description : "";
       if (!description.trim()) continue;
       tryRegister(taken, out, {
@@ -193,10 +178,7 @@ function scanWorkflowsSync(root: string, taken: Set<string>, out: Command[]): vo
     const full = join(root, file);
     try {
       const parsed = parseMarkdown(readFileSync(full, "utf8"));
-      const name =
-        typeof parsed.name === "string" && parsed.name.trim()
-          ? parsed.name.trim()
-          : humanize(basename(full, extname(full)));
+      const name = typeof parsed.name === "string" && parsed.name.trim() ? parsed.name.trim() : humanize(basename(full, extname(full)));
       const description = typeof parsed.description === "string" ? parsed.description : "";
       tryRegister(taken, out, {
         kind: "workflow",
@@ -249,4 +231,4 @@ export const buildCommandPrompt = async (cmd: Command, rest: string): Promise<st
   let content = `[Skill: ${cmd.title}]\n${cmd.description}\n\n${parsed.content}`;
   if (rest.trim()) content += "\n\nUser request:\n" + rest;
   return content;
-}
+};

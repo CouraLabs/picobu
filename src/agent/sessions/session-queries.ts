@@ -1,18 +1,11 @@
 import { readdir, rm } from "node:fs/promises";
 import { join } from "node:path";
-import { options } from "@config/options.ts";
 import type { Session } from "@agent/sessions/session.ts";
+import type { JobTracker } from "@agent/sessions/session-jobs.ts";
+import { deleteSessionMeta, folderKeyForSession, readSessionMeta, recoverSessionMeta, type SessionMeta, type SessionState } from "@agent/sessions/session-meta.ts";
 import { folderKeyFor, sessionFilePath } from "@agent/sessions/session-paths.ts";
 import { listSessions } from "@agent/sessions/session-store.ts";
-import {
-  deleteSessionMeta,
-  readSessionMeta,
-  recoverSessionMeta,
-  folderKeyForSession,
-  type SessionMeta,
-  type SessionState,
-} from "@agent/sessions/session-meta.ts";
-import type { JobTracker } from "@agent/sessions/session-jobs.ts";
+import { options } from "@config/options.ts";
 
 export type SessionListRow = {
   id: string;
@@ -52,11 +45,8 @@ export async function listSessionsFor(deps: QueryDeps): Promise<SessionListRow[]
 export async function listSessionTree(cwd: string): Promise<Array<SessionMeta & { children: SessionMeta[] }>> {
   const folderKey = folderKeyFor(cwd);
   const metas = await readAllMetas(folderKey, cwd);
-  const childrenOf = (parentId: string): SessionMeta[] =>
-    metas.filter((m) => m.parentSessionId === parentId);
-  return metas
-    .filter((m) => !m.parentSessionId)
-    .map((root) => ({ ...root, children: childrenOf(root.id) }));
+  const childrenOf = (parentId: string): SessionMeta[] => metas.filter((m) => m.parentSessionId === parentId);
+  return metas.filter((m) => !m.parentSessionId).map((root) => ({ ...root, children: childrenOf(root.id) }));
 }
 
 export async function deleteSessionCascade(deps: QueryDeps, id: string): Promise<number> {
@@ -65,8 +55,7 @@ export async function deleteSessionCascade(deps: QueryDeps, id: string): Promise
   const subtree = await collectSubtree(folderKey, cwd, id);
   for (const nodeId of subtree) {
     if (!live.has(nodeId)) await recoverSessionMeta(folderKey, nodeId);
-    const running = live.get(nodeId)?.state === "running"
-      || (!live.has(nodeId) && (await readSessionMeta(folderKey, nodeId))?.state === "running");
+    const running = live.get(nodeId)?.state === "running" || (!live.has(nodeId) && (await readSessionMeta(folderKey, nodeId))?.state === "running");
     if (running) throw new Error(`Session "${nodeId}" is running; stop it before deleting`);
   }
   for (const nodeId of subtree) {
@@ -104,9 +93,7 @@ async function collectSubtree(folderKey: string, cwd: string, rootId: string): P
 async function readAllMetas(folderKey: string, cwd: string): Promise<SessionMeta[]> {
   let names: string[];
   try {
-    names = (await readdir(join(options.app.systemDir, "sessions", folderKey)))
-      .filter((n) => n.endsWith(".meta.json"))
-      .map((n) => n.slice(0, -".meta.json".length));
+    names = (await readdir(join(options.app.systemDir, "sessions", folderKey))).filter((n) => n.endsWith(".meta.json")).map((n) => n.slice(0, -".meta.json".length));
   } catch {
     return [];
   }

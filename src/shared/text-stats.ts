@@ -6,9 +6,7 @@ export interface TextStats {
 }
 
 export function extractWords(text: string): string[] {
-  return text
-    .split(/[\s,;:.!?()"'/[\]{}]+/)
-    .filter((w) => w.length > 0);
+  return text.split(/[\s,;:.!?()"'/[\]{}]+/).filter((w) => w.length > 0);
 }
 
 export function textStats(text: string): TextStats {

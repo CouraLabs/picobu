@@ -1,8 +1,9 @@
 import { randomBytes } from "node:crypto";
 import { createServer } from "node:http";
-import type { OAuthAuth, OAuthCredential, AuthInteraction } from "@auth/types.ts";
-import { generatePKCE } from "@auth/pkce.ts";
 import { oauthErrorHtml, oauthSuccessHtml } from "@auth/oauth-pages.ts";
+import { generatePKCE } from "@auth/pkce.ts";
+import type { AuthInteraction, OAuthAuth, OAuthCredential } from "@auth/types.ts";
+
 const CLIENT_ID = "app_EMoamEEZ73f0CkXaXp7hrann";
 const AUTH_BASE_URL = "https://auth.openai.com";
 const AUTHORIZE_URL = `${AUTH_BASE_URL}/oauth/authorize`;
@@ -77,11 +78,7 @@ async function readTokenResponse(response: Response, operation: TokenOperation):
     expires: Date.now() + json.expires_in * 1000,
   };
 }
-async function exchangeAuthorizationCode(
-  code: string,
-  verifier: string,
-  signal: AbortSignal,
-): Promise<OAuthToken> {
+async function exchangeAuthorizationCode(code: string, verifier: string, signal: AbortSignal): Promise<OAuthToken> {
   const response = await fetchWithLoginCancellation(TOKEN_URL, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },

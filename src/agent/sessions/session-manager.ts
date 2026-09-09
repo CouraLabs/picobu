@@ -1,41 +1,20 @@
 import { stat } from "node:fs/promises";
 import { resolve } from "node:path";
-import {
-  options,
-  resolveModelRole,
-  type ProviderModelReasoningEffort,
-} from "@config/options.ts";
-import {
-  createSession,
-  type Session,
-} from "@agent/sessions/session.ts";
-import {
-  folderKeyFor,
-  generateSessionId,
-} from "@agent/sessions/session-paths.ts";
-import { loadSession } from "@agent/sessions/session-store.ts";
-import {
-  folderKeyForSession,
-  readSessionMeta,
-  recoverSessionMeta,
-  updateSessionMeta,
-  writeSessionMeta,
-} from "@agent/sessions/session-meta.ts";
-import { JobTracker, type JobRow } from "@agent/sessions/session-jobs.ts";
-import { forkSession } from "@agent/sessions/session-fork.ts";
-import {
-  listSessionsFor,
-  listSessionTree,
-  deleteSessionCascade,
-  type SessionListRow,
-} from "@agent/sessions/session-queries.ts";
-import { spawnSubSession, type SpawnSubSessionParams } from "@agent/sessions/session-spawn.ts";
-import type { ChatChangeHandler } from "@agent/sessions/session-headless-chat.ts";
 import type { AgentType } from "@agent/agents/types.ts";
 import type { LoopConfig } from "@agent/loop/create-loop.ts";
+import { createSession, type Session } from "@agent/sessions/session.ts";
+import { forkSession } from "@agent/sessions/session-fork.ts";
+import type { ChatChangeHandler } from "@agent/sessions/session-headless-chat.ts";
+import { type JobRow, JobTracker } from "@agent/sessions/session-jobs.ts";
+import { folderKeyForSession, readSessionMeta, recoverSessionMeta, updateSessionMeta, writeSessionMeta } from "@agent/sessions/session-meta.ts";
+import { folderKeyFor, generateSessionId } from "@agent/sessions/session-paths.ts";
+import { deleteSessionCascade, listSessionsFor, listSessionTree, type SessionListRow } from "@agent/sessions/session-queries.ts";
+import { type SpawnSubSessionParams, spawnSubSession } from "@agent/sessions/session-spawn.ts";
+import { loadSession } from "@agent/sessions/session-store.ts";
+import { options, type ProviderModelReasoningEffort, resolveModelRole } from "@config/options.ts";
 import type { UIMessage } from "ai";
 
-export type { JobRow, SpawnSubSessionParams, SessionListRow };
+export type { JobRow, SessionListRow, SpawnSubSessionParams };
 export type CreateSessionOptions = {
   id?: string;
   agentId?: string;
@@ -73,7 +52,9 @@ export class SessionManager {
     return this._sandboxEnabled;
   }
 
-  private baseConfig(overrides: { agentId?: string; modelKey?: string; sessionId?: string; agentOverride?: AgentType; subagent?: boolean; spawn?: LoopConfig["spawn"] } = {}): LoopConfig {
+  private baseConfig(
+    overrides: { agentId?: string; modelKey?: string; sessionId?: string; agentOverride?: AgentType; subagent?: boolean; spawn?: LoopConfig["spawn"] } = {},
+  ): LoopConfig {
     let modelKey = overrides.modelKey;
     let thinking: ProviderModelReasoningEffort | undefined;
     if (!modelKey) {
@@ -101,6 +82,16 @@ export class SessionManager {
 
   async startSession(init: CreateSessionOptions = {}): Promise<Session> {
     const id = init.id ?? generateSessionId();
+    if (init.id) {
+      try {
+        const key = await folderKeyForSession(this.cwd, id);
+        const meta = await readSessionMeta(key, id);
+        if (meta?.cwd && meta.cwd !== this.cwd) {
+          const info = await stat(meta.cwd).catch(() => undefined);
+          if (info?.isDirectory()) this.cwd = meta.cwd;
+        }
+      } catch {}
+    }
     const folderKey = folderKeyFor(this.cwd);
     const existing = this.live.get(id);
     if (existing) {
@@ -110,7 +101,7 @@ export class SessionManager {
       await recoverSessionMeta(folderKey, id);
     }
     const session = await createSession({
-      config: () => this.baseConfig({ agentId: init.agentId, modelKey: init.modelKey, sessionId: id }),
+      config: () => this.baseConfig({ agentId: init.agentId, modelKey: init.modelKey, sessionId: id, spawn: { manager: this, parentId: id, depth: 0 } }),
       id,
       meta: { cwd: this.cwd, title: init.title, forkHost: () => this.forkSession(id).then((r) => r.sessionId) },
       autoCompact: init.autoCompact,
@@ -128,6 +119,17 @@ export class SessionManager {
   async loadMessages(id: string): Promise<UIMessage[] | null> {
     const folderKey = await folderKeyForSession(this.cwd, id);
     return loadSession(folderKey, id);
+  }
+
+  async getSessionTitle(id: string): Promise<string | undefined> {
+    const live = this.live.get(id);
+    if (live?.title) return live.title;
+    try {
+      const folderKey = await folderKeyForSession(this.cwd, id);
+      return (await readSessionMeta(folderKey, id))?.title;
+    } catch {
+      return undefined;
+    }
   }
 
   async changeDirectory(path: string): Promise<Session | undefined> {
@@ -153,11 +155,7 @@ export class SessionManager {
   }
 
   async forkSession(id: string, opts: { fromCompaction?: boolean; upToMessageId?: string } = {}): Promise<{ sessionId: string }> {
-    return forkSession(
-      { cwd: this.cwd, live: this.live, startSession: (forkId) => this.startSession({ id: forkId }) },
-      id,
-      opts,
-    );
+    return forkSession({ cwd: this.cwd, live: this.live, startSession: (forkId) => this.startSession({ id: forkId }) }, id, opts);
   }
 
   async listSessions(): Promise<SessionListRow[]> {

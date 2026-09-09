@@ -2,9 +2,9 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createLocalSandboxSession } from "../../src/agent/tools/sandbox.ts";
-import { EditToolArgsSchema } from "../../src/agent/tools/filesystem/edit.ts";
 import { insideAgentDir } from "../../src/agent/tools/filesystem/agent-dirs.ts";
+import { EditToolArgsSchema } from "../../src/agent/tools/filesystem/edit.ts";
+import { createLocalSandboxSession } from "../../src/agent/tools/sandbox.ts";
 import { initLockDir } from "../../src/shared/lock.ts";
 
 describe("sandbox containment", () => {

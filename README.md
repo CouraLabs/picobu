@@ -243,7 +243,7 @@ A full terminal UI over [OpenTUI](https://github.com/sst/opentui) + Solid (`src/
 
 - **Headless chat state** — `createHeadlessChatState()` (`src/agent/sessions/session-headless-chat.ts`) implements the AI SDK `ChatState` contract over the loop, so any UI can reuse the `ai` chat primitives (`useChat`) against a picobu session.
 - **Tree-sitter rendering** — `src/wrappers/` bundles parser WASMs + highlight queries for 39 languages and exposes `createTreeSitterClient()` / a shared singleton for markdown + code syntax highlighting in OpenTUI renderables (parser data under `~/.picobu/tree-sitter`).
-- **Themes & states** — 44 theme JSONs with `resolveTheme`/`generateSyntax` and an icon set (`src/tui/themes/`), plus Solid state primitives for dialogs, dropdowns, and the active theme (`src/states/`).
+- **Themes & states** — 35 theme JSONs with `resolveTheme`/`generateSyntax` and an icon set (`src/tui/themes/`), plus Solid state primitives for dialogs, dropdowns, and the active theme (`src/states/`).
 - **Prompt history** — `src/agent/sessions/prompt-history.ts` persists the last 10 prompts to `~/.picobu/prompt-history.json` (read/append helpers with a lock file) so hosts can render input history.
 - **Session titles** — `generateSessionTitle()` (`src/agent/prompts/session-title.ts`) makes a one-shot `tiny`-role model call that turns a first prompt into a ≤50-char thread title.
 
@@ -262,7 +262,7 @@ src/
 ├── shared/                # lock, notify, shell, error-report, format, filetype, open-url, text-stats
 ├── auth/                  # OAuth login flows, credential store, provider registration
 ├── integrations/          # WhatsApp (Baileys) connection, bus, contacts, actions + wwp tools; MCP
-└── tui/                   # 44 bundled themes (resolveTheme/generateSyntax) for host frontends
+└── tui/                   # 35 bundled themes (resolveTheme/generateSyntax) for host frontends
 ```
 
 ### Path aliases

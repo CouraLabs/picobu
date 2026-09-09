@@ -1,5 +1,4 @@
-export const persistentMarkdown =
-`---
+export const persistentMarkdown = `---
 name: Persistent
 description: Runs each prompt as a fresh, stateless 10-step session
 category: persistent

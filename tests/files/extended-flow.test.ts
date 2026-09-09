@@ -2,13 +2,14 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createAskTool, AskToolArgsSchema } from "../../src/agent/tools/flow/ask.ts";
-import { createPlanWriteTool, PlanWriteToolArgsSchema } from "../../src/agent/tools/flow/plan-write.ts";
+import { AskToolArgsSchema, createAskTool } from "../../src/agent/tools/flow/ask.ts";
 import { createPlanExitTool, PlanExitToolArgsSchema } from "../../src/agent/tools/flow/plan-exit.ts";
-import { createSkillTool, SkillToolArgsSchema } from "../../src/agent/tools/flow/skill.ts";
+import { createPlanWriteTool, PlanWriteToolArgsSchema } from "../../src/agent/tools/flow/plan-write.ts";
 import { createRuleTool, RuleToolArgsSchema } from "../../src/agent/tools/flow/rule.ts";
+import { createSkillTool, SkillToolArgsSchema } from "../../src/agent/tools/flow/skill.ts";
 import { createSpawnTool, SpawnToolArgsSchema } from "../../src/agent/tools/flow/spawn.ts";
 import { initLockDir } from "../../src/shared/lock.ts";
+
 const question = (title = "t") => ({ title, question: "pick?", type: "single" as const, options: [{ answer: "a", answerDescription: "desc" }] });
 describe("ask tool", () => {
   test("schema accepts one question and rejects empty or too many", () => {
@@ -98,7 +99,12 @@ describe("spawn tool", () => {
     expect(SpawnToolArgsSchema.safeParse({ subagent: "coder" }).success).toBe(false);
   });
   test("handler delegates to manager and returns summary", async () => {
-    const fake = { spawnSubSession: async (input: { prompt: string }) => ({ summary: `done:${input.prompt}`, usage: { inputTokens: 1, outputTokens: 2, cacheRead: 0, cacheWrite: 0 } }) };
+    const fake = {
+      spawnSubSession: async (input: { prompt: string }) => ({
+        summary: `done:${input.prompt}`,
+        usage: { inputTokens: 1, outputTokens: 2, cacheRead: 0, cacheWrite: 0 },
+      }),
+    };
     const tool = createSpawnTool({ manager: fake as never, parentId: "p", depth: 0 });
     const got = await tool.handler({ subagent: "coder", prompt: "hi" });
     expect(got.summary).toBe("done:hi");

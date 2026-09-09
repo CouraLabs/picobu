@@ -1,13 +1,13 @@
-import { appendFile, readFile, readdir, stat, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
 import { mkdirSync } from "node:fs";
-import { z } from "zod";
-import type { UIMessage } from "ai";
-import { withLock } from "@shared/lock.ts";
-import { truncate } from "@shared/text-stats.ts";
+import { appendFile, readdir, readFile, stat, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
+import { COMPACTION_HEADER } from "@agent/sessions/session-compaction.ts";
 import { sanitizeMessages } from "@agent/sessions/session-messages.ts";
 import { sessionDir, sessionFilePath } from "@agent/sessions/session-paths.ts";
-import { COMPACTION_HEADER } from "@agent/sessions/session-compaction.ts";
+import { withLock } from "@shared/lock.ts";
+import { truncate } from "@shared/text-stats.ts";
+import type { UIMessage } from "ai";
+import { z } from "zod";
 
 function isTombstone(value: unknown): value is { id: string } {
   if (typeof value !== "object" || value === null) return false;
@@ -22,13 +22,9 @@ const sessionLineSchema = z.object({
 });
 type SessionLine = z.infer<typeof sessionLineSchema>;
 
-const isStreamingMessage = (message: UIMessage): boolean =>
-  message.parts.some((part) => (part as { state?: string }).state === "streaming");
+const isStreamingMessage = (message: UIMessage): boolean => message.parts.some((part) => (part as { state?: string }).state === "streaming");
 
-export async function loadSession(
-  folderKey: string,
-  sessionId: string,
-): Promise<UIMessage[] | null> {
+export async function loadSession(folderKey: string, sessionId: string): Promise<UIMessage[] | null> {
   const filePath = sessionFilePath(folderKey, sessionId);
   let content: string;
   try {
@@ -59,9 +55,7 @@ export async function loadSession(
     if (existing) existing.line = parsed;
     else byId.set(parsed.id, { line: parsed, index });
   }
-  const ordered = [...byId.values()]
-    .sort((a, b) => a.index - b.index)
-    .map((e) => e.line as unknown as UIMessage);
+  const ordered = [...byId.values()].sort((a, b) => a.index - b.index).map((e) => e.line as unknown as UIMessage);
   return sanitizeMessages(ordered);
 }
 
@@ -99,20 +93,11 @@ function firstPromptPreview(content: string): string {
 
 export type SessionRow = { id: string; mtimeMs: number; firstPrompt: string };
 
-export async function writeSessionFile(
-  folderKey: string,
-  sessionId: string,
-  messages: UIMessage[],
-): Promise<void> {
+export async function writeSessionFile(folderKey: string, sessionId: string, messages: UIMessage[]): Promise<void> {
   const filePath = sessionFilePath(folderKey, sessionId);
   await withLock(filePath, async () => {
     mkdirSync(dirname(filePath), { recursive: true });
-    await writeFile(
-      filePath,
-      messages
-        .map((m) => JSON.stringify({ id: m.id, role: m.role, metadata: m.metadata, parts: m.parts }))
-        .join("\n") + "\n",
-    );
+    await writeFile(filePath, messages.map((m) => JSON.stringify({ id: m.id, role: m.role, metadata: m.metadata, parts: m.parts })).join("\n") + "\n");
   });
 }
 
@@ -131,8 +116,7 @@ export async function listSessions(folderKey: string): Promise<SessionRow[]> {
     try {
       const [info, content] = await Promise.all([stat(filePath), readFile(filePath, "utf8")]);
       rows.push({ id, mtimeMs: info.mtimeMs, firstPrompt: firstPromptPreview(content) });
-    } catch {
-    }
+    } catch {}
   }
   return rows.sort((a, b) => b.mtimeMs - a.mtimeMs);
 }
@@ -164,8 +148,10 @@ export class SessionSaver {
       if (isStreamingMessage(m)) continue;
       const json = JSON.stringify({ id: m.id, role: m.role, metadata: m.metadata, parts: m.parts });
       if (this.lastWritten.get(m.id) === json) continue;
-      this.lastWritten.set(m.id, json);
-      enqueue(() => withLock(this.filePath, () => upsertLine(this.filePath, json)));
+      enqueue(async () => {
+        await withLock(this.filePath, () => upsertLine(this.filePath, json));
+        this.lastWritten.set(m.id, json);
+      });
     }
     return Promise.all(tasks).then(() => {});
   }
@@ -187,8 +173,7 @@ async function upsertLine(filePath: string, json: string): Promise<void> {
   let content = "";
   try {
     content = await readFile(filePath, "utf8");
-  } catch {
-  }
+  } catch {}
   const lines = content.split("\n").filter((raw) => raw.trim());
   const existing = lines.map(lineId).lastIndexOf(id);
   if (existing === -1) {

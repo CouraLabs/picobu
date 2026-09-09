@@ -1,5 +1,4 @@
-export const planMarkdown =
-`---
+export const planMarkdown = `---
 name: Plan
 description: You analyze requirements and produce an actionable implementation plan before code is written
 category: coding

@@ -3,10 +3,20 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { UIMessage } from "ai";
-import { options } from "../../src/config/options.ts";
-import { initLockDir } from "../../src/shared/lock.ts";
 import { CheckpointStore } from "../../src/agent/sessions/checkpoints.ts";
+import { addPrompt, flushPromptHistory, loadPromptHistory, PROMPT_HISTORY_LIMIT, resetPromptHistoryCache } from "../../src/agent/sessions/prompt-history.ts";
+import {
+  buildPlanHandoffCut,
+  COMPACTION_HEADER,
+  compactedMessageText,
+  isCompactionCut,
+  messagesForLlm,
+  PLAN_HANDOFF_HEADER,
+  serializeForCompaction,
+  shouldCompact,
+} from "../../src/agent/sessions/session-compaction.ts";
 import { JobTracker } from "../../src/agent/sessions/session-jobs.ts";
+import { dropUnansweredPrompt, hasVisibleResponse, lastAssistantText, sanitizeMessages, stripUnreplayableReasoning } from "../../src/agent/sessions/session-messages.ts";
 import {
   folderKeyFor,
   generateSessionId,
@@ -14,33 +24,12 @@ import {
   persistentTurnFilePath,
   sessionDir,
   sessionFilePath,
-  sessionTodoFilePath,
   sessionsRoot,
+  sessionTodoFilePath,
 } from "../../src/agent/sessions/session-paths.ts";
-import {
-  dropUnansweredPrompt,
-  hasVisibleResponse,
-  lastAssistantText,
-  sanitizeMessages,
-  stripUnreplayableReasoning,
-} from "../../src/agent/sessions/session-messages.ts";
-import {
-  PROMPT_HISTORY_LIMIT,
-  addPrompt,
-  flushPromptHistory,
-  loadPromptHistory,
-  resetPromptHistoryCache,
-} from "../../src/agent/sessions/prompt-history.ts";
-import {
-  COMPACTION_HEADER,
-  PLAN_HANDOFF_HEADER,
-  buildPlanHandoffCut,
-  compactedMessageText,
-  isCompactionCut,
-  messagesForLlm,
-  serializeForCompaction,
-  shouldCompact,
-} from "../../src/agent/sessions/session-compaction.ts";
+import { options } from "../../src/config/options.ts";
+import { initLockDir } from "../../src/shared/lock.ts";
+
 const originalSystemDir = options.app.systemDir;
 function textMessage(id: string, role: "user" | "assistant" | "system", text: string): UIMessage {
   return { id, role, parts: [{ type: "text", text }] } as unknown as UIMessage;
@@ -112,7 +101,10 @@ describe("sanitizeMessages filtering", () => {
     const mixed = {
       id: "m",
       role: "assistant",
-      parts: [{ type: "text", text: "hello" }, { type: "tool-read", toolCallId: "t", state: "input-available", input: {}, preliminary: true }],
+      parts: [
+        { type: "text", text: "hello" },
+        { type: "tool-read", toolCallId: "t", state: "input-available", input: {}, preliminary: true },
+      ],
     } as unknown as UIMessage;
     const out = sanitizeMessages([mixed]);
     expect(out).toHaveLength(1);
@@ -253,7 +245,14 @@ describe("session compaction pure helpers", () => {
     const messages = [
       textMessage("a", "system", "ignored"),
       textMessage("b", "user", "hello"),
-      { id: "c", role: "assistant", parts: [{ type: "reasoning", text: "think" }, { type: "text", text: "answer" }] } as unknown as UIMessage,
+      {
+        id: "c",
+        role: "assistant",
+        parts: [
+          { type: "reasoning", text: "think" },
+          { type: "text", text: "answer" },
+        ],
+      } as unknown as UIMessage,
     ];
     const serialized = serializeForCompaction(messages as UIMessage[]);
     expect(serialized).toContain("user: hello");

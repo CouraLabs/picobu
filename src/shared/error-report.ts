@@ -1,13 +1,10 @@
 const MAX_BODY = 400;
 
-const asRecord = (value: unknown): Record<string, unknown> | null =>
-  typeof value === "object" && value !== null ? (value as Record<string, unknown>) : null;
+const asRecord = (value: unknown): Record<string, unknown> | null => (typeof value === "object" && value !== null ? (value as Record<string, unknown>) : null);
 
-const str = (value: unknown): string | null =>
-  typeof value === "string" && value.trim() ? value.trim() : null;
+const str = (value: unknown): string | null => (typeof value === "string" && value.trim() ? value.trim() : null);
 
-const clip = (text: string): string =>
-  text.length > MAX_BODY ? `${text.slice(0, MAX_BODY)}…` : text;
+const clip = (text: string): string => (text.length > MAX_BODY ? `${text.slice(0, MAX_BODY)}…` : text);
 
 const responseSummary = (body: string): string | null => {
   const text = body.trim();
@@ -17,8 +14,7 @@ const responseSummary = (body: string): string | null => {
     const nested = asRecord(json?.error);
     const summary = str(nested?.message) ?? str(json?.message) ?? str(json?.detail);
     if (summary) return clip(summary);
-  } catch {
-  }
+  } catch {}
   return clip(text);
 };
 

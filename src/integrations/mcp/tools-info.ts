@@ -9,7 +9,8 @@ export const mcpToolName = (serverId: string, toolName: string): string => {
   const full = `mcp_${clean(serverId)}_${clean(toolName)}`;
   if (full.length <= MAX_TOOL_NAME_LENGTH) return full;
   const hashInput = `${serverId}:${toolName}`;
-  const suffix = [...hashInput].reduce((acc, ch) => (acc * 31 + ch.charCodeAt(0)) % 46657, 7)
+  const suffix = [...hashInput]
+    .reduce((acc, ch) => (acc * 31 + ch.charCodeAt(0)) % 46657, 7)
     .toString(36)
     .padStart(3, "0");
   const keptTool = clean(toolName).slice(0, MAX_TOOL_NAME_LENGTH - 5 - suffix.length - 1);
@@ -18,28 +19,11 @@ export const mcpToolName = (serverId: string, toolName: string): string => {
 
 export const renderMcpToolInfo = (name: string, description: string | undefined, inputSchema: unknown): string => {
   const schema = JSON.stringify(inputSchema ?? { type: "object" }, null, 2);
-  return [
-    `### ${name}`,
-    description ?? "(no description provided by the MCP server)",
-    "",
-    "JSON Schema:",
-    "```json",
-    schema,
-    "```",
-  ].join("\n");
+  return [`### ${name}`, description ?? "(no description provided by the MCP server)", "", "JSON Schema:", "```json", schema, "```"].join("\n");
 };
 
-export const renderMcpServerToolsInfo = (
-  serverId: string,
-  instructions: string | undefined,
-  tools: ListToolsResult["tools"],
-): string => {
+export const renderMcpServerToolsInfo = (serverId: string, instructions: string | undefined, tools: ListToolsResult["tools"]): string => {
   if (tools.length === 0) return "";
-  const blocks = tools.map((tool) =>
-    renderMcpToolInfo(mcpToolName(serverId, tool.name), tool.description, tool.inputSchema),
-  );
-  return [
-    ...(instructions ? [`(MCP server "${serverId}": ${instructions})`] : []),
-    ...blocks,
-  ].join("\n\n");
+  const blocks = tools.map((tool) => renderMcpToolInfo(mcpToolName(serverId, tool.name), tool.description, tool.inputSchema));
+  return [...(instructions ? [`(MCP server "${serverId}": ${instructions})`] : []), ...blocks].join("\n\n");
 };

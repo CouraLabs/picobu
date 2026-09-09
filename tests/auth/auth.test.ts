@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { decodeJwt, getAccountId } from "../../src/auth/openai.ts";
 import { normalizeDomain, parseGitHubCopilotModelCatalog } from "../../src/auth/github-copilot.ts";
+import { decodeJwt, getAccountId } from "../../src/auth/openai.ts";
 
 function base64UrlEncode(value: string): string {
   return Buffer.from(value, "utf-8").toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");

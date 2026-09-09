@@ -1,10 +1,10 @@
 import { mkdir } from "node:fs/promises";
 import { dirname, isAbsolute, relative, resolve } from "node:path";
-import z from "zod";
-import { withLock } from "@shared/lock.ts";
-import { sandboxRoot } from "@agent/tools/sandbox.ts";
 import { CheckpointStore } from "@agent/sessions/checkpoints.ts";
+import { sandboxRoot } from "@agent/tools/sandbox.ts";
 import type { ToolExecuteOptions } from "@agent/tools/toolset.ts";
+import { withLock } from "@shared/lock.ts";
+import z from "zod";
 export const WriteToolArgsSchema = z.object({
   path: z.string().min(1),
   contents: z.string(),
@@ -32,7 +32,7 @@ export const createWriteTool = (checkpointsPath?: string) => {
   const checkpoints = checkpointsPath ? new CheckpointStore(checkpointsPath) : undefined;
   return {
     name: "write",
-    description: 'Write contents to a file at path, creating parent directories as needed.',
+    description: "Write contents to a file at path, creating parent directories as needed.",
     parameters: WriteToolArgsSchema,
     output: WriteToolOutputSchema,
     skipPermission: true,
@@ -42,16 +42,15 @@ export const createWriteTool = (checkpointsPath?: string) => {
       const resolvedPath = resolveInsideBase(base, args.path);
       return withLock(resolvedPath, async () => {
         await mkdir(dirname(resolvedPath), { recursive: true });
-        const before = await Bun.file(resolvedPath).text().catch(() => null);
+        const before = await Bun.file(resolvedPath)
+          .text()
+          .catch(() => null);
         await Bun.write(resolvedPath, args.contents);
         if (checkpoints) {
           await checkpoints.record({ tool: "write", path: resolvedPath, before, after: args.contents });
         }
         const lines = (args.contents.match(/\n/g) ?? []).length + 1;
-        const content =
-          args.contents.length > CONTENT_PREVIEW_MAX_CHARS
-            ? `${args.contents.slice(0, CONTENT_PREVIEW_MAX_CHARS)}\n…[truncated]`
-            : args.contents;
+        const content = args.contents.length > CONTENT_PREVIEW_MAX_CHARS ? `${args.contents.slice(0, CONTENT_PREVIEW_MAX_CHARS)}\n…[truncated]` : args.contents;
         return {
           message: `Wrote ${args.path} (${lines} lines)`,
           content,

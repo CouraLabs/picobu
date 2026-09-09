@@ -1,6 +1,6 @@
-import { withLock } from "@shared/lock.ts";
 import { options } from "@config/options.ts";
 import { normalizePhone } from "@integrations/whatsapp/phone.ts";
+import { withLock } from "@shared/lock.ts";
 
 export type WwpContact = {
   phone: string;
@@ -11,10 +11,7 @@ type ContactsFile = { contacts: WwpContact[] };
 
 const MAX_CONTACTS = 200;
 
-export const mergeContacts = (
-  existing: readonly WwpContact[],
-  incoming: readonly { phone: string; name?: string | null; lastAt: number }[],
-): WwpContact[] => {
+export const mergeContacts = (existing: readonly WwpContact[], incoming: readonly { phone: string; name?: string | null; lastAt: number }[]): WwpContact[] => {
   const byPhone = new Map<string, WwpContact>();
   for (const c of existing) {
     if (typeof (c as { phone?: unknown }).phone !== "string") continue;
@@ -35,8 +32,7 @@ export const mergeContacts = (
   return Array.from(byPhone.values()).sort((a, b) => b.lastAt - a.lastAt);
 };
 
-export const contactsFilePath = (dir: string = `${options.app.systemDir}/whatsapp`): string =>
-  `${dir}/contacts.json`;
+export const contactsFilePath = (dir: string = `${options.app.systemDir}/whatsapp`): string => `${dir}/contacts.json`;
 
 export const listWwpContacts = async (dir?: string): Promise<WwpContact[]> => {
   const file = Bun.file(contactsFilePath(dir));
@@ -53,23 +49,13 @@ export const listWwpContacts = async (dir?: string): Promise<WwpContact[]> => {
   }
 };
 
-export const recordWwpContacts = async (
-  incoming: readonly { phone: string; name?: string | null; lastAt?: number }[],
-  dir?: string,
-): Promise<void> => {
-  const usable = incoming.filter(
-    (c) =>
-      c &&
-      typeof (c as { phone?: unknown }).phone === "string" &&
-      normalizePhone((c as { phone: string }).phone),
-  );
+export const recordWwpContacts = async (incoming: readonly { phone: string; name?: string | null; lastAt?: number }[], dir?: string): Promise<void> => {
+  const usable = incoming.filter((c) => c && typeof (c as { phone?: unknown }).phone === "string" && normalizePhone((c as { phone: string }).phone));
   if (!usable.length) return;
   const path = contactsFilePath(dir);
   await withLock(path, async () => {
     const file = Bun.file(path);
-    const existing: readonly WwpContact[] = (await file.exists())
-      ? ((await file.json().catch(() => ({}))) as Partial<ContactsFile>).contacts ?? []
-      : [];
+    const existing: readonly WwpContact[] = (await file.exists()) ? (((await file.json().catch(() => ({}))) as Partial<ContactsFile>).contacts ?? []) : [];
     const merged = mergeContacts(
       existing,
       incoming.map((c) => ({ ...c, lastAt: c.lastAt ?? Date.now() })),

@@ -1,8 +1,8 @@
-import { options, updateSettings, type ProviderModelOptions, type ProviderOptions } from "@config/options.ts";
-import type { LlmProviderDefinition } from "@agent/model/types.ts";
 import { hyper } from "@agent/model/catalog-hyper.ts";
-import { fetchModels } from "@agent/model/fetch-models.ts";
 import { fetchModelsDevProvider, modelsFromModelsDev } from "@agent/model/catalog-models-dev.ts";
+import { fetchModels } from "@agent/model/fetch-models.ts";
+import type { LlmProviderDefinition } from "@agent/model/types.ts";
+import { options, type ProviderModelOptions, type ProviderOptions, updateSettings } from "@config/options.ts";
 
 export const LLM_PROVIDERS: LlmProviderDefinition[] = [hyper];
 
@@ -15,7 +15,10 @@ const stableStringify = (value: unknown): string => {
   if (Array.isArray(value)) return `[${value.map(stableStringify).join(",")}]`;
   if (value && typeof value === "object") {
     const record = value as Record<string, unknown>;
-    return `{${Object.keys(record).sort().map((k) => `${JSON.stringify(k)}:${stableStringify(record[k])}`).join(",")}}`;
+    return `{${Object.keys(record)
+      .sort()
+      .map((k) => `${JSON.stringify(k)}:${stableStringify(record[k])}`)
+      .join(",")}}`;
   }
   return JSON.stringify(value) ?? "";
 };
@@ -52,8 +55,7 @@ const autoloadProvider = async (definition: LlmProviderDefinition): Promise<void
   };
   const providers = upsertProvider(options.providers, provider);
   const setDefaultModel = !options.harness?.defaultModel;
-  const unchanged =
-    !setDefaultModel && stableStringify(options.providers) === stableStringify(providers);
+  const unchanged = !setDefaultModel && stableStringify(options.providers) === stableStringify(providers);
   if (unchanged) return;
   const next = await updateSettings({
     providers,

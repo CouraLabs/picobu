@@ -1,16 +1,14 @@
 import type { ClipboardService } from "@opentui/core";
-import { createContext, useContext, type ParentProps } from "solid-js";
+import { createContext, type ParentProps, useContext } from "solid-js";
 
 type ClipboardProviderProps = ParentProps<{
-  clipboardService: ClipboardService
-}>
+  clipboardService: ClipboardService;
+}>;
 
-const ClipboardContext = createContext<{ clipboardService: ClipboardService | null }>({ clipboardService: null })
+const ClipboardContext = createContext<{ clipboardService: ClipboardService | null }>({ clipboardService: null });
 
 export const ClipboardProvider = ({ clipboardService, children }: ClipboardProviderProps) => {
-  return (
-    <ClipboardContext.Provider value={{clipboardService}}>{children}</ClipboardContext.Provider>
-  )
-}
+  return <ClipboardContext.Provider value={{ clipboardService }}>{children}</ClipboardContext.Provider>;
+};
 
-export const useClipboard = () => useContext(ClipboardContext)
+export const useClipboard = () => useContext(ClipboardContext);

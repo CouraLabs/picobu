@@ -1,9 +1,9 @@
+import { mkdirSync } from "node:fs";
 import { readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { mkdirSync } from "node:fs";
-import { z } from "zod";
-import { withLock } from "@shared/lock.ts";
 import { folderKeyFor, sessionsRoot } from "@agent/sessions/session-paths.ts";
+import { withLock } from "@shared/lock.ts";
+import { z } from "zod";
 
 export type SessionState = "waiting" | "finished" | "error" | "running";
 
@@ -115,8 +115,7 @@ const metaSchema = z.object({
 
 export type SessionMeta = z.infer<typeof metaSchema>;
 
-export const sessionMetaPath = (folderKey: string, sessionId: string): string =>
-  join(sessionsRoot(), folderKey, `${sessionId}.meta.json`);
+export const sessionMetaPath = (folderKey: string, sessionId: string): string => join(sessionsRoot(), folderKey, `${sessionId}.meta.json`);
 
 export async function readSessionMeta(folderKey: string, sessionId: string): Promise<SessionMeta | null> {
   let raw: string;
@@ -145,11 +144,7 @@ export async function folderKeyForSession(cwd: string, sessionId: string): Promi
   return folderKeyFor(meta?.cwd ?? cwd);
 }
 
-export async function updateSessionMeta(
-  folderKey: string,
-  sessionId: string,
-  patch: Partial<Omit<SessionMeta, "id">>,
-): Promise<SessionMeta | null> {
+export async function updateSessionMeta(folderKey: string, sessionId: string, patch: Partial<Omit<SessionMeta, "id">>): Promise<SessionMeta | null> {
   const path = sessionMetaPath(folderKey, sessionId);
   return withLock(path, async () => {
     let current: SessionMeta | null = null;
@@ -167,8 +162,7 @@ export async function updateSessionMeta(
 export async function deleteSessionMeta(folderKey: string, sessionId: string): Promise<void> {
   try {
     await rm(sessionMetaPath(folderKey, sessionId), { force: true });
-  } catch {
-  }
+  } catch {}
 }
 
 export async function recoverSessionMeta(folderKey: string, sessionId: string): Promise<SessionMeta | null> {

@@ -1,15 +1,16 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { UIMessage } from "ai";
-import { options } from "../../src/config/options.ts";
-import { initLockDir } from "../../src/shared/lock.ts";
+import { SUBAGENT_DEPTH_CAP } from "../../src/agent/agents/subagents.ts";
+import { buildRulesSection, buildSkillsSection, buildSubagentsSection, generateSystemMessage } from "../../src/agent/prompts/system.ts";
 import { checkpointsPath } from "../../src/agent/sessions/checkpoints.ts";
-import { loadSession, listSessions, writeSessionFile } from "../../src/agent/sessions/session-store.ts";
+import { toPromptMessage } from "../../src/agent/sessions/session.ts";
+import { forkSession, sliceMessagesUpTo } from "../../src/agent/sessions/session-fork.ts";
+import { createHeadlessChatState } from "../../src/agent/sessions/session-headless-chat.ts";
 import { JobTracker } from "../../src/agent/sessions/session-jobs.ts";
-import { deleteSessionCascade, listSessionsFor, listSessionTree } from "../../src/agent/sessions/session-queries.ts";
-import { folderKeyFor } from "../../src/agent/sessions/session-paths.ts";
+import { SessionManager } from "../../src/agent/sessions/session-manager.ts";
 import {
   addToTotals,
   deleteSessionMeta,
@@ -22,16 +23,16 @@ import {
   updateSessionMeta,
   writeSessionMeta,
 } from "../../src/agent/sessions/session-meta.ts";
-import { sliceMessagesUpTo, forkSession } from "../../src/agent/sessions/session-fork.ts";
+import { folderKeyFor } from "../../src/agent/sessions/session-paths.ts";
+import { deleteSessionCascade, listSessionsFor, listSessionTree } from "../../src/agent/sessions/session-queries.ts";
 import { spawnSubSession } from "../../src/agent/sessions/session-spawn.ts";
-import { SessionManager } from "../../src/agent/sessions/session-manager.ts";
-import { createHeadlessChatState } from "../../src/agent/sessions/session-headless-chat.ts";
-import { toPromptMessage } from "../../src/agent/sessions/session.ts";
-import { buildRulesSection, buildSkillsSection, buildSubagentsSection, generateSystemMessage } from "../../src/agent/prompts/system.ts";
+import { listSessions, loadSession, writeSessionFile } from "../../src/agent/sessions/session-store.ts";
 import { executorSubagentMarkdown } from "../../src/agent/subagent/executor.ts";
 import { explorerSubagentMarkdown } from "../../src/agent/subagent/explorer.ts";
 import { reviewerSubAgent } from "../../src/agent/subagent/reviewer.ts";
-import { SUBAGENT_DEPTH_CAP } from "../../src/agent/agents/subagents.ts";
+import { options } from "../../src/config/options.ts";
+import { initLockDir } from "../../src/shared/lock.ts";
+
 const originalSystemDir = options.app.systemDir;
 function userMessage(id: string, text: string): UIMessage {
   return { id, role: "user", parts: [{ type: "text", text }] } as unknown as UIMessage;
@@ -77,7 +78,16 @@ describe("session meta pure helpers", () => {
   });
   test("totals accumulate tokens and cost splits", () => {
     const base = emptyTotals();
-    const next = addToTotals(base, { source: "run", inputTokens: 10, outputTokens: 5, cacheReadTokens: 2, cacheWriteTokens: 1, cost: 0.5, inputCost: 0.2, outputCost: 0.3 });
+    const next = addToTotals(base, {
+      source: "run",
+      inputTokens: 10,
+      outputTokens: 5,
+      cacheReadTokens: 2,
+      cacheWriteTokens: 1,
+      cost: 0.5,
+      inputCost: 0.2,
+      outputCost: 0.3,
+    });
     expect(next.inputTokens).toBe(10);
     expect(next.outputTokens).toBe(5);
     expect(next.cost).toBe(0.5);
@@ -186,7 +196,12 @@ describe("session store tombstone and preview", () => {
   test("listSessions skips compaction header and metadata", async () => {
     const { COMPACTION_HEADER } = await import("../../src/agent/sessions/session-compaction.ts");
     await writeSessionFile(folderKey, "cut", [
-      { id: "a", role: "user", metadata: { compaction: { summary: "s", compactedMessageIds: [], createdAt: 1 } }, parts: [{ type: "text", text: "hidden" }] } as unknown as UIMessage,
+      {
+        id: "a",
+        role: "user",
+        metadata: { compaction: { summary: "s", compactedMessageIds: [], createdAt: 1 } },
+        parts: [{ type: "text", text: "hidden" }],
+      } as unknown as UIMessage,
       userMessage("b", `${COMPACTION_HEADER} summary]\n\nvisible`),
       userMessage("c", "real first"),
     ]);
@@ -284,11 +299,7 @@ describe("session fork slice and mocked fork", () => {
     await writeSessionFile(key, "source", [userMessage("a", "first"), userMessage("b", "second"), userMessage("c", "third")]);
     await writeSessionMeta(key, "source", { id: "source", state: "finished", cwd, title: "orig", createdAt: 1, updatedAt: 1 });
     let started = "";
-    const result = await forkSession(
-      { cwd, live: new Map() as never, startSession: async (id: string) => ({ id }) as never },
-      "source",
-      { upToMessageId: "b" },
-    );
+    const result = await forkSession({ cwd, live: new Map() as never, startSession: async (id: string) => ({ id }) as never }, "source", { upToMessageId: "b" });
     started = result.sessionId;
     expect(started.length).toBeGreaterThan(0);
     const targetKey = folderKeyFor(cwd);
@@ -322,7 +333,7 @@ describe("spawn validation without launching", () => {
       await expect(
         spawnSubSession(
           { manager: {} as never, cwd: "/tmp", maxAgents: 1, live: new Map() as never, jobs, baseConfig: () => ({}) as never },
-          { parentId: "p", subagent: "agent", prompt: "hi", depth: 1 },
+          { parentId: "p", subagent: "explorer", prompt: "hi", depth: 1 },
         ),
       ).rejects.toThrow("concurrency limit");
     } finally {

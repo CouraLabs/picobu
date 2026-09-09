@@ -1,26 +1,29 @@
-import { AbstractChat, type ChatInit, type ChatState, type ChatStatus } from "ai";
 import type { Loop, LoopMessage } from "@agent/loop/create-loop.ts";
+import { AbstractChat, type ChatInit, type ChatState, type ChatStatus } from "ai";
 
 export class Chat extends AbstractChat<LoopMessage> {
   readonly loop: Loop;
-  constructor({
-    loop,
-    ...init
-  }: ChatInit<LoopMessage> & { state: ChatState<LoopMessage>; loop: Loop }) {
+  constructor({ loop, ...init }: ChatInit<LoopMessage> & { state: ChatState<LoopMessage>; loop: Loop }) {
     super(init);
     this.loop = loop;
   }
 }
 
+const cloneMessages = (value: LoopMessage[]): LoopMessage[] => {
+  try {
+    return structuredClone(value);
+  } catch (error) {
+    console.error("picobu: message snapshot failed, falling back to shared references:", error);
+    return value;
+  }
+};
+
 export type ChatChangeHandler = (state: ChatState<LoopMessage>) => void;
 
-export function createHeadlessChatState(
-  messages: LoopMessage[] = [],
-  onChange?: ChatChangeHandler,
-): ChatState<LoopMessage> {
+export function createHeadlessChatState(messages: LoopMessage[] = [], onChange?: ChatChangeHandler): ChatState<LoopMessage> {
   let status: ChatStatus = "ready";
   let error: Error | undefined;
-  let messageList: LoopMessage[] = messages;
+  let messageList: LoopMessage[] = cloneMessages(messages);
   const notify = () => onChange?.(state);
   const state: ChatState<LoopMessage> = {
     get status() {
@@ -41,11 +44,11 @@ export function createHeadlessChatState(
       return messageList;
     },
     set messages(value) {
-      messageList = value;
+      messageList = cloneMessages(value);
       notify();
     },
     pushMessage: (message) => {
-      messageList.push(message);
+      messageList.push(cloneMessages([message])[0]!);
       notify();
     },
     popMessage: () => {
@@ -54,7 +57,7 @@ export function createHeadlessChatState(
       return popped;
     },
     replaceMessage: (index, message) => {
-      messageList[index] = message;
+      messageList[index] = cloneMessages([message])[0]!;
       notify();
     },
     snapshot: <T>(thing: T): T => structuredClone(thing),

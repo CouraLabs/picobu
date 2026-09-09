@@ -1,8 +1,9 @@
 import { randomBytes } from "node:crypto";
 import { createServer, type Server } from "node:http";
-import type { OAuthAuth, OAuthCredential, AuthInteraction } from "@auth/types.ts";
-import { generatePKCE } from "@auth/pkce.ts";
 import { oauthErrorHtml, oauthSuccessHtml } from "@auth/oauth-pages.ts";
+import { generatePKCE } from "@auth/pkce.ts";
+import type { AuthInteraction, OAuthAuth, OAuthCredential } from "@auth/types.ts";
+
 const decode = (s: string): string => atob(s);
 const CLIENT_ID = decode("OWQxYzI1MGEtZTYxYi00NGQ5LTg4ZWQtNTk0NGQxOTYyZjVl");
 const AUTHORIZE_URL = "https://claude.ai/oauth/authorize";
@@ -10,9 +11,7 @@ const TOKEN_URL = "https://platform.claude.com/v1/oauth/token";
 const CALLBACK_PORT = 53692;
 const CALLBACK_PATH = "/callback";
 const REDIRECT_URI = `http://localhost:${CALLBACK_PORT}${CALLBACK_PATH}`;
-const SCOPES =
-  "org:create_api_key user:profile user:inference user:sessions:claude_code user:mcp_servers " +
-  "user:file_upload";
+const SCOPES = "org:create_api_key user:profile user:inference user:sessions:claude_code user:mcp_servers " + "user:file_upload";
 const callbackHost = (): string => process.env.PICOBU_OAUTH_CALLBACK_HOST || "127.0.0.1";
 const LOGIN_TIMEOUT_MS = 15 * 60 * 1000;
 const createOAuthState = (): string => randomBytes(16).toString("hex");
@@ -107,11 +106,7 @@ const formatErrorDetails = (error: unknown): string => {
   }
   return String(error);
 };
-async function postJson(
-  url: string,
-  body: Record<string, string | number>,
-  signal: AbortSignal,
-): Promise<string> {
+async function postJson(url: string, body: Record<string, string | number>, signal: AbortSignal): Promise<string> {
   const response = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
@@ -132,12 +127,7 @@ const validateAnthropicToken = (json: unknown, url: string, body: string): Anthr
   }
   return { access_token: record.access_token, refresh_token: record.refresh_token, expires_in: record.expires_in };
 };
-async function exchangeAuthorizationCode(
-  code: string,
-  verifier: string,
-  redirectUri: string,
-  signal: AbortSignal,
-): Promise<OAuthCredential> {
+async function exchangeAuthorizationCode(code: string, verifier: string, redirectUri: string, signal: AbortSignal): Promise<OAuthCredential> {
   let responseBody: string;
   try {
     responseBody = await postJson(
@@ -152,17 +142,13 @@ async function exchangeAuthorizationCode(
       signal,
     );
   } catch (error) {
-    throw new Error(
-      `Token exchange request failed. url=${TOKEN_URL}; redirect_uri=${redirectUri}; details=${formatErrorDetails(error)}`,
-    );
+    throw new Error(`Token exchange request failed. url=${TOKEN_URL}; redirect_uri=${redirectUri}; details=${formatErrorDetails(error)}`);
   }
   let tokenData: AnthropicToken;
   try {
     tokenData = validateAnthropicToken(JSON.parse(responseBody), TOKEN_URL, responseBody);
   } catch (error) {
-    throw new Error(
-      `Token exchange returned invalid payload. url=${TOKEN_URL}; body=${responseBody}; details=${formatErrorDetails(error)}`,
-    );
+    throw new Error(`Token exchange returned invalid payload. url=${TOKEN_URL}; body=${responseBody}; details=${formatErrorDetails(error)}`);
   }
   return {
     type: "oauth",
@@ -215,11 +201,7 @@ async function loginAnthropic(interaction: AuthInteraction): Promise<OAuthCreden
 async function refreshAnthropicToken(refreshToken: string, signal: AbortSignal): Promise<OAuthCredential> {
   let responseBody: string;
   try {
-    responseBody = await postJson(
-      TOKEN_URL,
-      { grant_type: "refresh_token", client_id: CLIENT_ID, refresh_token: refreshToken },
-      signal,
-    );
+    responseBody = await postJson(TOKEN_URL, { grant_type: "refresh_token", client_id: CLIENT_ID, refresh_token: refreshToken }, signal);
   } catch (error) {
     throw new Error(`Anthropic token refresh request failed. url=${TOKEN_URL}; details=${formatErrorDetails(error)}`);
   }
@@ -227,16 +209,12 @@ async function refreshAnthropicToken(refreshToken: string, signal: AbortSignal):
   try {
     data = JSON.parse(responseBody);
   } catch (error) {
-    throw new Error(
-      `Anthropic token refresh returned invalid JSON. url=${TOKEN_URL}; body=${responseBody}; details=${formatErrorDetails(error)}`,
-    );
+    throw new Error(`Anthropic token refresh returned invalid JSON. url=${TOKEN_URL}; body=${responseBody}; details=${formatErrorDetails(error)}`);
   }
   try {
     return tokenFromPayload(data);
   } catch (error) {
-    throw new Error(
-      `Anthropic token refresh response missing fields. url=${TOKEN_URL}; body=${responseBody}; details=${formatErrorDetails(error)}`,
-    );
+    throw new Error(`Anthropic token refresh response missing fields. url=${TOKEN_URL}; body=${responseBody}; details=${formatErrorDetails(error)}`);
   }
 }
 export const anthropicOAuth: OAuthAuth = {

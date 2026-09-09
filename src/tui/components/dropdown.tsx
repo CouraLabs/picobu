@@ -1,9 +1,9 @@
-import { RGBA, type BoxRenderable } from "@opentui/core";
+import { type BoxRenderable, RGBA } from "@opentui/core";
 import { useKeyboard, useRenderer } from "@opentui/solid";
 import { closeDropdown, dropdownState, openDropdown } from "@states/dropdown.state.ts";
 import { theme } from "@states/theme-state.ts";
 import { Marquee } from "@tui/components/marquee.tsx";
-import { For, createEffect, createMemo, createSignal } from "solid-js";
+import { createEffect, createMemo, createSignal, For } from "solid-js";
 export type DropdownOption = {
   name: string;
   value?: unknown;
@@ -27,7 +27,8 @@ export const Dropdown = (props: DropdownProps) => {
   });
   let buttonRef: BoxRenderable | null = null;
   const labelText = () => props.options[selectedIndex()]?.name ?? props.placeholder ?? "Select…";
-  const labelFg = () => (hovered() ? theme().selected(theme().accent) : theme().accent);
+  const background = () => (hovered() ? theme().accent : theme().backgroundElement);
+  const labelFg = () => (hovered() ? theme().selected(background()) : theme().accent);
   const openPopup = () => {
     const btn = buttonRef;
     openDropdown({
@@ -57,7 +58,7 @@ export const Dropdown = (props: DropdownProps) => {
       flexDirection={"row"}
       alignItems={"center"}
       gap={1}
-      backgroundColor={hovered() ? theme().accent : theme().backgroundElement}
+      backgroundColor={background()}
       onMouseOver={() => setHovered(true)}
       onMouseOut={() => setHovered(false)}
       onMouseUp={() => openPopup()}
@@ -81,9 +82,7 @@ export const DropdownLayer = () => {
   const hasOverflow = () => options().length > visibleRows();
   const popupWidth = () => maxWidth() + 2 + (hasOverflow() ? 1 : 0);
   const popupHeight = () => visibleRows() + 2;
-  const visibleOptions = createMemo(() =>
-    options().slice(scrollOffset(), scrollOffset() + visibleRows()),
-  );
+  const visibleOptions = createMemo(() => options().slice(scrollOffset(), scrollOffset() + visibleRows()));
   const scrollbarCells = createMemo(() => Array.from({ length: visibleRows() }, (_, i) => i));
   const thumbRows = () => Math.max(1, Math.round((visibleRows() / options().length) * visibleRows()));
   const thumbStart = () => {
@@ -105,12 +104,7 @@ export const DropdownLayer = () => {
     const s = state();
     if (!s) return;
     setHighlighted(Math.min(s.selected, Math.max(0, s.options.length - 1)));
-    setScrollOffset(
-      Math.min(
-        Math.max(0, s.selected - visibleRows() + 1),
-        Math.max(0, s.options.length - visibleRows()),
-      ),
-    );
+    setScrollOffset(Math.min(Math.max(0, s.selected - visibleRows() + 1), Math.max(0, s.options.length - visibleRows())));
   });
   const move = (delta: number) => {
     const next = Math.min(Math.max(0, highlighted() + delta), options().length - 1);
@@ -120,10 +114,7 @@ export const DropdownLayer = () => {
     if (next >= scrollOffset() + visibleRows()) setScrollOffset(next - visibleRows() + 1);
   };
   const scrollBy = (delta: number) => {
-    const next = Math.min(
-      Math.max(0, scrollOffset() + delta),
-      Math.max(0, options().length - visibleRows()),
-    );
+    const next = Math.min(Math.max(0, scrollOffset() + delta), Math.max(0, options().length - visibleRows()));
     if (next === scrollOffset()) return;
     setScrollOffset(next);
     setHighlighted(Math.min(Math.max(highlighted(), next), next + visibleRows() - 1));
@@ -223,13 +214,7 @@ export const DropdownLayer = () => {
           <For each={scrollbarCells()}>
             {(cell) => (
               <box height={1}>
-                <text
-                  fg={
-                    cell >= thumbStart() && cell < thumbStart() + thumbRows()
-                      ? theme().accent
-                      : theme().borderSubtle
-                  }
-                >
+                <text fg={cell >= thumbStart() && cell < thumbStart() + thumbRows() ? theme().accent : theme().borderSubtle}>
                   {cell >= thumbStart() && cell < thumbStart() + thumbRows() ? "█" : "│"}
                 </text>
               </box>

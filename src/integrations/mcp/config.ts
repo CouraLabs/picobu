@@ -27,20 +27,15 @@ export const resolveEnvRef = (value: string): string => {
   return resolved;
 };
 
-export const resolveEnvMap = (
-  map: Record<string, string> | undefined,
-): Record<string, string> | undefined =>
+export const resolveEnvMap = (map: Record<string, string> | undefined): Record<string, string> | undefined =>
   map ? Object.fromEntries(Object.entries(map).map(([k, v]) => [k, resolveEnvRef(v)])) : undefined;
 
-export const resolveServerEnv = (
-  server: McpServerOptions,
-): Pick<McpServerOptions, "headers" | "env"> => ({
+export const resolveServerEnv = (server: McpServerOptions): Pick<McpServerOptions, "headers" | "env"> => ({
   ...(server.headers ? { headers: resolveEnvMap(server.headers) } : {}),
   ...(server.env ? { env: resolveEnvMap(server.env) } : {}),
 });
 
-export const serverTarget = (server: McpServerOptions): string =>
-  server.type === "stdio" ? [server.command, ...(server.args ?? [])].join(" ") : (server.url ?? "");
+export const serverTarget = (server: McpServerOptions): string => (server.type === "stdio" ? [server.command, ...(server.args ?? [])].join(" ") : (server.url ?? ""));
 
 const inferType = (raw: Record<string, unknown>): "http" | "sse" | "stdio" | undefined => {
   if (raw.type === "http" || raw.type === "sse" || raw.type === "stdio") return raw.type;
@@ -56,9 +51,7 @@ export const normalizeServer = (id: string, raw: unknown): McpServerOptions => {
   const record = raw as Record<string, unknown>;
   const type = inferType(record);
   if (!type) {
-    throw new Error(
-      `MCP server "${id}" needs a "type" ("http" | "sse" | "stdio"), a "url", or a "command"`,
-    );
+    throw new Error(`MCP server "${id}" needs a "type" ("http" | "sse" | "stdio"), a "url", or a "command"`);
   }
   if (type !== "stdio" && typeof record.url !== "string") {
     throw new Error(`MCP server "${id}" (${type}) requires "url"`);
@@ -74,14 +67,10 @@ export const normalizeServer = (id: string, raw: unknown): McpServerOptions => {
   };
   if (Array.isArray(record.args)) server.args = record.args.map(String);
   if (record.headers && typeof record.headers === "object" && !Array.isArray(record.headers)) {
-    server.headers = Object.fromEntries(
-      Object.entries(record.headers as Record<string, unknown>).map(([k, v]) => [k, String(v)]),
-    );
+    server.headers = Object.fromEntries(Object.entries(record.headers as Record<string, unknown>).map(([k, v]) => [k, String(v)]));
   }
   if (record.env && typeof record.env === "object" && !Array.isArray(record.env)) {
-    server.env = Object.fromEntries(
-      Object.entries(record.env as Record<string, unknown>).map(([k, v]) => [k, String(v)]),
-    );
+    server.env = Object.fromEntries(Object.entries(record.env as Record<string, unknown>).map(([k, v]) => [k, String(v)]));
   }
   if (typeof record.auth === "boolean") server.auth = record.auth;
   if (typeof record.instructions === "string") server.instructions = record.instructions;
@@ -98,10 +87,7 @@ export const normalizeServerMap = (raw: unknown): McpServerOptions[] => {
   return Object.entries(raw as Record<string, unknown>).map(([id, entry]) => normalizeServer(id, entry));
 };
 
-export const mergeMcpServers = (
-  globalServers: McpServerOptions[],
-  projectServers: McpServerOptions[],
-): McpServerOptions[] => {
+export const mergeMcpServers = (globalServers: McpServerOptions[], projectServers: McpServerOptions[]): McpServerOptions[] => {
   const merged = new Map<string, McpServerOptions>();
   for (const server of globalServers) merged.set(server.id, server);
   for (const server of projectServers) merged.set(server.id, server);

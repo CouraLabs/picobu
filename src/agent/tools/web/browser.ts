@@ -1,7 +1,6 @@
 import puppeteer, { type Browser } from "puppeteer";
 
-const USER_AGENT =
-  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
+const USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
 
 const BROWSER_HEADERS: Record<string, string> = {
   "user-agent": USER_AGENT,
@@ -15,12 +14,7 @@ const BROWSER_HEADERS: Record<string, string> = {
   "sec-ch-ua-platform": '"macOS"',
 };
 
-const LAUNCH_ARGS = [
-  "--no-sandbox",
-  "--disable-blink-features=AutomationControlled",
-  "--disable-infobars",
-  "--disable-dev-shm-usage",
-];
+const LAUNCH_ARGS = ["--no-sandbox", "--disable-blink-features=AutomationControlled", "--disable-infobars", "--disable-dev-shm-usage"];
 
 const ANTI_DETECTION_SCRIPT = `
   const navigatorProto = Object.getPrototypeOf(navigator);
@@ -118,6 +112,7 @@ const isPrivateHostname = (hostname: string): boolean => {
   if (h === "localhost" || h.endsWith(".localhost")) return true;
   if (h === "0.0.0.0" || h === "::" || h === "::1") return true;
   if (h === "169.254.169.254" || h.startsWith("169.254.")) return true;
+  if (h.includes(":")) return isPrivateIPv6(h);
   const v4 = /^(\d+)\.(\d+)\.(\d+)\.(\d+)$/.exec(h);
   if (v4) {
     const a = Number(v4[1]);
@@ -128,6 +123,17 @@ const isPrivateHostname = (hostname: string): boolean => {
     if (a === 172 && b >= 16 && b <= 31) return true;
     if (a === 0) return true;
   }
+  return false;
+};
+
+const isPrivateIPv6 = (h: string): boolean => {
+  const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/.exec(h);
+  if (mapped) return isPrivateHostname(mapped[1] as string);
+  const first = h.split(":")[0] ?? "";
+  const value = Number.parseInt(first, 16);
+  if (Number.isNaN(value)) return false;
+  if ((value & 0xfe00) === 0xfc00) return true;
+  if ((value & 0xffc0) === 0xfe80) return true;
   return false;
 };
 
@@ -154,10 +160,7 @@ export type RenderedPage = {
   body: string;
 };
 
-export async function renderPage(
-  url: string,
-  { timeout = 30_000, allowPrivate = false }: { timeout?: number; allowPrivate?: boolean } = {},
-): Promise<RenderedPage> {
+export async function renderPage(url: string, { timeout = 30_000, allowPrivate = false }: { timeout?: number; allowPrivate?: boolean } = {}): Promise<RenderedPage> {
   assertSafeUrl(url, allowPrivate);
   const instance = await getBrowser();
   await acquirePageSlot();
@@ -175,6 +178,7 @@ export async function renderPage(
     await page.evaluateOnNewDocument(ANTI_DETECTION_SCRIPT);
     const response = await page.goto(url, { waitUntil: "networkidle2", timeout });
     if (!response) throw new Error(`No response from ${url}`);
+    assertSafeUrl(page.url(), allowPrivate);
     const contentType = response.headers()["content-type"]?.split(";")[0]?.trim() ?? "";
     const isHtml = contentType === "text/html" || contentType === "application/xhtml+xml";
     const body = isHtml ? await page.content() : await response.text();

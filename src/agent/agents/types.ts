@@ -10,4 +10,4 @@ export type AgentType = {
   topK?: number;
   prompt: string;
   color?: string;
-}
+};

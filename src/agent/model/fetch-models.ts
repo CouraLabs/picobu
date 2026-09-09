@@ -1,5 +1,5 @@
-import { z } from "zod";
 import type { ProviderModelCapability, ProviderModelOptions } from "@config/options.ts";
+import { z } from "zod";
 
 const ModelsEntrySchema = z.object({
   id: z.string(),
@@ -13,9 +13,7 @@ const ModelsEntrySchema = z.object({
     .optional(),
   reasoning: z
     .object({
-      effort_levels: z
-        .array(z.object({ value: z.string(), display: z.string().optional() }))
-        .optional(),
+      effort_levels: z.array(z.object({ value: z.string(), display: z.string().optional() })).optional(),
       default_effort_level: z.string().optional(),
     })
     .optional(),
@@ -32,9 +30,7 @@ const ModelsResponseSchema = z.object({ data: z.array(ModelsEntrySchema) });
 
 const toProviderModel = (entry: z.infer<typeof ModelsEntrySchema>): ProviderModelOptions | null => {
   if (!entry.id) return null;
-  const efforts = (entry.reasoning?.effort_levels ?? [])
-    .map((level) => level.value)
-    .filter((value): value is string => Boolean(value));
+  const efforts = (entry.reasoning?.effort_levels ?? []).map((level) => level.value).filter((value): value is string => Boolean(value));
   const supports: ProviderModelCapability[] = ["text"];
   if (entry.capabilities?.vision) supports.push("vision");
   return {

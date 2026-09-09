@@ -1,38 +1,37 @@
 import { options, updateSettings } from "@config/options.ts";
 import type { RGBA, SyntaxStyle } from "@opentui/core";
-import {
-  allThemes,
-  generateSubtleSyntax,
-  generateSyntax,
-  resolveTheme,
-  selectedForeground,
-  type Theme,
-} from "@tui/themes/index.ts";
+import { allThemes, generateSubtleSyntax, generateSyntax, resolveTheme, selectedForeground, type Theme } from "@tui/themes/index.ts";
 import { createMemo, createSignal } from "solid-js";
 export type ThemeVariant = "dark" | "light";
 export type ThemeState = {
   name: string;
   variant: ThemeVariant;
   theme: Theme;
-  syntax: SyntaxStyle,
-  syntaxMuted: SyntaxStyle,
-}
+  syntax: SyntaxStyle;
+  syntaxMuted: SyntaxStyle;
+};
 function listEntries(): string[] {
   return Object.entries(allThemes())
-    .map(([name]) => (name))
+    .map(([name]) => name)
     .sort((a, b) => a.localeCompare(b));
 }
 
 function resolveEntry(name: string, variant: ThemeVariant): Theme {
   const json = allThemes()[name];
   if (!json) {
-    const available = Object.keys(allThemes()).sort().join(", ");
-    throw new Error(`Unknown theme "${name}". Available themes: ${available}`);
+    const fallback = allThemes()["tacos"] ?? Object.values(allThemes())[0];
+    if (!fallback) {
+      throw new Error(`Unknown theme "${name}". No themes available`);
+    }
+    return resolveTheme(fallback, variant);
   }
   return resolveTheme(json, variant);
 }
+function resolveEntryName(name: string): string {
+  return allThemes()[name] ? name : "tacos";
+}
 export const themes = listEntries();
-const defaultName = options?.tui?.theme?.key ?? "tacos";
+const defaultName = resolveEntryName(options?.tui?.theme?.key ?? "tacos");
 const defaultVariant = options?.tui?.theme?.variant ?? "dark";
 const defaultTheme = resolveEntry(defaultName, defaultVariant);
 const [themeState, setThemeState] = createSignal<ThemeState>({
@@ -48,23 +47,30 @@ export const theme = createMemo(() => {
     ...state.theme,
     syntax: state.syntax,
     syntaxMuted: state.syntaxMuted,
-    selected: (bg?: RGBA) => selectedForeground(state.theme, bg)
-  }
+    selected: (bg?: RGBA) => selectedForeground(state.theme, bg),
+  };
 });
 export const themeInfo = createMemo(() => {
   const state = themeState();
-  return { name: state.name, variant: state.variant }
+  return { name: state.name, variant: state.variant };
 });
+let pendingSave: Promise<void> | undefined;
+export const flushThemeSave = (): Promise<void> => pendingSave ?? Promise.resolve();
 export const setTheme = (name: string, variant: ThemeVariant) => {
-  const resolved = resolveEntry(name, variant);
+  const safeName = resolveEntryName(name);
+  const resolved = resolveEntry(safeName, variant);
   const syntax = generateSyntax(resolved);
   const syntaxMuted = generateSubtleSyntax(resolved);
-  setThemeState(() => ({ name, variant, theme: resolved, syntax, syntaxMuted }))
-  updateSettings({ tui: { theme: { key: name, variant } } }).catch(() => {})
+  setThemeState(() => ({ name: safeName, variant, theme: resolved, syntax, syntaxMuted }));
+  pendingSave = updateSettings({ tui: { theme: { key: safeName, variant } } })
+    .then(() => undefined)
+    .catch((error) => {
+      console.error(`picobu: failed to persist theme: ${error instanceof Error ? error.message : String(error)}`);
+    });
 };
 export const toggleThemeVariant = () => {
   const info = themeInfo();
-  setTheme(info.name, info.variant === 'dark' ? 'light' : 'dark')
+  setTheme(info.name, info.variant === "dark" ? "light" : "dark");
 };
 export const indexOfTheme = (names: string[]): number => {
   const index = names.indexOf(themeInfo().name);

@@ -1,12 +1,12 @@
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
-import { options } from "@config/options.ts";
 import { createAgent, NO_TOOLS } from "@agent/agents/create-agent.ts";
-import { parseMarkdownFile } from "@agent/markdown/markdown-parser.ts";
 import type { AgentType } from "@agent/agents/types.ts";
+import { parseMarkdownFile } from "@agent/markdown/markdown-parser.ts";
 import { executorSubagentMarkdown } from "@agent/subagent/executor.ts";
 import { explorerSubagentMarkdown } from "@agent/subagent/explorer.ts";
 import { reviewerSubAgent } from "@agent/subagent/reviewer.ts";
+import { options } from "@config/options.ts";
 
 export const INTERACTIVE_FLOW_TOOLS: readonly string[] = ["ask", "plan-write", "plan-exit"];
 
@@ -15,7 +15,7 @@ export const SUBAGENT_DEPTH_CAP = 3;
 export const SUBAGENT_RULES = `## Subagent Rules
 - You are a subagent. You cannot interact with the user: there is no ask, no plan submission, no questions. Never wait for user input — it will never come.
 - Conclude your task autonomously with the information in your prompt and what you can gather from the repository. Resolve ambiguities yourself; state assumptions in your final answer instead of asking.
-- When done, produce a complete final report: what you did, what you found/changed, and anything the caller should know. Your last text message is your deliverable — it is summarized and returned to the calling agent.`;
+- Always finish with a complete, self-contained summary report as your final text message: what you did, what you found/changed, and anything the caller should know. Never end on a bare tool call. Your last text message is returned verbatim to the calling agent, so it must stand alone.`;
 
 export const BUILT_IN_SUBAGENTS: Record<string, AgentType> = {
   executor: createAgent(executorSubagentMarkdown),
@@ -29,7 +29,10 @@ const parseSubagentTools = (value: unknown): string[] => {
   if (typeof value !== "string") return [];
   if (value.trim().toLowerCase() === "none") return [NO_TOOLS];
   if (value.trim() === "" || value.trim() === "*") return [];
-  return value.split(",").map((t) => t.trim()).filter(Boolean);
+  return value
+    .split(",")
+    .map((t) => t.trim())
+    .filter(Boolean);
 };
 
 export async function listSubagents(cwd: string = options.app.cwd): Promise<AgentType[]> {

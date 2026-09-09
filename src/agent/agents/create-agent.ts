@@ -1,5 +1,5 @@
-import { parseMarkdown, type Frontmatter } from "@agent/markdown/markdown-parser.ts";
 import type { AgentCategory, AgentType } from "@agent/agents/types.ts";
+import { type Frontmatter, parseMarkdown } from "@agent/markdown/markdown-parser.ts";
 
 type AgentFrontmatter = Frontmatter & {
   name?: string;
@@ -37,5 +37,8 @@ function parseTools(value: unknown): string[] {
   if (typeof value !== "string") return [];
   if (value.trim().toLowerCase() === "none") return [NO_TOOLS];
   if (value.trim() === "" || value.trim() === "*") return [];
-  return value.split(",").map((t) => t.trim()).filter(Boolean);
+  return value
+    .split(",")
+    .map((t) => t.trim())
+    .filter(Boolean);
 }
