@@ -4,7 +4,18 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { UIMessage } from 'ai'
 import { CheckpointStore } from '../../src/agent/sessions/checkpoints.ts'
-import { addPrompt, flushPromptHistory, loadPromptHistory, PROMPT_HISTORY_LIMIT, resetPromptHistoryCache } from '../../src/agent/sessions/prompt-history.ts'
+import {
+  addPrompt,
+  clearDraft,
+  clearPromptHistory,
+  flushPromptHistory,
+  loadDraft,
+  loadPromptHistory,
+  PROMPT_HISTORY_LIMIT,
+  projectKeyFor,
+  resetPromptHistoryCache,
+  saveDraft,
+} from '../../src/agent/sessions/prompt-history.ts'
 import {
   buildPlanHandoffCut,
   COMPACTION_HEADER,
@@ -177,10 +188,10 @@ describe('prompt history with tmp file', () => {
     expect(addPrompt('one')).toEqual(['two', 'one'])
   })
   test('caps stored prompts at limit keeping newest', () => {
-    let current: string[] = []
     for (let index = 0; index < PROMPT_HISTORY_LIMIT + 4; index++) {
-      current = addPrompt(`prompt-${index}`, current)
+      addPrompt(`prompt-${index}`)
     }
+    const current = loadPromptHistory()
     expect(current).toHaveLength(PROMPT_HISTORY_LIMIT)
     expect(current[0]).toBe('prompt-4')
     expect(current[current.length - 1]).toBe(`prompt-${PROMPT_HISTORY_LIMIT + 3}`)
@@ -196,6 +207,32 @@ describe('prompt history with tmp file', () => {
     await flushPromptHistory()
     resetPromptHistoryCache()
     expect(loadPromptHistory()).toEqual(['persisted'])
+  })
+  test('history is scoped per project key', () => {
+    addPrompt('alpha-prompt', 'alpha-11111111')
+    addPrompt('beta-prompt', 'beta-22222222')
+    expect(loadPromptHistory('alpha-11111111')).toEqual(['alpha-prompt'])
+    expect(loadPromptHistory('beta-22222222')).toEqual(['beta-prompt'])
+  })
+  test('drafts round-trip per project key', () => {
+    saveDraft('half-typed thought', 'alpha-11111111')
+    expect(loadDraft('alpha-11111111')).toBe('half-typed thought')
+    expect(loadDraft('beta-22222222')).toBe('')
+    clearDraft('alpha-11111111')
+    expect(loadDraft('alpha-11111111')).toBe('')
+  })
+  test('projectKeyFor is stable and unique per folder', () => {
+    expect(projectKeyFor('/a/projects/foo')).toBe(projectKeyFor('/a/projects/foo'))
+    expect(projectKeyFor('/a/projects/foo')).not.toBe(projectKeyFor('/b/other/foo'))
+    expect(projectKeyFor('')).toBe('default')
+  })
+  test('clearPromptHistory wipes everything', () => {
+    addPrompt('gone', 'alpha-11111111')
+    saveDraft('gone-draft', 'alpha-11111111')
+    const cleared = clearPromptHistory()
+    expect(cleared.history).toBeGreaterThanOrEqual(1)
+    expect(loadPromptHistory('alpha-11111111')).toEqual([])
+    expect(loadDraft('alpha-11111111')).toBe('')
   })
 })
 describe('session compaction pure helpers', () => {

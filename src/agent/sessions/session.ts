@@ -9,7 +9,7 @@ import { listRules, type Rule } from '@agent/rules/rules.ts'
 import { CheckpointStore, checkpointsPath, type UndoResult } from '@agent/sessions/checkpoints.ts'
 import { buildPlanHandoffCut, type CompactResult, compactedMessageText, compactSession, isCompactionCut, messagesForLlm, shouldCompact } from '@agent/sessions/session-compaction.ts'
 import { Chat, type ChatChangeHandler, createHeadlessChatState } from '@agent/sessions/session-headless-chat.ts'
-import { dropUnansweredPrompt, stripUnreplayableReasoning } from '@agent/sessions/session-messages.ts'
+import { dropUnansweredPrompt, stripAnalysedImages, stripUnreplayableReasoning } from '@agent/sessions/session-messages.ts'
 import {
   addToTotals,
   type CostDetail,
@@ -36,7 +36,22 @@ export type SessionUsage = LoopUsage & {
 }
 
 export type SessionPrompt = string | CreateUIMessage<LoopMessage>
+export type QueuedFile = {
+  mediaType: string
+  filename?: string
+  url: string
+}
+export type QueuedPrompt = {
+  id: string
+  text: string
+  queuedAt: number
+  steered: boolean
+  files: QueuedFile[]
+}
 type PendingPrompt = {
+  id: string
+  queuedAt: number
+  steered: boolean
   message: CreateUIMessage<LoopMessage>
   resolve?: () => void
   reject?: (error: Error) => void
@@ -87,6 +102,27 @@ const flowOutputStatus = (part: LooseFlowPart): string | undefined => {
 export const toPromptMessage = (prompt: SessionPrompt): CreateUIMessage<LoopMessage> =>
   typeof prompt === 'string' ? ({ parts: [{ type: 'text', text: prompt }] } as CreateUIMessage<LoopMessage>) : prompt
 
+export const queuedTextFromMessage = (message: CreateUIMessage<LoopMessage>): string =>
+  (message.parts ?? [])
+    .filter((p): p is { type: 'text'; text: string } => (p as { type?: unknown }).type === 'text')
+    .map((p) => p.text)
+    .join('\n')
+
+export const queuedFilesFromMessage = (message: CreateUIMessage<LoopMessage>): QueuedFile[] => {
+  const out: QueuedFile[] = []
+  for (const raw of message.parts ?? []) {
+    const part = raw as { type?: unknown; mediaType?: unknown; filename?: unknown; url?: unknown }
+    if (part.type !== 'file') continue
+    if (typeof part.mediaType !== 'string' || typeof part.url !== 'string') continue
+    out.push({
+      mediaType: part.mediaType,
+      ...(typeof part.filename === 'string' ? { filename: part.filename } : {}),
+      url: part.url,
+    })
+  }
+  return out
+}
+
 export type Session = {
   readonly id: string
   readonly status: ChatStatus
@@ -125,8 +161,11 @@ export type Session = {
   switchModel: (modelKey: string) => void
   switchThinking: (thinking: ProviderModelReasoningEffort) => void
   queue: (prompt: SessionPrompt) => void
+  readonly queued: QueuedPrompt[]
   readonly queuedCount: number
-  dequeueNewest: () => boolean
+  removeQueued: (id: string) => boolean
+  onQueueChange: (listener: (items: QueuedPrompt[]) => void) => () => void
+  dequeueNewest: () => QueuedPrompt | undefined
   stream: () => AsyncGenerator<UIMessageChunk>
   streamMessages: () => AsyncIterableStream<LoopMessage>
   steer: (prompt: SessionPrompt) => Promise<void>
@@ -208,6 +247,19 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
   }
 
   const pendingPrompts: PendingPrompt[] = []
+  const queueListeners = new Set<(items: QueuedPrompt[]) => void>()
+  const snapshotQueued = (): QueuedPrompt[] =>
+    pendingPrompts.map((item) => ({
+      id: item.id,
+      text: queuedTextFromMessage(item.message),
+      queuedAt: item.queuedAt,
+      steered: item.steered,
+      files: queuedFilesFromMessage(item.message),
+    }))
+  const emitQueue = (): void => {
+    const snapshot = snapshotQueued()
+    for (const listener of queueListeners) listener(snapshot)
+  }
   let draining = false
   let compaction: Promise<void> | undefined
   let resumeOnce = false
@@ -233,6 +285,7 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
         if (isWaiting(chat.messages)) break
         const item = pendingPrompts.shift()
         if (!item) break
+        emitQueue()
         try {
           await chat.sendMessage(item.message)
           item.resolve?.()
@@ -249,6 +302,7 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
     const pending = pendingPrompts.splice(0)
     const failure = abortFailure()
     for (const item of pending) item.reject?.(failure)
+    if (pending.length > 0) emitQueue()
   }
   const markAborting = (): void => {
     if (isRunning()) aborting = true
@@ -407,6 +461,10 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
           ...(split ?? {}),
         })
         persistMeta({ totals })
+      }
+      if (!wasAborting && !chat.error && !isWaiting(chat.messages)) {
+        const stripped = stripAnalysedImages(chat.messages)
+        if (stripped !== chat.messages) chat.messages = stripped
       }
       handleStateChange(chatState)
       onFinish?.(options)
@@ -640,7 +698,8 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
     sendMessage: ((message, requestOptions) => {
       if (message !== undefined && (resuming || isWaiting(chat.messages))) {
         return new Promise<void>((resolve, reject) => {
-          pendingPrompts.push({ message: toPromptMessage(message as SessionPrompt), resolve, reject })
+          pendingPrompts.push({ id: randomUUID(), queuedAt: Date.now(), steered: false, message: toPromptMessage(message as SessionPrompt), resolve, reject })
+          emitQueue()
           void drain()
         })
       }
@@ -694,17 +753,42 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
       overrides.thinking = thinking
     },
     queue: (prompt) => {
-      pendingPrompts.push({ message: toPromptMessage(prompt) })
+      pendingPrompts.push({ id: randomUUID(), queuedAt: Date.now(), steered: false, message: toPromptMessage(prompt) })
+      emitQueue()
       void drain()
+    },
+    get queued() {
+      return snapshotQueued()
     },
     get queuedCount() {
       return pendingPrompts.length
     },
+    removeQueued: (id) => {
+      const index = pendingPrompts.findIndex((item) => item.id === id)
+      if (index < 0) return false
+      const [item] = pendingPrompts.splice(index, 1)
+      item?.reject?.(Object.assign(new Error('Dequeued'), { name: 'AbortError' }))
+      emitQueue()
+      return true
+    },
+    onQueueChange: (listener) => {
+      queueListeners.add(listener)
+      return () => {
+        queueListeners.delete(listener)
+      }
+    },
     dequeueNewest: () => {
       const item = pendingPrompts.pop()
-      if (!item) return false
+      if (!item) return undefined
       item.reject?.(Object.assign(new Error('Dequeued'), { name: 'AbortError' }))
-      return true
+      emitQueue()
+      return {
+        id: item.id,
+        text: queuedTextFromMessage(item.message),
+        queuedAt: item.queuedAt,
+        steered: item.steered,
+        files: queuedFilesFromMessage(item.message),
+      }
     },
     stream: streamChunks,
     streamMessages: () => {
@@ -731,10 +815,12 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
     steer: (prompt) =>
       new Promise<void>((resolve, reject) => {
         if (resuming || isWaiting(chat.messages)) {
-          pendingPrompts.push({ message: toPromptMessage(prompt), resolve, reject })
+          pendingPrompts.push({ id: randomUUID(), queuedAt: Date.now(), steered: false, message: toPromptMessage(prompt), resolve, reject })
+          emitQueue()
           return
         }
-        pendingPrompts.unshift({ message: toPromptMessage(prompt), resolve, reject })
+        pendingPrompts.unshift({ id: randomUUID(), queuedAt: Date.now(), steered: isRunning(), message: toPromptMessage(prompt), resolve, reject })
+        emitQueue()
         if (isRunning()) {
           requestStop()
         } else {

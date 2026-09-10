@@ -93,7 +93,7 @@ export const SpawnView = (props: { part: ToolPartLike; onOpen?: (sessionId: stri
           {subagent()}
         </text>
         <Show when={running()}>
-          <spinner name="triangle" color={theme().accent} />
+          <spinner name="dots8Bit" color={theme().accent} />
           <text fg={color()} flexShrink={0}>
             · running… {elapsed()}
           </text>

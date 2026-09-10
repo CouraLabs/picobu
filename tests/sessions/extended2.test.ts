@@ -6,7 +6,7 @@ import type { UIMessage } from 'ai'
 import { SUBAGENT_DEPTH_CAP } from '../../src/agent/agents/subagents.ts'
 import { buildRulesSection, buildSkillsSection, buildSubagentsSection, generateSystemMessage } from '../../src/agent/prompts/system.ts'
 import { checkpointsPath } from '../../src/agent/sessions/checkpoints.ts'
-import { toPromptMessage } from '../../src/agent/sessions/session.ts'
+import { queuedFilesFromMessage, queuedTextFromMessage, toPromptMessage } from '../../src/agent/sessions/session.ts'
 import { forkSession, sliceMessagesUpTo } from '../../src/agent/sessions/session-fork.ts'
 import { createHeadlessChatState } from '../../src/agent/sessions/session-headless-chat.ts'
 import { JobTracker } from '../../src/agent/sessions/session-jobs.ts'
@@ -32,6 +32,7 @@ import { explorerSubagentMarkdown } from '../../src/agent/subagent/explorer.ts'
 import { reviewerSubAgent } from '../../src/agent/subagent/reviewer.ts'
 import { options } from '../../src/config/options.ts'
 import { initLockDir } from '../../src/shared/lock.ts'
+import { fileToken, nextFileSeq, parseTokenSeqs, retainReferencedFiles } from '../../src/tui/components/session/session-prompt.tsx'
 
 const originalSystemDir = options.app.systemDir
 function userMessage(id: string, text: string): UIMessage {
@@ -402,6 +403,39 @@ describe('session prompt helper', () => {
   test('passes object prompt through', () => {
     const input = { parts: [{ type: 'text', text: 'kept' }] } as never
     expect(toPromptMessage(input)).toBe(input)
+  })
+  test('extracts queued text from text parts', () => {
+    expect(
+      queuedTextFromMessage({
+        parts: [
+          { type: 'text', text: 'a' },
+          { type: 'text', text: 'b' },
+        ],
+      } as never),
+    ).toBe('a\nb')
+  })
+  test('extracts queued files from file parts', () => {
+    const files = queuedFilesFromMessage({ parts: [{ type: 'file', mediaType: 'image/png', filename: 'p.png', url: 'data:image/png;base64,AA==' }] } as never)
+    expect(files).toEqual([{ mediaType: 'image/png', filename: 'p.png', url: 'data:image/png;base64,AA==' }])
+  })
+  test('file tokens round-trip stable sequence numbers', () => {
+    const text = `see ${fileToken(1, 'image/png', 12)} and ${fileToken(3, 'application/pdf', 2048)}`
+    expect(parseTokenSeqs(text)).toEqual([1, 3])
+    expect(parseTokenSeqs('no markers here')).toEqual([])
+  })
+  test('nextFileSeq reuses freed numbers', () => {
+    const file = (seq: number) => ({ id: `f${seq}`, seq, mediaType: 'image/png', filename: 'p.png', size: 10, bytes: new Uint8Array([1]) })
+    expect(nextFileSeq([])).toBe(1)
+    expect(nextFileSeq([file(1), file(2)])).toBe(3)
+    expect(nextFileSeq([file(2)])).toBe(1)
+    expect(nextFileSeq([file(1), file(3)])).toBe(2)
+  })
+  test('deleted embed frees its number for the next paste', () => {
+    const file = (seq: number) => ({ id: `f${seq}`, seq, mediaType: 'image/png', filename: 'p.png', size: 10, bytes: new Uint8Array([1]) })
+    const staged = [file(1)]
+    const pruned = retainReferencedFiles(staged, 'hello ')
+    expect(pruned).toEqual([])
+    expect(nextFileSeq(pruned)).toBe(1)
   })
 })
 describe('system prompt builders for loop cache', () => {

@@ -1,28 +1,21 @@
-Do not add code comments. the code should be self explanatory.
-
 ## Commands
-- `bun install`, `bun dev` (CLI watch), `bun dev:tui` (reference TUI).
-- Verify order: `bun run lint` -> `bun run tsc` -> focused `bun test tests/<dir>/<file>.test.ts`. Full suite: `bun test tests`.
-- `bun run lint:fix`, `bun run format`, `bun ./scripts/update-tree-sitter-assets.ts` for parser assets.
+- Verify order: `bun run lint` -> `bun run tsc` -> `bun test tests/<dir>/<file>.test.ts`.
+- Smoke: `bun src/dev/smoke.ts` needs a real model in `~/.picobu/options.json`. Unit tests don't: fake model keys, tmp dirs.
 
 ## Imports & style
-- Use path aliases, never relative imports across `src/` folders: `@agent/*`, `@auth/*`, `@config/*`, `@integrations/*`, `@shared/*`, `@states/*`, `@tui/*`, `@wrappers/*`.
-- Keep the `.ts`/`.tsx` extension in imports (required by `NodeNext` + `allowImportingTsExtensions`).
-- Biome covers `src` + `tests` only: single quotes, no semicolons, 2-space indent, 200-col width.
+- Path aliases, never relative imports across `src/` folders: `@agent/*`, `@auth/*`, `@config/*`, `@integrations/*`, `@shared/*`, `@states/*`, `@tui/*`, `@wrappers/*`.
+- Keep `.ts`/`.tsx` extensions in imports (NodeNext + `allowImportingTsExtensions`). `verbatimModuleSyntax` is on: type-only imports need `import type` / `import { type X }`.
+- Tests import source via relative paths (`../../src/...`), not aliases — aliases are a `src/`-only convention.
+- JSX is OpenTUI + Solid, not DOM (`jsxImportSource: @opentui/solid`): elements are `<box>`, `<text>`, `<input>`, ... with props like `marginTop`/`textColor` — never HTML tags or `class=`.
+- Biome covers `src` + `tests` only: single quotes, no semicolons, 2-space indent, 200-col width. No code comments.
 
 ## Layout
-- `src/cli.ts` is the entry (`picobu`, `sessions` subcommands) + bootstrap.
-- `src/agent/`: `loop/` (step engine), `sessions/` (facade, manager, checkpoints), `model/` (provider registry), `agents/` + `subagent/`, `tools/filesystem|flow|web/`.
-- `src/config/options.ts` owns `~/.picobu/options.json`. `src/integrations/` holds WhatsApp (Baileys) + MCP. `src/tui/`, `src/states/`, `src/wrappers/` are host-frontend kit.
-- `tests/` mirrors `src/` (`tests/<area>/*.test.ts`). No CI in-repo; run the three checks locally.
+- `src/cli.ts` is the entry and bootstrap; `src/config/options.ts` owns `~/.picobu/options.json`.
+- `src/agent/`: `loop/`, `sessions/`, `model/`, `agents/` + `subagent/`, `prompts/`, `tools/filesystem|flow|web/`.
+- `src/integrations/` holds WhatsApp (Baileys) + MCP. `src/tui/`, `src/states/`, `src/wrappers/` are host-frontend kit.
+- `tests/` mirrors `src/`. No CI; run the checks locally.
+- Rules load from `.agents/rules/*.md` (frontmatter `name` + `description` required — missing description = skipped); skills from `.agents/skills/<name>/SKILL.md`.
+- Embedded into every session's system prompt at startup (`AGENTS.md`/`CLAUDE.md` from cwd), truncated at 2000 chars — put critical facts above the cut.
 
 ## Versioning
-- `package.json` `version` is the source of truth: `1.<features>.<build>` (major locked at `1`, middle counts features, patch counts builds).
-- Read it at runtime via `getVersion()` in `src/shared/version.ts`; never hardcode a version string.
-- Bump with `bun run version:bump` (build +1) or `bun run version:feature` (features +1, build resets to `0`). Logic lives in `bumpVersion()`; `scripts/bump-version.ts` is a thin wrapper.
-- `picobu --version` comes from `program.version(getVersion())` in `src/cli.ts`.
-
-## Console title
-- Format via `formatConsoleTitle()` in `src/shared/version.ts`: `Picobu v<version> - <session-title>`, version only when untitled.
-- Apply via `setConsoleTitle()` / `resetConsoleTitle()` in `src/shared/console-title.ts` (sets `process.title` + OSC escape).
-- `runTui()` sets the version-only title on start and resets on destroy; `SessionPage` syncs it reactively from the session `title` signal.
+- `package.json` `version` is the source of truth: `1.<features>.<build>`. Read via `getVersion()` in `src/shared/version.ts`; never hardcode. Bump: `bun run version:bump` (build +1) or `version:feature` (features +1, build resets).

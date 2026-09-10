@@ -126,6 +126,7 @@ export const ToolPart = (props: ToolPartProps) => {
   })
   const questions = createMemo(() => (isAskTool(props.part) ? toolAskQuestions(props.part.input) : []))
   const plan = createMemo(() => (isPlanWriteTool(props.part) ? planText(props.part.input) : undefined))
+  const running = createMemo(() => props.part.state !== 'output-available' && props.part.state !== 'output-error')
   const flowStatus = createMemo(() => (isAskTool(props.part) || isPlanWriteTool(props.part) ? flowOutputStatus(props.part) : undefined))
   const flowMessage = createMemo(() => (isAskTool(props.part) || isPlanWriteTool(props.part) ? flowOutputMessage(props.part) : ''))
   const flowInteractive = () => props.isLastMessage === true && flowStatus() === 'pending'
@@ -200,6 +201,9 @@ export const ToolPart = (props: ToolPartProps) => {
             <text fg={color()} selectable={false}>
               {view().icon}
             </text>
+            <Show when={running()}>
+              <spinner name="toggle3" color={color()} />
+            </Show>
             <text fg={hovered() ? theme().accent : theme().textMuted} attributes={hovered() ? TextAttributes.BOLD : undefined} selectable={false}>
               {clipToWidth(collapsedLine())}
             </text>
@@ -218,6 +222,9 @@ export const ToolPart = (props: ToolPartProps) => {
           <text fg={color()} selectable={false}>
             {view().icon}
           </text>
+          <Show when={running()}>
+            <spinner name="toggle3" color={color()} />
+          </Show>
           <text fg={color()} flexShrink={0} attributes={hovered() ? TextAttributes.BOLD : undefined}>
             {name()}
           </text>

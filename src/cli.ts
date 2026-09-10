@@ -14,7 +14,12 @@ import { getVersion } from '@shared/version.ts'
 import { Command } from 'commander'
 
 const program = new Command()
-program.name('picobu').description('Headless autonomous coding agent core').version(getVersion()).option('--session [id]', 'open the TUI, optionally resuming a session')
+program
+  .name('picobu')
+  .description('Headless autonomous coding agent core')
+  .version(getVersion())
+  .option('--session [id]', 'open the TUI, optionally resuming a session')
+  .option('--clear-prompts-history', 'clear all prompt history and drafts, then exit')
 const sessions = program
   .command('sessions')
   .description('list saved sessions for a folder (title + lifecycle state)')
@@ -199,8 +204,14 @@ program
       process.exit(0)
     })()
   })
-program.action((opts: { session?: string | boolean }) => {
+program.action((opts: { session?: string | boolean; clearPromptsHistory?: boolean }) => {
   void (async () => {
+    if (opts.clearPromptsHistory) {
+      const { clearPromptHistory } = await import('@agent/sessions/prompt-history.ts')
+      const cleared = clearPromptHistory()
+      console.log(`Cleared prompt history (${cleared.history} prompt(s), ${cleared.drafts} draft(s)).`)
+      process.exit(0)
+    }
     if (opts.session !== undefined) {
       await bootstrap()
       const { runTui } = await import('@tui/init.tsx')

@@ -1,8 +1,11 @@
 import { TextAttributes } from '@opentui/core'
+import { useKeyboard } from '@opentui/solid'
+import { dialogStatus } from '@states/dialog.state.ts'
 import { indexOfTheme, setTheme, theme, themeInfo, themes, toggleThemeVariant } from '@states/theme-state.ts'
 import { Button } from '@tui/components/button.tsx'
 import { Dialog } from '@tui/components/dialog.tsx'
 import { Dropdown, DropdownLayer } from '@tui/components/dropdown.tsx'
+import { openHelpDialog } from '@tui/components/session/help-dialog.tsx'
 import { StatusSeparator } from '@tui/components/shared/status-separator.tsx'
 import { SessionPage } from '@tui/pages/session-page.tsx'
 import { icons } from '@tui/themes/icons.ts'
@@ -11,6 +14,15 @@ import { Tab } from './tab.tsx'
 
 export const App = (props: { sessionId?: string } = {}) => {
   const [page, setPage] = createSignal('app-tab-session')
+
+  useKeyboard((key) => {
+    if (!key.ctrl || key.meta || key.super) return
+    if (key.name.toLowerCase() !== 'h') return
+    if (dialogStatus().status === 'open') return
+    key.preventDefault()
+    key.stopPropagation()
+    openHelpDialog()
+  })
 
   const pages = [{ id: 'app-tab-session', label: 'session' }]
 
@@ -44,75 +56,17 @@ export const App = (props: { sessionId?: string } = {}) => {
             <Button label={themeInfo().variant} onClick={() => toggleThemeVariant()} />
             <StatusSeparator sep={icons.middleDot} />
             <text fg={theme().text} attributes={TextAttributes.DIM}>
+              {icons.control}H
+            </text>
+            <text fg={theme().textMuted} attributes={TextAttributes.DIM}>
+              (help)
+            </text>
+            <StatusSeparator sep={icons.middleDot} />
+            <text fg={theme().text} attributes={TextAttributes.DIM}>
               {icons.control}D {icons.control}D
             </text>
             <text fg={theme().textMuted} attributes={TextAttributes.DIM}>
               (exit)
-            </text>
-          </box>
-          <box flexDirection="row" columnGap={1} flexShrink={0}>
-            <text fg={theme().text} attributes={TextAttributes.DIM}>
-              {icons.control}C
-            </text>
-            <text fg={theme().textMuted} attributes={TextAttributes.DIM}>
-              (copy)
-            </text>
-          </box>
-          <box flexDirection="row" columnGap={1} flexShrink={0}>
-            <text fg={theme().text} attributes={TextAttributes.DIM}>
-              {icons.control}V
-            </text>
-            <text fg={theme().textMuted} attributes={TextAttributes.DIM}>
-              (paste)
-            </text>
-          </box>
-          <box flexDirection="row" columnGap={1} flexShrink={0}>
-            <text fg={theme().text} attributes={TextAttributes.DIM}>
-              ^M
-            </text>
-            <text fg={theme().textMuted} attributes={TextAttributes.DIM}>
-              (model)
-            </text>
-          </box>
-          <box flexDirection="row" columnGap={1} flexShrink={0}>
-            <text fg={theme().text} attributes={TextAttributes.DIM}>
-              ^J
-            </text>
-            <text fg={theme().textMuted} attributes={TextAttributes.DIM}>
-              (jobs)
-            </text>
-          </box>
-          <box flexDirection="row" columnGap={1} flexShrink={0}>
-            <text fg={theme().text} attributes={TextAttributes.DIM}>
-              ^Q
-            </text>
-            <text fg={theme().textMuted} attributes={TextAttributes.DIM}>
-              (queue)
-            </text>
-          </box>
-          <box flexDirection="row" columnGap={1} flexShrink={0}>
-            <text fg={theme().text} attributes={TextAttributes.DIM}>
-              ^W
-            </text>
-            <text fg={theme().textMuted} attributes={TextAttributes.DIM}>
-              (steer)
-            </text>
-          </box>
-          <box flexDirection="row" columnGap={1} flexShrink={0}>
-            <text fg={theme().text} attributes={TextAttributes.DIM}>
-              {icons.tab}
-            </text>
-            <text fg={theme().textMuted} attributes={TextAttributes.DIM}>
-              (agent)
-            </text>
-          </box>
-          <box flexDirection="row" columnGap={1} flexShrink={0}>
-            <text fg={theme().text} attributes={TextAttributes.DIM}>
-              {icons.shift}
-              {icons.tab}
-            </text>
-            <text fg={theme().textMuted} attributes={TextAttributes.DIM}>
-              (effort)
             </text>
           </box>
           <box flexDirection="row" columnGap={1} flexShrink={0}>

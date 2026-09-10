@@ -1,9 +1,9 @@
 import { theme } from '@states/theme-state.ts'
 import { StatusSegment } from '@tui/components/shared/status-segment.tsx'
+import { StatusSeparator } from '@tui/components/shared/status-separator.tsx'
 import { icons } from '@tui/themes/icons.ts'
 import { Show } from 'solid-js'
 import type { SessionStatusData, SessionStatusProps } from './session-status-data.ts'
-import { StatusSeparator } from '@tui/components/shared/status-separator.tsx'
 
 export const StatusFooter = (props: { status: SessionStatusProps; data: SessionStatusData }) => (
   <box flexDirection="row" columnGap={2} flexShrink={0} flexWrap="wrap">

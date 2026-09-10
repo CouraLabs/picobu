@@ -69,3 +69,22 @@ export function dropUnansweredPrompt<M extends UIMessage>(messages: M[]): M[] {
   if (last.role === 'user') return messages.slice(0, -1)
   return messages
 }
+
+export function stripAnalysedImages<M extends UIMessage>(messages: M[]): M[] {
+  let changed = false
+  const out = messages.map((m) => {
+    let messageChanged = false
+    const parts = (m.parts ?? []).flatMap((part) => {
+      const loose = part as { type?: unknown; mediaType?: unknown; filename?: unknown }
+      if (loose.type !== 'file') return [part]
+      if (typeof loose.mediaType !== 'string' || !loose.mediaType.startsWith('image/')) return [part]
+      messageChanged = true
+      const name = typeof loose.filename === 'string' && loose.filename.length > 0 ? ` ${loose.filename}` : ''
+      return [{ type: 'text', text: `[image${name} removed from context after analysis]` } as M['parts'][number]]
+    })
+    if (!messageChanged) return m
+    changed = true
+    return { ...m, parts } as M
+  })
+  return changed ? out : messages
+}

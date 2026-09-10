@@ -5,7 +5,8 @@ import { listCommands } from '@agent/commands/index.ts'
 import { type ParsedCommandLine, parseCommandLine } from '@agent/commands/parse-command-line.ts'
 import type { LoopMessage } from '@agent/loop/create-loop.ts'
 import { generateSessionTitle } from '@agent/prompts/session-title.ts'
-import type { Session, SessionUsage } from '@agent/sessions/session.ts'
+import { closePromptHistory, projectKeyFor } from '@agent/sessions/prompt-history.ts'
+import type { QueuedPrompt, Session, SessionUsage } from '@agent/sessions/session.ts'
 import { SessionManager } from '@agent/sessions/session-manager.ts'
 import type { SessionTotals } from '@agent/sessions/session-meta.ts'
 import { isWaiting } from '@agent/sessions/session-meta.ts'
@@ -25,11 +26,13 @@ import { ModelSelect } from '@tui/components/session/model-select.tsx'
 import { openRolesDialog } from '@tui/components/session/roles-dialog.tsx'
 import { SessionHeader } from '@tui/components/session/session-header.tsx'
 import { SessionMessages } from '@tui/components/session/session-messages.tsx'
-import { type PromptMode, SessionPrompt } from '@tui/components/session/session-prompt.tsx'
+import { type AttachedFile, type EditRequest, type PromptMode, type PromptPayload, SessionPrompt } from '@tui/components/session/session-prompt.tsx'
+import { SessionQueue } from '@tui/components/session/session-queue.tsx'
 import { SessionStatus, THINKING_LEVELS } from '@tui/components/session/session-status.tsx'
 import { openSubagentMessages } from '@tui/components/session/subagent-dialog.tsx'
 import type { ToolFlowResponse } from '@tui/components/session/tools/tool-part.tsx'
 import { markActiveSessionHasMessages, setActiveSessionId, setActiveSessionStats } from '@tui/hooks/active-session.ts'
+import type { CreateUIMessage } from 'ai'
 import { createEffect, createSignal, onCleanup, onMount } from 'solid-js'
 
 export type SessionPageProps = {
@@ -101,6 +104,9 @@ export const SessionPage = (props: SessionPageProps) => {
   const [git, setGit] = createSignal<{ branch: string; additions: number; deletions: number } | null>(null)
   const [mode, setMode] = createSignal<PromptMode>('normal')
   const [queueDepth, setQueueDepth] = createSignal(0)
+  const [queued, setQueued] = createSignal<QueuedPrompt[]>([])
+  const [editRequest, setEditRequest] = createSignal<EditRequest | undefined>(undefined)
+  const [projectKey, setProjectKey] = createSignal<string>(projectKeyFor())
   const [commandOpen, setCommandOpen] = createSignal(false)
   const [commandExitNonce, setCommandExitNonce] = createSignal(0)
   const sessionMgr = new SessionManager()
@@ -133,7 +139,48 @@ export const SessionPage = (props: SessionPageProps) => {
       .catch(() => {})
   }
 
+  let detachQueue: (() => void) | undefined
+  let editNonce = 0
+
+  const bytesFromDataUrl = (url: string): Uint8Array => {
+    const match = /^data:[^;]+;base64,(.*)$/s.exec(url)
+    if (!match) return new TextEncoder().encode(url)
+    try {
+      return Uint8Array.from(Buffer.from(match[1] ?? '', 'base64'))
+    } catch {
+      return new TextEncoder().encode(url)
+    }
+  }
+
+  const attachedFromQueued = (item: QueuedPrompt): AttachedFile[] => {
+    const seqs: number[] = []
+    for (const match of item.text.matchAll(/\[(\d+) ([^\s\]]+) ([^\]]+)\]/g)) seqs.push(Number(match[1]))
+    return item.files.map((f, index) => {
+      const bytes = bytesFromDataUrl(f.url)
+      return { id: `q-${item.id}-${index}`, seq: seqs[index] ?? -(index + 1), mediaType: f.mediaType, filename: f.filename ?? `queued-${index + 1}`, size: bytes.byteLength, bytes }
+    })
+  }
+
+  const buildMessage = (text: string, files: AttachedFile[]): CreateUIMessage<LoopMessage> =>
+    ({
+      parts: [
+        { type: 'text', text },
+        ...files.map((f) => ({
+          type: 'file' as const,
+          mediaType: f.mediaType,
+          filename: f.filename,
+          url: `data:${f.mediaType};base64,${Buffer.from(f.bytes).toString('base64')}`,
+        })),
+      ],
+    }) as CreateUIMessage<LoopMessage>
+
+  const syncQueue = (target: Session) => {
+    setQueued([...target.queued])
+    setQueueDepth(target.queuedCount)
+  }
+
   const attachSession = (next: Session) => {
+    detachQueue?.()
     setSession(next)
     setActiveId(next.id)
     setAgentId(next.config.agentId)
@@ -143,7 +190,12 @@ export const SessionPage = (props: SessionPageProps) => {
     setTotals({ ...next.totals })
     setUsage(next.usage ? { ...next.usage } : undefined)
     setMessages([...next.messages])
-    setQueueDepth(next.queuedCount)
+    syncQueue(next)
+    setProjectKey(projectKeyFor(next.config.cwd ?? sessionMgr.currentCwd))
+    detachQueue = next.onQueueChange((items) => {
+      setQueued([...items])
+      setQueueDepth(items.length)
+    })
     setActiveSessionId(next.id)
     if (next.messages.length > 0) markActiveSessionHasMessages()
     setActiveSessionStats({ ...next.totals }, next.messages.length)
@@ -214,8 +266,13 @@ export const SessionPage = (props: SessionPageProps) => {
       return
     }
     if (target.queuedCount > 0) {
-      target.dequeueNewest()
-      setQueueDepth(target.queuedCount)
+      const removed = target.dequeueNewest()
+      syncQueue(target)
+      if (removed && (removed.text.trim().length > 0 || removed.files.length > 0)) {
+        editNonce += 1
+        setEditRequest({ text: removed.text, files: attachedFromQueued(removed), nonce: editNonce })
+        pushToast('Newest queued prompt moved back to the prompt for editing', 'info')
+      }
       return
     }
     if (target.status === 'submitted' || target.status === 'streaming') {
@@ -246,11 +303,6 @@ export const SessionPage = (props: SessionPageProps) => {
       } else {
         lastEsc = now
       }
-      return
-    }
-    if (key.ctrl && key.name === 'q') {
-      key.preventDefault()
-      setMode((m) => (m === 'queue' ? 'normal' : 'queue'))
       return
     }
     if (key.ctrl && key.name === 'w') {
@@ -346,6 +398,7 @@ export const SessionPage = (props: SessionPageProps) => {
     onCleanup(() => {
       clearInterval(mcpTimer)
       clearInterval(watchdogTimer)
+      detachQueue?.()
       session()?.close()
     })
   })
@@ -366,7 +419,7 @@ export const SessionPage = (props: SessionPageProps) => {
           const live = session()
           if (live) {
             setTitle(live.title)
-            setQueueDepth(live.queuedCount)
+            syncQueue(live)
             setTotals({ ...live.totals })
             setUsage(live.usage ? { ...live.usage } : undefined)
             setActiveSessionStats({ ...live.totals }, state.messages.length)
@@ -440,6 +493,9 @@ export const SessionPage = (props: SessionPageProps) => {
       await flushThemeSave()
     } catch {}
     try {
+      closePromptHistory()
+    } catch {}
+    try {
       renderer.destroy()
     } catch {
       process.exit(0)
@@ -476,19 +532,30 @@ export const SessionPage = (props: SessionPageProps) => {
       try {
         await target.flush()
       } catch {}
+      detachQueue?.()
       await target.close()
       setSession(undefined)
       setMessages([])
       setIsStreaming(false)
       setWaiting(false)
       setAnswering(false)
+      setQueued([])
+      setQueueDepth(0)
       await openSession(undefined)
     } catch (error) {
       showError(error)
     }
   }
 
-  const dispatchCommand = async (line: string, target: Session) => {
+  const handleRemoveQueued = (id: string) => {
+    const target = session()
+    if (!target) return
+    target.removeQueued(id)
+    syncQueue(target)
+  }
+
+  const dispatchCommand = async (line: string, target: Session, payloadFiles: AttachedFile[] = []) => {
+    if (payloadFiles.length > 0) pushToast('Files are ignored for slash commands', 'warning')
     let parsed: ParsedCommandLine | null
     try {
       parsed = parseCommandLine(line.trim(), listCommands())
@@ -509,8 +576,9 @@ export const SessionPage = (props: SessionPageProps) => {
           showError(error)
           return
         }
-        setQueueDepth(target.queuedCount)
+        syncQueue(target)
       } else {
+        refreshTitle(parsed.prompt || literal, target)
         try {
           await target.sendMessage({ parts: [{ type: 'text', text: literal }] })
         } catch (error) {
@@ -518,7 +586,6 @@ export const SessionPage = (props: SessionPageProps) => {
         }
         if (target.error) showError(target.error)
       }
-      refreshTitle(parsed.prompt || literal, target)
       return
     }
     if (parsed.kind === 'workflow') {
@@ -536,8 +603,9 @@ export const SessionPage = (props: SessionPageProps) => {
           showError(error)
           return
         }
-        setQueueDepth(target.queuedCount)
+        syncQueue(target)
       } else {
+        refreshTitle(parsed.args || parsed.command.name, target)
         try {
           await target.sendMessage({ parts: [{ type: 'text', text: prompt }] })
         } catch (error) {
@@ -545,7 +613,6 @@ export const SessionPage = (props: SessionPageProps) => {
         }
         if (target.error) showError(target.error)
       }
-      refreshTitle(parsed.args || parsed.command.name, target)
       return
     }
     switch (parsed.command.name) {
@@ -600,63 +667,58 @@ export const SessionPage = (props: SessionPageProps) => {
     }
   }
 
-  const handlePrompt = async (text: string) => {
+  const handlePrompt = async (payload: PromptPayload) => {
     const target = session()
     if (!target) {
       showError(new Error('Session is not ready yet, please try again'))
       return
     }
+    const text = payload.text
+    const message = buildMessage(text, payload.files)
     if (text.startsWith('/')) {
-      await dispatchCommand(text, target)
-      return
-    }
-    if (mode() === 'queue') {
-      try {
-        target.queue(text)
-      } catch (error) {
-        showError(error)
-        return
-      }
-      setQueueDepth(target.queuedCount)
-      refreshTitle(text, target)
+      await dispatchCommand(text, target, payload.files)
       return
     }
     if (mode() === 'steer') {
+      refreshTitle(text, target)
       try {
-        await target.steer(text)
+        await target.steer(message)
       } catch (error) {
+        if (error instanceof Error && error.name === 'AbortError') {
+          syncQueue(target)
+          return
+        }
         showError(error)
         return
       }
-      setQueueDepth(target.queuedCount)
-      refreshTitle(text, target)
+      syncQueue(target)
       return
     }
     if (waiting() || answering()) {
       try {
-        target.queue(text)
+        target.queue(message)
       } catch (error) {
         showError(error)
         return
       }
-      setQueueDepth(target.queuedCount)
+      syncQueue(target)
       refreshTitle(text, target)
       return
     }
     if (target.status === 'submitted' || target.status === 'streaming') {
-      target.queue(text)
-      setQueueDepth(target.queuedCount)
+      target.queue(message)
+      syncQueue(target)
       refreshTitle(text, target)
       return
     }
+    refreshTitle(text, target)
     try {
-      await target.sendMessage({ parts: [{ type: 'text', text }] })
+      await target.sendMessage(message)
     } catch (error) {
       showError(error)
     }
-    setQueueDepth(target.queuedCount)
+    syncQueue(target)
     if (target.error) showError(target.error)
-    refreshTitle(text, target)
   }
 
   const handleFlowResponse = async (response: ToolFlowResponse) => {
@@ -745,6 +807,7 @@ export const SessionPage = (props: SessionPageProps) => {
           onMessageOpen={(message) => openMessageActions({ message, onRevert: handleRevert, onFork: (id) => void handleFork(id) })}
           onOpenSubSession={(id, label) => openSubagentMessages({ manager: sessionMgr, sessionId: id, label })}
         />
+        <SessionQueue items={queued()} onRemove={handleRemoveQueued} />
         <SessionPrompt
           onPrompt={handlePrompt}
           streaming={isStreaming()}
@@ -753,6 +816,8 @@ export const SessionPage = (props: SessionPageProps) => {
           queueDepth={queueDepth()}
           onCommandOpenChange={setCommandOpen}
           commandExitNonce={commandExitNonce()}
+          editRequest={editRequest()}
+          historyProjectKey={projectKey()}
         />
         <SessionStatus
           agentId={agentId()}
