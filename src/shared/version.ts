@@ -1,6 +1,4 @@
-import { readFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import pkg from '../../package.json' with { type: 'json' }
 
 export type VersionKind = 'feature' | 'build'
 
@@ -23,9 +21,7 @@ export const bumpVersion = (current: string, kind: VersionKind): string => {
 
 export const getVersion = (): string => {
   if (cached) return cached
-  const dir = dirname(fileURLToPath(import.meta.url))
-  const raw = readFileSync(join(dir, '..', '..', 'package.json'), 'utf8')
-  const parsed = parseVersion(String((JSON.parse(raw) as { version?: unknown }).version ?? ''))
+  const parsed = parseVersion(String((pkg as { version?: unknown }).version ?? ''))
   cached = `${parsed.major}.${parsed.minor}.${parsed.patch}`
   return cached
 }

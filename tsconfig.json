@@ -10,6 +10,7 @@
     "allowJs": true,
     // NodeNext module resolution
     "moduleResolution": "NodeNext",
+    "resolveJsonModule": true,
     "verbatimModuleSyntax": true,
     "allowImportingTsExtensions": true,
     "noEmit": true,
