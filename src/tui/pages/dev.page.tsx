@@ -6,13 +6,8 @@ import { Marquee } from '@tui/components/marquee.tsx'
 
 export const DevPage = () => {
   return (
-    <box
-      flexDirection={'column'}
-      gap={1}>
-      <Marquee
-        content="PICOBU · headless autonomous coding agent core — component demo: hover this banner to scroll it, open the dropdown to switch themes"
-        maxWidth={64}
-      />
+    <box flexDirection={'column'} gap={1}>
+      <Marquee content="PICOBU · headless autonomous coding agent core — component demo: hover this banner to scroll it, open the dropdown to switch themes" maxWidth={64} />
       <Dropdown
         options={themes.map((name) => ({ name, value: name }))}
         onSelect={(option) => setTheme(String(option.value), themeInfo().variant)}
@@ -24,10 +19,7 @@ export const DevPage = () => {
         label="Open dialog"
         onClick={() =>
           openDialog(() => (
-            <box
-              padding={1}
-              flexDirection={'column'}
-              gap={1}>
+            <box padding={1} flexDirection={'column'} gap={1}>
               <text>Dialog works!</text>
             </box>
           ))

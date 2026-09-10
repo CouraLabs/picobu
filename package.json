@@ -1,5 +1,6 @@
 {
   "name": "picobu",
+  "version": "1.0.0",
   "module": "src/cli.ts",
   "type": "module",
   "private": true,
@@ -10,7 +11,10 @@
     "test": "bun test tests",
     "lint": "biome check src tests --max-diagnostics 900",
     "lint:fix": "biome check --write src tests --max-diagnostics 900",
-    "parsers:update": "bun ./scripts/update-tree-sitter-assets.ts"
+    "format": "biome format --write src tests --max-diagnostics 900",
+    "parsers:update": "bun ./scripts/update-tree-sitter-assets.ts",
+    "version:bump": "bun ./scripts/bump-version.ts",
+    "version:feature": "bun ./scripts/bump-version.ts --feature"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.12",

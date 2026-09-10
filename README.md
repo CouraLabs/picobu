@@ -5,6 +5,7 @@ A headless autonomous coding agent core. One agent loop — read, plan, edit —
 ## Requirements
 
 - [Bun](https://bun.sh) ≥ 1.x
+- A terminal font with current programmer-glyph coverage (e.g. an up-to-date Source Code Pro, JetBrains Mono, or equivalent Nerd Fonts coverage) — the TUI status icons assume it
 
 ## Getting started
 
@@ -237,7 +238,7 @@ The core ships with everything a frontend needs — no UI logic lives in the age
 
 ### Reference TUI (`bun dev:tui`)
 
-A full terminal UI over [OpenTUI](https://github.com/sst/opentui) + Solid (`src/tui/`): session page with streamed message rendering (text, reasoning, and tool parts — `ask` renders its structured form inline), session header/status, message actions, a diff viewer for edits, dialogs and dropdowns, a splash screen covering startup, and mouse + Kitty-keyboard support. Clipboard goes through an OpenTUI service adapter; unhandled rejections from the AI SDK stream teardown are filtered (documented benign race) while everything else stays fatal.
+A full terminal UI over [OpenTUI](https://github.com/sst/opentui) + Solid (`src/tui/`): session page with streamed message rendering (text, reasoning, and tool parts — `ask` renders its structured form inline), session header/status, message actions, a diff viewer for edits, dialogs and dropdowns, a splash screen covering startup, and mouse + Kitty-keyboard support. The header/status icons assume an up-to-date programmer font (Source Code Pro, JetBrains Mono, or equivalent) — older fonts may render them as tofu. Clipboard goes through an OpenTUI service adapter; unhandled rejections from the AI SDK stream teardown are filtered (documented benign race) while everything else stays fatal.
 
 ### Library kit
 

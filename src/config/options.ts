@@ -67,6 +67,21 @@ export type TuiOptions = {
 export const DEFAULT_TUI_OPTIONS: Pick<Required<TuiOptionsInput>, 'maxMessages'> = {
   maxMessages: 20,
 }
+export type WatchdogOptionsInput = {
+  staleTimeoutMs?: number
+  enableNotificationWhenStale?: boolean
+  enableContinuePromptWhenStale?: boolean
+}
+export type WatchdogOptions = {
+  staleTimeoutMs: number
+  enableNotificationWhenStale: boolean
+  enableContinuePromptWhenStale: boolean
+}
+export const DEFAULT_WATCHDOG_OPTIONS: WatchdogOptions = {
+  staleTimeoutMs: 5 * 60 * 1000,
+  enableNotificationWhenStale: true,
+  enableContinuePromptWhenStale: false,
+}
 export type WebServerOptions = {
   host: string
   port: number
@@ -91,6 +106,7 @@ export type OptionsExternal = {
   web?: WebServerOptions
   whatsapp?: WhatsAppOptions
   mcp?: McpOptions
+  watchdog?: WatchdogOptionsInput
 }
 export type GlobalOptions = {
   app: {
@@ -110,6 +126,7 @@ export type Options = GlobalOptions & {
   web: WebServerOptions
   whatsapp: WhatsAppOptions
   mcp: McpOptions
+  watchdog: WatchdogOptions
 }
 const globals: GlobalOptions = {
   app: {
@@ -156,6 +173,15 @@ const resolveTui = (external: OptionsExternal): TuiOptions => ({
   theme: external.tui?.theme ?? external.theme ?? DEFAULT_THEME_PREFS,
   maxMessages: normalizeMaxMessages(external.tui?.maxMessages),
 })
+const normalizeStaleTimeout = (value: unknown): number => {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return DEFAULT_WATCHDOG_OPTIONS.staleTimeoutMs
+  return Math.max(5000, Math.floor(value))
+}
+const resolveWatchdog = (external: OptionsExternal): WatchdogOptions => ({
+  staleTimeoutMs: normalizeStaleTimeout(external.watchdog?.staleTimeoutMs),
+  enableNotificationWhenStale: external.watchdog?.enableNotificationWhenStale ?? DEFAULT_WATCHDOG_OPTIONS.enableNotificationWhenStale,
+  enableContinuePromptWhenStale: external.watchdog?.enableContinuePromptWhenStale ?? DEFAULT_WATCHDOG_OPTIONS.enableContinuePromptWhenStale,
+})
 export const loadOptions = async (): Promise<Options> => {
   const externalOpts = await readExternalOptions()
   return {
@@ -166,6 +192,7 @@ export const loadOptions = async (): Promise<Options> => {
     web: { ...DEFAULT_WEB_OPTIONS, ...externalOpts.web },
     whatsapp: { ...DEFAULT_WHATSAPP_OPTIONS, ...externalOpts.whatsapp },
     mcp: { ...DEFAULT_MCP_OPTIONS, ...externalOpts.mcp },
+    watchdog: resolveWatchdog(externalOpts),
   } satisfies Options
 }
 const sortKeys = (value: unknown): unknown => {
@@ -229,6 +256,7 @@ async function readExternalOptions(): Promise<OptionsExternal> {
       web: { ...DEFAULT_WEB_OPTIONS, ...externalOpts.web },
       whatsapp: { ...DEFAULT_WHATSAPP_OPTIONS, ...externalOpts.whatsapp },
       mcp: { ...DEFAULT_MCP_OPTIONS, ...externalOpts.mcp },
+      watchdog: { ...DEFAULT_WATCHDOG_OPTIONS, ...externalOpts.watchdog },
     }
     if (stableStringify(seeded) !== stableStringify(externalOpts)) {
       await Bun.write(externalOptsPath, JSON.stringify(seeded, null, 2))
@@ -238,7 +266,7 @@ async function readExternalOptions(): Promise<OptionsExternal> {
     lock.release()
   }
 }
-export const updateSettings = async (patch: Partial<Pick<OptionsExternal, 'providers' | 'harness' | 'tui' | 'web' | 'whatsapp' | 'mcp'>>): Promise<Options> => {
+export const updateSettings = async (patch: Partial<Pick<OptionsExternal, 'providers' | 'harness' | 'tui' | 'web' | 'whatsapp' | 'mcp' | 'watchdog'>>): Promise<Options> => {
   const systemDir = globals.app.systemDir
   mkdirSync(systemDir, { recursive: true })
   const externalOptsPath = `${systemDir}/options.json`
@@ -283,6 +311,12 @@ export const updateSettings = async (patch: Partial<Pick<OptionsExternal, 'provi
         ...current.mcp,
         ...patch.mcp,
       } as McpOptions,
+      watchdog: {
+        ...DEFAULT_WATCHDOG_OPTIONS,
+        ...current.watchdog,
+        ...patch.watchdog,
+        staleTimeoutMs: normalizeStaleTimeout(patch.watchdog?.staleTimeoutMs ?? current.watchdog?.staleTimeoutMs),
+      } as WatchdogOptions,
     }
     delete next.theme
     await Bun.write(externalOptsPath, JSON.stringify(next, null, 2))

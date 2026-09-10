@@ -3,7 +3,9 @@ import { indexOfTheme, setTheme, theme, themeInfo, themes, toggleThemeVariant } 
 import { Button } from '@tui/components/button.tsx'
 import { Dialog } from '@tui/components/dialog.tsx'
 import { Dropdown, DropdownLayer } from '@tui/components/dropdown.tsx'
+import { StatusSeparator } from '@tui/components/shared/status-separator.tsx'
 import { SessionPage } from '@tui/pages/session-page.tsx'
+import { icons } from '@tui/themes/icons.ts'
 import { createMemo, createSignal } from 'solid-js'
 import { Tab } from './tab.tsx'
 
@@ -15,21 +17,9 @@ export const App = (props: { sessionId?: string } = {}) => {
   const isSession = createMemo(() => page() === 'app-tab-session')
 
   return (
-    <box
-      id="app"
-      width={'100%'}
-      height={'100%'}
-      backgroundColor={theme().background}>
-      <box
-        id="app-content"
-        flexDirection="column"
-        flexGrow={1}
-        flexShrink={1}
-        marginX={2}>
-        <SessionPage
-          sessionId={props.sessionId}
-          visible={isSession()}
-        />
+    <box id="app" width={'100%'} height={'100%'} backgroundColor={theme().background}>
+      <box id="app-content" flexDirection="column" flexGrow={1} flexShrink={1} marginX={2}>
+        <SessionPage sessionId={props.sessionId} visible={isSession()} />
       </box>
       <box
         id="app-footer"
@@ -38,125 +28,104 @@ export const App = (props: { sessionId?: string } = {}) => {
         borderColor={theme().borderSubtle}
         flexDirection="row"
         flexShrink={0}
-        gap={1}
+        columnGap={1}
         justifyContent="space-between"
         alignItems="center"
         flexWrap="wrap"
         marginX={2}>
-        <box
-          id="app-footer-left"
-          flexWrap="wrap"
-          gap={1}>
-          <box
-            flexDirection="row"
-            gap={1}
-            flexShrink={0}>
-            <text
-              fg={theme().text}
-              attributes={TextAttributes.DIM}>
-              ^C
+        <box id="app-footer-left" flexDirection="row" flexWrap="wrap-reverse" columnGap={1}>
+          <box flexDirection="row" columnGap={1} flexShrink={0}>
+            <Dropdown
+              options={themes.map((name) => ({ name, value: name }))}
+              onSelect={(option) => setTheme(String(option.value), themeInfo().variant)}
+              selected={indexOfTheme(themes)}
+              placeholder="Select theme…"
+            />
+            <Button label={themeInfo().variant} onClick={() => toggleThemeVariant()} />
+            <StatusSeparator sep={icons.middleDot} />
+            <text fg={theme().text} attributes={TextAttributes.DIM}>
+              {icons.control}D {icons.control}D
             </text>
-            <text
-              fg={theme().textMuted}
-              attributes={TextAttributes.DIM}>
+            <text fg={theme().textMuted} attributes={TextAttributes.DIM}>
               (exit)
             </text>
           </box>
-          <box
-            flexDirection="row"
-            gap={1}
-            flexShrink={0}>
-            <text
-              fg={theme().text}
-              attributes={TextAttributes.DIM}>
+          <box flexDirection="row" columnGap={1} flexShrink={0}>
+            <text fg={theme().text} attributes={TextAttributes.DIM}>
+              {icons.control}C
+            </text>
+            <text fg={theme().textMuted} attributes={TextAttributes.DIM}>
+              (copy)
+            </text>
+          </box>
+          <box flexDirection="row" columnGap={1} flexShrink={0}>
+            <text fg={theme().text} attributes={TextAttributes.DIM}>
+              {icons.control}V
+            </text>
+            <text fg={theme().textMuted} attributes={TextAttributes.DIM}>
+              (paste)
+            </text>
+          </box>
+          <box flexDirection="row" columnGap={1} flexShrink={0}>
+            <text fg={theme().text} attributes={TextAttributes.DIM}>
               ^M
             </text>
-            <text
-              fg={theme().textMuted}
-              attributes={TextAttributes.DIM}>
+            <text fg={theme().textMuted} attributes={TextAttributes.DIM}>
               (model)
             </text>
           </box>
-          <box
-            flexDirection="row"
-            gap={1}
-            flexShrink={0}>
-            <text
-              fg={theme().text}
-              attributes={TextAttributes.DIM}>
+          <box flexDirection="row" columnGap={1} flexShrink={0}>
+            <text fg={theme().text} attributes={TextAttributes.DIM}>
               ^J
             </text>
-            <text
-              fg={theme().textMuted}
-              attributes={TextAttributes.DIM}>
+            <text fg={theme().textMuted} attributes={TextAttributes.DIM}>
               (jobs)
             </text>
           </box>
-          <box
-            flexDirection="row"
-            gap={1}
-            flexShrink={0}>
-            <text
-              fg={theme().text}
-              attributes={TextAttributes.DIM}>
+          <box flexDirection="row" columnGap={1} flexShrink={0}>
+            <text fg={theme().text} attributes={TextAttributes.DIM}>
               ^Q
             </text>
-            <text
-              fg={theme().textMuted}
-              attributes={TextAttributes.DIM}>
+            <text fg={theme().textMuted} attributes={TextAttributes.DIM}>
               (queue)
             </text>
           </box>
-          <box
-            flexDirection="row"
-            gap={1}
-            flexShrink={0}>
-            <text
-              fg={theme().text}
-              attributes={TextAttributes.DIM}>
+          <box flexDirection="row" columnGap={1} flexShrink={0}>
+            <text fg={theme().text} attributes={TextAttributes.DIM}>
               ^W
             </text>
-            <text
-              fg={theme().textMuted}
-              attributes={TextAttributes.DIM}>
+            <text fg={theme().textMuted} attributes={TextAttributes.DIM}>
               (steer)
             </text>
           </box>
-          <box
-            flexDirection="row"
-            gap={1}
-            flexShrink={0}>
-            <text
-              fg={theme().text}
-              attributes={TextAttributes.DIM}>
+          <box flexDirection="row" columnGap={1} flexShrink={0}>
+            <text fg={theme().text} attributes={TextAttributes.DIM}>
+              {icons.tab}
+            </text>
+            <text fg={theme().textMuted} attributes={TextAttributes.DIM}>
+              (agent)
+            </text>
+          </box>
+          <box flexDirection="row" columnGap={1} flexShrink={0}>
+            <text fg={theme().text} attributes={TextAttributes.DIM}>
+              {icons.shift}
+              {icons.tab}
+            </text>
+            <text fg={theme().textMuted} attributes={TextAttributes.DIM}>
+              (effort)
+            </text>
+          </box>
+          <box flexDirection="row" columnGap={1} flexShrink={0}>
+            <text fg={theme().text} attributes={TextAttributes.DIM}>
               esc esc
             </text>
-            <text
-              fg={theme().textMuted}
-              attributes={TextAttributes.DIM}>
+            <text fg={theme().textMuted} attributes={TextAttributes.DIM}>
               (stop)
             </text>
           </box>
         </box>
-        <box
-          id="app-footer-right"
-          flexWrap="wrap"
-          gap={1}>
-          <Tab
-            tabs={pages}
-            onChange={setPage}
-            curr={page()}
-          />
-          <Dropdown
-            options={themes.map((name) => ({ name, value: name }))}
-            onSelect={(option) => setTheme(String(option.value), themeInfo().variant)}
-            selected={indexOfTheme(themes)}
-            placeholder="Select theme…"
-          />
-          <Button
-            label={themeInfo().variant}
-            onClick={() => toggleThemeVariant()}
-          />
+        <box id="app-footer-right" flexDirection="row" columnGap={1}>
+          <Tab tabs={pages} onChange={setPage} curr={page()} />
         </box>
       </box>
       <Dialog />

@@ -44,45 +44,24 @@ const SubagentMessagesDialog = (props: SubagentMessagesProps) => {
   })
 
   return (
-    <box
-      flexDirection="column"
-      width={132}
-      height={38}
-      paddingX={2}
-      paddingY={1}>
-      <box
-        border={['bottom']}
-        borderColor={theme().border}
-        flexShrink={0}
-        flexDirection="row"
-        gap={1}>
-        <text
-          fg={theme().text}
-          flexShrink={1}>
+    <box flexDirection="column" width={132} height={38} paddingX={2} paddingY={1}>
+      <box border={['bottom']} borderColor={theme().border} flexShrink={0} flexDirection="row" gap={1}>
+        <text fg={theme().text} flexShrink={1}>
           {title() ?? props.label}
         </text>
-        <text
-          fg={theme().textMuted}
-          flexShrink={0}>
+        <text fg={theme().textMuted} flexShrink={0}>
           · {props.sessionId}
         </text>
         <Show when={title() && title() !== props.label}>
-          <text
-            fg={theme().textMuted}
-            flexShrink={0}>
+          <text fg={theme().textMuted} flexShrink={0}>
             · {props.label}
           </text>
         </Show>
       </box>
-      <box
-        flexGrow={1}
-        flexShrink={1}>
+      <box flexGrow={1} flexShrink={1}>
         <SessionMessages messages={messages()} />
       </box>
-      <box
-        border={['top']}
-        borderColor={theme().border}
-        flexShrink={0}>
+      <box border={['top']} borderColor={theme().border} flexShrink={0}>
         <text fg={theme().textMuted}>(esc to close)</text>
       </box>
     </box>

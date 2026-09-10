@@ -62,12 +62,7 @@ export const Dropdown = (props: DropdownProps) => {
       onMouseOver={() => setHovered(true)}
       onMouseOut={() => setHovered(false)}
       onMouseUp={() => openPopup()}>
-      <Marquee
-        content={labelText()}
-        maxWidth={maxWidth()}
-        scrolling={hovered()}
-        fg={labelFg()}
-      />
+      <Marquee content={labelText()} maxWidth={maxWidth()} scrolling={hovered()} fg={labelFg()} />
       <text fg={labelFg()}>▾</text>
     </box>
   )
@@ -200,21 +195,13 @@ export const DropdownLayer = () => {
                   onMouseUp={(event) => {
                     if (event.button === 0) pick(optionIndex())
                   }}>
-                  <Marquee
-                    content={option.name}
-                    maxWidth={maxWidth()}
-                    fillWidth
-                    scrolling={open() && isHighlighted()}
-                    fg={isHighlighted() ? theme().selected(theme().accent) : theme().accent}
-                  />
+                  <Marquee content={option.name} maxWidth={maxWidth()} fillWidth scrolling={open() && isHighlighted()} fg={isHighlighted() ? theme().selected(theme().accent) : theme().accent} />
                 </box>
               )
             }}
           </For>
         </box>
-        <box
-          flexDirection={'column'}
-          visible={hasOverflow()}>
+        <box flexDirection={'column'} visible={hasOverflow()}>
           <For each={scrollbarCells()}>
             {(cell) => (
               <box height={1}>

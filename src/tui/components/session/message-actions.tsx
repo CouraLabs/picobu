@@ -49,10 +49,7 @@ const MessageActionsDialog = ({ message, onRevert, onFork }: MessageActionsProps
     const service = getClipboardService()
     if (!service) {
       openDialog(() => (
-        <box
-          flexDirection="column"
-          gap={1}
-          padding={1}>
+        <box flexDirection="column" gap={1} padding={1}>
           <text fg={theme().error}>Copy failed</text>
           <text fg={theme().text}>No clipboard service available</text>
           <text fg={theme().textMuted}>(esc to close)</text>
@@ -66,10 +63,7 @@ const MessageActionsDialog = ({ message, onRevert, onFork }: MessageActionsProps
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error)
       openDialog(() => (
-        <box
-          flexDirection="column"
-          gap={1}
-          padding={1}>
+        <box flexDirection="column" gap={1} padding={1}>
           <text fg={theme().error}>Copy failed</text>
           <text fg={theme().text}>{detail}</text>
           <text fg={theme().textMuted}>(esc to close)</text>
@@ -80,25 +74,13 @@ const MessageActionsDialog = ({ message, onRevert, onFork }: MessageActionsProps
 
   const confirmRevert = () => {
     openDialog(() => (
-      <box
-        flexDirection="column"
-        gap={1}
-        padding={1}>
+      <box flexDirection="column" gap={1} padding={1}>
         <text fg={theme().warning}>Revert to this message?</text>
-        <text
-          width={56}
-          fg={theme().text}>
+        <text width={56} fg={theme().text}>
           Discards every message after this one from the context. This cannot be undone.
         </text>
-        <box
-          flexDirection="row"
-          gap={1}
-          justifyContent="flex-end"
-          marginTop={1}>
-          <Button
-            label="Cancel"
-            onClick={closeDialog}
-          />
+        <box flexDirection="row" gap={1} justifyContent="flex-end" marginTop={1}>
+          <Button label="Cancel" onClick={closeDialog} />
           <Button
             label="Revert"
             onClick={() => {
@@ -113,13 +95,8 @@ const MessageActionsDialog = ({ message, onRevert, onFork }: MessageActionsProps
   }
 
   return (
-    <box
-      flexDirection="column"
-      paddingX={2}
-      paddingY={1}>
-      <box
-        border={['bottom']}
-        borderColor={theme().border}>
+    <box flexDirection="column" paddingX={2} paddingY={1}>
+      <box border={['bottom']} borderColor={theme().border}>
         <text fg={theme().text}>{message.role === 'user' ? 'Prompt' : 'Assistant Message'}</text>
       </box>
       <select
@@ -136,9 +113,7 @@ const MessageActionsDialog = ({ message, onRevert, onFork }: MessageActionsProps
         selectedTextColor={theme().selected(theme().accent)}
         selectedDescriptionColor={theme().selected(theme().accent)}
       />
-      <box
-        border={['top']}
-        borderColor={theme().border}>
+      <box border={['top']} borderColor={theme().border}>
         <text fg={theme().textMuted}>(esc to close)</text>
       </box>
     </box>

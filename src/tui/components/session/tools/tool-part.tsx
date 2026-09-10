@@ -1,16 +1,17 @@
 import { TextAttributes } from '@opentui/core'
 import { useTerminalDimensions } from '@opentui/solid'
-import { fmtCost, fmtTokens } from '@shared/format.ts'
-import { dialogJustClosed } from '@states/dialog.state.ts'
+import { clip } from '@shared/format.ts'
 import { theme } from '@states/theme-state.ts'
 import { Diff, filetypeFromPath } from '@tui/components/diff.tsx'
-import { icons } from '@tui/themes/icons.ts'
+import { toneColor } from '@tui/components/shared/tool-tone.ts'
 import { getSharedTreeSitterClientSync } from '@wrappers/treesitter-wrapper.ts'
-import { createMemo, createSignal, onCleanup, onMount, Show } from 'solid-js'
+import { createMemo, createSignal, Show } from 'solid-js'
 import 'opentui-spinner/solid'
 import type { TodoItem } from '@agent/tools/flow/todo.ts'
 import { AskForm } from './ask-form.tsx'
+import { FlowStaticView, type ToolFlowResponse } from './flow-view.tsx'
 import { PlanReview, type PlanVerdict } from './plan-review.tsx'
+import { SpawnView } from './spawn-view.tsx'
 import { TodoList } from './todo-list.tsx'
 import {
   EXPANDED_MAX_LINES,
@@ -21,13 +22,9 @@ import {
   knowledgeDetail,
   planText,
   previewToolInput,
-  spawnSessionId,
-  spawnSubagentName,
-  spawnUsage,
   summarizeToolInput,
   summarizeToolOutput,
   type ToolPartLike,
-  type ToolTone,
   toolAskQuestions,
   toolDiff,
   toolDisplayName,
@@ -37,12 +34,7 @@ import {
   truncateLines,
 } from './tool-summary.ts'
 
-export type ToolFlowResponse = {
-  tool: 'ask' | 'plan-write'
-  toolCallId: string
-  output: { status: string; message: string }
-  compact?: boolean
-}
+export type { ToolFlowResponse } from './flow-view.tsx'
 
 export type ToolPartProps = {
   part: ToolPartLike
@@ -52,156 +44,8 @@ export type ToolPartProps = {
   onOpenSubSession?: (sessionId: string, label: string) => void
 }
 
-const SpawnView = (props: { part: ToolPartLike; onOpen?: (sessionId: string, label: string) => void }) => {
-  const [hovered, setHovered] = createSignal(false)
-  const view = createMemo(() => toolStateView(props.part))
-  const color = createMemo(() => toneColor(view().tone))
-  const subagent = createMemo(() => spawnSubagentName(props.part.input) ?? 'Spawn')
-  const sessionId = createMemo(() => spawnSessionId(props.part.output))
-  const usage = createMemo(() => spawnUsage(props.part.output))
-  const running = createMemo(() => props.part.state !== 'output-available' && props.part.state !== 'output-error')
-  const failed = createMemo(() => props.part.state === 'output-error')
-  const startAt = Date.now()
-  const [tick, setTick] = createSignal(Date.now())
-  onMount(() => {
-    const timer = setInterval(() => {
-      if (!running()) {
-        clearInterval(timer)
-        return
-      }
-      setTick(Date.now())
-    }, 1000)
-    onCleanup(() => clearInterval(timer))
-  })
-  const elapsed = createMemo(() => {
-    if (!running()) return ''
-    const seconds = Math.max(0, Math.floor((tick() - startAt) / 1000))
-    if (seconds < 60) return `${seconds}s`
-    return `${Math.floor(seconds / 60)}m ${String(seconds % 60).padStart(2, '0')}s`
-  })
-  const inputLabel = createMemo(() => {
-    const current = usage()
-    return current ? fmtTokens(current.inputTokens) : '–'
-  })
-  const outputLabel = createMemo(() => {
-    const current = usage()
-    return current ? fmtTokens(current.outputTokens) : '–'
-  })
-  const cacheLabel = createMemo(() => {
-    const current = usage()
-    if (!current) return '–'
-    const total = current.cacheRead + current.cacheWrite
-    const hit = current.inputTokens > 0 ? Math.round((current.cacheRead / current.inputTokens) * 100) : 0
-    return `${fmtTokens(total)} (${hit}%)`
-  })
-  const costLabel = createMemo(() => {
-    const cost = usage()?.cost
-    if (cost === undefined) return '–'
-    const raw = cost > 0 && cost < 0.01 ? cost.toFixed(4) : fmtCost(cost)
-    return raw.startsWith('$') ? raw.slice(1) : raw
-  })
-  const open = () => {
-    if (dialogJustClosed()) return
-    const id = sessionId()
-    if (id) props.onOpen?.(id, subagent())
-  }
-  const dims = useTerminalDimensions()
-  const usageLine = createMemo(() => {
-    const current = usage()
-    if (!current) return ''
-    return `${icons.arrowUp} ${inputLabel()} · ${icons.arrowDown} ${outputLabel()} · ${icons.refresh} ${cacheLabel()} · ${icons.cost} ${costLabel()}`
-  })
-  const clipRest = (line: string): string => {
-    const max = Math.max(8, dims().width - 12 - subagent().length)
-    return line.length > max ? `${line.slice(0, max - 1)}…` : line
-  }
-  return (
-    <box
-      flexDirection="column"
-      paddingLeft={1}
-      border={['left']}
-      bottomTitle={` Spawn: ${subagent()} `}
-      bottomTitleAlignment="right"
-      borderStyle={hovered() ? 'heavy' : 'single'}
-      borderColor={color()}
-      onMouseOver={() => setHovered(true)}
-      onMouseOut={() => setHovered(false)}
-      onMouseUp={(event) => {
-        event.stopPropagation()
-        open()
-      }}>
-      <box
-        flexDirection="row"
-        gap={1}
-        flexWrap="no-wrap"
-        alignItems="center">
-        <text
-          fg={color()}
-          selectable={false}>
-          {view().icon}
-        </text>
-        <text
-          fg={color()}
-          flexShrink={0}>
-          {subagent()}
-        </text>
-        <Show when={running()}>
-          <spinner
-            name="triangle"
-            color={theme().accent}
-          />
-          <text
-            fg={color()}
-            flexShrink={0}>
-            · running… {elapsed()}
-          </text>
-        </Show>
-        <Show when={failed()}>
-          <text
-            fg={theme().error}
-            flexShrink={0}>
-            · failed
-          </text>
-        </Show>
-        <Show when={!running() && !failed() && usage()}>
-          <text
-            fg={theme().textMuted}
-            flexShrink={1}>
-            {clipRest(`· ${usageLine()}`)}
-          </text>
-        </Show>
-        <Show when={!running() && sessionId()}>
-          <text
-            fg={hovered() ? theme().accent : theme().textMuted}
-            flexShrink={0}
-            selectable={false}>
-            · open →
-          </text>
-        </Show>
-      </box>
-    </box>
-  )
-}
-
 const [expandedKeys, setExpandedKeys] = createSignal<ReadonlySet<string>>(new Set())
 const [collapsedKeys, setCollapsedKeys] = createSignal<ReadonlySet<string>>(new Set())
-
-const toneColor = (tone: ToolTone) => {
-  switch (tone) {
-    case 'running':
-      return theme().primary
-    case 'success':
-      return theme().success
-    case 'error':
-      return theme().error
-    case 'warning':
-      return theme().warning
-    case 'info':
-      return theme().info
-    default:
-      return theme().textMuted
-  }
-}
 
 const isAskTool = (part: ToolPartLike): boolean => part.type === 'tool-ask' || (part.type === 'dynamic-tool' && part.toolName === 'ask')
 
@@ -249,122 +93,15 @@ const writePath = (part: ToolPartLike): string => {
   return typeof path === 'string' ? path : ''
 }
 
-const FlowStaticView = (props: ToolPartProps & { flowKind: 'ask' | 'plan-write' }) => {
-  const name = createMemo(() => toolDisplayName(props.part))
-  const view = createMemo(() => toolStateView(props.part))
-  const color = createMemo(() => toneColor(view().tone))
-  const summary = createMemo(() => {
-    const known = summarizeToolInput(name(), props.part.input)
-    return known === '?' ? previewToolInput(props.part.input) : known
-  })
-  const status = createMemo(() => flowOutputStatus(props.part))
-  const message = createMemo(() => flowOutputMessage(props.part))
-  const questions = createMemo(() => (props.flowKind === 'ask' ? toolAskQuestions(props.part.input) : []))
-  const plan = createMemo(() => (props.flowKind === 'plan-write' ? planText(props.part.input) : undefined))
-  const interactive = () => props.isLastMessage === true && status() === 'pending'
-  const toolCallId = () => props.part.toolCallId ?? ''
-  const hasToolCallId = () => toolCallId().length > 0
-  const showAsk = () => props.flowKind === 'ask' && hasToolCallId() && questions().length > 0 && status() !== undefined
-  const showPlan = () => props.flowKind === 'plan-write' && hasToolCallId() && plan() !== undefined && status() !== undefined
-  const pendingWithoutId = () => !hasToolCallId() && (questions().length > 0 || plan() !== undefined) && status() !== undefined
-  return (
-    <box
-      flexDirection="column"
-      paddingLeft={1}
-      border={['left']}
-      bottomTitle={` ${name()} `}
-      bottomTitleAlignment="right"
-      borderStyle={'heavy'}
-      borderColor={color()}>
-      <box
-        flexDirection="row"
-        gap={1}
-        flexWrap="wrap">
-        <text
-          fg={color()}
-          selectable={false}>
-          {view().icon}
-        </text>
-        <text
-          fg={color()}
-          flexShrink={0}>
-          {name()}
-        </text>
-        <text
-          fg={theme().textMuted}
-          flexShrink={1}>
-          {summary()}
-        </text>
-      </box>
-      <Show
-        when={status() && !showAsk() && !showPlan()}
-        keyed>
-        {(current: string) => (
-          <text fg={theme().textMuted}>
-            {current}
-            {message() ? ` · ${message()}` : ''}
-          </text>
-        )}
-      </Show>
-      <Show when={showAsk()}>
-        <AskForm
-          questions={questions()}
-          status={status()}
-          outputMessage={message()}
-          interactive={interactive()}
-          onConfirm={(text) => props.onFlowResponse?.({ tool: 'ask', toolCallId: toolCallId(), output: { status: 'answered', message: text } })}
-          onCancel={() =>
-            props.onFlowResponse?.({
-              tool: 'ask',
-              toolCallId: toolCallId(),
-              output: { status: 'cancelled', message: 'The user dismissed the questions without answering' },
-            })
-          }
-        />
-      </Show>
-      <Show when={showPlan()}>
-        <PlanReview
-          plan={plan() ?? ''}
-          status={status()}
-          outputMessage={message()}
-          interactive={interactive()}
-          onVerdict={(verdict: PlanVerdict, verdictMessage: string, compact: boolean) =>
-            props.onFlowResponse?.({ tool: 'plan-write', toolCallId: toolCallId(), output: { status: verdict, message: verdictMessage }, compact })
-          }
-          onCancel={() => props.onFlowResponse?.({ tool: 'plan-write', toolCallId: toolCallId(), output: { status: 'cancelled', message: 'The user dismissed the plan review' } })}
-        />
-      </Show>
-      <Show when={pendingWithoutId()}>
-        <text fg={theme().textMuted}>Preparing input…</text>
-      </Show>
-    </box>
-  )
-}
-
 export const ToolPart = (props: ToolPartProps) => {
   if (isSpawnTool(props.part)) {
-    return (
-      <SpawnView
-        part={props.part}
-        onOpen={props.onOpenSubSession}
-      />
-    )
+    return <SpawnView part={props.part} onOpen={props.onOpenSubSession} />
   }
   if (isAskTool(props.part)) {
-    return (
-      <FlowStaticView
-        {...props}
-        flowKind="ask"
-      />
-    )
+    return <FlowStaticView part={props.part} isLastMessage={props.isLastMessage} flowKind="ask" onFlowResponse={props.onFlowResponse} />
   }
   if (isPlanWriteTool(props.part)) {
-    return (
-      <FlowStaticView
-        {...props}
-        flowKind="plan-write"
-      />
-    )
+    return <FlowStaticView part={props.part} isLastMessage={props.isLastMessage} flowKind="plan-write" onFlowResponse={props.onFlowResponse} />
   }
   const [hovered, setHovered] = createSignal(false)
   const name = createMemo(() => toolDisplayName(props.part))
@@ -441,20 +178,13 @@ export const ToolPart = (props: ToolPartProps) => {
   })
   const clipToWidth = (line: string): string => {
     const max = Math.max(8, dims().width - 6 - view().icon.length)
-    return line.length > max ? `${line.slice(0, max - 1)}…` : line
+    return clip(line, max)
   }
 
   const toolCallId = () => props.part.toolCallId ?? ''
 
   return (
-    <box
-      flexDirection="column"
-      paddingLeft={1}
-      border={['left']}
-      bottomTitle={` ${name()} `}
-      bottomTitleAlignment="right"
-      borderStyle={'heavy'}
-      borderColor={color()}>
+    <box flexDirection="column" paddingLeft={1} border={['left']} bottomTitle={` ${name()} `} bottomTitleAlignment="right" borderStyle={'heavy'} borderColor={color()}>
       <Show
         when={expanded()}
         fallback={
@@ -467,15 +197,10 @@ export const ToolPart = (props: ToolPartProps) => {
               event.stopPropagation()
               toggle()
             }}>
-            <text
-              fg={color()}
-              selectable={false}>
+            <text fg={color()} selectable={false}>
               {view().icon}
             </text>
-            <text
-              fg={hovered() ? theme().accent : theme().textMuted}
-              attributes={hovered() ? TextAttributes.BOLD : undefined}
-              selectable={false}>
+            <text fg={hovered() ? theme().accent : theme().textMuted} attributes={hovered() ? TextAttributes.BOLD : undefined} selectable={false}>
               {clipToWidth(collapsedLine())}
             </text>
           </box>
@@ -490,60 +215,32 @@ export const ToolPart = (props: ToolPartProps) => {
             event.stopPropagation()
             toggle()
           }}>
-          <text
-            fg={color()}
-            selectable={false}>
+          <text fg={color()} selectable={false}>
             {view().icon}
           </text>
-          <text
-            fg={color()}
-            flexShrink={0}
-            attributes={hovered() ? TextAttributes.BOLD : undefined}>
+          <text fg={color()} flexShrink={0} attributes={hovered() ? TextAttributes.BOLD : undefined}>
             {name()}
           </text>
-          <text
-            fg={theme().textMuted}
-            flexShrink={1}
-            attributes={hovered() ? TextAttributes.BOLD : undefined}>
+          <text fg={theme().textMuted} flexShrink={1} attributes={hovered() ? TextAttributes.BOLD : undefined}>
             {summary()}
           </text>
         </box>
-        <Show
-          when={runningProgress()}
-          keyed>
+        <Show when={runningProgress()} keyed>
           {(progress: string) => <text fg={color()}>{progress}</text>}
         </Show>
-        <Show
-          when={written()}
-          keyed>
-          {(content: string) => (
-            <code
-              content={content}
-              filetype={filetypeFromPath(writePath(props.part))}
-              syntaxStyle={theme().syntax}
-              treeSitterClient={getSharedTreeSitterClientSync()}
-              conceal
-            />
-          )}
+        <Show when={written()} keyed>
+          {(content: string) => <code content={content} filetype={filetypeFromPath(writePath(props.part))} syntaxStyle={theme().syntax} treeSitterClient={getSharedTreeSitterClientSync()} conceal />}
         </Show>
-        <Show
-          when={todos()}
-          keyed>
+        <Show when={todos()} keyed>
           {(items: TodoItem[]) => (
-            <box
-              maxHeight={EXPANDED_MAX_LINES}
-              overflow="hidden">
+            <box maxHeight={EXPANDED_MAX_LINES} overflow="hidden">
               <TodoList items={items} />
             </box>
           )}
         </Show>
-        <Show
-          when={knowledge()}
-          keyed>
+        <Show when={knowledge()} keyed>
           {(detail: KnowledgeDetail) => (
-            <box
-              flexDirection="column"
-              gap={0}>
+            <box flexDirection="column" gap={0}>
               <Show when={detail.description.length > 0}>
                 <text fg={theme().text}>{detail.description}</text>
               </Show>
@@ -556,31 +253,17 @@ export const ToolPart = (props: ToolPartProps) => {
             </box>
           )}
         </Show>
-        <Show
-          when={diff()}
-          keyed>
-          {(diff: string) => (
-            <Diff
-              diff={diff}
-              maxHeight={EXPANDED_MAX_LINES}
-            />
-          )}
+        <Show when={diff()} keyed>
+          {(diff: string) => <Diff diff={diff} maxHeight={EXPANDED_MAX_LINES} />}
         </Show>
-        <Show
-          when={expandedText()}
-          keyed>
+        <Show when={expandedText()} keyed>
           {(body: string) => (
-            <box
-              maxHeight={EXPANDED_MAX_LINES}
-              overflow="hidden"
-              flexDirection="column">
+            <box maxHeight={EXPANDED_MAX_LINES} overflow="hidden" flexDirection="column">
               <text fg={theme().text}>{body}</text>
             </box>
           )}
         </Show>
-        <Show
-          when={outputPreview() && todos() === undefined && knowledge() === undefined}
-          keyed>
+        <Show when={outputPreview() && todos() === undefined && knowledge() === undefined} keyed>
           {(preview: string) => <text fg={theme().textMuted}>{preview}</text>}
         </Show>
       </Show>

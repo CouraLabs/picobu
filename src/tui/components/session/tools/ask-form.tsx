@@ -1,5 +1,6 @@
 import type { InputRenderable } from '@opentui/core'
 import { useTerminalDimensions } from '@opentui/solid'
+import { clip } from '@shared/format.ts'
 import { theme } from '@states/theme-state.ts'
 import { Button } from '@tui/components/button.tsx'
 import { icons } from '@tui/themes/icons.ts'
@@ -17,8 +18,6 @@ export type AskFormProps = {
 
 const TAB_MAX_WIDTH = 24
 const COMMENT_MAX_WIDTH = 48
-
-const truncate = (text: string, max: number): string => (text.length > max ? `${text.slice(0, max - 1)}…` : text)
 
 export const AskForm = (props: AskFormProps) => {
   const [active, setActive] = createSignal(0)
@@ -124,9 +123,7 @@ export const AskForm = (props: AskFormProps) => {
       <Show
         when={!readonly()}
         fallback={
-          <box
-            flexDirection="column"
-            gap={1}>
+          <box flexDirection="column" gap={1}>
             <Show
               when={wasDismissed()}
               fallback={
@@ -136,16 +133,14 @@ export const AskForm = (props: AskFormProps) => {
                     <Show
                       when={responded() || settledTerminal() || settledFailure()}
                       fallback={
-                        <Show
-                          when={settledFailure()}
-                          fallback={<text fg={theme().textMuted}>{`${icons.question} Awaiting your answers.`}</text>}>
+                        <Show when={settledFailure()} fallback={<text fg={theme().textMuted}>{`${icons.question} Awaiting your answers.`}</text>}>
                           <text fg={theme().error}>{`${icons.cross} Request failed (${props.status}).`}</text>
                         </Show>
                       }>
                       <For each={props.questions}>
                         {(question, index) => {
                           const comment = comments()[index()]?.trim()
-                          const line = `${icons.success} ${truncate(question.title, TAB_MAX_WIDTH)}: ${(answers()[index()] ?? []).join(', ') || '(no answer)'}${comment ? ` · ${comment}` : ''}`
+                          const line = `${icons.success} ${clip(question.title, TAB_MAX_WIDTH)}: ${(answers()[index()] ?? []).join(', ') || '(no answer)'}${comment ? ` · ${comment}` : ''}`
                           return (
                             <box flexDirection="column">
                               <text fg={theme().textMuted}>{line}</text>
@@ -162,48 +157,29 @@ export const AskForm = (props: AskFormProps) => {
               }>
               <text fg={theme().warning}>{`${icons.cross} Dismissed without answering.`}</text>
             </Show>
-            <Show
-              when={wasDismissed() || responded() || settledTerminal() || settledFailure()}
-              fallback={<text fg={theme().textMuted}>Awaiting answers.</text>}>
-              <Show
-                when={settledFailure()}
-                fallback={<text fg={theme().success}>{wasDismissed() ? 'Dismissed.' : 'Answers sent.'}</text>}>
+            <Show when={wasDismissed() || responded() || settledTerminal() || settledFailure()} fallback={<text fg={theme().textMuted}>Awaiting answers.</text>}>
+              <Show when={settledFailure()} fallback={<text fg={theme().success}>{wasDismissed() ? 'Dismissed.' : 'Answers sent.'}</text>}>
                 <text fg={theme().error}>{`${icons.cross} Failed (${props.status}).`}</text>
               </Show>
             </Show>
           </box>
         }>
-        <box
-          flexDirection="row"
-          gap={1}
-          flexWrap="wrap">
+        <box flexDirection="row" gap={1} flexWrap="wrap">
           <For each={props.questions}>
             {(question, index) => (
-              <box
-                height={1}
-                paddingX={1}
-                flexShrink={0}
-                backgroundColor={tabBackground(index())}
-                onMouseUp={() => setActive(index())}>
-                <text fg={tabColor(index())}>{truncate(question.title, TAB_MAX_WIDTH)}</text>
+              <box height={1} paddingX={1} flexShrink={0} backgroundColor={tabBackground(index())} onMouseUp={() => setActive(index())}>
+                <text fg={tabColor(index())}>{clip(question.title, TAB_MAX_WIDTH)}</text>
               </box>
             )}
           </For>
-          <box
-            height={1}
-            paddingX={1}
-            flexShrink={0}
-            backgroundColor={tabBackground(summaryIndex())}
-            onMouseUp={() => setActive(summaryIndex())}>
+          <box height={1} paddingX={1} flexShrink={0} backgroundColor={tabBackground(summaryIndex())} onMouseUp={() => setActive(summaryIndex())}>
             <text fg={tabColor(summaryIndex())}>{icons.success} Summary</text>
           </box>
         </box>
         <For each={props.questions}>
           {(question, questionIndex) => (
             <Show when={active() === questionIndex()}>
-              <box
-                flexDirection="column"
-                marginTop={1}>
+              <box flexDirection="column" marginTop={1}>
                 <Show when={question.question.length > 0}>
                   <text fg={theme().text}>{question.question}</text>
                 </Show>
@@ -217,17 +193,10 @@ export const AskForm = (props: AskFormProps) => {
                         onMouseUp={() => toggle(questionIndex(), option.answer)}
                         onMouseOver={() => hover(questionIndex(), option.answer, true)}
                         onMouseOut={() => hover(questionIndex(), option.answer, false)}>
-                        <text
-                          flexShrink={0}
-                          fg={checked() ? theme().success : theme().textMuted}>
+                        <text flexShrink={0} fg={checked() ? theme().success : theme().textMuted}>
                           {question.type === 'single' ? (checked() ? `(${icons.circle})` : `( )`) : checked() ? `[${icons.cross}]` : `[ ]`}
                         </text>
-                        <box
-                          flexDirection="row"
-                          gap={1}
-                          flexShrink={1}
-                          flexWrap="wrap"
-                          minWidth={0}>
+                        <box flexDirection="row" gap={1} flexShrink={1} flexWrap="wrap" minWidth={0}>
                           <text fg={hovered().answer === option.answer && hovered().index === questionIndex() ? theme().accent : theme().text}>{option.answer}</text>
                           <Show when={option.answerDescription}>
                             <text fg={theme().textMuted}>— {option.answerDescription}</text>
@@ -237,9 +206,7 @@ export const AskForm = (props: AskFormProps) => {
                     )
                   }}
                 </For>
-                <box
-                  marginTop={1}
-                  onMouseUp={() => inputRefs[questionIndex()]?.focus()}>
+                <box marginTop={1} onMouseUp={() => inputRefs[questionIndex()]?.focus()}>
                   <input
                     ref={(r) => {
                       inputRefs[questionIndex()] = r
@@ -258,23 +225,18 @@ export const AskForm = (props: AskFormProps) => {
           )}
         </For>
         <Show when={isLastTab()}>
-          <box
-            flexDirection="column"
-            marginTop={1}
-            gap={1}>
+          <box flexDirection="column" marginTop={1} gap={1}>
             <For each={props.questions}>
               {(question, index) => (
                 <box flexDirection="column">
                   <text fg={theme().textMuted}>
-                    {index() + 1}. {truncate(question.title, TAB_MAX_WIDTH)}
+                    {index() + 1}. {clip(question.title, TAB_MAX_WIDTH)}
                   </text>
                   <text fg={(answers()[index()] ?? []).length > 0 ? theme().text : theme().warning}>
                     {'  '}
                     {(answers()[index()] ?? []).join(', ') || '(no answer)'}
                   </text>
-                  <Show
-                    when={comments()[index()]?.trim()}
-                    keyed>
+                  <Show when={comments()[index()]?.trim()} keyed>
                     {(comment: string) => (
                       <text fg={theme().textMuted}>
                         {'  '}comment: {comment}
@@ -286,22 +248,11 @@ export const AskForm = (props: AskFormProps) => {
             </For>
           </box>
         </Show>
-        <box
-          flexDirection="row"
-          gap={1}
-          marginTop={1}
-          flexWrap="wrap">
+        <box flexDirection="row" gap={1} marginTop={1} flexWrap="wrap">
           <Show when={isLastTab() && allAnswered()}>
-            <Button
-              label={`${icons.send} Confirm answers`}
-              isActive
-              onClick={confirm}
-            />
+            <Button label={`${icons.send} Confirm answers`} isActive onClick={confirm} />
           </Show>
-          <Button
-            label={`${icons.cross} Dismiss`}
-            onClick={cancel}
-          />
+          <Button label={`${icons.cross} Dismiss`} onClick={cancel} />
         </box>
       </Show>
     </box>

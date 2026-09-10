@@ -30,6 +30,36 @@ export const fmtCost = (n?: number): string => {
   return `$${fixed.replace(/\.00$/, '')}`
 }
 
+export const fmtCostPrecise = (n?: number): string => {
+  if (n === undefined) return ''
+  if (n > 0 && n < 0.01) return `$${n.toFixed(4)}`
+  return fmtCost(n)
+}
+
+export const fmtCostPreciseBare = (n?: number): string => {
+  const formatted = fmtCostPrecise(n)
+  return formatted.startsWith('$') ? formatted.slice(1) : formatted
+}
+
+export const fmtMs = (ms: number | undefined): string => {
+  if (ms === undefined) return '–'
+  if (ms < 1000) return `${Math.round(ms)}ms`
+  return `${(ms / 1000).toFixed(1)}s`
+}
+
+export const fmtTps = (tps: number | undefined): string => {
+  if (tps === undefined || !Number.isFinite(tps)) return '–'
+  if (tps < 10) return `${tps.toFixed(1)}t/s`
+  return `${Math.round(tps)}t/s`
+}
+
+export const fmtRate = (rate: number | undefined): string => {
+  if (rate === undefined) return '–'
+  return `$${rate % 1 === 0 ? rate.toFixed(0) : rate.toFixed(2)}/M`
+}
+
+export const tableCell = (value: string, width: number): string => clip(value, width).padEnd(width)
+
 export const fmtDuration = (sec: number): string => {
   const s = Math.max(0, Math.round(sec))
   if (s < 60) return `${s}s`

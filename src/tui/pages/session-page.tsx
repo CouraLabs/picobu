@@ -9,23 +9,28 @@ import type { Session, SessionUsage } from '@agent/sessions/session.ts'
 import { SessionManager } from '@agent/sessions/session-manager.ts'
 import type { SessionTotals } from '@agent/sessions/session-meta.ts'
 import { isWaiting } from '@agent/sessions/session-meta.ts'
+import { createSessionWatchdog } from '@agent/sessions/session-watchdog.ts'
 import type { ProviderModelReasoningEffort } from '@config/options.ts'
+import { options } from '@config/options.ts'
 import { useKeyboard, useRenderer } from '@opentui/solid'
+import { setConsoleTitle } from '@shared/console-title.ts'
 import { getGitInfo } from '@shared/git-info.ts'
-import { notifyCompletion, notifyFailure } from '@shared/notify.ts'
+import { notifyBlocking, notifyCompletion, notifyFailure, notifyStale } from '@shared/notify.ts'
 import { closeDialog, dialogStatus, openDialog } from '@states/dialog.state.ts'
 import { flushThemeSave, theme } from '@states/theme-state.ts'
+import { pushToast } from '@states/toast.state.ts'
 import { openJobsDialog } from '@tui/components/session/jobs-dialog.tsx'
 import { openMessageActions } from '@tui/components/session/message-actions.tsx'
 import { ModelSelect } from '@tui/components/session/model-select.tsx'
 import { openRolesDialog } from '@tui/components/session/roles-dialog.tsx'
+import { SessionHeader } from '@tui/components/session/session-header.tsx'
 import { SessionMessages } from '@tui/components/session/session-messages.tsx'
 import { type PromptMode, SessionPrompt } from '@tui/components/session/session-prompt.tsx'
 import { SessionStatus, THINKING_LEVELS } from '@tui/components/session/session-status.tsx'
 import { openSubagentMessages } from '@tui/components/session/subagent-dialog.tsx'
 import type { ToolFlowResponse } from '@tui/components/session/tools/tool-part.tsx'
 import { markActiveSessionHasMessages, setActiveSessionId, setActiveSessionStats } from '@tui/hooks/active-session.ts'
-import { createSignal, onCleanup, onMount } from 'solid-js'
+import { createEffect, createSignal, onCleanup, onMount } from 'solid-js'
 
 export type SessionPageProps = {
   sessionId?: string
@@ -35,14 +40,12 @@ export type SessionPageProps = {
 const AGENT_CYCLE = ['ask', 'coder', 'plan-code']
 
 const ESC_WINDOW_MS = 600
+const EXIT_WINDOW_MS = 2000
 
 const showError = (error: unknown) => {
   const message = error instanceof Error ? error.message : String(error)
   openDialog(() => (
-    <box
-      flexDirection="column"
-      gap={1}
-      padding={1}>
+    <box flexDirection="column" gap={1} padding={1}>
       <text fg={theme().error}>Something went wrong</text>
       <text fg={theme().text}>{message}</text>
       <text fg={theme().textMuted}>(esc to close)</text>
@@ -52,10 +55,7 @@ const showError = (error: unknown) => {
 
 const showInfo = (title: string, body: string) => {
   openDialog(() => (
-    <box
-      flexDirection="column"
-      gap={1}
-      padding={1}>
+    <box flexDirection="column" gap={1} padding={1}>
       <text fg={theme().text}>{title}</text>
       <text fg={theme().text}>{body}</text>
       <text fg={theme().textMuted}>(esc to close)</text>
@@ -105,10 +105,17 @@ export const SessionPage = (props: SessionPageProps) => {
   const [commandExitNonce, setCommandExitNonce] = createSignal(0)
   const sessionMgr = new SessionManager()
   const renderer = useRenderer()
+  const watchdog = createSessionWatchdog({ staleTimeoutMs: options.watchdog.staleTimeoutMs })
   let lastEsc = 0
+  let lastCtrlD = 0
   let prevStreaming = false
   let prevWaiting = false
+  let prevErrorMessage: string | undefined
   const titleGenerationPending = new Set<string>()
+
+  createEffect(() => {
+    setConsoleTitle(title())
+  })
 
   const refreshGit = (dir: string | undefined) => {
     setCwd(dir)
@@ -146,6 +153,8 @@ export const SessionPage = (props: SessionPageProps) => {
     setWaiting(w)
     prevStreaming = streaming
     prevWaiting = w
+    prevErrorMessage = next.error?.message
+    watchdog.reset()
     refreshGit(next.config.cwd ?? sessionMgr.currentCwd)
     refreshMcp(next)
   }
@@ -157,6 +166,7 @@ export const SessionPage = (props: SessionPageProps) => {
       <ModelSelect
         currentModelKey={modelKey()}
         onSelect={(selected) => {
+          const previous = modelKey() ?? target.config.modelKey
           try {
             target.switchModel(selected)
           } catch (error) {
@@ -164,6 +174,7 @@ export const SessionPage = (props: SessionPageProps) => {
             return
           }
           setModelKey(selected)
+          if (previous !== selected) pushToast(`Model changed from ${previous} to ${selected}`, 'info')
           closeDialog()
         }}
       />
@@ -247,6 +258,18 @@ export const SessionPage = (props: SessionPageProps) => {
       setMode((m) => (m === 'steer' ? 'normal' : 'steer'))
       return
     }
+    if (key.ctrl && key.name === 'd') {
+      key.preventDefault()
+      const now = Date.now()
+      if (now - lastCtrlD < EXIT_WINDOW_MS) {
+        lastCtrlD = 0
+        void quitApp()
+      } else {
+        lastCtrlD = now
+        pushToast('Press ⌃D again to exit!', 'warning')
+      }
+      return
+    }
     if (key.ctrl && key.name === 'j') {
       key.preventDefault()
       openJobsDialog({
@@ -263,8 +286,10 @@ export const SessionPage = (props: SessionPageProps) => {
         const candidate = AGENT_CYCLE[(current + 1) % AGENT_CYCLE.length] ?? AGENT_CYCLE[0]
         if (candidate === undefined) throw new Error('No agents configured')
         const next = candidate
+        const previous = agentId() ?? target.config.agentId
         target.switchAgent(next)
         setAgentId(next)
+        if (previous !== next) pushToast(`Agent changed from ${previous} to ${next}`, 'info')
       } catch (error) {
         showError(error)
       }
@@ -293,9 +318,34 @@ export const SessionPage = (props: SessionPageProps) => {
 
   onMount(() => {
     void openSession(activeId())
-    const timer = setInterval(() => refreshMcp(session()), 15000)
+    const mcpTimer = setInterval(() => refreshMcp(session()), 15000)
+    const watchdogTimer = setInterval(() => {
+      const target = session()
+      if (!target) return
+      const status = target.status
+      if (status !== 'submitted' && status !== 'streaming') return
+      const snapshot = { status, messages: messages() as never[], error: target.error }
+      if (options.watchdog.enableNotificationWhenStale && watchdog.shouldNotifyStale(snapshot)) {
+        pushToast('The session is stale', 'warning')
+        notifyStale('The session is stale')
+      }
+      if (options.watchdog.enableContinuePromptWhenStale && watchdog.shouldSendContinue(snapshot)) {
+        pushToast('Session stale — sending continue prompt', 'warning')
+        void (async () => {
+          try {
+            const live = session()
+            if (!live) return
+            if (live.status === 'submitted' || live.status === 'streaming') await live.steer('continue')
+            else await live.sendMessage({ parts: [{ type: 'text', text: 'continue' }] })
+          } catch (error) {
+            showError(error)
+          }
+        })()
+      }
+    }, 5000)
     onCleanup(() => {
-      clearInterval(timer)
+      clearInterval(mcpTimer)
+      clearInterval(watchdogTimer)
       session()?.close()
     })
   })
@@ -308,6 +358,7 @@ export const SessionPage = (props: SessionPageProps) => {
           setMessages([...state.messages])
           const streaming = state.status === 'submitted' || state.status === 'streaming'
           setIsStreaming(streaming)
+          if (streaming) watchdog.recordActivity()
           if (streaming || state.status === 'error') setAnswering(false)
           const w = isWaiting(state.messages)
           setWaiting(w)
@@ -322,14 +373,34 @@ export const SessionPage = (props: SessionPageProps) => {
           }
           const current = session()
           refreshGit(current?.config.cwd ?? sessionMgr.currentCwd)
-          if (!prevWaiting && w) notifyCompletion('Input needed — review the question above')
+          if (!prevWaiting && w) {
+            const last = state.messages[state.messages.length - 1]
+            const found = last?.role === 'assistant' ? pendingFlowPart(last.parts as unknown[]) : undefined
+            if (found?.tool === 'plan-write') {
+              pushToast('Then agent waiting you to verify the plan', 'warning')
+              notifyBlocking('Then agent waiting you to verify the plan')
+            } else {
+              pushToast('The agent is asking you questions', 'warning')
+              notifyBlocking('The agent is asking you questions')
+            }
+          }
           if (prevStreaming && !streaming) {
-            if (state.error) notifyFailure(state.error.message)
-            else notifyCompletion('Run complete')
+            watchdog.reset()
+            if (state.error) {
+              pushToast(`Run gave error: ${state.error.message}`, 'error')
+              notifyFailure(state.error.message)
+            } else {
+              pushToast('Run is complete', 'success')
+              notifyCompletion('Run complete')
+            }
             refreshMcp(live)
+          } else if (state.error && state.error.message !== prevErrorMessage) {
+            pushToast(`Run gave error: ${state.error.message}`, 'error')
+            notifyFailure(state.error.message)
           }
           prevStreaming = streaming
           prevWaiting = w
+          prevErrorMessage = state.error?.message
         },
       })
       attachSession(next)
@@ -649,15 +720,24 @@ export const SessionPage = (props: SessionPageProps) => {
   }
 
   return (
-    <box
-      flexDirection="row"
-      flexGrow={1}
-      flexShrink={1}
-      visible={props.visible}>
-      <box
-        flexDirection="column"
-        flexGrow={1}
-        flexShrink={1}>
+    <box flexDirection="row" flexGrow={1} flexShrink={1} visible={props.visible}>
+      <box flexDirection="column" flexGrow={1} flexShrink={1}>
+        <SessionHeader
+          agentId={agentId()}
+          modelKey={modelKey()}
+          thinking={thinking()}
+          title={title()}
+          cwd={cwd()}
+          git={git()}
+          messages={messages()}
+          totals={totals()}
+          usage={usage()}
+          streaming={isStreaming()}
+          queueDepth={queueDepth()}
+          mode={mode()}
+          waiting={waiting() || answering()}
+          mcp={mcp()}
+        />
         <SessionMessages
           messages={messages()}
           isStreaming={isStreaming()}

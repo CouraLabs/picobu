@@ -65,29 +65,14 @@ export const SessionMessages = (props: SessionMessagesProps) => {
       }}>
       <Index each={allMessageParts()}>
         {(entry, index) => (
-          <Show
-            when={asToolPart(entry().part)}
-            fallback={
-              <MessagePartView
-                role={entry().role}
-                part={entry().part}
-                message={entry().message}
-                onOpen={props.onMessageOpen}
-              />
-            }>
+          <Show when={asToolPart(entry().part)} fallback={<MessagePartView role={entry().role} part={entry().part} message={entry().message} onOpen={props.onMessageOpen} />}>
             {(toolPart: () => ToolPartLike) => {
               const prev = allMessageParts()[index - 1]
               const afterUserOrReasoning = prev !== undefined && (prev.part.type === 'text' || prev.part.type === 'reasoning')
 
               return (
                 <box marginTop={afterUserOrReasoning ? 1 : 0}>
-                  <ToolPart
-                    part={toolPart()}
-                    partKey={entry().key}
-                    isLastMessage={entry().isLastMessage}
-                    onFlowResponse={props.onFlowResponse}
-                    onOpenSubSession={props.onOpenSubSession}
-                  />
+                  <ToolPart part={toolPart()} partKey={entry().key} isLastMessage={entry().isLastMessage} onFlowResponse={props.onFlowResponse} onOpenSubSession={props.onOpenSubSession} />
                 </box>
               )
             }}

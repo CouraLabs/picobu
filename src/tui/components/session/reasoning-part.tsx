@@ -61,10 +61,7 @@ export const ReasoningPart = (props: ReasoningPartProps) => {
           event.stopPropagation()
           toggle()
         }}>
-        <text
-          fg={hovered() ? theme().accent : theme().textMuted}
-          attributes={hovered() ? TextAttributes.BOLD : undefined}
-          selectable={false}>
+        <text fg={hovered() ? theme().accent : theme().textMuted} attributes={hovered() ? TextAttributes.BOLD : undefined} selectable={false}>
           {props.isStreamingTail ? 'Thinking' : 'Thoughts'} {expanded() ? icons.collapse : icons.uncollapse}
         </text>
       </box>

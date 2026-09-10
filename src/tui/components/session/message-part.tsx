@@ -55,53 +55,20 @@ export const MessagePartView = (props: MessagePartViewProps) => {
     <Show
       when={props.role !== 'user'}
       fallback={
-        <box
-          marginTop={1}
-          border={['left']}
-          borderStyle={hovered() ? 'heavy' : 'single'}
-          borderColor={borderColor()}
-          paddingLeft={1}
-          {...hoverProps}>
-          <markdown
-            syntaxStyle={theme().syntax}
-            treeSitterClient={getSharedTreeSitterClientSync()}
-            conceal
-            content={partContent(props.part)}
-          />
+        <box marginTop={1} border={['left']} borderStyle={hovered() ? 'heavy' : 'single'} borderColor={borderColor()} paddingLeft={1} {...hoverProps}>
+          <markdown syntaxStyle={theme().syntax} treeSitterClient={getSharedTreeSitterClientSync()} conceal content={partContent(props.part)} />
         </box>
       }>
       <Show
         when={reasoningPart()}
         fallback={
-          <box
-            marginTop={1}
-            border={['left']}
-            borderStyle={hovered() ? 'heavy' : 'single'}
-            borderColor={borderColor()}
-            paddingLeft={1}
-            {...hoverProps}>
-            <markdown
-              syntaxStyle={theme().syntax}
-              treeSitterClient={getSharedTreeSitterClientSync()}
-              streaming={true}
-              internalBlockMode={'top-level'}
-              conceal
-              content={partContent(props.part)}
-            />
+          <box marginTop={1} border={['left']} borderStyle={hovered() ? 'heavy' : 'single'} borderColor={borderColor()} paddingLeft={1} {...hoverProps}>
+            <markdown syntaxStyle={theme().syntax} treeSitterClient={getSharedTreeSitterClientSync()} streaming={true} internalBlockMode={'top-level'} conceal content={partContent(props.part)} />
           </box>
         }>
         {(rp: () => NonNullable<ReturnType<typeof reasoningPart>>) => (
-          <box
-            marginTop={1}
-            border={['left']}
-            borderStyle={hovered() ? 'heavy' : 'single'}
-            borderColor={borderColor()}
-            paddingLeft={1}
-            {...hoverProps}>
-            <ReasoningPart
-              part={rp()}
-              isStreamingTail={rp().state === 'streaming'}
-            />
+          <box marginTop={1} border={['left']} borderStyle={hovered() ? 'heavy' : 'single'} borderColor={borderColor()} paddingLeft={1} {...hoverProps}>
+            <ReasoningPart part={rp()} isStreamingTail={rp().state === 'streaming'} />
           </box>
         )}
       </Show>

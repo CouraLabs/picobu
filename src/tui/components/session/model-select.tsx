@@ -1,7 +1,7 @@
 import { options } from '@config/options.ts'
 import type { InputRenderable, ScrollBoxRenderable } from '@opentui/core'
 import { useKeyboard, useTerminalDimensions } from '@opentui/solid'
-import { fmtTokens } from '@shared/format.ts'
+import { fmtRate, fmtTokens, tableCell } from '@shared/format.ts'
 import { theme } from '@states/theme-state.ts'
 import { icons } from '@tui/themes/icons.ts'
 import { createEffect, createMemo, createSignal, For, onMount, Show } from 'solid-js'
@@ -22,13 +22,6 @@ type ModelRow = {
 
 const LIST_HEIGHT = 14
 const PROVIDER_WIDTH = 14
-
-const fmtRate = (rate: number | undefined): string => {
-  if (rate === undefined) return '–'
-  return `$${rate % 1 === 0 ? rate.toFixed(0) : rate.toFixed(2)}/M`
-}
-
-const cell = (value: string, width: number): string => (value.length > width ? `${value.slice(0, width - 1)}…` : value.padEnd(width))
 
 export const ModelSelect = (props: ModelSelectProps) => {
   let inputRef: InputRenderable | null = null
@@ -104,19 +97,9 @@ export const ModelSelect = (props: ModelSelectProps) => {
   })
 
   return (
-    <box
-      flexDirection="column"
-      width={containerWidth()}
-      paddingY={1}
-      paddingX={2}
-      gap={1}>
-      <box
-        flexDirection="row"
-        gap={1}
-        flexShrink={0}>
-        <text
-          fg={theme().textMuted}
-          selectable={false}>
+    <box flexDirection="column" width={containerWidth()} paddingY={1} paddingX={2} gap={1}>
+      <box flexDirection="row" gap={1} flexShrink={0}>
+        <text fg={theme().textMuted} selectable={false}>
           {icons.search}
         </text>
         <input
@@ -133,12 +116,7 @@ export const ModelSelect = (props: ModelSelectProps) => {
           }}
         />
       </box>
-      <scrollbox
-        ref={(r) => (listRef = r)}
-        flexGrow={1}
-        height={LIST_HEIGHT}
-        scrollY
-        overflow="hidden">
+      <scrollbox ref={(r) => (listRef = r)} flexGrow={1} height={LIST_HEIGHT} scrollY overflow="hidden">
         <For each={filtered()}>
           {(row, index) => (
             <box
@@ -156,25 +134,21 @@ export const ModelSelect = (props: ModelSelectProps) => {
                 e.stopPropagation()
               }}>
               <Show when={row.key === props.currentModelKey}>
-                <text
-                  fg={theme().success}
-                  selectable={false}>
+                <text fg={theme().success} selectable={false}>
                   {icons.success}
                 </text>
               </Show>
               <Show when={row.key !== props.currentModelKey}>
-                <text
-                  fg={theme().backgroundPanel}
-                  selectable={false}>
+                <text fg={theme().backgroundPanel} selectable={false}>
                   {' '}
                 </text>
               </Show>
-              <text fg={row.key === props.currentModelKey ? theme().success : theme().text}>{cell(row.model, modelWidth())}</text>
+              <text fg={row.key === props.currentModelKey ? theme().success : theme().text}>{tableCell(row.model, modelWidth())}</text>
               <Show when={showProvider()}>
-                <text fg={theme().textMuted}>{cell(row.provider, PROVIDER_WIDTH)}</text>
+                <text fg={theme().textMuted}>{tableCell(row.provider, PROVIDER_WIDTH)}</text>
               </Show>
               <Show when={showContext()}>
-                <text fg={theme().textMuted}>{cell(fmtTokens(row.context), 8)}</text>
+                <text fg={theme().textMuted}>{tableCell(fmtTokens(row.context), 8)}</text>
               </Show>
               <Show when={showRates()}>
                 <text fg={theme().textMuted}>
@@ -185,9 +159,7 @@ export const ModelSelect = (props: ModelSelectProps) => {
           )}
         </For>
       </scrollbox>
-      <text
-        fg={theme().textMuted}
-        flexShrink={0}>
+      <text fg={theme().textMuted} flexShrink={0}>
         (type to search · ↑↓ navigate · enter select · esc close)
       </text>
     </box>

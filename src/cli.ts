@@ -9,10 +9,12 @@ import { removeMcpCredential, startMcpLogin } from '@integrations/mcp/auth.ts'
 import { getMcpServer } from '@integrations/mcp/discover.ts'
 import { listMcpServers } from '@integrations/mcp/status.ts'
 import { connectToWhatsApp } from '@integrations/whatsapp/connection.ts'
+import { setConsoleTitle } from '@shared/console-title.ts'
+import { getVersion } from '@shared/version.ts'
 import { Command } from 'commander'
 
 const program = new Command()
-program.name('picobu').description('Headless autonomous coding agent core').option('--session [id]', 'open the TUI, optionally resuming a session')
+program.name('picobu').description('Headless autonomous coding agent core').version(getVersion()).option('--session [id]', 'open the TUI, optionally resuming a session')
 const sessions = program
   .command('sessions')
   .description('list saved sessions for a folder (title + lifecycle state)')
@@ -206,6 +208,7 @@ program.action((opts: { session?: string | boolean }) => {
       return
     }
     await bootstrap().then(() => {
+      setConsoleTitle(undefined)
       console.log('picobu headless core ready (no UI attached).')
     })
   })()

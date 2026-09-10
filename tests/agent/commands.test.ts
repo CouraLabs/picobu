@@ -1,6 +1,11 @@
 import { describe, expect, test } from 'bun:test'
+import { mkdir, mkdtemp, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { buildCommandPrompt, loadCommandCatalogSync } from '../../src/agent/commands/discovery.ts'
 import { matchSystemCommand, parseCommandLine, SYSTEM_COMMANDS, toKebab, tokenizeCommandLine } from '../../src/agent/commands/parse-command-line.ts'
 import type { Command } from '../../src/agent/commands/types.ts'
+import { BUILTIN_WORKFLOWS } from '../../src/agent/workflows/builtin.ts'
 
 const workflow = (name: string): Command => ({
   kind: 'workflow',
@@ -111,5 +116,30 @@ describe('tokenizeCommandLine', () => {
   })
   test('treats plain text as text', () => {
     expect(tokenizeCommandLine('hello')?.[0]?.kind).toBe('text')
+  })
+})
+
+describe('builtin workflows', () => {
+  test('ships an in-memory init workflow', () => {
+    const init = BUILTIN_WORKFLOWS.find((c) => c.name === 'init')
+    expect(init?.kind).toBe('workflow')
+    expect(init?.description.length).toBeGreaterThan(0)
+    expect(init?.content).toContain('{USER_PROMPT}')
+  })
+  test('a same-name disk workflow replaces the builtin', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'picobu-wf-'))
+    await mkdir(join(dir, '.agents', 'workflows'), { recursive: true })
+    await writeFile(join(dir, '.agents', 'workflows', 'init.md'), '---\nname: init\ndescription: custom\n---\nCustom body {USER_PROMPT}\n')
+    const inits = loadCommandCatalogSync(dir).filter((c) => c.kind === 'workflow' && c.name.toLowerCase() === 'init')
+    expect(inits.length).toBe(1)
+    expect(inits[0]?.content).toBeUndefined()
+    expect(inits[0]?.description).toBe('custom')
+  })
+  test('buildCommandPrompt injects args into the builtin', async () => {
+    const init = BUILTIN_WORKFLOWS.find((c) => c.name === 'init')
+    if (!init) throw new Error('missing builtin init')
+    const prompt = await buildCommandPrompt(init, 'focus on tests')
+    expect(prompt).toContain('focus on tests')
+    expect(prompt).not.toContain('{USER_PROMPT}')
   })
 })

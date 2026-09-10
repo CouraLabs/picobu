@@ -86,67 +86,32 @@ const RolesDialogView = (props: { reopen: () => void }) => {
   }
 
   return (
-    <box
-      flexDirection="column"
-      width={72}
-      paddingX={2}
-      paddingY={1}
-      gap={1}>
-      <box
-        border={['bottom']}
-        borderColor={theme().border}
-        flexShrink={0}>
+    <box flexDirection="column" width={72} paddingX={2} paddingY={1} gap={1}>
+      <box border={['bottom']} borderColor={theme().border} flexShrink={0}>
         <text fg={theme().text}>Model roles</text>
       </box>
       <For each={modelRows}>
         {(row) => (
-          <box
-            flexDirection="row"
-            gap={1}
-            flexShrink={0}
-            alignItems="center">
+          <box flexDirection="row" gap={1} flexShrink={0} alignItems="center">
             <text fg={theme().textMuted}>{row.label}</text>
-            <Button
-              label={row.value().trim() ? row.value() : '(unset)'}
-              onClick={() => openModelPicker(row.value().trim() || undefined, row.set, props.reopen)}
-            />
+            <Button label={row.value().trim() ? row.value() : '(unset)'} onClick={() => openModelPicker(row.value().trim() || undefined, row.set, props.reopen)} />
           </box>
         )}
       </For>
       <For each={effortRows}>
         {(row) => (
-          <box
-            flexDirection="row"
-            gap={1}
-            flexShrink={0}
-            alignItems="center">
+          <box flexDirection="row" gap={1} flexShrink={0} alignItems="center">
             <text fg={theme().textMuted}>{row.label}</text>
-            <Button
-              label={row.value()}
-              onClick={() => row.set(cycleEffort(row.value()))}
-            />
+            <Button label={row.value()} onClick={() => row.set(cycleEffort(row.value()))} />
           </box>
         )}
       </For>
       {error() ? <text fg={theme().error}>{error()}</text> : null}
-      <box
-        flexDirection="row"
-        gap={1}
-        justifyContent="flex-end"
-        flexShrink={0}>
-        <Button
-          label="Cancel"
-          onClick={closeDialog}
-        />
-        <Button
-          label={saving() ? 'Saving…' : 'Save'}
-          onClick={() => void save()}
-        />
+      <box flexDirection="row" gap={1} justifyContent="flex-end" flexShrink={0}>
+        <Button label="Cancel" onClick={closeDialog} />
+        <Button label={saving() ? 'Saving…' : 'Save'} onClick={() => void save()} />
       </box>
-      <box
-        border={['top']}
-        borderColor={theme().border}
-        flexShrink={0}>
+      <box border={['top']} borderColor={theme().border} flexShrink={0}>
         <text fg={theme().textMuted}>(esc to close · applies to future runs)</text>
       </box>
     </box>

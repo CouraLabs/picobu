@@ -6,4 +6,5 @@ export type Command = {
   title: string
   description: string
   path: string
+  content?: string
 }

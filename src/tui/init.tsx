@@ -2,6 +2,7 @@ import { autoloadLlmProviders } from '@agent/model/registry.ts'
 import { ensureOAuthTokens } from '@auth/index.ts'
 import { CliRenderEvents, createClipboard, createCliRenderer, createHostClipboard, createRendererClipboardAdapter, DebugOverlayCorner, engine } from '@opentui/core'
 import { render } from '@opentui/solid'
+import { resetConsoleTitle, setConsoleTitle } from '@shared/console-title.ts'
 import { theme } from '@states/theme-state.ts'
 import { Splash } from '@tui/components/splash.tsx'
 import { getActiveSessionClose } from '@tui/hooks/active-session.ts'
@@ -28,10 +29,11 @@ const onUnhandledRejection = (reason: unknown): void => {
 
 export async function runTui(options: TuiAppOptions = {}): Promise<void> {
   process.on('unhandledRejection', onUnhandledRejection)
+  setConsoleTitle(undefined)
 
   const debug = options.debug === true
   const renderer = await createCliRenderer({
-    exitOnCtrlC: true,
+    exitOnCtrlC: false,
     useMouse: true,
     enableMouseMovement: true,
     maxFps: 60,
@@ -42,6 +44,7 @@ export async function runTui(options: TuiAppOptions = {}): Promise<void> {
     backgroundColor: theme().background,
     onDestroy: () => {
       clipboardService.dispose()
+      resetConsoleTitle()
       const active = getActiveSessionClose()
       if (active?.hasMessages) {
         const totals = active.totals
@@ -81,9 +84,7 @@ export async function runTui(options: TuiAppOptions = {}): Promise<void> {
   const [ready, setReady] = createSignal(false)
   await render(
     () => (
-      <Show
-        when={ready()}
-        fallback={<Splash />}>
+      <Show when={ready()} fallback={<Splash />}>
         <ClipboardProvider clipboardService={clipboardService}>
           <App sessionId={options.sessionId} />
         </ClipboardProvider>

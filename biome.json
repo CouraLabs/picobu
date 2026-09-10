@@ -13,7 +13,7 @@
     "formatWithErrors": false,
     "indentStyle": "space",
     "bracketSameLine": true,
-    "attributePosition": "multiline",
+    "attributePosition": "auto",
     "indentWidth": 2,
     "lineEnding": "lf",
     "lineWidth": 200,
@@ -51,7 +51,7 @@
       "indentWidth": 2,
       "lineWidth": 200,
       "selfCloseVoidElements": "always",
-      "attributePosition": "auto"
+      "attributePosition": null
     }
   },
   "javascript": {
@@ -60,6 +60,7 @@
       "semicolons": "asNeeded",
       "trailingCommas": "all",
       "bracketSpacing": true,
+      "bracketSameLine":true,
       "arrowParentheses": "always"
     }
   }

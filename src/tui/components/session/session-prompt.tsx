@@ -1,8 +1,11 @@
 import { listCommands, listSkills } from '@agent/commands/index.ts'
 import { SYSTEM_COMMANDS, toKebab, tokenizeCommandLine } from '@agent/commands/parse-command-line.ts'
+import type { CommandKind } from '@agent/commands/types.ts'
 import type { MouseEvent, TextareaRenderable } from '@opentui/core'
 import { useKeyboard } from '@opentui/solid'
 import { theme } from '@states/theme-state.ts'
+import { pushToast } from '@states/toast.state.ts'
+import { getClipboardService } from '@tui/hooks/clipboard.state.ts'
 import { icons } from '@tui/themes/icons.ts'
 import { createEffect, createMemo, createSignal, For, onMount, Show } from 'solid-js'
 
@@ -21,7 +24,7 @@ export type SessionPromptProps = {
 type CommandItem = {
   label: string
   description: string
-  kind: 'skill' | 'command'
+  kind: CommandKind
 }
 
 const COMMAND_LIST_MAX = 8
@@ -59,12 +62,12 @@ export const SessionPrompt = (props: SessionPromptProps) => {
       const workflows = listCommands().filter((c) => c.kind === 'workflow')
       const skills = listSkills()
       return [
-        ...SYSTEM_COMMANDS.map((c) => ({ label: `/${c.name}`, description: c.description, kind: 'command' as const })),
-        ...workflows.map((w) => ({ label: `/${toKebab(w.name)}`, description: w.description || w.title, kind: 'command' as const })),
+        ...SYSTEM_COMMANDS.map((c) => ({ label: `/${c.name}`, description: c.description, kind: 'system' as const })),
+        ...workflows.map((w) => ({ label: `/${toKebab(w.name)}`, description: w.description || w.title, kind: 'workflow' as const })),
         ...skills.map((s) => ({ label: `/skill:${toKebab(s.name)}`, description: s.description, kind: 'skill' as const })),
       ]
     } catch {
-      return SYSTEM_COMMANDS.map((c) => ({ label: `/${c.name}`, description: c.description, kind: 'command' as const }))
+      return SYSTEM_COMMANDS.map((c) => ({ label: `/${c.name}`, description: c.description, kind: 'system' as const }))
     }
   })
 
@@ -125,6 +128,64 @@ export const SessionPrompt = (props: SessionPromptProps) => {
     return theme().textMuted
   }
 
+  const labelColor = (kind: CommandKind) => {
+    if (kind === 'skill') return theme().accent
+    if (kind === 'workflow') return theme().info
+    return theme().primary
+  }
+
+  const copySelection = () => {
+    const service = getClipboardService()
+    if (!service) {
+      pushToast('Copy failed: no clipboard service available', 'error')
+      return
+    }
+    if (!textareaRef?.hasSelection()) return
+    const selected = textareaRef.getSelectedText()
+    if (!selected) return
+    service.writeText(selected, { destination: 'best-available' }).catch((error) => {
+      pushToast(`Copy failed: ${error instanceof Error ? error.message : String(error)}`, 'error')
+    })
+  }
+
+  const pasteClipboard = () => {
+    const service = getClipboardService()
+    if (!service) {
+      pushToast('Paste failed: no clipboard service available', 'error')
+      return
+    }
+    service
+      .read({ preferredTypes: ['text/plain'] })
+      .then((result) => {
+        if (result.status !== 'read') {
+          if (result.status === 'failed') pushToast(`Paste failed: ${result.error.message}`, 'warning')
+          return
+        }
+        const pasted = new TextDecoder().decode(result.representation.bytes)
+        if (!pasted || !textareaRef) return
+        textareaRef.insertText(pasted)
+        setText(textareaRef.plainText ?? '')
+        textareaRef.focus()
+      })
+      .catch((error) => {
+        pushToast(`Paste failed: ${error instanceof Error ? error.message : String(error)}`, 'error')
+      })
+  }
+
+  useKeyboard((key) => {
+    if (!key.ctrl) return
+    const name = key.name.toLowerCase()
+    if (name === 'c') {
+      key.preventDefault()
+      key.stopPropagation()
+      copySelection()
+    } else if (name === 'v') {
+      key.preventDefault()
+      key.stopPropagation()
+      pasteClipboard()
+    }
+  })
+
   const handleMouseDown = (e: MouseEvent) => {
     if (!textareaRef) return
     textareaRef.focus()
@@ -182,35 +243,31 @@ export const SessionPrompt = (props: SessionPromptProps) => {
     waitingMode() ? 'Answer the questions above…' : queueMode() ? 'Queued until the run finishes…' : steeringMode() ? 'Steer the running step…' : 'What are we going to build?'
 
   return (
-    <box
-      flexDirection="column"
-      flexShrink={0}>
+    <box flexDirection="column" flexShrink={0}>
       <Show when={commandOpen()}>
-        <box
-          flexDirection="row"
-          gap={0}
-          flexShrink={0}
-          paddingX={1}>
+        <box flexDirection="row" gap={0} flexShrink={0} paddingX={1}>
           <For each={tokenPreview()}>{(token) => <text fg={tokenColor(token.kind)}>{token.text}</text>}</For>
         </box>
         <Show when={filteredItems().length > 0}>
-          <box
-            flexDirection="column"
-            flexShrink={0}
-            border={['top']}
-            borderColor={theme().border}>
+          <box flexDirection="column" flexShrink={0} border={['top']} borderColor={theme().border}>
             <For each={filteredItems()}>
               {(item, index) => (
                 <box
                   flexDirection="row"
                   gap={1}
                   flexShrink={0}
+                  flexWrap="wrap"
                   paddingX={1}
                   backgroundColor={highlight() === index() ? theme().backgroundElement : undefined}
                   onMouseOver={() => setHighlight(index())}
                   onMouseUp={() => completeItem(index())}>
-                  <text fg={item.kind === 'skill' ? theme().accent : theme().primary}>{item.label}</text>
-                  <text fg={theme().textMuted}>{item.description}</text>
+                  <box flexDirection="row" gap={1} flexShrink={0}>
+                    <text fg={labelColor(item.kind)}>{item.label}</text>
+                    <text fg={theme().textMuted}>({item.kind})</text>
+                  </box>
+                  <box flexGrow={1} flexShrink={1} minWidth={0}>
+                    <text fg={theme().textMuted}>{item.description}</text>
+                  </box>
                 </box>
               )}
             </For>
@@ -228,15 +285,10 @@ export const SessionPrompt = (props: SessionPromptProps) => {
         title={title()}
         titleAlignment="right"
         onMouseDown={() => textareaRef?.focus()}>
-        <text
-          flexShrink={0}
-          fg={waitingMode() ? theme().info : queueMode() ? theme().info : steeringMode() ? theme().error : commandOpen() ? theme().accent : theme().textMuted}>
+        <text flexShrink={0} fg={waitingMode() ? theme().info : queueMode() ? theme().info : steeringMode() ? theme().error : commandOpen() ? theme().accent : theme().textMuted}>
           {icons.promptBig}
         </text>
-        <box
-          flexGrow={1}
-          flexShrink={1}
-          onMouseDown={handleMouseDown}>
+        <box flexGrow={1} flexShrink={1} onMouseDown={handleMouseDown}>
           <textarea
             ref={(r) => (textareaRef = r)}
             id="prompt"

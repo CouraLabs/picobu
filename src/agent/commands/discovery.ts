@@ -1,8 +1,10 @@
 import { type Dirent, readdirSync, readFileSync, statSync } from 'node:fs'
 import { readdir, readFile, stat } from 'node:fs/promises'
 import { basename, extname, join } from 'node:path'
+import { toKebab } from '@agent/commands/parse-command-line.ts'
 import type { Command } from '@agent/commands/types.ts'
 import { parseMarkdown, parseMarkdownFile } from '@agent/markdown/markdown-parser.ts'
+import { BUILTIN_WORKFLOWS } from '@agent/workflows/builtin.ts'
 import { options } from '@config/options.ts'
 
 const skillRoots = (cwd: string): string[] => [join(cwd, '.agents', 'skills'), join(options.app.systemDir, 'skills'), join(options.app.homeDir, '.agents', 'skills')]
@@ -196,11 +198,20 @@ function scanWorkflowsSync(root: string, taken: Set<string>, out: Command[]): vo
   }
 }
 
+const registerBuiltinWorkflows = (out: Command[]): void => {
+  const takenKebab = new Set(out.filter((c) => c.kind === 'workflow').flatMap((c) => [toKebab(c.name), ...c.aliases.map((a) => toKebab(a))]))
+  for (const builtin of BUILTIN_WORKFLOWS) {
+    if (takenKebab.has(toKebab(builtin.name))) continue
+    out.push(builtin)
+  }
+}
+
 export const loadCommandCatalog = async (cwd: string = options.app.cwd): Promise<Command[]> => {
   const cmd: Command[] = []
   const taken = new Set<string>()
   for (const root of skillRoots(cwd)) await scanSkills(root, taken, cmd)
   for (const root of workflowRoots(cwd)) await scanWorkflows(root, taken, cmd)
+  registerBuiltinWorkflows(cmd)
   return cmd
 }
 
@@ -209,6 +220,7 @@ export const loadCommandCatalogSync = (cwd: string = options.app.cwd): Command[]
   const taken = new Set<string>()
   for (const root of skillRoots(cwd)) scanSkillsSync(root, taken, cmd)
   for (const root of workflowRoots(cwd)) scanWorkflowsSync(root, taken, cmd)
+  registerBuiltinWorkflows(cmd)
   return cmd
 }
 
@@ -222,7 +234,7 @@ const commandParams = (rest: string): { param: string; value: string }[] => [
 
 export const buildCommandPrompt = async (cmd: Command, rest: string): Promise<string> => {
   if (cmd.kind === 'workflow') {
-    const raw = await readFile(cmd.path, 'utf8')
+    const raw = cmd.content ?? (await readFile(cmd.path, 'utf8'))
     const hadUser = parseMarkdown(raw).content.includes('{USER_PROMPT}')
     const parsed = parseMarkdown(raw, commandParams(rest))
     let content = parsed.content

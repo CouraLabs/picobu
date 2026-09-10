@@ -26,10 +26,7 @@ export const Button = (props: ButtonProps) => {
       onMouseOver={() => setHovered(true)}
       onMouseOut={() => setHovered(false)}
       onMouseUp={() => props.onClick()}>
-      <text
-        id={`txt-${props.id}`}
-        selectable={false}
-        fg={foreground()}>
+      <text id={`txt-${props.id}`} selectable={false} fg={foreground()}>
         {props.label}
       </text>
     </box>

@@ -20,15 +20,9 @@ export const TodoList = (props: TodoListProps) => {
   }
 
   return (
-    <box
-      flexDirection="column"
-      paddingLeft={1}>
-      <box
-        flexDirection="row"
-        gap={1}>
-        <text
-          fg={theme().primary}
-          selectable={false}>
+    <box flexDirection="column" paddingLeft={1}>
+      <box flexDirection="row" gap={1}>
+        <text fg={theme().primary} selectable={false}>
           {icons.progressFull.repeat(filled())}
           {icons.progressEmpty.repeat(PROGRESS_WIDTH - filled())}
         </text>
@@ -42,20 +36,11 @@ export const TodoList = (props: TodoListProps) => {
             <Show when={index() === 0 || props.items[index() - 1]?.phase !== item.phase}>
               <text fg={theme().textMuted}>{item.phase}</text>
             </Show>
-            <box
-              flexDirection="row"
-              gap={1}>
-              <text
-                fg={item.done ? theme().success : isCurrent(index()) ? theme().primary : theme().textMuted}
-                selectable={false}
-                flexShrink={0}>
+            <box flexDirection="row" gap={1}>
+              <text fg={item.done ? theme().success : isCurrent(index()) ? theme().primary : theme().textMuted} selectable={false} flexShrink={0}>
                 {item.done ? icons.success : isCurrent(index()) ? icons.running : icons.pending}
               </text>
-              <text
-                fg={item.done ? theme().textMuted : theme().text}
-                attributes={isCurrent(index()) ? TextAttributes.BOLD : undefined}
-                overflow="hidden"
-                flexShrink={1}>
+              <text fg={item.done ? theme().textMuted : theme().text} attributes={isCurrent(index()) ? TextAttributes.BOLD : undefined} overflow="hidden" flexShrink={1}>
                 {item.title}
               </text>
             </box>

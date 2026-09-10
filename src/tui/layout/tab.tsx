@@ -12,19 +12,8 @@ export type TabProps = {
 
 export const Tab = (props: TabProps) => {
   return (
-    <box
-      flexDirection="row"
-      gap={1}>
-      <For each={props.tabs}>
-        {(item) => (
-          <Button
-            isActive={props.curr === item.id}
-            id={item.id}
-            label={item.label}
-            onClick={() => props.onChange(item.id)}
-          />
-        )}
-      </For>
+    <box flexDirection="row" gap={1}>
+      <For each={props.tabs}>{(item) => <Button isActive={props.curr === item.id} id={item.id} label={item.label} onClick={() => props.onChange(item.id)} />}</For>
     </box>
   )
 }

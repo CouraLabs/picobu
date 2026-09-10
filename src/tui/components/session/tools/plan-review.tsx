@@ -1,5 +1,6 @@
 import type { InputRenderable } from '@opentui/core'
 import { useTerminalDimensions } from '@opentui/solid'
+import { clip } from '@shared/format.ts'
 import { theme } from '@states/theme-state.ts'
 import { Button } from '@tui/components/button.tsx'
 import { icons } from '@tui/themes/icons.ts'
@@ -15,8 +16,6 @@ export type PlanReviewProps = {
   onVerdict: (status: PlanVerdict, message: string, compact: boolean) => void | Promise<void>
   onCancel: () => void | Promise<void>
 }
-
-const truncate = (text: string, max: number): string => (text.length > max ? `${text.slice(0, max - 1)}…` : text)
 
 export const PlanReview = (props: PlanReviewProps) => {
   const dims = useTerminalDimensions()
@@ -50,7 +49,7 @@ export const PlanReview = (props: PlanReviewProps) => {
     const parts: string[] = []
     lines().forEach((line, index) => {
       const comment = (lineComments()[index] ?? '').trim()
-      if (comment) parts.push(`Line ${index + 1} "${truncate(line.trim(), 80)}": ${comment}`)
+      if (comment) parts.push(`Line ${index + 1} "${clip(line.trim(), 80)}": ${comment}`)
     })
     const all = overall().trim()
     if (all) parts.push(`Overall: ${all}`)
@@ -92,9 +91,7 @@ export const PlanReview = (props: PlanReviewProps) => {
       <Show
         when={!readonly()}
         fallback={
-          <box
-            flexDirection="column"
-            gap={1}>
+          <box flexDirection="column" gap={1}>
             <Show
               when={wasDismissed()}
               fallback={
@@ -104,14 +101,8 @@ export const PlanReview = (props: PlanReviewProps) => {
                     <For each={lines()}>
                       {(line, index) => (
                         <box flexDirection="column">
-                          <markdown
-                            syntaxStyle={theme().syntax}
-                            conceal
-                            content={`*${index() + 1}* ${line.trim()}`}
-                          />
-                          <Show
-                            when={(lineComments()[index()] ?? '').trim()}
-                            keyed>
+                          <markdown syntaxStyle={theme().syntax} conceal content={`*${index() + 1}* ${line.trim()}`} />
+                          <Show when={(lineComments()[index()] ?? '').trim()} keyed>
                             {(comment: string) => <text fg={theme().accent}>{`  ${icons.flag} ${comment}`}</text>}
                           </Show>
                         </box>
@@ -133,41 +124,21 @@ export const PlanReview = (props: PlanReviewProps) => {
             const commented = () => (lineComments()[index()] ?? '').trim().length > 0
             return (
               <box flexDirection="column">
-                <box
-                  flexDirection="row"
-                  gap={1}
-                  onMouseUp={() => setOpenLine(openLine() === index() ? undefined : index())}>
-                  <box
-                    flexDirection="row"
-                    gap={1}
-                    flexShrink={0}>
-                    <text
-                      fg={commented() ? theme().accent : theme().primary}
-                      selectable={false}>
+                <box flexDirection="row" gap={1} onMouseUp={() => setOpenLine(openLine() === index() ? undefined : index())}>
+                  <box flexDirection="row" gap={1} flexShrink={0}>
+                    <text fg={commented() ? theme().accent : theme().primary} selectable={false}>
                       {commented() ? icons.flag : icons.pencil}
                     </text>
                   </box>
-                  <box
-                    border={commented() ? ['left'] : false}
-                    borderStyle={'heavy'}
-                    borderColor={commented() ? theme().accent : undefined}
-                    flexShrink={1}
-                    minWidth={0}>
-                    <markdown
-                      syntaxStyle={theme().syntax}
-                      conceal
-                      content={line.trim()}
-                    />
+                  <box border={commented() ? ['left'] : false} borderStyle={'heavy'} borderColor={commented() ? theme().accent : undefined} flexShrink={1} minWidth={0}>
+                    <markdown syntaxStyle={theme().syntax} conceal content={line.trim()} />
                   </box>
                 </box>
                 <Show when={commented()}>
                   <text fg={theme().accent}>{`  ${icons.edit} ${(lineComments()[index()] ?? '').trim()}`}</text>
                 </Show>
                 <Show when={openLine() === index()}>
-                  <box
-                    marginTop={0}
-                    marginLeft={4}
-                    onMouseUp={() => lineRefs[index()]?.focus()}>
+                  <box marginTop={0} marginLeft={4} onMouseUp={() => lineRefs[index()]?.focus()}>
                     <input
                       ref={(r) => {
                         lineRefs[index()] = r
@@ -187,9 +158,7 @@ export const PlanReview = (props: PlanReviewProps) => {
             )
           }}
         </For>
-        <box
-          marginTop={1}
-          onMouseUp={() => overallRef?.focus()}>
+        <box marginTop={1} onMouseUp={() => overallRef?.focus()}>
           <input
             ref={(r) => {
               overallRef = r
@@ -206,44 +175,20 @@ export const PlanReview = (props: PlanReviewProps) => {
             }}
           />
         </box>
-        <box
-          flexDirection="row"
-          gap={1}
-          marginTop={1}
-          flexWrap="wrap"
-          onMouseUp={() => setCompact(!compact())}>
-          <text
-            flexShrink={0}
-            fg={compact() ? theme().success : theme().textMuted}
-            selectable={false}>
+        <box flexDirection="row" gap={1} marginTop={1} flexWrap="wrap" onMouseUp={() => setCompact(!compact())}>
+          <text flexShrink={0} fg={compact() ? theme().success : theme().textMuted} selectable={false}>
             {compact() ? icons.checkSquare : icons.uncheckedSquare}
           </text>
-          <text
-            fg={theme().textMuted}
-            selectable={false}>
+          <text fg={theme().textMuted} selectable={false}>
             Compact context before handoff
           </text>
         </box>
-        <box
-          flexDirection="row"
-          gap={1}
-          marginTop={1}
-          flexWrap="wrap">
-          <Button
-            label={`${icons.success} Approve`}
-            isActive
-            onClick={() => verdict('approved')}
-          />
+        <box flexDirection="row" gap={1} marginTop={1} flexWrap="wrap">
+          <Button label={`${icons.success} Approve`} isActive onClick={() => verdict('approved')} />
           <Show when={hasComment()}>
-            <Button
-              label={`${icons.edit} Request changes`}
-              onClick={() => verdict('rejected')}
-            />
+            <Button label={`${icons.edit} Request changes`} onClick={() => verdict('rejected')} />
           </Show>
-          <Button
-            label={`${icons.cross} Dismiss`}
-            onClick={cancel}
-          />
+          <Button label={`${icons.cross} Dismiss`} onClick={cancel} />
         </box>
       </Show>
     </box>
