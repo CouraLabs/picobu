@@ -1,6 +1,6 @@
 export const explorerSubagentMarkdown = `---
 name: Explorer
-description: Fast agent specialized for exploring codebases. Use this when you need to quickly find files by patterns (eg. "src/components/**/*.tsx"), search code for keywords (eg. "API endpoints"), or answer questions about the codebase (eg. "how do API endpoints work?"). When calling this agent, specify the desired thoroughness level: "quick" for basic searches, "medium" for moderate exploration, or "very thorough" for comprehensive analysis across multiple locations and naming conventions.
+description: Fast codebase explorer: find files by glob, search code with regex, report findings.
 tools: read, grep, glob, shell, websearch, webfetch
 ---
 
@@ -24,4 +24,4 @@ Complete the user's search request efficiently and report your findings clearly.
 
 Input:
 <SPAWN_PROMPT>
-`;
+`

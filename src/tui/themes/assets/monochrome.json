@@ -12,28 +12,14 @@
     "gray700": "#8F8F8F",
     "gray900": "#A1A1A1",
     "gray1000": "#EDEDED",
-    "blue600": "#0099FF",
-    "blue700": "#0070F3",
-    "blue900": "#52A8FF",
-    "blue1000": "#EBF8FF",
-    "red700": "#E5484D",
-    "red900": "#FF6166",
-    "red1000": "#FDECED",
-    "amber700": "#FFB224",
-    "amber900": "#F2A700",
-    "amber1000": "#FDF4DC",
-    "green700": "#46A758",
-    "green900": "#63C46D",
-    "green1000": "#E6F9E9",
-    "teal700": "#12A594",
-    "teal900": "#0AC7AC",
-    "purple700": "#8E4EC6",
-    "purple900": "#BF7AF0",
-    "pink700": "#E93D82",
-    "pink900": "#F75590",
-    "highlightPink": "#FF0080",
-    "highlightPurple": "#F81CE5",
-    "cyan": "#50E3C2",
+    "statusSuccessDark": "#5F7A64",
+    "statusInfoDark": "#5F6E7A",
+    "statusWarningDark": "#7A6F5F",
+    "statusErrorDark": "#7A5F62",
+    "statusSuccessLight": "#1E2B21",
+    "statusInfoLight": "#1E262B",
+    "statusWarningLight": "#2B261E",
+    "statusErrorLight": "#2B1E20",
     "lightBackground": "#FFFFFF",
     "lightGray100": "#FAFAFA",
     "lightGray200": "#EAEAEA",
@@ -42,32 +28,32 @@
   },
   "theme": {
     "primary": {
-      "dark": "blue700",
-      "light": "blue700"
+      "dark": "gray1000",
+      "light": "lightGray1000"
     },
     "secondary": {
-      "dark": "blue900",
-      "light": "#0062D1"
+      "dark": "gray900",
+      "light": "lightGray600"
     },
     "accent": {
-      "dark": "purple900",
-      "light": "purple700"
+      "dark": "gray700",
+      "light": "lightGray1000"
     },
     "error": {
-      "dark": "red700",
-      "light": "#DC3545"
+      "dark": "statusErrorDark",
+      "light": "statusErrorLight"
     },
     "warning": {
-      "dark": "amber700",
-      "light": "#FF9500"
+      "dark": "statusWarningDark",
+      "light": "statusWarningLight"
     },
     "success": {
-      "dark": "green700",
-      "light": "#388E3C"
+      "dark": "statusSuccessDark",
+      "light": "statusSuccessLight"
     },
     "info": {
-      "dark": "blue900",
-      "light": "blue700"
+      "dark": "statusInfoDark",
+      "light": "statusInfoLight"
     },
     "text": {
       "dark": "gray1000",
@@ -102,12 +88,12 @@
       "light": "#EAEAEA"
     },
     "diffAdded": {
-      "dark": "green900",
-      "light": "green700"
+      "dark": "statusSuccessDark",
+      "light": "statusSuccessLight"
     },
     "diffRemoved": {
-      "dark": "red900",
-      "light": "red700"
+      "dark": "statusErrorDark",
+      "light": "statusErrorLight"
     },
     "diffContext": {
       "dark": "gray600",
@@ -118,20 +104,20 @@
       "light": "lightGray600"
     },
     "diffHighlightAdded": {
-      "dark": "green900",
-      "light": "green700"
+      "dark": "statusSuccessDark",
+      "light": "statusSuccessLight"
     },
     "diffHighlightRemoved": {
-      "dark": "red900",
-      "light": "red700"
+      "dark": "statusErrorDark",
+      "light": "statusErrorLight"
     },
     "diffAddedBg": {
-      "dark": "#0B1D0F",
-      "light": "#E6F9E9"
+      "dark": "#111413",
+      "light": "#E4E4E4"
     },
     "diffRemovedBg": {
-      "dark": "#2A1314",
-      "light": "#FDECED"
+      "dark": "#141111",
+      "light": "#E4E4E4"
     },
     "diffContextBg": {
       "dark": "background200",
@@ -142,44 +128,44 @@
       "light": "textMuted"
     },
     "diffAddedLineNumberBg": {
-      "dark": "#0F2613",
-      "light": "#D6F5D6"
+      "dark": "#151817",
+      "light": "#D9D9D9"
     },
     "diffRemovedLineNumberBg": {
-      "dark": "#3C1618",
-      "light": "#FFE5E5"
+      "dark": "#181414",
+      "light": "#D9D9D9"
     },
     "markdownText": {
       "dark": "gray1000",
       "light": "lightGray1000"
     },
     "markdownHeading": {
-      "dark": "purple900",
-      "light": "purple700"
+      "dark": "gray1000",
+      "light": "lightGray1000"
     },
     "markdownLink": {
-      "dark": "blue900",
-      "light": "blue700"
+      "dark": "gray900",
+      "light": "lightGray1000"
     },
     "markdownLinkText": {
-      "dark": "teal900",
-      "light": "teal700"
+      "dark": "gray700",
+      "light": "lightGray600"
     },
     "markdownCode": {
-      "dark": "green900",
-      "light": "green700"
+      "dark": "gray900",
+      "light": "lightGray1000"
     },
     "markdownBlockQuote": {
       "dark": "gray600",
       "light": "lightGray600"
     },
     "markdownEmph": {
-      "dark": "amber900",
-      "light": "amber700"
+      "dark": "gray900",
+      "light": "lightGray600"
     },
     "markdownStrong": {
-      "dark": "pink900",
-      "light": "pink700"
+      "dark": "gray1000",
+      "light": "lightGray1000"
     },
     "markdownHorizontalRule": {
       "dark": "gray500",
@@ -190,16 +176,16 @@
       "light": "lightGray1000"
     },
     "markdownListEnumeration": {
-      "dark": "blue900",
-      "light": "blue700"
+      "dark": "gray900",
+      "light": "lightGray600"
     },
     "markdownImage": {
-      "dark": "teal900",
-      "light": "teal700"
+      "dark": "gray900",
+      "light": "lightGray600"
     },
     "markdownImageText": {
-      "dark": "cyan",
-      "light": "teal700"
+      "dark": "gray700",
+      "light": "lightGray600"
     },
     "markdownCodeBlock": {
       "dark": "gray1000",
@@ -210,32 +196,32 @@
       "light": "#888888"
     },
     "syntaxKeyword": {
-      "dark": "pink900",
-      "light": "pink700"
+      "dark": "gray900",
+      "light": "lightGray600"
     },
     "syntaxFunction": {
-      "dark": "purple900",
-      "light": "purple700"
+      "dark": "gray1000",
+      "light": "lightGray1000"
     },
     "syntaxVariable": {
-      "dark": "blue900",
-      "light": "blue700"
+      "dark": "gray1000",
+      "light": "lightGray1000"
     },
     "syntaxString": {
-      "dark": "green900",
-      "light": "green700"
+      "dark": "gray900",
+      "light": "lightGray600"
     },
     "syntaxNumber": {
-      "dark": "amber900",
-      "light": "#C77B00"
+      "dark": "gray900",
+      "light": "lightGray600"
     },
     "syntaxType": {
-      "dark": "teal900",
-      "light": "teal700"
+      "dark": "gray700",
+      "light": "lightGray1000"
     },
     "syntaxOperator": {
-      "dark": "pink900",
-      "light": "pink700"
+      "dark": "gray900",
+      "light": "lightGray600"
     },
     "syntaxPunctuation": {
       "dark": "gray1000",

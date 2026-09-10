@@ -1,17 +1,17 @@
 {
   "$schema": "https://opencode.ai/theme.json",
   "defs": {
-    "vesperBg": "#101010",
-    "vesperFg": "#FFF",
-    "vesperComment": "#8b8b8b",
-    "vesperKeyword": "#A0A0A0",
-    "vesperFunction": "#FFC799",
-    "vesperString": "#99FFE4",
-    "vesperNumber": "#FFC799",
-    "vesperError": "#FF8080",
-    "vesperWarning": "#FFC799",
-    "vesperSuccess": "#99FFE4",
-    "vesperMuted": "#A0A0A0"
+    "picobuBg": "#101010",
+    "picobuFg": "#FFF",
+    "picobuComment": "#8b8b8b",
+    "picobuKeyword": "#A0A0A0",
+    "picobuFunction": "#FFC799",
+    "picobuString": "#99FFE4",
+    "picobuNumber": "#FFC799",
+    "picobuError": "#FF8080",
+    "picobuWarning": "#FFC799",
+    "picobuSuccess": "#99FFE4",
+    "picobuMuted": "#A0A0A0"
   },
   "theme": {
     "primary": {
@@ -27,15 +27,15 @@
       "light": "#C7461A"
     },
     "error": {
-      "dark": "vesperError",
+      "dark": "picobuError",
       "light": "#C84242"
     },
     "warning": {
-      "dark": "vesperWarning",
+      "dark": "picobuWarning",
       "light": "#C7461A"
     },
     "success": {
-      "dark": "vesperSuccess",
+      "dark": "picobuSuccess",
       "light": "#12806A"
     },
     "info": {
@@ -43,23 +43,23 @@
       "light": "#C7461A"
     },
     "text": {
-      "dark": "vesperFg",
-      "light": "vesperBg"
+      "dark": "picobuFg",
+      "light": "picobuBg"
     },
     "textMuted": {
-      "dark": "vesperMuted",
+      "dark": "picobuMuted",
       "light": "#6E6E6E"
     },
     "background": {
-      "dark": "vesperBg",
+      "dark": "picobuBg",
       "light": "#FFF"
     },
     "backgroundPanel": {
-      "dark": "vesperBg",
+      "dark": "picobuBg",
       "light": "#F0F0F0"
     },
     "backgroundElement": {
-      "dark": "vesperBg",
+      "dark": "picobuBg",
       "light": "#E0E0E0"
     },
     "border": {
@@ -75,27 +75,27 @@
       "light": "#E8E8E8"
     },
     "diffAdded": {
-      "dark": "vesperSuccess",
+      "dark": "picobuSuccess",
       "light": "#12806A"
     },
     "diffRemoved": {
-      "dark": "vesperError",
+      "dark": "picobuError",
       "light": "#C84242"
     },
     "diffContext": {
-      "dark": "vesperMuted",
-      "light": "vesperMuted"
+      "dark": "picobuMuted",
+      "light": "picobuMuted"
     },
     "diffHunkHeader": {
-      "dark": "vesperMuted",
-      "light": "vesperMuted"
+      "dark": "picobuMuted",
+      "light": "picobuMuted"
     },
     "diffHighlightAdded": {
-      "dark": "vesperSuccess",
-      "light": "vesperSuccess"
+      "dark": "picobuSuccess",
+      "light": "picobuSuccess"
     },
     "diffHighlightRemoved": {
-      "dark": "vesperError",
+      "dark": "picobuError",
       "light": "#C84242"
     },
     "diffAddedBg": {
@@ -107,7 +107,7 @@
       "light": "#f5e8e8"
     },
     "diffContextBg": {
-      "dark": "vesperBg",
+      "dark": "picobuBg",
       "light": "#F8F8F8"
     },
     "diffLineNumber": {
@@ -123,8 +123,8 @@
       "light": "#f5e8e8"
     },
     "markdownText": {
-      "dark": "vesperFg",
-      "light": "vesperBg"
+      "dark": "picobuFg",
+      "light": "picobuBg"
     },
     "markdownHeading": {
       "dark": "#FFC799",
@@ -135,84 +135,84 @@
       "light": "#C7461A"
     },
     "markdownLinkText": {
-      "dark": "vesperMuted",
+      "dark": "picobuMuted",
       "light": "#777777"
     },
     "markdownCode": {
-      "dark": "vesperMuted",
+      "dark": "picobuMuted",
       "light": "#12806A"
     },
     "markdownBlockQuote": {
-      "dark": "vesperFg",
-      "light": "vesperBg"
+      "dark": "picobuFg",
+      "light": "picobuBg"
     },
     "markdownEmph": {
-      "dark": "vesperFg",
-      "light": "vesperBg"
+      "dark": "picobuFg",
+      "light": "picobuBg"
     },
     "markdownStrong": {
-      "dark": "vesperFg",
-      "light": "vesperBg"
+      "dark": "picobuFg",
+      "light": "picobuBg"
     },
     "markdownHorizontalRule": {
       "dark": "#65737E",
       "light": "#65737E"
     },
     "markdownListItem": {
-      "dark": "vesperFg",
-      "light": "vesperBg"
+      "dark": "picobuFg",
+      "light": "picobuBg"
     },
     "markdownListEnumeration": {
-      "dark": "vesperFg",
-      "light": "vesperBg"
+      "dark": "picobuFg",
+      "light": "picobuBg"
     },
     "markdownImage": {
       "dark": "#FFC799",
       "light": "#C7461A"
     },
     "markdownImageText": {
-      "dark": "vesperMuted",
+      "dark": "picobuMuted",
       "light": "#777777"
     },
     "markdownCodeBlock": {
-      "dark": "vesperFg",
-      "light": "vesperBg"
+      "dark": "picobuFg",
+      "light": "picobuBg"
     },
     "syntaxComment": {
-      "dark": "vesperComment",
-      "light": "vesperComment"
+      "dark": "picobuComment",
+      "light": "picobuComment"
     },
     "syntaxKeyword": {
-      "dark": "vesperKeyword",
+      "dark": "picobuKeyword",
       "light": "#777777"
     },
     "syntaxFunction": {
-      "dark": "vesperFunction",
+      "dark": "picobuFunction",
       "light": "#C7461A"
     },
     "syntaxVariable": {
-      "dark": "vesperFg",
-      "light": "vesperBg"
+      "dark": "picobuFg",
+      "light": "picobuBg"
     },
     "syntaxString": {
-      "dark": "vesperString",
+      "dark": "picobuString",
       "light": "#12806A"
     },
     "syntaxNumber": {
-      "dark": "vesperNumber",
+      "dark": "picobuNumber",
       "light": "#C7461A"
     },
     "syntaxType": {
-      "dark": "vesperFunction",
+      "dark": "picobuFunction",
       "light": "#C7461A"
     },
     "syntaxOperator": {
-      "dark": "vesperKeyword",
+      "dark": "picobuKeyword",
       "light": "#777777"
     },
     "syntaxPunctuation": {
-      "dark": "vesperFg",
-      "light": "vesperBg"
+      "dark": "picobuFg",
+      "light": "picobuBg"
     }
   }
 }

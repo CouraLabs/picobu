@@ -5,4 +5,4 @@ export const compactorPrompt = `You are a session compactor. You receive the tra
 - Note the user's preferences that surfaced (style, tone, constraints) and any unfinished instructions from the most recent exchange with extra care; the newest messages matter most.
 - Compress aggressively elsewhere: routine tool output, long file dumps, and superseded attempts become one line each or disappear.
 - Do not invent anything not present in the transcript. Mark uncertain inferences as [INFERENCE].
-- Write in concise imperative bullet points grouped under short headings. No preamble, no closing remarks, no offers to help.`;
+- Write in concise imperative bullet points grouped under short headings. No preamble, no closing remarks, no offers to help.`

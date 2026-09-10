@@ -1,67 +1,67 @@
-import { chmodSync, mkdirSync } from "node:fs";
-import { dirname, join } from "node:path";
-import type { OAuthCredential } from "@auth/types.ts";
-import { options } from "@config/options.ts";
-import { acquireLock } from "@shared/lock.ts";
-export type AuthFile = Record<string, OAuthCredential>;
-const DEFAULT_PATH = join(options.app.systemDir, "auth.json");
-let authFilePath = DEFAULT_PATH;
-let cache: AuthFile | null = null;
+import { chmodSync, mkdirSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import type { OAuthCredential } from '@auth/types.ts'
+import { options } from '@config/options.ts'
+import { acquireLock } from '@shared/lock.ts'
+export type AuthFile = Record<string, OAuthCredential>
+const DEFAULT_PATH = join(options.app.systemDir, 'auth.json')
+let authFilePath = DEFAULT_PATH
+let cache: AuthFile | null = null
 export const initAuthFilePath = (path: string): void => {
-  authFilePath = path;
-  cache = null;
-};
+  authFilePath = path
+  cache = null
+}
 export const resetAuthCache = (): void => {
-  cache = null;
-};
-export const authFilePathOf = (): string => authFilePath;
+  cache = null
+}
+export const authFilePathOf = (): string => authFilePath
 export const readAuthFile = async (path: string): Promise<AuthFile> => {
   try {
-    const file = Bun.file(path);
-    if (!(await file.exists())) return {};
-    const parsed: unknown = await file.json();
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
-    return parsed as AuthFile;
+    const file = Bun.file(path)
+    if (!(await file.exists())) return {}
+    const parsed: unknown = await file.json()
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {}
+    return parsed as AuthFile
   } catch {
     try {
-      const raw = await Bun.file(path).text();
-      await Bun.write(`${path}.corrupt-${Date.now()}`, raw);
+      const raw = await Bun.file(path).text()
+      await Bun.write(`${path}.corrupt-${Date.now()}`, raw)
     } catch {}
-    return {};
+    return {}
   }
-};
+}
 export const initAuth = async (): Promise<void> => {
-  if (cache === null) cache = await readAuthFile(authFilePath);
-};
-export const listCredentials = (): AuthFile => cache ?? {};
-export const getCredential = (id: string): OAuthCredential | undefined => listCredentials()[id];
+  if (cache === null) cache = await readAuthFile(authFilePath)
+}
+export const listCredentials = (): AuthFile => cache ?? {}
+export const getCredential = (id: string): OAuthCredential | undefined => listCredentials()[id]
 const persist = async (mutate: (current: AuthFile) => AuthFile | null): Promise<AuthFile | null> => {
-  await initAuth();
-  const lock = await acquireLock(authFilePath);
+  await initAuth()
+  const lock = await acquireLock(authFilePath)
   try {
-    const current = await readAuthFile(authFilePath);
-    const updated = mutate(current);
-    if (updated === null) return null;
-    mkdirSync(dirname(authFilePath), { recursive: true });
-    await Bun.write(authFilePath, JSON.stringify(updated, null, 2));
+    const current = await readAuthFile(authFilePath)
+    const updated = mutate(current)
+    if (updated === null) return null
+    mkdirSync(dirname(authFilePath), { recursive: true })
+    await Bun.write(authFilePath, JSON.stringify(updated, null, 2))
     try {
-      chmodSync(authFilePath, 0o600);
+      chmodSync(authFilePath, 0o600)
     } catch {}
-    cache = updated;
-    return updated;
+    cache = updated
+    return updated
   } finally {
-    lock.release();
+    lock.release()
   }
-};
+}
 export const setCredential = async (id: string, credential: OAuthCredential): Promise<void> => {
-  await persist((current) => ({ ...current, [id]: credential }));
-};
+  await persist((current) => ({ ...current, [id]: credential }))
+}
 export const removeCredential = async (id: string): Promise<boolean> => {
   return (
     (await persist((current) => {
-      if (!current[id]) return null;
-      const { [id]: _removed, ...rest } = current;
-      return rest;
+      if (!current[id]) return null
+      const { [id]: _removed, ...rest } = current
+      return rest
     })) !== null
-  );
-};
+  )
+}

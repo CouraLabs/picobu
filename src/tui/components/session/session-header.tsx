@@ -1,3 +1,3 @@
 export const SessionHeader = () => {
-  return <box></box>;
-};
+  return <box></box>
+}

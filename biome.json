@@ -12,15 +12,18 @@
     "enabled": true,
     "formatWithErrors": false,
     "indentStyle": "space",
+    "bracketSameLine": true,
+    "attributePosition": "multiline",
     "indentWidth": 2,
     "lineEnding": "lf",
-    "lineWidth": 170
+    "lineWidth": 200,
+    "bracketSpacing": true
   },
   "assist": {
     "enabled": true,
     "actions": {
       "source": {
-        "organizeImports": "on"
+        "recommended": true
       }
     }
   },
@@ -33,14 +36,28 @@
         "useKeyWithMouseEvents": "off"
       },
       "style": {
-        "noNonNullAssertion": "off"
+        "preset":"recommended"
       }
+    }
+  },
+  "html": {
+    "experimentalFullSupportEnabled": true,
+    "linter": {
+      "enabled":true
+    },
+    "formatter": {
+      "bracketSameLine": true,
+      "enabled": true,
+      "indentWidth": 2,
+      "lineWidth": 200,
+      "selfCloseVoidElements": "always",
+      "attributePosition": "auto"
     }
   },
   "javascript": {
     "formatter": {
-      "quoteStyle": "double",
-      "semicolons": "always",
+      "quoteStyle": "single",
+      "semicolons": "asNeeded",
       "trailingCommas": "all",
       "bracketSpacing": true,
       "arrowParentheses": "always"

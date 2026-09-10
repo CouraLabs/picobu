@@ -1,8 +1,8 @@
 export type LlmProviderDefinition = {
-  id: string;
-  name: string;
-  type: "openai-compatible";
-  baseUrl: string;
-  modelsUrl: string;
-  apiKeyEnv: string;
-};
+  id: string
+  name: string
+  type: 'openai-compatible'
+  baseUrl: string
+  modelsUrl: string
+  apiKeyEnv: string
+}

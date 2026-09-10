@@ -1,8 +1,8 @@
-import TurndownService from "turndown";
+import TurndownService from 'turndown'
 
-const turndown = new TurndownService({ headingStyle: "atx", codeBlockStyle: "fenced" });
-turndown.remove(["script", "style", "noscript", "iframe"]);
+const turndown = new TurndownService({ headingStyle: 'atx', codeBlockStyle: 'fenced' })
+turndown.remove(['script', 'style', 'noscript', 'iframe'])
 
 export function htmlToMarkdown(html: string): string {
-  return turndown.turndown(html).trim();
+  return turndown.turndown(html).trim()
 }

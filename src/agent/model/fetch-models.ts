@@ -1,5 +1,5 @@
-import type { ProviderModelCapability, ProviderModelOptions } from "@config/options.ts";
-import { z } from "zod";
+import type { ProviderModelCapability, ProviderModelOptions } from '@config/options.ts'
+import { z } from 'zod'
 
 const ModelsEntrySchema = z.object({
   id: z.string(),
@@ -25,14 +25,14 @@ const ModelsEntrySchema = z.object({
       cache_hit: z.number().optional(),
     })
     .optional(),
-});
-const ModelsResponseSchema = z.object({ data: z.array(ModelsEntrySchema) });
+})
+const ModelsResponseSchema = z.object({ data: z.array(ModelsEntrySchema) })
 
 const toProviderModel = (entry: z.infer<typeof ModelsEntrySchema>): ProviderModelOptions | null => {
-  if (!entry.id) return null;
-  const efforts = (entry.reasoning?.effort_levels ?? []).map((level) => level.value).filter((value): value is string => Boolean(value));
-  const supports: ProviderModelCapability[] = ["text"];
-  if (entry.capabilities?.vision) supports.push("vision");
+  if (!entry.id) return null
+  const efforts = (entry.reasoning?.effort_levels ?? []).map((level) => level.value).filter((value): value is string => Boolean(value))
+  const supports: ProviderModelCapability[] = ['text']
+  if (entry.capabilities?.vision) supports.push('vision')
   return {
     id: entry.id,
     name: entry.display_name ?? entry.id,
@@ -50,24 +50,24 @@ const toProviderModel = (entry: z.infer<typeof ModelsEntrySchema>): ProviderMode
           cacheWrite: entry.pricing.cache_create,
         }
       : undefined,
-  };
-};
+  }
+}
 
 export const parseModelsResponse = (payload: unknown): ProviderModelOptions[] => {
-  const parsed = ModelsResponseSchema.safeParse(payload);
-  if (!parsed.success) return [];
+  const parsed = ModelsResponseSchema.safeParse(payload)
+  if (!parsed.success) return []
   return parsed.data.data.flatMap((entry) => {
-    const model = toProviderModel(entry);
-    return model ? [model] : [];
-  });
-};
+    const model = toProviderModel(entry)
+    return model ? [model] : []
+  })
+}
 
 export const fetchModels = async (url: string, apiKey: string): Promise<ProviderModelOptions[]> => {
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${apiKey}` },
-  });
+  })
   if (!res.ok) {
-    throw new Error(`Fetching models from ${url} failed: ${res.status} ${res.statusText}`);
+    throw new Error(`Fetching models from ${url} failed: ${res.status} ${res.statusText}`)
   }
-  return parseModelsResponse((await res.json()) as unknown);
-};
+  return parseModelsResponse((await res.json()) as unknown)
+}

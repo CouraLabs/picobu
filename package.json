@@ -8,8 +8,8 @@
     "dev:tui": "bun run src/tui/init.tsx",
     "tsc": "tsc -noEmit",
     "test": "bun test tests",
-    "lint": "biome check src tests",
-    "lint:fix": "biome check --write src tests",
+    "lint": "biome check src tests --max-diagnostics 900",
+    "lint:fix": "biome check --write src tests --max-diagnostics 900",
     "parsers:update": "bun ./scripts/update-tree-sitter-assets.ts"
   },
   "devDependencies": {

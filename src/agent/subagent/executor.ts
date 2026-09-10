@@ -6,4 +6,4 @@ tools: read, grep, glob, write, edit, shell, websearch, webfetch
 
 Input:
 <SPAWN_PROMPT>
-`;
+`

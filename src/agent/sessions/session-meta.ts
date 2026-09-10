@@ -1,90 +1,110 @@
-import { mkdirSync } from "node:fs";
-import { readFile, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
-import { folderKeyFor, sessionsRoot } from "@agent/sessions/session-paths.ts";
-import { withLock } from "@shared/lock.ts";
-import { z } from "zod";
+import { mkdirSync } from 'node:fs'
+import { readFile, rm, writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
+import { folderKeyFor, sessionsRoot } from '@agent/sessions/session-paths.ts'
+import { withLock } from '@shared/lock.ts'
+import { z } from 'zod'
 
-export type SessionState = "waiting" | "finished" | "error" | "running";
+export type SessionState = 'waiting' | 'finished' | 'error' | 'running'
 
-export const BLOCKING_FLOW_TOOLS: readonly string[] = ["ask", "plan-write"];
+export const BLOCKING_FLOW_TOOLS: readonly string[] = ['ask', 'plan-write']
 type LooseToolPart = {
-  type: string;
-  toolName?: unknown;
-  output?: unknown;
-};
+  type: string
+  toolName?: unknown
+  output?: unknown
+}
 
 export function isWaiting(messages: { role: string; parts: unknown[] }[]): boolean {
-  const last = messages[messages.length - 1];
-  if (!last || last.role !== "assistant") return false;
+  const last = messages[messages.length - 1]
+  if (last?.role !== 'assistant') return false
   return last.parts.some((raw) => {
-    const part = raw as LooseToolPart;
-    if (part.type !== "dynamic-tool" && !part.type.startsWith("tool-")) return false;
-    const name = part.type === "dynamic-tool" ? String(part.toolName ?? "") : part.type.slice("tool-".length);
-    if (!BLOCKING_FLOW_TOOLS.includes(name)) return false;
-    const output = part.output;
-    return typeof output === "object" && output !== null && (output as { status?: unknown }).status === "pending";
-  });
+    const part = raw as LooseToolPart
+    if (part.type !== 'dynamic-tool' && !part.type.startsWith('tool-')) return false
+    const name = part.type === 'dynamic-tool' ? String(part.toolName ?? '') : part.type.slice('tool-'.length)
+    if (!BLOCKING_FLOW_TOOLS.includes(name)) return false
+    const output = part.output
+    return typeof output === 'object' && output !== null && (output as { status?: unknown }).status === 'pending'
+  })
 }
 
 export type CostDetail = {
-  source: "run" | "subagent";
-  sessionId?: string;
-  subagent?: string;
-  modelKey?: string;
-  inputTokens: number;
-  outputTokens: number;
-  cacheReadTokens: number;
-  cacheWriteTokens: number;
-  cost?: number;
-  inputCost?: number;
-  outputCost?: number;
-  cacheCost?: number;
-};
+  source: 'run' | 'subagent'
+  sessionId?: string
+  subagent?: string
+  modelKey?: string
+  inputTokens: number
+  outputTokens: number
+  cacheReadTokens: number
+  cacheWriteTokens: number
+  reasoningTokens?: number
+  textTokens?: number
+  totalTokens?: number
+  contextTokens?: number
+  lastOutputTokens?: number
+  cost?: number
+  inputCost?: number
+  outputCost?: number
+  cacheCost?: number
+}
 
 export type CostDetails = {
-  totalCost?: number;
-  inputCost?: number;
-  outputCost?: number;
-  cacheCost?: number;
-  details: CostDetail[];
-};
+  totalCost?: number
+  inputCost?: number
+  outputCost?: number
+  cacheCost?: number
+  details: CostDetail[]
+}
 
 export type SessionTotals = {
-  inputTokens: number;
-  outputTokens: number;
-  cacheReadTokens: number;
-  cacheWriteTokens: number;
-  cost?: number;
-  costDetails: CostDetails;
-};
+  inputTokens: number
+  outputTokens: number
+  cacheReadTokens: number
+  cacheWriteTokens: number
+  reasoningTokens: number
+  textTokens: number
+  totalTokens: number
+  contextTokens: number
+  lastOutputTokens: number
+  cost?: number
+  costDetails: CostDetails
+}
 export const emptyTotals = (): SessionTotals => ({
   inputTokens: 0,
   outputTokens: 0,
   cacheReadTokens: 0,
   cacheWriteTokens: 0,
+  reasoningTokens: 0,
+  textTokens: 0,
+  totalTokens: 0,
+  contextTokens: 0,
+  lastOutputTokens: 0,
   costDetails: { details: [] },
-});
+})
 
 export function addToTotals(totals: SessionTotals, detail: CostDetail): SessionTotals {
   const costDetails: CostDetails = {
     ...totals.costDetails,
     details: [...totals.costDetails.details, detail],
-  };
+  }
   if (detail.cost !== undefined) {
-    costDetails.totalCost = (costDetails.totalCost ?? 0) + detail.cost;
-    if (detail.inputCost !== undefined) costDetails.inputCost = (costDetails.inputCost ?? 0) + detail.inputCost;
-    if (detail.outputCost !== undefined) costDetails.outputCost = (costDetails.outputCost ?? 0) + detail.outputCost;
-    if (detail.cacheCost !== undefined) costDetails.cacheCost = (costDetails.cacheCost ?? 0) + detail.cacheCost;
+    costDetails.totalCost = (costDetails.totalCost ?? 0) + detail.cost
+    if (detail.inputCost !== undefined) costDetails.inputCost = (costDetails.inputCost ?? 0) + detail.inputCost
+    if (detail.outputCost !== undefined) costDetails.outputCost = (costDetails.outputCost ?? 0) + detail.outputCost
+    if (detail.cacheCost !== undefined) costDetails.cacheCost = (costDetails.cacheCost ?? 0) + detail.cacheCost
   }
   return {
     inputTokens: totals.inputTokens + detail.inputTokens,
     outputTokens: totals.outputTokens + detail.outputTokens,
     cacheReadTokens: totals.cacheReadTokens + detail.cacheReadTokens,
     cacheWriteTokens: totals.cacheWriteTokens + detail.cacheWriteTokens,
+    reasoningTokens: totals.reasoningTokens + (detail.reasoningTokens ?? 0),
+    textTokens: totals.textTokens + (detail.textTokens ?? 0),
+    totalTokens: totals.totalTokens + (detail.totalTokens ?? detail.inputTokens + detail.outputTokens),
+    contextTokens: detail.source === 'subagent' ? totals.contextTokens : (detail.contextTokens ?? detail.inputTokens),
+    lastOutputTokens: detail.source === 'subagent' ? totals.lastOutputTokens : (detail.lastOutputTokens ?? 0),
     cost: detail.cost !== undefined ? (totals.cost ?? 0) + detail.cost : totals.cost,
     costDetails,
-  };
+  }
 }
 
 const totalsSchema: z.ZodType<SessionTotals> = z.object({
@@ -92,6 +112,11 @@ const totalsSchema: z.ZodType<SessionTotals> = z.object({
   outputTokens: z.number(),
   cacheReadTokens: z.number(),
   cacheWriteTokens: z.number(),
+  reasoningTokens: z.number().optional().default(0),
+  textTokens: z.number().optional().default(0),
+  totalTokens: z.number().optional().default(0),
+  contextTokens: z.number().optional().default(0),
+  lastOutputTokens: z.number().optional().default(0),
   cost: z.number().optional(),
   costDetails: z.object({
     totalCost: z.number().optional(),
@@ -100,73 +125,73 @@ const totalsSchema: z.ZodType<SessionTotals> = z.object({
     cacheCost: z.number().optional(),
     details: z.array(z.any()),
   }),
-});
+})
 const metaSchema = z.object({
   id: z.string(),
   title: z.string().optional(),
-  state: z.enum(["waiting", "finished", "error", "running"]),
+  state: z.enum(['waiting', 'finished', 'error', 'running']),
   parentSessionId: z.string().optional(),
   cwd: z.string(),
   createdAt: z.number(),
   updatedAt: z.number(),
   modelKey: z.string().optional(),
   totals: totalsSchema.optional(),
-});
+})
 
-export type SessionMeta = z.infer<typeof metaSchema>;
+export type SessionMeta = z.infer<typeof metaSchema>
 
-export const sessionMetaPath = (folderKey: string, sessionId: string): string => join(sessionsRoot(), folderKey, `${sessionId}.meta.json`);
+export const sessionMetaPath = (folderKey: string, sessionId: string): string => join(sessionsRoot(), folderKey, `${sessionId}.meta.json`)
 
 export async function readSessionMeta(folderKey: string, sessionId: string): Promise<SessionMeta | null> {
-  let raw: string;
+  let raw: string
   try {
-    raw = await readFile(sessionMetaPath(folderKey, sessionId), "utf8");
+    raw = await readFile(sessionMetaPath(folderKey, sessionId), 'utf8')
   } catch {
-    return null;
+    return null
   }
   try {
-    return metaSchema.parse(JSON.parse(raw));
+    return metaSchema.parse(JSON.parse(raw))
   } catch {
-    return null;
+    return null
   }
 }
 
 export async function writeSessionMeta(folderKey: string, sessionId: string, meta: SessionMeta): Promise<void> {
-  const path = sessionMetaPath(folderKey, sessionId);
+  const path = sessionMetaPath(folderKey, sessionId)
   await withLock(path, async () => {
-    mkdirSync(join(sessionsRoot(), folderKey), { recursive: true });
-    await writeFile(path, `${JSON.stringify(meta, null, 2)}\n`);
-  });
+    mkdirSync(join(sessionsRoot(), folderKey), { recursive: true })
+    await writeFile(path, `${JSON.stringify(meta, null, 2)}\n`)
+  })
 }
 
 export async function folderKeyForSession(cwd: string, sessionId: string): Promise<string> {
-  const meta = await readSessionMeta(folderKeyFor(cwd), sessionId);
-  return folderKeyFor(meta?.cwd ?? cwd);
+  const meta = await readSessionMeta(folderKeyFor(cwd), sessionId)
+  return folderKeyFor(meta?.cwd ?? cwd)
 }
 
-export async function updateSessionMeta(folderKey: string, sessionId: string, patch: Partial<Omit<SessionMeta, "id">>): Promise<SessionMeta | null> {
-  const path = sessionMetaPath(folderKey, sessionId);
+export async function updateSessionMeta(folderKey: string, sessionId: string, patch: Partial<Omit<SessionMeta, 'id'>>): Promise<SessionMeta | null> {
+  const path = sessionMetaPath(folderKey, sessionId)
   return withLock(path, async () => {
-    let current: SessionMeta | null = null;
+    let current: SessionMeta | null = null
     try {
-      current = metaSchema.parse(JSON.parse(await readFile(path, "utf8")));
+      current = metaSchema.parse(JSON.parse(await readFile(path, 'utf8')))
     } catch {
-      return null;
+      return null
     }
-    const next: SessionMeta = { ...current, ...patch, id: sessionId, updatedAt: Date.now() };
-    mkdirSync(join(sessionsRoot(), folderKey), { recursive: true });
-    await writeFile(path, `${JSON.stringify(next, null, 2)}\n`);
-    return next;
-  });
+    const next: SessionMeta = { ...current, ...patch, id: sessionId, updatedAt: Date.now() }
+    mkdirSync(join(sessionsRoot(), folderKey), { recursive: true })
+    await writeFile(path, `${JSON.stringify(next, null, 2)}\n`)
+    return next
+  })
 }
 export async function deleteSessionMeta(folderKey: string, sessionId: string): Promise<void> {
   try {
-    await rm(sessionMetaPath(folderKey, sessionId), { force: true });
+    await rm(sessionMetaPath(folderKey, sessionId), { force: true })
   } catch {}
 }
 
 export async function recoverSessionMeta(folderKey: string, sessionId: string): Promise<SessionMeta | null> {
-  const meta = await readSessionMeta(folderKey, sessionId);
-  if (!meta || meta.state !== "running") return meta;
-  return updateSessionMeta(folderKey, sessionId, { state: "error" });
+  const meta = await readSessionMeta(folderKey, sessionId)
+  if (meta?.state !== 'running') return meta
+  return updateSessionMeta(folderKey, sessionId, { state: 'error' })
 }

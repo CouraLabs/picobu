@@ -1,9 +1,9 @@
-import type { ClipboardService } from "@opentui/core";
+import type { ClipboardService } from '@opentui/core'
 
-let service: ClipboardService | null = null;
+let service: ClipboardService | null = null
 
 export const setClipboardService = (next: ClipboardService | null): void => {
-  service = next;
-};
+  service = next
+}
 
-export const getClipboardService = (): ClipboardService | null => service;
+export const getClipboardService = (): ClipboardService | null => service

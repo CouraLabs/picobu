@@ -1,38 +1,35 @@
-import { parseMarkdownFile } from "@agent/markdown/markdown-parser.ts";
-import { listRules, type Rule } from "@agent/rules/rules.ts";
-import z from "zod";
+import { parseMarkdownFile } from '@agent/markdown/markdown-parser.ts'
+import { listRules, type Rule } from '@agent/rules/rules.ts'
+import z from 'zod'
 export const RuleToolArgsSchema = z.object({
   name: z.string(),
-});
+})
 export const RuleToolOutputSchema = z.object({
   name: z.string(),
   description: z.string(),
   ruleFile: z.string(),
   content: z.string(),
-});
+})
 
 export const createRuleTool = (getRules: () => Rule[] = listRules) => ({
-  name: "rule",
-  kind: "flow" as const,
-  description: [
-    "Load a rule's instructions into the conversation. Pass the exact rule name from the Rules section.",
-    "The output carries the rule's content; apply it to the current task when its description matches.",
-  ].join(" "),
+  name: 'rule',
+  kind: 'flow' as const,
+  description: 'Load a rule by exact name from the Rules section and apply it to the current task.',
   parameters: RuleToolArgsSchema,
   output: RuleToolOutputSchema,
   handler: async (args: z.infer<typeof RuleToolArgsSchema>): Promise<z.infer<typeof RuleToolOutputSchema>> => {
-    const rules = getRules();
-    const rule = rules.find((r) => r.name.toLowerCase() === args.name.trim().toLowerCase());
+    const rules = getRules()
+    const rule = rules.find((r) => r.name.toLowerCase() === args.name.trim().toLowerCase())
     if (!rule) {
-      const available = rules.map((r) => r.name).join(", ");
-      throw new Error(`Unknown rule: "${args.name}". Available rules: ${available || "(none)"}`);
+      const available = rules.map((r) => r.name).join(', ')
+      throw new Error(`Unknown rule: "${args.name}". Available rules: ${available || '(none)'}`)
     }
-    const parsed = await parseMarkdownFile(rule.path);
+    const parsed = await parseMarkdownFile(rule.path)
     return {
       name: rule.name,
       description: rule.description,
       ruleFile: rule.path,
       content: parsed.content,
-    };
+    }
   },
-});
+})

@@ -1,145 +1,146 @@
-import { RGBA, SyntaxStyle, type TerminalColors } from "@opentui/core";
-import aura from "@tui/themes/assets/aura.json" with { type: "json" };
-import ayu from "@tui/themes/assets/ayu.json" with { type: "json" };
-import ayuLight from "@tui/themes/assets/ayu-light.json" with { type: "json" };
-import blulocoDark from "@tui/themes/assets/bluloco-dark.json" with { type: "json" };
-import carbonfox from "@tui/themes/assets/carbonfox.json" with { type: "json" };
-import catppuccin from "@tui/themes/assets/catppuccin.json" with { type: "json" };
-import catppuccinLatte from "@tui/themes/assets/catppuccin-latte.json" with { type: "json" };
-import cobalt2 from "@tui/themes/assets/cobalt2.json" with { type: "json" };
-import cursor from "@tui/themes/assets/cursor.json" with { type: "json" };
-import dracula from "@tui/themes/assets/dracula.json" with { type: "json" };
-import everforest from "@tui/themes/assets/everforest.json" with { type: "json" };
-import flexoki from "@tui/themes/assets/flexoki.json" with { type: "json" };
-import github from "@tui/themes/assets/github.json" with { type: "json" };
-import gruvbox from "@tui/themes/assets/gruvbox.json" with { type: "json" };
-import horizon from "@tui/themes/assets/horizon.json" with { type: "json" };
-import kanagawa from "@tui/themes/assets/kanagawa.json" with { type: "json" };
-import material from "@tui/themes/assets/material.json" with { type: "json" };
-import matrix from "@tui/themes/assets/matrix.json" with { type: "json" };
-import mercury from "@tui/themes/assets/mercury.json" with { type: "json" };
-import monokai from "@tui/themes/assets/monokai.json" with { type: "json" };
-import nightowl from "@tui/themes/assets/nightowl.json" with { type: "json" };
-import nord from "@tui/themes/assets/nord.json" with { type: "json" };
-import one from "@tui/themes/assets/one.json" with { type: "json" };
-import oneDarker from "@tui/themes/assets/one-darker.json" with { type: "json" };
-import orng from "@tui/themes/assets/orng.json" with { type: "json" };
-import osakaJade from "@tui/themes/assets/osaka-jade.json" with { type: "json" };
-import palenight from "@tui/themes/assets/palenight.json" with { type: "json" };
-import rosePineMoon from "@tui/themes/assets/rose-pine-moon.json" with { type: "json" };
-import solarized from "@tui/themes/assets/solarized.json" with { type: "json" };
-import synthwave84 from "@tui/themes/assets/synthwave84.json" with { type: "json" };
-import tacos from "@tui/themes/assets/tacos.json" with { type: "json" };
-import tokyoNightStorm from "@tui/themes/assets/tokyo-night-storm.json" with { type: "json" };
-import vesper from "@tui/themes/assets/vesper.json" with { type: "json" };
-import vitesse from "@tui/themes/assets/vitesse.json" with { type: "json" };
-import zenburn from "@tui/themes/assets/zenburn.json" with { type: "json" };
+import { RGBA, SyntaxStyle, type TerminalColors } from '@opentui/core'
+import aura from '@tui/themes/assets/aura.json' with { type: 'json' }
+import ayu from '@tui/themes/assets/ayu.json' with { type: 'json' }
+import ayuLight from '@tui/themes/assets/ayu-light.json' with { type: 'json' }
+import blulocoDark from '@tui/themes/assets/bluloco-dark.json' with { type: 'json' }
+import carbonfox from '@tui/themes/assets/carbonfox.json' with { type: 'json' }
+import catppuccin from '@tui/themes/assets/catppuccin.json' with { type: 'json' }
+import catppuccinLatte from '@tui/themes/assets/catppuccin-latte.json' with { type: 'json' }
+import cobalt2 from '@tui/themes/assets/cobalt2.json' with { type: 'json' }
+import cursor from '@tui/themes/assets/cursor.json' with { type: 'json' }
+import dracula from '@tui/themes/assets/dracula.json' with { type: 'json' }
+import everforest from '@tui/themes/assets/everforest.json' with { type: 'json' }
+import flexoki from '@tui/themes/assets/flexoki.json' with { type: 'json' }
+import github from '@tui/themes/assets/github.json' with { type: 'json' }
+import gruvbox from '@tui/themes/assets/gruvbox.json' with { type: 'json' }
+import horizon from '@tui/themes/assets/horizon.json' with { type: 'json' }
+import kanagawa from '@tui/themes/assets/kanagawa.json' with { type: 'json' }
+import material from '@tui/themes/assets/material.json' with { type: 'json' }
+import matrix from '@tui/themes/assets/matrix.json' with { type: 'json' }
+import mercury from '@tui/themes/assets/mercury.json' with { type: 'json' }
+import monochrome from '@tui/themes/assets/monochrome.json' with { type: 'json' }
+import monokai from '@tui/themes/assets/monokai.json' with { type: 'json' }
+import nightowl from '@tui/themes/assets/nightowl.json' with { type: 'json' }
+import nord from '@tui/themes/assets/nord.json' with { type: 'json' }
+import one from '@tui/themes/assets/one.json' with { type: 'json' }
+import oneDarker from '@tui/themes/assets/one-darker.json' with { type: 'json' }
+import orng from '@tui/themes/assets/orng.json' with { type: 'json' }
+import osakaJade from '@tui/themes/assets/osaka-jade.json' with { type: 'json' }
+import palenight from '@tui/themes/assets/palenight.json' with { type: 'json' }
+import picobu from '@tui/themes/assets/picobu.json' with { type: 'json' }
+import rosePineMoon from '@tui/themes/assets/rose-pine-moon.json' with { type: 'json' }
+import solarized from '@tui/themes/assets/solarized.json' with { type: 'json' }
+import synthwave84 from '@tui/themes/assets/synthwave84.json' with { type: 'json' }
+import tokyoNightStorm from '@tui/themes/assets/tokyo-night-storm.json' with { type: 'json' }
+import vitesse from '@tui/themes/assets/vitesse.json' with { type: 'json' }
+import zenburn from '@tui/themes/assets/zenburn.json' with { type: 'json' }
 
-export * from "./icons.ts";
+export * from './icons.ts'
 export type Theme = {
-  readonly primary: RGBA;
-  readonly secondary: RGBA;
-  readonly accent: RGBA;
-  readonly error: RGBA;
-  readonly warning: RGBA;
-  readonly success: RGBA;
-  readonly info: RGBA;
-  readonly text: RGBA;
-  readonly textMuted: RGBA;
-  readonly selectedListItemText: RGBA;
-  readonly background: RGBA;
-  readonly backgroundPanel: RGBA;
-  readonly backgroundElement: RGBA;
-  readonly backgroundMenu: RGBA;
-  readonly border: RGBA;
-  readonly borderActive: RGBA;
-  readonly borderSubtle: RGBA;
-  readonly diffAdded: RGBA;
-  readonly diffRemoved: RGBA;
-  readonly diffContext: RGBA;
-  readonly diffHunkHeader: RGBA;
-  readonly diffHighlightAdded: RGBA;
-  readonly diffHighlightRemoved: RGBA;
-  readonly diffAddedBg: RGBA;
-  readonly diffRemovedBg: RGBA;
-  readonly diffContextBg: RGBA;
-  readonly diffLineNumber: RGBA;
-  readonly diffAddedLineNumberBg: RGBA;
-  readonly diffRemovedLineNumberBg: RGBA;
-  readonly markdownText: RGBA;
-  readonly markdownHeading: RGBA;
-  readonly markdownLink: RGBA;
-  readonly markdownLinkText: RGBA;
-  readonly markdownCode: RGBA;
-  readonly markdownBlockQuote: RGBA;
-  readonly markdownEmph: RGBA;
-  readonly markdownStrong: RGBA;
-  readonly markdownHorizontalRule: RGBA;
-  readonly markdownListItem: RGBA;
-  readonly markdownListEnumeration: RGBA;
-  readonly markdownImage: RGBA;
-  readonly markdownImageText: RGBA;
-  readonly markdownCodeBlock: RGBA;
-  readonly syntaxComment: RGBA;
-  readonly syntaxKeyword: RGBA;
-  readonly syntaxFunction: RGBA;
-  readonly syntaxVariable: RGBA;
-  readonly syntaxString: RGBA;
-  readonly syntaxNumber: RGBA;
-  readonly syntaxType: RGBA;
-  readonly syntaxOperator: RGBA;
-  readonly syntaxPunctuation: RGBA;
-  readonly thinkingOpacity: number;
-  _hasSelectedListItemText: boolean;
-};
-type ThemeColor = Exclude<keyof Theme, "thinkingOpacity" | "_hasSelectedListItemText">;
-export type SyntaxStyleOverrides = Record<string, { italic?: boolean }>;
+  readonly primary: RGBA
+  readonly secondary: RGBA
+  readonly accent: RGBA
+  readonly error: RGBA
+  readonly warning: RGBA
+  readonly success: RGBA
+  readonly info: RGBA
+  readonly text: RGBA
+  readonly textMuted: RGBA
+  readonly selectedListItemText: RGBA
+  readonly background: RGBA
+  readonly backgroundPanel: RGBA
+  readonly backgroundElement: RGBA
+  readonly backgroundMenu: RGBA
+  readonly border: RGBA
+  readonly borderActive: RGBA
+  readonly borderSubtle: RGBA
+  readonly diffAdded: RGBA
+  readonly diffRemoved: RGBA
+  readonly diffContext: RGBA
+  readonly diffHunkHeader: RGBA
+  readonly diffHighlightAdded: RGBA
+  readonly diffHighlightRemoved: RGBA
+  readonly diffAddedBg: RGBA
+  readonly diffRemovedBg: RGBA
+  readonly diffContextBg: RGBA
+  readonly diffLineNumber: RGBA
+  readonly diffAddedLineNumberBg: RGBA
+  readonly diffRemovedLineNumberBg: RGBA
+  readonly markdownText: RGBA
+  readonly markdownHeading: RGBA
+  readonly markdownLink: RGBA
+  readonly markdownLinkText: RGBA
+  readonly markdownCode: RGBA
+  readonly markdownBlockQuote: RGBA
+  readonly markdownEmph: RGBA
+  readonly markdownStrong: RGBA
+  readonly markdownHorizontalRule: RGBA
+  readonly markdownListItem: RGBA
+  readonly markdownListEnumeration: RGBA
+  readonly markdownImage: RGBA
+  readonly markdownImageText: RGBA
+  readonly markdownCodeBlock: RGBA
+  readonly syntaxComment: RGBA
+  readonly syntaxKeyword: RGBA
+  readonly syntaxFunction: RGBA
+  readonly syntaxVariable: RGBA
+  readonly syntaxString: RGBA
+  readonly syntaxNumber: RGBA
+  readonly syntaxType: RGBA
+  readonly syntaxOperator: RGBA
+  readonly syntaxPunctuation: RGBA
+  readonly thinkingOpacity: number
+  _hasSelectedListItemText: boolean
+}
+type ThemeColor = Exclude<keyof Theme, 'thinkingOpacity' | '_hasSelectedListItemText'>
+export type SyntaxStyleOverrides = Record<string, { italic?: boolean }>
 export function selectedForeground(theme: Theme, bg?: RGBA): RGBA {
   const autoFor = (surface: RGBA): RGBA => {
-    const luminance = 0.299 * surface.r + 0.587 * surface.g + 0.114 * surface.b;
-    return luminance > 0.5 ? RGBA.fromInts(0, 0, 0) : RGBA.fromInts(255, 255, 255);
-  };
+    const luminance = 0.299 * surface.r + 0.587 * surface.g + 0.114 * surface.b
+    return luminance > 0.5 ? RGBA.fromInts(0, 0, 0) : RGBA.fromInts(255, 255, 255)
+  }
   if (bg && bg.a !== 0 && theme._hasSelectedListItemText) {
     if (contrastRatio(theme.selectedListItemText, bg) >= 3) {
-      return theme.selectedListItemText;
+      return theme.selectedListItemText
     }
-    return autoFor(bg);
+    return autoFor(bg)
   }
   if (theme._hasSelectedListItemText && !bg) {
-    return theme.selectedListItemText;
+    return theme.selectedListItemText
   }
 
-  const surface = bg ?? (theme.background.a === 0 ? theme.primary : theme.backgroundPanel);
-  return autoFor(surface);
+  const surface = bg ?? (theme.background.a === 0 ? theme.primary : theme.backgroundPanel)
+  return autoFor(surface)
 }
 export function contrastRatio(a: RGBA, b: RGBA): number {
   const lum = (c: RGBA): number => {
-    const f = (v: number): number => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
-    return 0.2126 * f(c.r) + 0.7152 * f(c.g) + 0.0722 * f(c.b);
-  };
-  const l1 = lum(a);
-  const l2 = lum(b);
-  const [hi, lo] = l1 >= l2 ? [l1, l2] : [l2, l1];
-  return (hi + 0.05) / (lo + 0.05);
+    const f = (v: number): number => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4)
+    return 0.2126 * f(c.r) + 0.7152 * f(c.g) + 0.0722 * f(c.b)
+  }
+  const l1 = lum(a)
+  const l2 = lum(b)
+  const [hi, lo] = l1 >= l2 ? [l1, l2] : [l2, l1]
+  return (hi + 0.05) / (lo + 0.05)
 }
-type HexColor = `#${string}`;
-type RefName = string;
+type HexColor = `#${string}`
+type RefName = string
 type Variant = {
-  dark: HexColor | RefName;
-  light: HexColor | RefName;
-};
-type ColorValue = HexColor | RefName | Variant | RGBA;
+  dark: HexColor | RefName
+  light: HexColor | RefName
+}
+type ColorValue = HexColor | RefName | Variant | RGBA
 export type ThemeJson = {
-  $schema?: string;
-  defs?: Record<string, HexColor | RefName>;
-  theme: Omit<Record<ThemeColor, ColorValue>, "selectedListItemText" | "backgroundMenu"> & {
-    selectedListItemText?: ColorValue;
-    backgroundMenu?: ColorValue;
-    thinkingOpacity?: number;
-  };
-};
+  $schema?: string
+  defs?: Record<string, HexColor | RefName>
+  theme: Omit<Record<ThemeColor, ColorValue>, 'selectedListItemText' | 'backgroundMenu'> & {
+    selectedListItemText?: ColorValue
+    backgroundMenu?: ColorValue
+    thinkingOpacity?: number
+  }
+}
 export const DEFAULT_THEMES: Record<string, ThemeJson> = {
-  tacos,
+  monochrome,
+  picobu,
   aura,
   ayu,
   catppuccin,
@@ -157,157 +158,147 @@ export const DEFAULT_THEMES: Record<string, ThemeJson> = {
   monokai,
   nightowl,
   nord,
-  ["osaka-jade"]: osakaJade,
+  'osaka-jade': osakaJade,
   orng,
   palenight,
   solarized,
   synthwave84,
-  vesper,
   zenburn,
   carbonfox,
-  ["one-darker"]: oneDarker,
+  'one-darker': oneDarker,
   one,
-  ["catppuccin-latte"]: catppuccinLatte,
-  ["rose-pine-moon"]: rosePineMoon,
-  ["tokyo-night-storm"]: tokyoNightStorm,
-  ["ayu-light"]: ayuLight,
+  'catppuccin-latte': catppuccinLatte,
+  'rose-pine-moon': rosePineMoon,
+  'tokyo-night-storm': tokyoNightStorm,
+  'ayu-light': ayuLight,
   vitesse,
   horizon,
-  ["bluloco-dark"]: blulocoDark,
-};
+  'bluloco-dark': blulocoDark,
+}
 function listThemes() {
   const themes = {
     ...DEFAULT_THEMES,
-  };
-  return themes;
+  }
+  return themes
 }
 export function allThemes() {
-  return listThemes();
+  return listThemes()
 }
 export function isTheme(theme: unknown): theme is ThemeJson {
-  if (typeof theme !== "object" || theme === null || Array.isArray(theme)) return false;
-  const value = Reflect.get(theme, "theme");
-  return typeof value === "object" && value !== null && !Array.isArray(value);
+  if (typeof theme !== 'object' || theme === null || Array.isArray(theme)) return false
+  const value = Reflect.get(theme, 'theme')
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 export function hasTheme(name: string) {
-  if (!name) return false;
-  return allThemes()[name] !== undefined;
+  if (!name) return false
+  return allThemes()[name] !== undefined
 }
-export function resolveTheme(theme: ThemeJson, mode: "dark" | "light") {
-  const defs = theme.defs ?? {};
+export function resolveTheme(theme: ThemeJson, mode: 'dark' | 'light') {
+  const defs = theme.defs ?? {}
   function resolveColor(c: ColorValue, chain: string[] = []): RGBA {
-    if (c instanceof RGBA) return c;
-    if (typeof c === "string") {
-      if (c === "transparent" || c === "none") return RGBA.fromInts(0, 0, 0, 0);
-      if (c.startsWith("#")) return RGBA.fromHex(c);
+    if (c instanceof RGBA) return c
+    if (typeof c === 'string') {
+      if (c === 'transparent' || c === 'none') return RGBA.fromInts(0, 0, 0, 0)
+      if (c.startsWith('#')) return RGBA.fromHex(c)
       if (chain.includes(c)) {
-        throw new Error(`Circular color reference: ${[...chain, c].join(" -> ")}`);
+        throw new Error(`Circular color reference: ${[...chain, c].join(' -> ')}`)
       }
-      const next = defs[c] ?? theme.theme[c as ThemeColor];
+      const next = defs[c] ?? theme.theme[c as ThemeColor]
       if (next === undefined) {
-        throw new Error(`Color reference "${c}" not found in defs or theme`);
+        throw new Error(`Color reference "${c}" not found in defs or theme`)
       }
-      return resolveColor(next, [...chain, c]);
+      return resolveColor(next, [...chain, c])
     }
-    if (typeof c === "number") {
-      return ansiToRgba(c);
+    if (typeof c === 'number') {
+      return ansiToRgba(c)
     }
-    return resolveColor(c[mode], chain);
+    return resolveColor(c[mode], chain)
   }
   const resolved = Object.fromEntries(
     Object.entries(theme.theme)
-      .filter(([key]) => key !== "selectedListItemText" && key !== "backgroundMenu" && key !== "thinkingOpacity")
+      .filter(([key]) => key !== 'selectedListItemText' && key !== 'backgroundMenu' && key !== 'thinkingOpacity')
       .map(([key, value]) => {
-        return [key, resolveColor(value as ColorValue)];
+        return [key, resolveColor(value as ColorValue)]
       }),
-  ) as Partial<Record<ThemeColor, RGBA>>;
+  ) as Partial<Record<ThemeColor, RGBA>>
 
-  const hasSelectedListItemText = theme.theme.selectedListItemText !== undefined;
-  if (hasSelectedListItemText) {
-    resolved.selectedListItemText = resolveColor(theme.theme.selectedListItemText!);
+  const selectedListItemText = theme.theme.selectedListItemText
+  const hasSelectedListItemText = selectedListItemText !== undefined
+  if (selectedListItemText !== undefined) {
+    resolved.selectedListItemText = resolveColor(selectedListItemText)
   } else {
-    const surface = resolved.backgroundPanel ?? resolved.background ?? RGBA.fromInts(20, 20, 26);
-    const luminance = 0.299 * surface.r + 0.587 * surface.g + 0.114 * surface.b;
-    resolved.selectedListItemText = luminance > 0.5 ? RGBA.fromInts(20, 20, 26) : RGBA.fromInts(242, 242, 245);
+    const surface = resolved.backgroundPanel ?? resolved.background ?? RGBA.fromInts(20, 20, 26)
+    const luminance = 0.299 * surface.r + 0.587 * surface.g + 0.114 * surface.b
+    resolved.selectedListItemText = luminance > 0.5 ? RGBA.fromInts(20, 20, 26) : RGBA.fromInts(242, 242, 245)
   }
 
   if (theme.theme.backgroundMenu !== undefined) {
-    resolved.backgroundMenu = resolveColor(theme.theme.backgroundMenu);
+    resolved.backgroundMenu = resolveColor(theme.theme.backgroundMenu)
   } else {
-    resolved.backgroundMenu = resolved.backgroundElement;
+    resolved.backgroundMenu = resolved.backgroundElement
   }
 
-  const thinkingOpacity = theme.theme.thinkingOpacity ?? 0.6;
+  const thinkingOpacity = theme.theme.thinkingOpacity ?? 0.6
   return {
     ...resolved,
     _hasSelectedListItemText: hasSelectedListItemText,
     thinkingOpacity,
-  } as Theme;
+  } as Theme
 }
 function ansiToRgba(code: number): RGBA {
   if (code < 16) {
-    const ansiColors = [
-      "#000000",
-      "#800000",
-      "#008000",
-      "#808000",
-      "#000080",
-      "#800080",
-      "#008080",
-      "#c0c0c0",
-      "#808080",
-      "#ff0000",
-      "#00ff00",
-      "#ffff00",
-      "#0000ff",
-      "#ff00ff",
-      "#00ffff",
-      "#ffffff",
-    ];
-    return RGBA.fromHex(ansiColors[code] ?? "#000000");
+    const ansiColors = ['#000000', '#800000', '#008000', '#808000', '#000080', '#800080', '#008080', '#c0c0c0', '#808080', '#ff0000', '#00ff00', '#ffff00', '#0000ff', '#ff00ff', '#00ffff', '#ffffff']
+    return RGBA.fromHex(ansiColors[code] ?? '#000000')
   }
 
   if (code < 232) {
-    const index = code - 16;
-    const b = index % 6;
-    const g = Math.floor(index / 6) % 6;
-    const r = Math.floor(index / 36);
-    const val = (x: number) => (x === 0 ? 0 : x * 40 + 55);
-    return RGBA.fromInts(val(r), val(g), val(b));
+    const index = code - 16
+    const b = index % 6
+    const g = Math.floor(index / 6) % 6
+    const r = Math.floor(index / 36)
+    const val = (x: number) => (x === 0 ? 0 : x * 40 + 55)
+    return RGBA.fromInts(val(r), val(g), val(b))
   }
 
   if (code < 256) {
-    const gray = (code - 232) * 10 + 8;
-    return RGBA.fromInts(gray, gray, gray);
+    const gray = (code - 232) * 10 + 8
+    return RGBA.fromInts(gray, gray, gray)
   }
 
-  return RGBA.fromInts(0, 0, 0);
+  return RGBA.fromInts(0, 0, 0)
 }
 export function tint(base: RGBA, overlay: RGBA, alpha: number): RGBA {
-  const r = base.r + (overlay.r - base.r) * alpha;
-  const g = base.g + (overlay.g - base.g) * alpha;
-  const b = base.b + (overlay.b - base.b) * alpha;
-  return RGBA.fromInts(Math.round(r * 255), Math.round(g * 255), Math.round(b * 255));
+  const r = base.r + (overlay.r - base.r) * alpha
+  const g = base.g + (overlay.g - base.g) * alpha
+  const b = base.b + (overlay.b - base.b) * alpha
+  return RGBA.fromInts(Math.round(r * 255), Math.round(g * 255), Math.round(b * 255))
 }
-export function terminalMode(colors: TerminalColors): "dark" | "light" | undefined {
-  const bg = colors.defaultBackground;
-  if (!bg) return;
-  const { r, g, b } = RGBA.fromHex(bg);
-  return 0.299 * r + 0.587 * g + 0.114 * b > 0.5 ? "light" : "dark";
+export function terminalMode(colors: TerminalColors): 'dark' | 'light' | undefined {
+  const bg = colors.defaultBackground
+  if (!bg) return
+  const { r, g, b } = RGBA.fromHex(bg)
+  return 0.299 * r + 0.587 * g + 0.114 * b > 0.5 ? 'light' : 'dark'
 }
-export function generateSystem(colors: TerminalColors, mode: "dark" | "light"): ThemeJson {
-  const bg = RGBA.fromHex(colors.defaultBackground ?? colors.palette[0]!);
-  const fg = RGBA.fromHex(colors.defaultForeground ?? colors.palette[7]!);
-  const transparent = RGBA.fromValues(bg.r, bg.g, bg.b, 0);
-  const isDark = mode === "dark";
+export function generateSystem(colors: TerminalColors, mode: 'dark' | 'light'): ThemeJson {
+  const bgHex = colors.defaultBackground ?? colors.palette[0] ?? '#000000'
+  const fgHex = colors.defaultForeground ?? colors.palette[7] ?? '#ffffff'
+  const bg = RGBA.fromHex(bgHex)
+  const fg = RGBA.fromHex(fgHex)
+  const transparent = RGBA.fromValues(bg.r, bg.g, bg.b, 0)
+  const isDark = mode === 'dark'
   const col = (i: number) => {
-    const value = colors.palette[i];
-    if (value) return RGBA.fromHex(value);
-    return ansiToRgba(i);
-  };
+    const value = colors.palette[i]
+    if (value) return RGBA.fromHex(value)
+    return ansiToRgba(i)
+  }
 
-  const grays = generateGrayScale(bg, isDark);
-  const textMuted = generateMutedTextColor(bg, isDark);
+  const grays = generateGrayScale(bg, isDark)
+  const gray = (index: number): RGBA => {
+    const value = grays[index]
+    if (!value) throw new Error(`Missing gray shade ${index}`)
+    return value
+  }
+  const textMuted = generateMutedTextColor(bg, isDark)
 
   const ansiColors = {
     black: col(0),
@@ -320,14 +311,14 @@ export function generateSystem(colors: TerminalColors, mode: "dark" | "light"): 
     white: col(7),
     redBright: col(9),
     greenBright: col(10),
-  };
-  const diffAlpha = isDark ? 0.22 : 0.14;
-  const diffAddedBg = tint(bg, ansiColors.green, diffAlpha);
-  const diffRemovedBg = tint(bg, ansiColors.red, diffAlpha);
-  const diffContextBg = grays[2]!;
-  const diffAddedLineNumberBg = tint(diffContextBg!, ansiColors.green, diffAlpha);
-  const diffRemovedLineNumberBg = tint(diffContextBg!, ansiColors.red, diffAlpha);
-  const diffLineNumber = textMuted;
+  }
+  const diffAlpha = isDark ? 0.22 : 0.14
+  const diffAddedBg = tint(bg, ansiColors.green, diffAlpha)
+  const diffRemovedBg = tint(bg, ansiColors.red, diffAlpha)
+  const diffContextBg = gray(2)
+  const diffAddedLineNumberBg = tint(diffContextBg, ansiColors.green, diffAlpha)
+  const diffRemovedLineNumberBg = tint(diffContextBg, ansiColors.red, diffAlpha)
+  const diffLineNumber = textMuted
   return {
     theme: {
       primary: ansiColors.cyan,
@@ -344,18 +335,18 @@ export function generateSystem(colors: TerminalColors, mode: "dark" | "light"): 
       selectedListItemText: bg,
 
       background: transparent,
-      backgroundPanel: grays[2]!,
-      backgroundElement: grays[3]!,
+      backgroundPanel: gray(2),
+      backgroundElement: gray(3),
       backgroundMenu: grays[3],
 
-      borderSubtle: grays[6]!,
-      border: grays[7]!,
-      borderActive: grays[8]!,
+      borderSubtle: gray(6),
+      border: gray(7),
+      borderActive: gray(8),
 
       diffAdded: ansiColors.green,
       diffRemoved: ansiColors.red,
-      diffContext: grays[7]!,
-      diffHunkHeader: grays[7]!,
+      diffContext: gray(7),
+      diffHunkHeader: gray(7),
       diffHighlightAdded: ansiColors.greenBright,
       diffHighlightRemoved: ansiColors.redBright,
       diffAddedBg,
@@ -373,7 +364,7 @@ export function generateSystem(colors: TerminalColors, mode: "dark" | "light"): 
       markdownBlockQuote: ansiColors.yellow,
       markdownEmph: ansiColors.yellow,
       markdownStrong: fg,
-      markdownHorizontalRule: grays[7]!,
+      markdownHorizontalRule: gray(7),
       markdownListItem: ansiColors.blue,
       markdownListEnumeration: ansiColors.cyan,
       markdownImage: ansiColors.blue,
@@ -390,83 +381,83 @@ export function generateSystem(colors: TerminalColors, mode: "dark" | "light"): 
       syntaxOperator: ansiColors.cyan,
       syntaxPunctuation: fg,
     },
-  };
+  }
 }
 function generateGrayScale(bg: RGBA, isDark: boolean): Record<number, RGBA> {
-  const grays: Record<number, RGBA> = {};
+  const grays: Record<number, RGBA> = {}
 
-  const bgR = bg.r * 255;
-  const bgG = bg.g * 255;
-  const bgB = bg.b * 255;
-  const luminance = 0.299 * bgR + 0.587 * bgG + 0.114 * bgB;
+  const bgR = bg.r * 255
+  const bgG = bg.g * 255
+  const bgB = bg.b * 255
+  const luminance = 0.299 * bgR + 0.587 * bgG + 0.114 * bgB
   for (let i = 1; i <= 12; i++) {
-    const factor = i / 12.0;
-    let grayValue: number;
-    let newR: number;
-    let newG: number;
-    let newB: number;
+    const factor = i / 12.0
+    let grayValue: number
+    let newR: number
+    let newG: number
+    let newB: number
     if (isDark) {
       if (luminance < 10) {
-        grayValue = Math.floor(factor * 0.4 * 255);
-        newR = grayValue;
-        newG = grayValue;
-        newB = grayValue;
+        grayValue = Math.floor(factor * 0.4 * 255)
+        newR = grayValue
+        newG = grayValue
+        newB = grayValue
       } else {
-        const newLum = luminance + (255 - luminance) * factor * 0.4;
-        const ratio = newLum / luminance;
-        newR = Math.min(bgR * ratio, 255);
-        newG = Math.min(bgG * ratio, 255);
-        newB = Math.min(bgB * ratio, 255);
+        const newLum = luminance + (255 - luminance) * factor * 0.4
+        const ratio = newLum / luminance
+        newR = Math.min(bgR * ratio, 255)
+        newG = Math.min(bgG * ratio, 255)
+        newB = Math.min(bgB * ratio, 255)
       }
     } else {
       if (luminance > 245) {
-        grayValue = Math.floor(255 - factor * 0.4 * 255);
-        newR = grayValue;
-        newG = grayValue;
-        newB = grayValue;
+        grayValue = Math.floor(255 - factor * 0.4 * 255)
+        newR = grayValue
+        newG = grayValue
+        newB = grayValue
       } else {
-        const newLum = luminance * (1 - factor * 0.4);
-        const ratio = newLum / luminance;
-        newR = Math.max(bgR * ratio, 0);
-        newG = Math.max(bgG * ratio, 0);
-        newB = Math.max(bgB * ratio, 0);
+        const newLum = luminance * (1 - factor * 0.4)
+        const ratio = newLum / luminance
+        newR = Math.max(bgR * ratio, 0)
+        newG = Math.max(bgG * ratio, 0)
+        newB = Math.max(bgB * ratio, 0)
       }
     }
-    grays[i] = RGBA.fromInts(Math.floor(newR), Math.floor(newG), Math.floor(newB));
+    grays[i] = RGBA.fromInts(Math.floor(newR), Math.floor(newG), Math.floor(newB))
   }
-  return grays;
+  return grays
 }
 function generateMutedTextColor(bg: RGBA, isDark: boolean): RGBA {
-  const bgR = bg.r * 255;
-  const bgG = bg.g * 255;
-  const bgB = bg.b * 255;
-  const bgLum = 0.299 * bgR + 0.587 * bgG + 0.114 * bgB;
-  let grayValue: number;
+  const bgR = bg.r * 255
+  const bgG = bg.g * 255
+  const bgB = bg.b * 255
+  const bgLum = 0.299 * bgR + 0.587 * bgG + 0.114 * bgB
+  let grayValue: number
   if (isDark) {
     if (bgLum < 10) {
-      grayValue = 180;
+      grayValue = 180
     } else {
-      grayValue = Math.min(Math.floor(160 + bgLum * 0.3), 200);
+      grayValue = Math.min(Math.floor(160 + bgLum * 0.3), 200)
     }
   } else {
     if (bgLum > 245) {
-      grayValue = 75;
+      grayValue = 75
     } else {
-      grayValue = Math.max(Math.floor(100 - (255 - bgLum) * 0.2), 60);
+      grayValue = Math.max(Math.floor(100 - (255 - bgLum) * 0.2), 60)
     }
   }
-  return RGBA.fromInts(grayValue, grayValue, grayValue);
+  return RGBA.fromInts(grayValue, grayValue, grayValue)
 }
 export function generateSyntax(theme: Theme) {
-  return SyntaxStyle.fromTheme(getSyntaxRules(theme));
+  return SyntaxStyle.fromTheme(getSyntaxRules(theme))
 }
 export function generateSubtleSyntax(theme: Theme, overrides?: SyntaxStyleOverrides) {
-  const rules = getSyntaxRules(theme);
+  const rules = getSyntaxRules(theme)
   return SyntaxStyle.fromTheme(
     rules.map((rule) => {
-      const override = rule.scope.reduce((acc, scope) => ({ ...acc, ...overrides?.[scope] }), {});
+      const override = rule.scope.reduce<{ italic?: boolean }>((acc, scope) => Object.assign(acc, overrides?.[scope] ?? {}), {})
       if (rule.style.foreground) {
-        const fg = rule.style.foreground;
+        const fg = rule.style.foreground
         return {
           ...rule,
           style: {
@@ -474,42 +465,42 @@ export function generateSubtleSyntax(theme: Theme, overrides?: SyntaxStyleOverri
             ...override,
             foreground: RGBA.fromInts(Math.round(fg.r * 255), Math.round(fg.g * 255), Math.round(fg.b * 255), Math.round(theme.thinkingOpacity * 255)),
           },
-        };
+        }
       }
-      return rule;
+      return rule
     }),
-  );
+  )
 }
 function getSyntaxRules(theme: Theme) {
   return [
     {
-      scope: ["default"],
+      scope: ['default'],
       style: {
         foreground: theme.text,
       },
     },
     {
-      scope: ["prompt"],
+      scope: ['prompt'],
       style: {
         foreground: theme.accent,
       },
     },
     {
-      scope: ["extmark.file"],
+      scope: ['extmark.file'],
       style: {
         foreground: theme.warning,
         bold: true,
       },
     },
     {
-      scope: ["extmark.agent"],
+      scope: ['extmark.agent'],
       style: {
         foreground: theme.secondary,
         bold: true,
       },
     },
     {
-      scope: ["extmark.paste"],
+      scope: ['extmark.paste'],
       style: {
         foreground: selectedForeground(theme, theme.warning),
         background: theme.warning,
@@ -517,46 +508,46 @@ function getSyntaxRules(theme: Theme) {
       },
     },
     {
-      scope: ["comment"],
+      scope: ['comment'],
       style: {
         foreground: theme.syntaxComment,
         italic: true,
       },
     },
     {
-      scope: ["comment.documentation"],
+      scope: ['comment.documentation'],
       style: {
         foreground: theme.syntaxComment,
         italic: true,
       },
     },
     {
-      scope: ["string", "symbol"],
+      scope: ['string', 'symbol'],
       style: {
         foreground: theme.syntaxString,
       },
     },
     {
-      scope: ["number", "boolean"],
+      scope: ['number', 'boolean'],
       style: {
         foreground: theme.syntaxNumber,
       },
     },
     {
-      scope: ["character.special"],
+      scope: ['character.special'],
       style: {
         foreground: theme.syntaxString,
       },
     },
     {
-      scope: ["keyword.return", "keyword.conditional", "keyword.repeat", "keyword.coroutine"],
+      scope: ['keyword.return', 'keyword.conditional', 'keyword.repeat', 'keyword.coroutine'],
       style: {
         foreground: theme.syntaxKeyword,
         italic: true,
       },
     },
     {
-      scope: ["keyword.type"],
+      scope: ['keyword.type'],
       style: {
         foreground: theme.syntaxType,
         bold: true,
@@ -564,138 +555,138 @@ function getSyntaxRules(theme: Theme) {
       },
     },
     {
-      scope: ["keyword.function", "function.method"],
+      scope: ['keyword.function', 'function.method'],
       style: {
         foreground: theme.syntaxFunction,
       },
     },
     {
-      scope: ["keyword"],
+      scope: ['keyword'],
       style: {
         foreground: theme.syntaxKeyword,
         italic: true,
       },
     },
     {
-      scope: ["keyword.import"],
+      scope: ['keyword.import'],
       style: {
         foreground: theme.syntaxKeyword,
       },
     },
     {
-      scope: ["operator", "keyword.operator", "punctuation.delimiter"],
+      scope: ['operator', 'keyword.operator', 'punctuation.delimiter'],
       style: {
         foreground: theme.syntaxOperator,
       },
     },
     {
-      scope: ["keyword.conditional.ternary"],
+      scope: ['keyword.conditional.ternary'],
       style: {
         foreground: theme.syntaxOperator,
       },
     },
     {
-      scope: ["variable", "variable.parameter", "function.method.call", "function.call"],
+      scope: ['variable', 'variable.parameter', 'function.method.call', 'function.call'],
       style: {
         foreground: theme.syntaxVariable,
       },
     },
     {
-      scope: ["variable.member", "function", "constructor"],
+      scope: ['variable.member', 'function', 'constructor'],
       style: {
         foreground: theme.syntaxFunction,
       },
     },
     {
-      scope: ["type", "module"],
+      scope: ['type', 'module'],
       style: {
         foreground: theme.syntaxType,
       },
     },
     {
-      scope: ["constant"],
+      scope: ['constant'],
       style: {
         foreground: theme.syntaxNumber,
       },
     },
     {
-      scope: ["property"],
+      scope: ['property'],
       style: {
         foreground: theme.syntaxVariable,
       },
     },
     {
-      scope: ["class"],
+      scope: ['class'],
       style: {
         foreground: theme.syntaxType,
       },
     },
     {
-      scope: ["parameter"],
+      scope: ['parameter'],
       style: {
         foreground: theme.syntaxVariable,
       },
     },
     {
-      scope: ["punctuation", "punctuation.bracket"],
+      scope: ['punctuation', 'punctuation.bracket'],
       style: {
         foreground: theme.syntaxPunctuation,
       },
     },
     {
-      scope: ["variable.builtin", "type.builtin", "function.builtin", "module.builtin", "constant.builtin"],
+      scope: ['variable.builtin', 'type.builtin', 'function.builtin', 'module.builtin', 'constant.builtin'],
       style: {
         foreground: theme.error,
       },
     },
     {
-      scope: ["variable.super"],
+      scope: ['variable.super'],
       style: {
         foreground: theme.error,
       },
     },
     {
-      scope: ["string.escape", "string.regexp"],
+      scope: ['string.escape', 'string.regexp'],
       style: {
         foreground: theme.syntaxKeyword,
       },
     },
     {
-      scope: ["keyword.directive"],
+      scope: ['keyword.directive'],
       style: {
         foreground: theme.syntaxKeyword,
         italic: true,
       },
     },
     {
-      scope: ["punctuation.special"],
+      scope: ['punctuation.special'],
       style: {
         foreground: theme.syntaxOperator,
       },
     },
     {
-      scope: ["keyword.modifier"],
+      scope: ['keyword.modifier'],
       style: {
         foreground: theme.syntaxKeyword,
         italic: true,
       },
     },
     {
-      scope: ["keyword.exception"],
+      scope: ['keyword.exception'],
       style: {
         foreground: theme.syntaxKeyword,
         italic: true,
       },
     },
     {
-      scope: ["markup.heading"],
+      scope: ['markup.heading'],
       style: {
         foreground: theme.markdownHeading,
         bold: true,
       },
     },
     {
-      scope: ["markup.heading.1"],
+      scope: ['markup.heading.1'],
       style: {
         foreground: theme.markdownHeading,
         bold: true,
@@ -703,140 +694,140 @@ function getSyntaxRules(theme: Theme) {
       },
     },
     {
-      scope: ["markup.heading.2"],
+      scope: ['markup.heading.2'],
       style: {
         foreground: theme.markdownHeading,
         bold: true,
       },
     },
     {
-      scope: ["markup.heading.3"],
+      scope: ['markup.heading.3'],
       style: {
         foreground: theme.markdownHeading,
         bold: true,
       },
     },
     {
-      scope: ["markup.heading.4"],
+      scope: ['markup.heading.4'],
       style: {
         foreground: theme.markdownHeading,
         bold: true,
       },
     },
     {
-      scope: ["markup.heading.5"],
+      scope: ['markup.heading.5'],
       style: {
         foreground: theme.markdownHeading,
         bold: true,
       },
     },
     {
-      scope: ["markup.heading.6"],
+      scope: ['markup.heading.6'],
       style: {
         foreground: theme.markdownHeading,
         bold: true,
       },
     },
     {
-      scope: ["markup.bold", "markup.strong"],
+      scope: ['markup.bold', 'markup.strong'],
       style: {
         foreground: theme.markdownStrong,
         bold: true,
       },
     },
     {
-      scope: ["markup.italic"],
+      scope: ['markup.italic'],
       style: {
         foreground: theme.markdownEmph,
         italic: true,
       },
     },
     {
-      scope: ["markup.list"],
+      scope: ['markup.list'],
       style: {
         foreground: theme.markdownListItem,
       },
     },
     {
-      scope: ["markup.quote"],
+      scope: ['markup.quote'],
       style: {
         foreground: theme.markdownBlockQuote,
         italic: true,
       },
     },
     {
-      scope: ["markup.raw", "markup.raw.block"],
+      scope: ['markup.raw', 'markup.raw.block'],
       style: {
         foreground: theme.markdownCode,
       },
     },
     {
-      scope: ["markup.raw.inline"],
+      scope: ['markup.raw.inline'],
       style: {
         foreground: theme.markdownCode,
         background: theme.background,
       },
     },
     {
-      scope: ["markup.link"],
+      scope: ['markup.link'],
       style: {
         foreground: theme.markdownLink,
         underline: true,
       },
     },
     {
-      scope: ["markup.link.label"],
+      scope: ['markup.link.label'],
       style: {
         foreground: theme.markdownLinkText,
         underline: true,
       },
     },
     {
-      scope: ["markup.link.url"],
+      scope: ['markup.link.url'],
       style: {
         foreground: theme.markdownLink,
         underline: true,
       },
     },
     {
-      scope: ["label"],
+      scope: ['label'],
       style: {
         foreground: theme.markdownLinkText,
       },
     },
     {
-      scope: ["spell", "nospell"],
+      scope: ['spell', 'nospell'],
       style: {
         foreground: theme.text,
       },
     },
     {
-      scope: ["conceal"],
+      scope: ['conceal'],
       style: {
         foreground: theme.textMuted,
       },
     },
     {
-      scope: ["string.special", "string.special.url"],
+      scope: ['string.special', 'string.special.url'],
       style: {
         foreground: theme.markdownLink,
         underline: true,
       },
     },
     {
-      scope: ["character"],
+      scope: ['character'],
       style: {
         foreground: theme.syntaxString,
       },
     },
     {
-      scope: ["float"],
+      scope: ['float'],
       style: {
         foreground: theme.syntaxNumber,
       },
     },
     {
-      scope: ["comment.error"],
+      scope: ['comment.error'],
       style: {
         foreground: theme.error,
         italic: true,
@@ -844,7 +835,7 @@ function getSyntaxRules(theme: Theme) {
       },
     },
     {
-      scope: ["comment.warning"],
+      scope: ['comment.warning'],
       style: {
         foreground: theme.warning,
         italic: true,
@@ -852,7 +843,7 @@ function getSyntaxRules(theme: Theme) {
       },
     },
     {
-      scope: ["comment.todo", "comment.note"],
+      scope: ['comment.todo', 'comment.note'],
       style: {
         foreground: theme.info,
         italic: true,
@@ -860,125 +851,125 @@ function getSyntaxRules(theme: Theme) {
       },
     },
     {
-      scope: ["namespace"],
+      scope: ['namespace'],
       style: {
         foreground: theme.syntaxType,
       },
     },
     {
-      scope: ["field"],
+      scope: ['field'],
       style: {
         foreground: theme.syntaxVariable,
       },
     },
     {
-      scope: ["type.definition"],
+      scope: ['type.definition'],
       style: {
         foreground: theme.syntaxType,
         bold: true,
       },
     },
     {
-      scope: ["keyword.export"],
+      scope: ['keyword.export'],
       style: {
         foreground: theme.syntaxKeyword,
       },
     },
     {
-      scope: ["attribute", "annotation"],
+      scope: ['attribute', 'annotation'],
       style: {
         foreground: theme.warning,
       },
     },
     {
-      scope: ["tag"],
+      scope: ['tag'],
       style: {
         foreground: theme.error,
       },
     },
     {
-      scope: ["tag.attribute"],
+      scope: ['tag.attribute'],
       style: {
         foreground: theme.syntaxKeyword,
       },
     },
     {
-      scope: ["tag.delimiter"],
+      scope: ['tag.delimiter'],
       style: {
         foreground: theme.syntaxOperator,
       },
     },
     {
-      scope: ["markup.strikethrough"],
+      scope: ['markup.strikethrough'],
       style: {
         foreground: theme.textMuted,
       },
     },
     {
-      scope: ["markup.underline"],
+      scope: ['markup.underline'],
       style: {
         foreground: theme.text,
         underline: true,
       },
     },
     {
-      scope: ["markup.list.checked"],
+      scope: ['markup.list.checked'],
       style: {
         foreground: theme.success,
       },
     },
     {
-      scope: ["markup.list.unchecked"],
+      scope: ['markup.list.unchecked'],
       style: {
         foreground: theme.textMuted,
       },
     },
     {
-      scope: ["diff.plus"],
+      scope: ['diff.plus'],
       style: {
         foreground: theme.diffAdded,
         background: theme.diffAddedBg,
       },
     },
     {
-      scope: ["diff.minus"],
+      scope: ['diff.minus'],
       style: {
         foreground: theme.diffRemoved,
         background: theme.diffRemovedBg,
       },
     },
     {
-      scope: ["diff.delta"],
+      scope: ['diff.delta'],
       style: {
         foreground: theme.diffContext,
         background: theme.diffContextBg,
       },
     },
     {
-      scope: ["error"],
+      scope: ['error'],
       style: {
         foreground: theme.error,
         bold: true,
       },
     },
     {
-      scope: ["warning"],
+      scope: ['warning'],
       style: {
         foreground: theme.warning,
         bold: true,
       },
     },
     {
-      scope: ["info"],
+      scope: ['info'],
       style: {
         foreground: theme.info,
       },
     },
     {
-      scope: ["debug"],
+      scope: ['debug'],
       style: {
         foreground: theme.textMuted,
       },
     },
-  ];
+  ]
 }

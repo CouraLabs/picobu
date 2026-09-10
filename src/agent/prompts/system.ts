@@ -1,109 +1,105 @@
-import { type MarkdownParam, parseMarkdown } from "@agent/markdown/markdown-parser.ts";
+import { type MarkdownParam, parseMarkdown } from '@agent/markdown/markdown-parser.ts'
 export const systemMarkdown = `# System Preamble
-You are {APP_NAME}, a godlike general-purpose autonomous agent, you code, send and receive messages, and integrate with external systems and skill/app frameworks. You always adapt your approach to the task. Treat real progress, not approval, as success. Be precise, direct, and genuinely collaborative; never cheerlead, inflate, or reassure artificially.
+You are {APP_NAME}, a general-purpose coding agent. Adapt to the task. Prefer real progress over approval.
 # Communication Style
-Speak concise and pragmatic: use as few words as possible and go straight to what matters. Lead with the answer or the result, not the preamble. Skip filler, hedging, restatements of the request, and pleasantries. Cut anything that doesn't change what the user does next; expand only when detail is needed to be correct or actionable.
+Be concise and direct: lead with the result, skip filler and pleasantries. Expand only when detail changes what the user does next.
 # System Environment
 - Working directory: {APP_CWD}
 - Operating system: {APP_OS}
 - System Shell: {APP_SHELL}
-# System Guideless
-- Default to informed action; don't ask for confirmation when tools or repo context can answer.
-- Resolve ambiguity from repo conventions, existing patterns, and reasonable defaults; escalate only when options have materially different tradeoffs the user must decide.
-- Mark unobserved claims [INFERENCE]; keep observed and inferred distinct.
-- Always reply in the same language the user wrote in: if the user's prompt is in Portuguese, answer in Portuguese; if in Spanish, answer in Spanish, and so on — regardless of the language of the code, tools, or this prompt.`;
+# System Guidelines
+- Act on repo context instead of asking for confirmation.
+- Resolve ambiguity from conventions and reasonable defaults; escalate only on materially different tradeoffs.
+- Mark unobserved claims [INFERENCE].
+- Reply in the user's language, regardless of code or prompt language.`
 export type SystemPromptSection = {
-  key: string;
-  content: string;
-};
+  key: string
+  content: string
+}
 export type GenerateSystemMessageParams = {
-  appName: string;
-  cwd: string;
-  os: string;
-  shell: string;
-  agentPrompt?: string;
-  toolsInfo?: string;
-  skillsInfo?: string;
-  rulesInfo?: string;
-  subagentsInfo?: string;
-  agentsAppendix?: string;
-};
+  appName: string
+  cwd: string
+  os: string
+  shell: string
+  agentPrompt?: string
+  toolsInfo?: string
+  skillsInfo?: string
+  rulesInfo?: string
+  subagentsInfo?: string
+  agentsAppendix?: string
+}
+
+const MAX_DESC_CHARS = 150
+const MAX_APPENDIX_CHARS = 2000
+
+const shortDesc = (value: string): string => {
+  const oneLine = value.replace(/\s+/g, ' ').trim()
+  return oneLine.length > MAX_DESC_CHARS ? `${oneLine.slice(0, MAX_DESC_CHARS - 1)}…` : oneLine
+}
 
 export function buildSkillsSection(skills: { name: string; description: string }[]): string {
-  return [
-    "The skills below are installed. When the user's request or the task's subject matches a skill's description,",
-    "call the `skill` tool with that skill's exact name to load its full instructions, then follow them.",
-    "The tool's output also lists the skill's related files; read them with the read tool as needed.",
-    "",
-    ...skills.map((s) => `- ${s.name}: ${s.description}`),
-  ].join("\n");
+  return ['Call the `skill` tool with the exact name to load instructions, then follow them.', '', ...skills.map((s) => `- ${s.name}: ${shortDesc(s.description)}`)].join('\n')
 }
 
 export function buildSubagentsSection(subagents: { name: string; description: string }[], maxAgents: number): string {
   return [
-    "The sub agents below can be run as isolated sub sessions with the `spawn` tool. When a task is",
-    "delegable (research, exploration, review, an independent unit of work), call `spawn` with the",
-    "subagent's exact name and a self-contained prompt: sub agents cannot ask questions — everything",
-    "they need must be in the prompt or discoverable in the repository.",
-    "Spawn calls block until the sub agent settles; several spawns in one step run in parallel" +
-      (maxAgents > 0 ? `, up to ${maxAgents} sub agents concurrently (extra spawns queue).` : " — spawning is disabled (maxAgents is 0)."),
-    "",
-    ...subagents.map((s) => `- ${s.name}: ${s.description}`),
-  ].join("\n");
+    `Call \`spawn\` with the exact name and a self-contained prompt (subagents can't ask questions).` +
+      (maxAgents > 0 ? ` Up to ${maxAgents} in parallel.` : ' Spawning is disabled (maxAgents is 0).'),
+    '',
+    ...subagents.map((s) => `- ${s.name}: ${shortDesc(s.description)}`),
+  ].join('\n')
 }
 
 export function buildRulesSection(rules: { name: string; description: string }[]): string {
-  return [
-    "The rules below are installed. When the current task matches a rule's description,",
-    "call the `rule` tool with that rule's exact name to load its instructions, then follow them.",
-    "",
-    ...rules.map((r) => `- ${r.name}: ${r.description}`),
-  ].join("\n");
+  return ['Call the `rule` tool with the exact name to load instructions, then follow them.', '', ...rules.map((r) => `- ${r.name}: ${shortDesc(r.description)}`)].join('\n')
 }
 
 export function generateSystemMessage(params: GenerateSystemMessageParams): SystemPromptSection[] {
   const paramsList: MarkdownParam[] = [
-    { param: "{APP_NAME}", value: params.appName },
-    { param: "{APP_CWD}", value: params.cwd },
-    { param: "{APP_OS}", value: params.os },
-    { param: "{APP_SHELL}", value: params.shell },
-  ];
-  const { content } = parseMarkdown(systemMarkdown, paramsList);
-  const sections = splitIntoSections(content);
+    { param: '{APP_NAME}', value: params.appName },
+    { param: '{APP_CWD}', value: params.cwd },
+    { param: '{APP_OS}', value: params.os },
+    { param: '{APP_SHELL}', value: params.shell },
+  ]
+  const { content } = parseMarkdown(systemMarkdown, paramsList)
+  const sections = splitIntoSections(content)
   if (params.agentsAppendix) {
+    const appendix = params.agentsAppendix.length > MAX_APPENDIX_CHARS ? `${params.agentsAppendix.slice(0, MAX_APPENDIX_CHARS)}\n…[truncated, read the file for the rest]` : params.agentsAppendix
     for (const section of sections) {
-      if (section.key === "System Guideless") section.content += `\n\n${params.agentsAppendix}`;
+      if (section.key === 'System Guidelines') section.content += `\n\n${appendix}`
     }
   }
   if (params.agentPrompt) {
-    sections.push({ key: "Agent Role", content: params.agentPrompt });
+    sections.push({ key: 'Agent Role', content: params.agentPrompt })
   }
   if (params.skillsInfo) {
-    sections.push({ key: "Skills", content: params.skillsInfo });
+    sections.push({ key: 'Skills', content: params.skillsInfo })
   }
   if (params.rulesInfo) {
-    sections.push({ key: "Rules", content: params.rulesInfo });
+    sections.push({ key: 'Rules', content: params.rulesInfo })
   }
   if (params.subagentsInfo) {
-    sections.push({ key: "Subagents", content: params.subagentsInfo });
+    sections.push({ key: 'Subagents', content: params.subagentsInfo })
   }
   if (params.toolsInfo) {
-    sections.push({ key: "Available Tools", content: params.toolsInfo });
+    sections.push({ key: 'Available Tools', content: params.toolsInfo })
   }
-  return sections;
+  return sections
 }
 function splitIntoSections(content: string): SystemPromptSection[] {
-  const sections: SystemPromptSection[] = [];
-  let current: SystemPromptSection | null = null;
-  for (const line of content.split("\n")) {
-    const heading = /^#\s+(.+)$/.exec(line);
+  const sections: SystemPromptSection[] = []
+  let current: SystemPromptSection | null = null
+  for (const line of content.split('\n')) {
+    const heading = /^#\s+(.+)$/.exec(line)
     if (heading) {
-      if (current) sections.push(current);
-      current = { key: heading[1]!.trim(), content: "" };
-      continue;
+      if (current) sections.push(current)
+      const key = heading[1]
+      if (!key) continue
+      current = { key: key.trim(), content: '' }
+      continue
     }
-    if (current) current.content += current.content.length ? `\n${line}` : line;
+    if (current) current.content += current.content.length ? `\n${line}` : line
   }
-  if (current) sections.push(current);
-  return sections;
+  if (current) sections.push(current)
+  return sections
 }

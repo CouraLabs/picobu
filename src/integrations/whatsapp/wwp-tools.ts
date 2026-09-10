@@ -1,32 +1,40 @@
-import { addTodayTask, sendWwpMessage } from "@integrations/whatsapp/actions.ts";
-import z from "zod";
+import { addTodayTask, sendWwpMessage } from '@integrations/whatsapp/actions.ts'
+import z from 'zod'
 
-const sent = z.object({ message: z.string() });
+const sent = z.object({ message: z.string() })
+const wwpMsgArgs = z.object({ phone: z.string(), message: z.string() })
+const wwpTodayArgs = z.object({ text: z.string() })
 
 export const wwpTools: {
-  name: string;
-  description: string;
-  parameters: z.ZodType;
-  output: z.ZodType;
-  kind: "integration";
-  handler: (args: any) => unknown;
+  name: string
+  description: string
+  parameters: z.ZodType
+  output: z.ZodType
+  kind: 'integration'
+  handler: (args: unknown) => unknown
 }[] = [
   {
-    name: "wwp-msg",
-    description: "Send a WhatsApp text message to a phone number. Use when a WhatsApp user asks to message someone.",
-    parameters: z.object({ phone: z.string(), message: z.string() }),
+    name: 'wwp-msg',
+    description: 'Send a WhatsApp text message to a phone number. Use when a WhatsApp user asks to message someone.',
+    parameters: wwpMsgArgs,
     output: sent,
-    kind: "integration" as const,
-    handler: async (args: { phone: string; message: string }) => ({
-      message: await sendWwpMessage(args.phone, args.message),
-    }),
+    kind: 'integration' as const,
+    handler: async (args: unknown) => {
+      const parsed = wwpMsgArgs.parse(args)
+      return {
+        message: await sendWwpMessage(parsed.phone, parsed.message),
+      }
+    },
   },
   {
-    name: "wwp-today",
+    name: 'wwp-today',
     description: "Add a task to the user's 'today' todo list.",
-    parameters: z.object({ text: z.string() }),
+    parameters: wwpTodayArgs,
     output: sent,
-    kind: "integration" as const,
-    handler: async (args: { text: string }) => ({ message: await addTodayTask(args.text) }),
+    kind: 'integration' as const,
+    handler: async (args: unknown) => {
+      const parsed = wwpTodayArgs.parse(args)
+      return { message: await addTodayTask(parsed.text) }
+    },
   },
-];
+]
