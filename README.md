@@ -1,33 +1,128 @@
-# PICOBU
+# Picobu
+
+[![standard-readme compliant](https://img.shields.io/badge/readme%20style-standard-brightgreen.svg?style=flat-square)](https://github.com/RichardLitt/standard-readme)
 
 A headless autonomous coding agent core. One agent loop — read, plan, edit — exposed as a library and a minimal CLI, built on the Vercel AI SDK. Attach your own frontend (TUI, web, chat bot) on top, or drive it from the WhatsApp integration that ships in-repo.
 
-## Requirements
+## Table of Contents
+
+- [Background](#background)
+- [Install](#install)
+- [Usage](#usage)
+  - [CLI](#cli)
+  - [Configuration](#configuration)
+  - [Agents](#agents)
+  - [Tools](#tools)
+  - [Sessions](#sessions)
+  - [MCP (Model Context Protocol)](#mcp-model-context-protocol)
+  - [WhatsApp](#whatsapp)
+  - [Login & OAuth](#login--oauth)
+  - [Host frontends](#host-frontends)
+  - [Generator](#generator)
+- [Badge](#badge)
+- [Example READMEs](#example-readmes)
+- [Related Efforts](#related-efforts)
+- [Maintainers](#maintainers)
+- [Contributing](#contributing)
+  - [Contributors](#contributors)
+- [License](#license)
+
+## Background
+
+Picobu separates the agent runtime from any user interface. The core owns the agent loop (`ToolLoopAgent` from the `ai` SDK, 100-step cap per run), session persistence, model resolution, tool execution, subagent delegation, MCP clients, OAuth credentials, and the WhatsApp connection. Frontends — the reference OpenTUI terminal UI, or anything you build on the session facade and headless chat state — only render and drive runs.
+
+Project instructions are automatic: when a session starts, the system prompt embeds `AGENTS.md` (or `CLAUDE.md`) from the working directory (truncated at 2000 chars), plus discovered skills, rules, subagents, and MCP tool schemas. Every write/edit is checkpointed for undo/redo, every run accumulates cost totals, and long conversations compact at 80% of the model's context window.
+
+> Your documentation is complete when someone can use your module without ever
+> having to look at its code.
+
+Picobu aims at that bar: the session facade, CLI, and `~/.picobu/options.json` are the documented interface; the loop internals stay free to change.
+
+## Install
+
+Requirements:
 
 - [Bun](https://bun.sh) ≥ 1.x
 - A terminal font with current programmer-glyph coverage (e.g. an up-to-date Source Code Pro, JetBrains Mono, or equivalent Nerd Fonts coverage) — the TUI status icons assume it
+- A model: API key (`HYPER_API_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GITHUB_TOKEN`) or an OAuth login (see [Login & OAuth](#login--oauth))
 
-## Getting started
+From source:
 
-```bash
-bun install       # install dependencies
-bun dev           # run the bootstrap (providers, OAuth refresh, WhatsApp)
-picobu sessions   # list saved sessions for the current folder (title + state)
+```sh
+git clone https://github.com/CouraLabs/picobu.git
+cd picobu
+bun install
+bun dev
 ```
 
-Type-check with `bun run tsc`; run tests with `bun test`.
+Compiled install (writes `~/.picobu/bin/picobu` and wires `PATH` for zsh/bash):
 
-## Configuration
+```sh
+curl -fsSL https://raw.githubusercontent.com/CouraLabs/picobu/main/scripts/install.sh | bash
+```
 
-Everything lives in `~/.picobu/options.json` (auto-created as `{}` on first run). Top-level blocks:
+Uninstall with `scripts/uninstall.sh` (or `scripts/uninstall.ps1` on Windows).
+
+Verify with:
+
+```sh
+bun run lint
+bun run tsc
+bun test tests/<dir>/<file>.test.ts
+```
+
+Smoke (`needs a real model in ~/.picobu/options.json`): `bun src/dev/smoke.ts`. Unit tests need no real keys (fake model keys, tmp dirs).
+
+## Usage
+
+Run the bootstrap (autoloads providers, refreshes OAuth tokens, connects WhatsApp when enabled):
+
+```sh
+bun dev
+picobu --session            # open the TUI
+picobu --session <id>       # open the TUI resuming a session
+picobu sessions             # list saved sessions for the current folder
+```
+
+Headless with no flags, Picobu bootstraps and prints `picobu headless core ready (no UI attached).`
+
+### CLI
+
+Global flags: `--session [id]` opens the TUI (optionally resuming), `--clear-prompts-history` clears prompt history/drafts and exits.
+
+```sh
+picobu sessions                 # list sessions (id, timestamp, state, title/first prompt)
+picobu sessions --dir ~/other   # list another worktree's sessions
+picobu sessions tree            # roots with their sub sessions
+picobu sessions rename <id> "New title"
+picobu sessions delete <id>     # cascade delete, reports count, refuses running subtrees
+
+picobu mcp                      # list servers: id type target [source] connected|disconnected auth + errors
+picobu mcp login <serverId>     # OAuth login for an auth:true server (PKCE, localhost:19888)
+picobu mcp logout <serverId>    # drop stored tokens
+
+picobu login                    # list OAuth provider status (openai, anthropic, github-copilot)
+picobu login <provider> [opts]  # start login (opts = enterprise domain for Copilot)
+picobu logout <provider>        # logout and repoint harness selectors
+```
+
+Direct TUI entry: `bun run src/tui/init.tsx [--session <id>] [--debug]` (mouse + Kitty keyboard, 30–60fps).
+
+### Configuration
+
+Everything lives in `~/.picobu/options.json` (auto-created, auto-seeded, lock-guarded; corrupt files are backed up to `options.json.corrupt-<ts>`). Top-level blocks:
 
 | Key | Purpose |
 | --- | --- |
 | `providers` | AI providers and their models, billing, and capabilities |
-| `harness` | `defaultModel` (`"<providerId>/<modelId>"`), per-role model/thinking overrides, and `maxAgents` |
-| `whatsapp` | `enabled` flag and `allowedNumbers` allow-list for the WhatsApp integration |
+| `harness` | `defaultModel` (`"<providerId>/<modelId>"`), per-role model/thinking overrides, `maxAgents` |
+| `tui` | `theme` (`{key, variant: dark\|light}`, default `picobu/dark`), `maxMessages` (default 20) |
+| `web` | Web server `{host: 0.0.0.0, port: 8080}` |
+| `whatsapp` | `enabled` flag and `allowedNumbers` allow-list |
+| `mcp` | MCP `servers` map (see [MCP](#mcp-model-context-protocol)) |
+| `watchdog` | Stale-run handling (`staleTimeoutMs` default 300000, stale notification/continue prompts) |
 
-Supported provider `type` values: `anthropic`, `openai-compatible`, `openai-responses`. API keys may be referenced from the environment with `"env:VAR_NAME"`.
+Supported provider `type` values: `openai`, `anthropic`, `openai-compatible`, `openai-responses`. API keys may reference the environment (`"env:VAR_NAME"`) or OAuth credentials (`"auth:<id>"`); MCP `headers`/`env` also accept `"env:VAR"` refs.
 
 ```json
 {
@@ -61,14 +156,13 @@ Supported provider `type` values: `anthropic`, `openai-compatible`, `openai-resp
       "flashThinking": "medium",
       "heavy": "anthropic/claude-opus-4-5",
       "heavyThinkingLevel": "high"
-    }
+    },
+    "maxAgents": 4
   }
 }
 ```
 
-### Model roles
-
-Agents run on three model roles, each with its own default thinking level:
+Model roles:
 
 | Role | Purpose | Default thinking |
 | --- | --- | --- |
@@ -76,106 +170,69 @@ Agents run on three model roles, each with its own default thinking level:
 | `flash` | default workhorse (ask + coder agents) | model's `defaultEffort` |
 | `heavy` | deep reasoning (plan-code agent) | model's `defaultEffort` (`heavyThinkingLevel` → `high`) |
 
-### Sub agent concurrency
+`harness.maxAgents` (default `4`) caps concurrent spawned sub sessions tree-wide and depth-inclusively. Set `0` to disable spawning entirely.
 
-`harness.maxAgents` (default `4`) caps how many spawned sub sessions run concurrently across the whole session tree — a chain of sub agents counts each level. Set `0` to disable spawning entirely.
+### Agents
 
-## WhatsApp
-
-The Baileys integration (unofficial WhatsApp Web API) lives in `src/integrations/whatsapp/`. When `whatsapp.enabled` is set, `connectToWhatsApp()` is called at bootstrap and reconnects from persisted credentials under `~/.picobu/whatsapp/auth` without a QR. `allowedNumbers` lists the phone numbers allowed to talk to the agent (empty = nobody; outbound sending still works). Inbound messages from allowed numbers are submitted to the persistent session, which can reply and act using the `wwp-*` tools. Agent-sent texts are prefixed with an invisible zero-width-space sentinel; when that outbound message echoes back into the socket (`fromMe` upsert), it is recognized by the sentinel and dropped.
-
-The same operations are exposed to the persistent agent as tools (`wwp-msg` sends a text message to a phone number; `wwp-today` adds a task to the user's "today" todo list), so the agent can message and track tasks itself.
-
-## Sessions
-
-Every run is saved incrementally (per message) to `~/.picobu/sessions/<folder>/<id>.jsonl` — `<folder>` is the sanitized name of the working directory, `<id>` the 16-hex session id. A session is only saved **after its first prompt** — an untouched session leaves no file behind. Saved sessions are listed with `picobu sessions` (id, timestamp, lifecycle state, and title — or the first prompt when untitled). The persistent agent keeps its own 10-step cap per prompt.
-
-The **session manager** (`SessionManager`) owns the lifecycle: start/resume, list, fork (point-in-time clone under a new id — the fork's title gets a `(forked)` suffix and its `parentSessionId` link is dropped), delete (cascading to every sub session below the target — all-or-nothing, refused while anything in the subtree runs), rename (title only — the id and JSONL file name are immutable), and directory switching. The working directory is manager-owned: `changeDirectory(path)` starts a **new session** under the new worktree's folder key, and sessions in different worktrees run concurrently (each carries its own sandbox). A meta sidecar (`<id>.meta.json`) records the cwd, parent link, lifecycle state, title, and lifetime cost totals; a meta stuck in `running` from a crashed process is downgraded to `error` on load.
-
-```bash
-picobu sessions                 # list sessions (title + state)
-picobu sessions --dir ~/other   # list another worktree's sessions
-picobu sessions tree            # session tree: roots with their sub sessions
-picobu sessions rename <id> "New title"
-picobu sessions delete <id>     # reports the cascade count
-```
-
-### Session facade (host API)
-
-`createSession()` returns the `Session` facade every frontend drives:
-
-- **Driving runs** — `sendMessage(prompt)` (string or UI message), `queue(prompt)` (parks a prompt; queued prompts go out when the current run settles), `steer(prompt)` (injects a mid-run follow-up into the running step), `regenerate()` re-runs the last exchange, `stop()` / `abort()` cancel a run, `flush()` and `close()` drain and tear down (MCP clients included).
-- **Streaming** — `stream()` yields raw `UIMessageChunk`s as they arrive; `streamMessages()` yields whole loop messages; `onChange` (init option) notifies on every chat-state change (status, error, messages).
-- **Editing history** — `revertToMessage(messageId)` truncates everything after a message and persists the cut (compaction checkpoints still apply); `undo` / `redo` are file-level (see [Checkpoints](#checkpoints-undo--redo)).
-- **Switching mid-session** — `switchAgent(agentId)`, `switchModel("<providerId>/<modelId>")`, and `switchThinking(effort)` change the live config for the next run.
-- **Tool results without a run** — `addToolOutput()` appends a tool result part to a message (how the host returns `ask`/`plan-write` answers).
-- **Catalogs** — the session exposes its discovered `skills`, `workflows`, `rules`, and `agents` lists, plus `mcp` (per-server snapshots, current tool names, `refresh()` — see [MCP](#mcp-model-context-protocol)).
-
-### Session states
-
-Every session carries a lifecycle state, persisted in its meta sidecar: `running` (a run is in flight), `waiting` (a blocking flow tool — `ask`/`plan-write` — returned a pending output and the loop paused for the user), `finished`, or `error`.
-
-### Session summary (`summarize`)
-
-`session.summarize()` makes a one-shot model call over the whole conversation and returns the summary (plus that call's usage and cost). It is read-only — the session's history is never touched. (Compaction, by contrast, appends a cut to the history — see [Session compaction](#session-compaction).)
-
-### Checkpoints: undo & redo
-
-Every `write` and `edit` records a checkpoint (the file's before/after content) in `<folder>/<sessionId>/checkpoints.jsonl`. `session.undo()` / `session.redo()` replay those records directly on disk — no LLM call — and are refused while a run is in progress or the session errored. A new edit discards the redo tail. Shell mutations are deliberately not checkpointed (documented limitation), so their effects are not undoable.
-
-### Sub sessions & spawn
-
-Agents with the `spawn` tool (the `coder` agent has it) can delegate work to **sub agents** — isolated sub sessions whose costs roll up into the parent. Subagent definitions are markdown files with `name`/`description`/`tools`/optional `model` frontmatter, discovered from built-ins (`executor`, `explorer`, `reviewer`) and `.agents/agents/*.md` (project files override built-ins by name):
-
-```markdown
----
-name: Explorer
-description: Fast codebase exploration agent
-tools: read, grep, glob, shell
----
-You are a file search specialist. ...
-```
-
-- **`spawn` is blocking**: the step waits until every spawn call settles; parallel spawns in one step run concurrently.
-- **`maxAgents`** (`harness.maxAgents`, default 4) caps concurrent sub sessions tree-wide and depth-inclusively (roots never count). Over-capacity root spawns **queue FIFO**; a nested spawn (the caller already holds a slot) **fails fast** instead of queueing, so blocked holders can never deadlock the queue. `0` disables spawning.
-- **Depth cap 3**: a sub session cannot spawn deeper, spawn itself, or spawn an ancestor.
-- **Sub agents cannot interact with the user**: the interactive flow tools (`ask`, `plan-write`, `plan-exit`) are never registered for sub sessions regardless of frontmatter, and a shared `Subagent Rules` block instructs them to resolve ambiguities autonomously and report back — the last text message is the deliverable, summarized and returned to the caller as the spawn result (`{ summary, usage }` with itemized token/cost usage).
-- **Job registry**: `manager.jobs()` / `manager.onJobs(listener)` expose running/queued sub sessions so a future UI can render them as jobs; `abortJob(id)` cancels one.
-
-### Cost accounting
-
-`session.usage` stays **last-run** (it feeds the status bar and auto-compaction). `session.totals` is the lifetime view — cumulative tokens and cost across every run **and** sub session, with an itemized `costDetails` breakdown (`totalCost`, `inputCost`, `outputCost`, `cacheCost`, plus one entry per run/sub agent). Totals persist in the meta sidecar on every settle; a hard crash can lose the tail since the last settle (accepted).
-
-### Sandbox & per-session cwd
-
-Each session runs its tools inside a local sandbox rooted at the session's cwd (AI SDK `experimental_sandbox`, implemented over Bun): `shell` commands execute through your detected shell inside that root, and relative file paths in `read`/`write`/`edit`/`glob`/`grep` resolve against it (absolute paths pass through — no jail in v1). Abort signals kill running shell commands. `setSandbox(false)` is a runtime kill switch applying to sessions created afterwards. Skills/workflows/rules/AGENTS.md discovery still reads the bootstrap cwd at startup.
-
-### Session compaction
-
-Compaction turns a growing conversation into a **session cut**: the whole conversation is summarized by the **currently running model** with a compactor prompt, and the summary is appended as a special cut message (`metadata.compaction`). Everything before the cut stays fully saved in the JSONL — undoable and forkable — but **never reaches the LLM again**: the provider only sees the cut's summary plus every message sent after it. Every compaction is therefore a checkpoint, and post-cut context usage (the status bar and the auto-compact trigger) measures only the fresh slice. Cost totals keep accumulating across cuts; per-run token counts naturally drop after one.
-
-- **Auto**: when a run settles with its context at **80% of the model's context window**, the session compacts itself before any queued prompt goes out (opt-in per session via `autoCompact`; sub sessions never auto-compact). With `forkOnCompact` set, the full pre-compaction history is forked into a new session first and the current session hard-resets to the summary (no cut marker — the fork is the checkpoint).
-- **Manual**: `session.compact()` appends a cut on demand; `session.compact({ fork: true })` behaves like the fork-on-compact flow above.
-- **Undo**: `session.uncompact()` removes the trailing cut, restoring the full history to the LLM view.
-- **Fork**: `manager.forkSession(id)` clones the saved session under a new id (title suffixed `(forked)`); with `{ fromCompaction: true }` the fork starts at the last cut, mirroring exactly what the LLM sees.
-
-### Login & OAuth
-
-`startLogin(id)` authenticates a subscription provider OAuth — **OpenAI** (ChatGPT), **Anthropic** (Claude Pro/Max), or **GitHub Copilot** — so you can run models without API keys.
-
-On success the OAuth credential is stored in `~/.picobu/auth.json` (never in `options.json`), and the provider is registered into `~/.picobu/options.json` the same way env-gated providers are (`apiKey: "auth:<id>"`, models from the models.dev catalog via `@opencode-ai/models`):
-
-| Provider | `type` | Notes |
+| Agent | Role | Tools |
 | --- | --- | --- |
-| `openai` | `openai` | ChatGPT browser OAuth (PKCE, local callback); models from the models.dev `openai` catalog |
-| `anthropic` | `anthropic` | Claude browser OAuth (PKCE, local callback); models from the models.dev `anthropic` catalog |
-| `github-copilot` | `openai-compatible` | Device-code flow; base URL and usable models depend on the account/token (fetched from `/models`) |
+| `ask` | Fast Q&A, `flash` | `read`, `grep`, `glob`, `skill`, `rule`, `websearch`, `webfetch`, `ask` |
+| `coder` | Default coding loop, `flash` | `read`, `write`, `edit`, `glob`, `grep`, `shell`, `ask`, `todo`, `skill`, `rule`, `spawn`, `websearch`, `webfetch` |
+| `plan-code` | Deep planning + implementation, `heavy` | `read`, `grep`, `glob`, `skill`, `rule`, `ask`, `plan-write`, `plan-exit` |
+| `persistent` | Fresh, stateless 10-step runs per prompt (WhatsApp) | `wwp-msg`, `wwp-today`, `rule` |
 
-Credentials auto-refresh at bootstrap and before every run; if a provider is first-time-logged-in it also becomes `harness.defaultModel`. `fixHarnessAfterLogout` removes the credential from `auth.json`, the provider (and its models) from `options.json`, and repoints any harness model selectors at a remaining provider.
+Custom agents are markdown files with `name`/`description`/`category`/`tools`/`model` frontmatter (`*` = all tools). Built-in subagents (`executor`, `explorer`, `reviewer`) can be overridden per project via `.agents/agents/*.md`; project skills live in `.agents/skills/<name>/SKILL.md` (ships with `ai-sdk`, `baileys-wp`, `opentui`). Rules are flat markdown files with `name`/`description` frontmatter from `.agents/rules`, `~/.picobu/rules`, `~/.agents/rules` (missing description = skipped). Workflows, prompts, and commands resolve from project → `~/.picobu` → home, in that precedence order.
 
-## MCP (Model Context Protocol)
+### Tools
 
-Picobu connects to [MCP](https://modelcontextprotocol.io/) servers and merges their tools into every agent loop, via `@ai-sdk/mcp`. Servers are configured globally in the `mcp` block of `~/.picobu/options.json` and/or per project in a `.mcp.json` file in the working directory (Claude-style `mcpServers` map; project entries win on id collision):
+| Tool | Family | Description |
+| --- | --- | --- |
+| `read` | filesystem | Read a file, optionally sliced by `fromLine`/`toLine` |
+| `write` | filesystem | Write contents to a path, creating parent directories; records an undo checkpoint |
+| `edit` | filesystem | Replace one exact `oldString` with `newString`; fails on missing/ambiguous matches, returns a diff |
+| `glob` | filesystem | Find files by glob pattern; respects `.gitignore` |
+| `grep` | filesystem | Search files with ripgrep regex; returns matching lines |
+| `shell` | filesystem | Run a shell command; streams output live, kills on timeout |
+| `todo` | flow | Session todo list (`ins` append, `upd` replace by index, `del` remove by index), persisted per session |
+| `skill` | flow | Load a discovered skill by name (SKILL.md body + related file paths) |
+| `rule` | flow | Load a discovered rule by name and apply it |
+| `ask` | flow, interrupting | Ask the user up to 5 structured single/multiple-choice questions; run pauses for answers |
+| `plan-write` | flow, interrupting | Submit the finished plan for review; run pauses for approval/rejection |
+| `plan-exit` | flow | Handoff to Coder to implement the approved plan (only after explicit approval) |
+| `spawn` | flow, blocking | Run a subagent by name as an isolated sub session; parallel spawns settle together |
+| `websearch` | external | Web search via DuckDuckGo; `deepness` 1–5 sets pages scanned, each result fetched as Markdown |
+| `webfetch` | external | Fetch a URL as Markdown via headless Chrome (JS-rendered pages supported) |
+| `wwp-msg` | integration | Send a WhatsApp text message to a phone number |
+| `wwp-today` | integration | Add a task to the user's `today` todo list |
+| `mcp_<server>_<tool>` | mcp | Auto-discovered per-server tools, namespaced and capped at 64 chars |
+
+Every tool carries a JSON Schema rendered into the system prompt. `glob`/`grep` always include agent config folders even when gitignored. Web tools use headless Chrome with a real-Chrome identity (bot-protection resistant); HTML converts to Markdown via turndown.
+
+### Sessions
+
+Every run is saved incrementally (per message) to `~/.picobu/sessions/<folder>/<id>.jsonl` (`<folder>` = sanitized cwd, `<id>` = 16-hex), but only after its first prompt. A meta sidecar (`<id>.meta.json`) records cwd, parent link, lifecycle state (`running`/`waiting`/`finished`/`error`), title, and lifetime cost totals; a meta stuck in `running` after a crash downgrades to `error` on load.
+
+The `Session` facade drives every frontend:
+
+- Runs: `sendMessage`, `queue` (parks a prompt until the run settles), `steer` (mid-run follow-up), `regenerate`, `stop`/`abort`, `flush`/`close` (drains and tears down, MCP included).
+- Streaming: `stream()` (raw chunks), `streamMessages()` (whole messages), `onChange` notifications.
+- History: `revertToMessage` (truncates + persists), `undo`/`redo` (file-level, no LLM call, refused mid-run; new edits drop the redo tail; shell mutations are not checkpointed), `switchAgent`/`switchModel`/`switchThinking` mid-session, `addToolOutput` (deliver `ask`/`plan-write` answers without a run), `summarize` (read-only one-shot summary), `compact`/`uncompact`/`fork`.
+- Catalogs: `skills`, `workflows`, `rules`, `agents`, `mcp` (snapshots, tool names, `refresh()`).
+- Multi-worktree: `changeDirectory(path)` starts a new session under the new folder key; worktrees run concurrently with separate sandboxes.
+
+Sub sessions & spawn: `spawn` is blocking and waits for every call to settle; nested spawns fail fast when over capacity (root spawns queue FIFO) so holders can never deadlock; depth cap 3 (no self/ancestor spawns); subagents never get interactive tools (`ask`, `plan-write`, `plan-exit`) and report back `{ summary, usage }`. `manager.jobs()`/`onJobs()`/`abortJob()` expose the job registry.
+
+Cost accounting: `session.usage` is last-run (status bar + auto-compaction); `session.totals` is the lifetime view across runs and sub sessions with per-run `costDetails`, persisted on every settle.
+
+Sandbox: each session runs inside a local sandbox rooted at its cwd (AI SDK `experimental_sandbox` over Bun); `shell` uses your detected shell, abort kills running commands; relative paths resolve against the cwd (absolute paths pass through — no jail in v1); `setSandbox(false)` is a runtime kill switch for subsequently created sessions.
+
+Compaction: the full conversation is summarized by the running model and appended as a cut message; everything before the cut stays saved (undoable, forkable) but never reaches the LLM again. Auto-compacts at 80% of context (opt-in via `autoCompact`; sub sessions never auto-compact); `forkOnCompact` forks the full history first, then hard-resets to the summary. `session.compact({ fork: true })` does this on demand; `manager.forkSession(id)` clones under a new id (`(forked)` suffix), optionally from the last cut.
+
+Prompt history: last 10 prompts persist to `~/.picobu/prompt-history.json`. Session titles come from a one-shot `tiny`-role call (≤50 chars).
+
+### MCP (Model Context Protocol)
+
+Picobu connects to [MCP](https://modelcontextprotocol.io/) servers via `@ai-sdk/mcp` and merges their tools into every agent loop. Configure globally in `~/.picobu/options.json` and/or per project in `.mcp.json` (Claude-style `mcpServers` map; project wins on id collision):
 
 ```json
 {
@@ -193,83 +250,73 @@ Picobu connects to [MCP](https://modelcontextprotocol.io/) servers and merges th
 }
 ```
 
-- **Transports**: `http` (recommended), `sse`, and `stdio` (local servers only — the command runs on this machine). `headers` and stdio `env` values accept `"env:VAR"` refs, resolved at connect time.
-- **Login**: servers with `"auth": true` use MCP OAuth — `picobu mcp login <serverId>` opens the browser (PKCE, localhost callback on port 19888) and stores tokens in `~/.picobu/mcp-auth.json`. Tokens are refreshed at connect; `picobu mcp` lists every server with its connection and auth status (`auth: active` / `login needed` / `none`), and `picobu mcp logout <serverId>` drops the stored tokens.
-- **Discovery**: tools are listed automatically from each server (schema discovery). Tool names are namespaced `mcp_<serverId>_<toolName>` (sanitized, capped at 64 chars) so they can't collide with built-in tools; agents that run all tools get MCP tools automatically, and agents with explicit tool lists opt in by namespaced name.
-- **System prompt**: each server's tools are documented in the `<Tools>` section like built-in tools — server description + JSON schema — optionally preceded by the config's `instructions` note (or the server's own initialize-time instructions).
-- **Sessions**: each session owns its MCP clients (connected lazily on first use, closed on `session.close()`); Streamable HTTP sessions reattach instead of re-initializing. `session.mcp` exposes per-server snapshots, the current tool names, and `refresh()` for mid-conversation re-discovery (the prompt-cache prefix is only invalidated when the tool set actually changes).
-- **Elicitation**: the capability is advertised; servers requesting user input mid-tool-call are answered with an automatic **decline** (no interactive UI in the headless core yet).
+- Transports: `http` (recommended), `sse`, `stdio` (local only).
+- Auth: `auth: true` servers use MCP OAuth (`picobu mcp login/logout`); tokens live in `~/.picobu/mcp-auth.json` and refresh at connect.
+- Discovery: tools are namespaced `mcp_<serverId>_<toolName>`; all-tools agents get them automatically, explicit agents opt in by name. Each server's tools (plus config `instructions` or server initialize-time instructions) render into the `<Tools>` system-prompt section.
+- Sessions own their MCP clients (lazy connect, closed on `session.close()`); Streamable HTTP reattaches; `session.mcp.refresh()` re-discovers mid-conversation.
+- Elicitation is advertised but mid-tool-call user input is auto-declined (no interactive UI in the headless core yet).
 
-## Agents
+### WhatsApp
 
-| Agent | Role |
-| --- | --- |
-| `ask` | Fast Q&A, runs on the `flash` role |
-| `coder` | The default coding loop, runs on the `flash` role |
-| `plan-code` | Deep planning + implementation, runs on the `heavy` role |
-| `persistent` | Fresh, stateless 10-step runs per prompt |
+Baileys integration (unofficial WhatsApp Web API) in `src/integrations/whatsapp/`. When `whatsapp.enabled` is set, `connectToWhatsApp()` runs at bootstrap and reconnects from `~/.picobu/whatsapp/auth` (0700) without a QR, retrying 10×/3s. `allowedNumbers` lists phone numbers allowed to talk to the agent (empty = nobody; outbound sending still works). Inbound messages from allowed numbers are submitted to the persistent session, which replies and acts via `wwp-msg`/`wwp-today`. Agent-sent texts carry an invisible zero-width-space sentinel so `fromMe` echoes are recognized and dropped. Pairing codes, QR/status/errors, contacts, and the `today` todo list (`~/.picobu/whatsapp/today.json`) are managed alongside the connection. Group (`@g.us`) and broadcast messages are ignored.
 
-Coding runs are capped at **100 steps** as a safety limit (each tool call round-trip is a step; the `ask`/`plan-write` interrupts pause before a new step starts).
+### Login & OAuth
 
-Project instructions are loaded automatically: when a session starts, the system prompt embeds the `AGENTS.md` (or `CLAUDE.md`) from the working directory, appended at the end of the guidelines section — no need to ask the agent to read it.
+`startLogin(id)` authenticates a subscription provider so you can run models without API keys. Credentials live in `~/.picobu/auth.json` (never `options.json`); providers register into `options.json` as `apiKey: "auth:<id>"` with models from the models.dev catalog (`@opencode-ai/models`):
 
-## Tools
+| Provider | `type` | Notes |
+| --- | --- | --- |
+| `openai` | `openai` | ChatGPT browser OAuth (PKCE, local callback); models from the models.dev `openai` catalog |
+| `anthropic` | `anthropic` | Claude browser OAuth (PKCE, local callback); models from the models.dev `anthropic` catalog |
+| `github-copilot` | `openai-compatible` | Device-code flow; base URL and usable models depend on the account/token (`/models`) |
 
-Tools are grouped in families:
+Aliases: `copilot` → `github-copilot`, `claude` → `anthropic`, `chatgpt` → `openai`. Tokens auto-refresh at bootstrap and before every run. First-time login also becomes `harness.defaultModel`. Logout removes the credential and provider and repoints harness selectors. API-key-only providers autoload too: Charm Hyper via `HYPER_API_KEY`, plus models.dev fallbacks keyed on `ANTHROPIC_API_KEY`/`OPENAI_API_KEY`/`GITHUB_TOKEN`.
 
-- **filesystem** — `read` / `write` / `edit` (file I/O with diffs; writes and edits record undo checkpoints), `glob` / `grep` (search, ripgrep-backed), `shell` (shell execution using your detected shell, cancellable via abort). `glob` and `grep` respect `.gitignore`, except that agent config folders — `.agents/` in the project and home, plus `~/.picobu/{skills,workflows,prompts,commands,rules}` — are always included, even when dot-prefixed or gitignored.
-- **flow** — session workflow state.
-  - `todo`: one todo list per session, persisted at `<folder>/<sessionId>/session-todo.json` and fully rewritten on every call. Actions: `ins` (append items), `upd` (replace by index), `del` (remove by index).
-  - `skill` (non-interrupting): loads a discovered skill by name. The output carries the skill's frontmatter-stripped SKILL.md body plus its folder path and the relative paths of the related files in it, which the agent then reads with `read` as the instructions reference them. The system prompt lists every installed skill's name and description (a `<Skills>` section) so the agent knows when to reach for it — task matches the description or the user asks for it by name.
-  - `rule` (non-interrupting): loads a discovered rule by name — modular instructions for specific cases (e.g. a `testing.md` rule whose description says it applies when generating tests). Rules are flat markdown files with `name`/`description` frontmatter, discovered from `.agents/rules`, `~/.picobu/rules`, and `~/.agents/rules` in that precedence order. The system prompt lists every installed rule's name and description (a `<Rules>` section) so the agent loads the ones whose description matches the current task.
-  - `ask` (interrupting): asks the user up to 5 structured questions; the run pauses after the call so the host frontend can collect answers and deliver them back as a follow-up prompt.
-  - `plan-exit` (non-interrupting): handoff tool signalling the switch from the Plan agent to the Coder agent mid-run so the approved plan is implemented immediately.
-  - `plan-write` (interrupting): submits the finished plan for review; the run pauses so the host frontend can present it and send comments or approval back as the next prompt.
-  - `spawn` (blocking, non-interrupting): runs a subagent as an isolated sub session and waits for its final report (see [Sub sessions & spawn](#sub-sessions--spawn)). Registered only for agents that list `spawn` in their `tools` (the `coder` agent); the system prompt carries a `<Subagents>` section with the catalog.
-- **external** — web access via headless Chrome (Puppeteer), so JavaScript-rendered pages are captured correctly; requests carry a real-Chrome identity (UA + client hints, `navigator.webdriver` scrubbed) to avoid bot-protection blocks. `websearch` queries DuckDuckGo's HTML endpoint — `query` plus `deepness` (result pages, 1–5), paginated via the `s` offset; every link found across those pages is fetched and its content attached as Markdown. `webfetch` fetches a URL and returns its contents as Markdown (HTML pages are converted with turndown; other content types pass through verbatim).
+### Host frontends
 
-Every tool carries a JSON Schema rendered into the system prompt.
+Reference TUI (`bun dev:tui`, `src/tui/` over OpenTUI + Solid): session page with streamed text/reasoning/tool parts (`ask` renders its form inline, plans render for review), session header/status, message actions, diff viewer, dialogs/dropdowns, splash screen, 35 bundled themes (`picobu` default, `resolveTheme`/`generateSyntax`), icon set, and Solid state primitives for dialogs, dropdowns, theme, and toasts (`src/states/`). Clipboard goes through an OpenTUI service adapter.
 
-Skills, workflows, prompts, and commands are markdown files (flat-YAML frontmatter) discovered from `.agents/skills`, `.agents/workflows`, `.agents/prompts`, and `.agents/commands` — checked in your project, `~/.picobu`, and home, in that precedence order.
+Library kit: `createHeadlessChatState()` implements the AI SDK `ChatState` contract over the loop (reuse `useChat` against any session); `src/wrappers/` bundles tree-sitter parser WASMs + highlight queries for 39 languages (`createTreeSitterClient()`, data under `~/.picobu/tree-sitter`); prompt history and session-title helpers round out host needs. No UI logic lives in the agent loop.
 
-## Host frontends
+Project layout: `src/cli.ts` (entry + bootstrap) · `src/agent/` (`loop/`, `sessions/`, `model/`, `agents/` + `subagent/`, `prompts/`, `tools/filesystem|flow|web/`, `commands/`, `rules/`, `workflows/`) · `src/config/options.ts` (`~/.picobu/options.json`) · `src/auth/` (OAuth) · `src/integrations/` (WhatsApp + MCP) · `src/tui/` · `src/states/` · `src/wrappers/` · `src/shared/`. Every `src/` folder is importable as `@<folder>` via `tsconfig.json` paths (e.g. `import { options } from "@config/options.ts"`); tests import via relative paths and mirror `src/` under `tests/`. Tech stack: Vercel AI SDK (`ai`, `@ai-sdk/*`) · XState Store · Zod · Bun · Biome (single quotes, no semicolons, 2-space indent).
 
-The core ships with everything a frontend needs — no UI logic lives in the agent loop.
+### Generator
 
-### Reference TUI (`bun dev:tui`)
+Not applicable yet — Picobu ships no README or project generator. This section is kept for standard-readme compliance.
 
-A full terminal UI over [OpenTUI](https://github.com/sst/opentui) + Solid (`src/tui/`): session page with streamed message rendering (text, reasoning, and tool parts — `ask` renders its structured form inline), session header/status, message actions, a diff viewer for edits, dialogs and dropdowns, a splash screen covering startup, and mouse + Kitty-keyboard support. The header/status icons assume an up-to-date programmer font (Source Code Pro, JetBrains Mono, or equivalent) — older fonts may render them as tofu. Clipboard goes through an OpenTUI service adapter; unhandled rejections from the AI SDK stream teardown are filtered (documented benign race) while everything else stays fatal.
+## Badge
 
-### Library kit
+If your README is compliant with Standard-Readme and you're on GitHub, it would be great if you could add the badge. This allows people to link back to this Spec, and helps adoption of the README. The badge is **not required**.
 
-- **Headless chat state** — `createHeadlessChatState()` (`src/agent/sessions/session-headless-chat.ts`) implements the AI SDK `ChatState` contract over the loop, so any UI can reuse the `ai` chat primitives (`useChat`) against a picobu session.
-- **Tree-sitter rendering** — `src/wrappers/` bundles parser WASMs + highlight queries for 39 languages and exposes `createTreeSitterClient()` / a shared singleton for markdown + code syntax highlighting in OpenTUI renderables (parser data under `~/.picobu/tree-sitter`).
-- **Themes & states** — 35 theme JSONs with `resolveTheme`/`generateSyntax` and an icon set (`src/tui/themes/`), plus Solid state primitives for dialogs, dropdowns, and the active theme (`src/states/`).
-- **Prompt history** — `src/agent/sessions/prompt-history.ts` persists the last 10 prompts to `~/.picobu/prompt-history.json` (read/append helpers with a lock file) so hosts can render input history.
-- **Session titles** — `generateSessionTitle()` (`src/agent/prompts/session-title.ts`) makes a one-shot `tiny`-role model call that turns a first prompt into a ≤50-char thread title.
-
-## Project layout
+[![standard-readme compliant](https://img.shields.io/badge/readme%20style-standard-brightgreen.svg?style=flat-square)](https://github.com/RichardLitt/standard-readme)
 
 ```
-src/
-├── cli.ts                 # CLI entry point (`picobu`, `sessions` + subcommands) + background-service bootstrap
-├── agent/                 # Agent runtime: loop, sessions, model DI, agents registry, tools, prompts, commands
-│   ├── loop/              # createLoop — the step engine (per-step getConfig)
-│   ├── sessions/          # session facade, session manager, meta sidecar, checkpoints, prompt history
-│   ├── model/             # provider resolver, catalogs (hyper, models.dev), registry, autoload
-│   ├── agents/            # create-agent, registry (ask/coder/plan-code/persistent), subagents
-│   └── tools/             # toolset + filesystem/, flow/, web/ tool families
-├── config/                # options.ts — ~/.picobu/options.json types, load/persist/migrate, model roles
-├── shared/                # lock, notify, shell, error-report, format, filetype, open-url, text-stats
-├── auth/                  # OAuth login flows, credential store, provider registration
-├── integrations/          # WhatsApp (Baileys) connection, bus, contacts, actions + wwp tools; MCP
-└── tui/                   # 35 bundled themes (resolveTheme/generateSyntax) for host frontends
+[![standard-readme compliant](https://img.shields.io/badge/readme%20style-standard-brightgreen.svg?style=flat-square)](https://github.com/RichardLitt/standard-readme)
 ```
 
-### Path aliases
+## Example READMEs
 
-Every `src/` folder is importable as `@<folder>` via the `paths` map in `tsconfig.json`: `@agent/*`, `@auth/*`, `@config/*`, `@integrations/*`, `@shared/*`, `@states/*`, `@tui/*`, `@wrappers/*`. Imports use aliases instead of relative specifiers, keeping the `.ts` extension (e.g. `import { options } from "@config/options.ts"`). Bun and `tsc` both resolve them, so no build step is needed.
+Not fillable yet — this README is the project's only standard-readme example. No separate `example-readmes/` directory is maintained.
 
-## Tech stack
+## Related Efforts
 
-Vercel AI SDK (`ai`, `@ai-sdk/*`) · XState Store · Zod · Bun
+- [standard-readme](https://github.com/RichardLitt/standard-readme) — the specification this README follows.
+- [Vercel AI SDK](https://sdk.vercel.ai/) — the agent loop (`ToolLoopAgent`) and provider integrations Picobu builds on.
+- [Model Context Protocol](https://modelcontextprotocol.io/) — the open tool-server protocol Picobu speaks.
+- [OpenTUI](https://github.com/sst/opentui) — the terminal-UI framework behind the reference TUI.
+
+## Maintainers
+
+[@CouraLabs](https://github.com/CouraLabs).
+
+## Contributing
+
+Not fillable yet — no contribution guidelines, code of conduct, or issue/PR workflow is documented. For now, please open an issue or pull request on GitHub.
+
+### Contributors
+
+Not fillable yet — no contributor list is maintained.
+
+## License
+
+Not fillable yet — no license file or SPDX identifier is declared in this repository.
