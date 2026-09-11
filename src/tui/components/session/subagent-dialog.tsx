@@ -5,14 +5,14 @@ import { theme } from '@states/theme-state.ts'
 import { SessionMessages } from '@tui/components/session/session-messages.tsx'
 import { createSignal, onCleanup, onMount, Show } from 'solid-js'
 
-export type SubagentMessagesProps = {
+export interface SubagentMessagesProps {
   manager: SessionManager
   sessionId: string
   label: string
 }
 
 const SubagentMessagesDialog = (props: SubagentMessagesProps) => {
-  const [messages, setMessages] = createSignal<LoopMessage[]>([])
+  const [messages, setMessages] = createSignal<Array<LoopMessage>>([])
   const [title, setTitle] = createSignal<string | undefined>(undefined)
   let settled = false
 
@@ -26,7 +26,7 @@ const SubagentMessagesDialog = (props: SubagentMessagesProps) => {
     if (settled) return
     try {
       const loaded = await props.manager.loadMessages(props.sessionId)
-      setMessages((loaded ?? []) as LoopMessage[])
+      setMessages((loaded ?? []) as Array<LoopMessage>)
     } catch {}
     try {
       const stored = await props.manager.getSessionTitle(props.sessionId)

@@ -9,7 +9,7 @@ export class Chat extends AbstractChat<LoopMessage> {
   }
 }
 
-const cloneMessages = (value: LoopMessage[]): LoopMessage[] => {
+const cloneMessages = (value: Array<LoopMessage>): Array<LoopMessage> => {
   try {
     return structuredClone(value)
   } catch (error) {
@@ -20,10 +20,10 @@ const cloneMessages = (value: LoopMessage[]): LoopMessage[] => {
 
 export type ChatChangeHandler = (state: ChatState<LoopMessage>) => void
 
-export function createHeadlessChatState(messages: LoopMessage[] = [], onChange?: ChatChangeHandler): ChatState<LoopMessage> {
+export function createHeadlessChatState(messages: Array<LoopMessage> = [], onChange?: ChatChangeHandler): ChatState<LoopMessage> {
   let status: ChatStatus = 'ready'
   let error: Error | undefined
-  let messageList: LoopMessage[] = cloneMessages(messages)
+  let messageList: Array<LoopMessage> = cloneMessages(messages)
   const notify = () => onChange?.(state)
   const state: ChatState<LoopMessage> = {
     get status() {
@@ -64,7 +64,7 @@ export function createHeadlessChatState(messages: LoopMessage[] = [], onChange?:
       messageList[index] = cloned
       notify()
     },
-    snapshot: <T>(thing: T): T => structuredClone(thing),
+    snapshot: <TValue>(thing: TValue): TValue => structuredClone(thing),
   }
   return state
 }

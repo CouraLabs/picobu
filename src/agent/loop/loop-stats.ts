@@ -4,43 +4,43 @@ import type { CallWarning, FinishReason, LanguageModelUsage, StepResultPerforman
 
 export type LoopStepCost = StepCost
 
-export type LoopStepStats = {
+export interface LoopStepStats {
   usage: LanguageModelUsage
   cost: LoopStepCost
   performance: StepResultPerformance
-  warnings: CallWarning[] | undefined
+  warnings: Array<CallWarning> | undefined
   headers: Record<string, string> | undefined
   finishReason: FinishReason
   rawFinishReason: string | undefined
 }
 
-export type LoopStats = {
+export interface LoopStats {
   performance: StepResultPerformance | undefined
-  warnings: CallWarning[] | undefined
+  warnings: Array<CallWarning> | undefined
   headers: Record<string, string> | undefined
   finishReason: FinishReason | undefined
   rawFinishReason: string | undefined
-  steps: LoopStepStats[]
+  steps: Array<LoopStepStats>
   total: { usage: LanguageModelUsage; cost: LoopStepCost }
   currentTotal: { usage: LanguageModelUsage; cost: LoopStepCost }
 }
 
-export type StepEndInput = {
+export interface StepEndInput {
   usage: LanguageModelUsage
   performance: StepResultPerformance
-  warnings: CallWarning[] | undefined
+  warnings: Array<CallWarning> | undefined
   response: { headers?: Record<string, string> }
   finishReason: FinishReason
   rawFinishReason: string | undefined
 }
 
-export type EndInput = {
+export interface EndInput {
   usage: LanguageModelUsage
   finishReason: FinishReason
   rawFinishReason: string | undefined
 }
 
-export type LoopStatsStore = {
+export interface LoopStatsStore {
   get: () => LoopStats
   onChange: (listener: (stats: LoopStats) => void) => () => void
   handleStepEnd: (event: StepEndInput) => void
@@ -48,7 +48,7 @@ export type LoopStatsStore = {
   restore: (stats: LoopStats) => void
 }
 
-const cloneValue = <T>(value: T): T => {
+const cloneValue = <TValue>(value: TValue): TValue => {
   try {
     return structuredClone(value)
   } catch (error) {

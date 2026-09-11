@@ -5,14 +5,14 @@ import { AskForm } from './ask-form.tsx'
 import { PlanReview, type PlanVerdict } from './plan-review.tsx'
 import { flowOutputMessage, flowOutputStatus, planText, previewToolInput, summarizeToolInput, type ToolPartLike, toolAskQuestions, toolDisplayName, toolStateView } from './tool-summary.ts'
 
-export type FlowViewProps = {
+export interface FlowViewProps {
   part: ToolPartLike
   isLastMessage?: boolean
   flowKind: 'ask' | 'plan-write'
   onFlowResponse?: (response: ToolFlowResponse) => void | Promise<void>
 }
 
-export type ToolFlowResponse = {
+export interface ToolFlowResponse {
   tool: 'ask' | 'plan-write'
   toolCallId: string
   output: { status: string; message: string }

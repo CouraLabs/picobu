@@ -3,8 +3,8 @@ import { theme } from '@states/theme-state.ts'
 import { Button } from '@tui/components/button.tsx'
 import { For, Show } from 'solid-js'
 
-export type SessionQueueProps = {
-  items: QueuedPrompt[]
+export interface SessionQueueProps {
+  items: Array<QueuedPrompt>
   onRemove: (id: string) => void
 }
 

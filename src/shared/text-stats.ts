@@ -5,7 +5,7 @@ export interface TextStats {
   avgWordLength: number
 }
 
-export function extractWords(text: string): string[] {
+export function extractWords(text: string): Array<string> {
   return text.split(/[\s,;:.!?()"'/[\]{}]+/).filter((w) => w.length > 0)
 }
 

@@ -1,8 +1,8 @@
 export type CommandKind = 'system' | 'workflow' | 'skill'
-export type Command = {
+export interface Command {
   kind: CommandKind
   name: string
-  aliases: string[]
+  aliases: Array<string>
   title: string
   description: string
   path: string

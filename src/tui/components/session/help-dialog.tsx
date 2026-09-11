@@ -11,7 +11,7 @@ import { Button } from '@tui/components/button.tsx'
 import { getSharedTreeSitterClientSync } from '@wrappers/treesitter-wrapper.ts'
 import { createMemo, createSignal, onMount } from 'solid-js'
 
-const shortcuts: { keys: string; what: string }[] = [
+const shortcuts: Array<{ keys: string; what: string }> = [
   { keys: 'CTRL + H', what: 'Open this help' },
   { keys: 'CTRL + D CTRL + D', what: 'Exit the app' },
   { keys: 'ESC ESC', what: 'Answer flow first, then move newest queued prompt back to edit, then stop the run' },
@@ -27,7 +27,7 @@ const shortcuts: { keys: string; what: string }[] = [
   { keys: 'CTRL + A', what: 'Select all text in the prompt' },
 ]
 
-const footerLines: string[] = [
+const footerLines: Array<string> = [
   'The footer under the prompt shows the session at a glance. Token and cost segments always show `0`.',
   '',
   '- **Agent row**: agent, model, thinking level, finish reason or live activity (`Prompting`, `Reasoning`, `Tooling`, `Delegating`, `Answering`), session title.',
@@ -63,14 +63,14 @@ export const HelpDialog = () => {
       return []
     }
   })
-  const [subagents, setSubagents] = createSignal<AgentType[]>([])
+  const [subagents, setSubagents] = createSignal<Array<AgentType>>([])
   onMount(() => {
     listSubagents()
       .then(setSubagents)
       .catch(() => {})
   })
   const helpMarkdown = createMemo(() => {
-    const lines: string[] = ['## Keyboard', '']
+    const lines: Array<string> = ['## Keyboard', '']
     for (const row of shortcuts) lines.push(`- \`${row.keys}\` — ${row.what}`)
     lines.push('', '## Commands', '')
     const commandRows = [

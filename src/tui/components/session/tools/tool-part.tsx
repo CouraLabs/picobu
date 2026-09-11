@@ -38,7 +38,7 @@ import {
 
 export type { ToolFlowResponse } from './flow-view.tsx'
 
-export type ToolPartProps = {
+export interface ToolPartProps {
   part: ToolPartLike
   partKey: string
   isLastMessage?: boolean
@@ -237,7 +237,7 @@ export const ToolPart = (props: ToolPartProps) => {
           {(content: string) => <code content={content} filetype={filetypeFromPath(writePath(props.part))} syntaxStyle={theme().syntax} treeSitterClient={getSharedTreeSitterClientSync()} conceal />}
         </Show>
         <Show when={todos()} keyed>
-          {(items: TodoItem[]) => (
+          {(items: Array<TodoItem>) => (
             <box maxHeight={EXPANDED_MAX_LINES} overflow="hidden">
               <TodoList items={items} />
             </box>

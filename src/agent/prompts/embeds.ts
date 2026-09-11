@@ -1,18 +1,18 @@
-export type FileEmbedding = {
+export interface FileEmbedding {
   mimeType: string
   filename?: string
   dataUrl: string
 }
 
-export type PromptFile = {
+export interface PromptFile {
   type: 'file'
   mediaType: string
   url: string
   filename?: string
 }
-export type ResolvedPrompt = {
+export interface ResolvedPrompt {
   text: string
-  files: PromptFile[]
+  files: Array<PromptFile>
 }
 
 const EITHER_TOKEN = /\[([TF])#(\d+) [^[\]]+\]/g
@@ -26,7 +26,7 @@ export const fileEmbedLabel = (key: string, mimeType: string): string => `[${key
 export const bytesToDataUrl = (bytes: Uint8Array, mimeType: string): string => `data:${mimeType};base64,${Buffer.from(bytes).toString('base64')}`
 
 export const resolvePrompt = (rawText: string, textEmbeds: Record<string, string>, fileEmbeds: Record<string, FileEmbedding>): ResolvedPrompt => {
-  const files: PromptFile[] = []
+  const files: Array<PromptFile> = []
   const text = rawText.replace(EITHER_TOKEN, (_match, type: string, id: string) => {
     const key = `${type}#${id}`
     if (type === 'F') {

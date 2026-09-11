@@ -69,7 +69,7 @@ export const fmtDuration = (sec: number): string => {
 }
 
 export const fmtRunSummary = (elapsedSec: number, outputTokens: number | null, cost: number | null): string | null => {
-  const parts: string[] = []
+  const parts: Array<string> = []
   if (elapsedSec >= 1) parts.push(fmtDuration(elapsedSec))
   if (outputTokens !== null && outputTokens > 0) parts.push(`${fmtTokens(outputTokens)} out`)
   const costLabel = fmtCost(cost ?? undefined)

@@ -1,7 +1,7 @@
 import { theme } from '@states/theme-state.ts'
 import { icons } from '@tui/themes/icons.ts'
 
-export type StatusSeparatorProps = {
+export interface StatusSeparatorProps {
   sep?: string
 }
 

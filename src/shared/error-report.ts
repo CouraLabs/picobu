@@ -28,7 +28,7 @@ const findApiRecord = (error: Error): Record<string, unknown> | null => {
   return null
 }
 
-export type ErrorReport = {
+export interface ErrorReport {
   message: string
   detail: string | null
 }
@@ -37,11 +37,11 @@ export const describeError = (error: unknown): ErrorReport => {
   if (!(error instanceof Error)) return { message: String(error), detail: null }
   const apiRecord = findApiRecord(error)
   const record = apiRecord ?? asRecord(error) ?? {}
-  const header: string[] = []
+  const header: Array<string> = []
   if (error.name && error.name !== 'Error') header.push(error.name)
   if (typeof record.statusCode === 'number') header.push(`HTTP ${record.statusCode}`)
   const message = header.length ? `${header.join(' · ')} · ${error.message}` : error.message
-  const detail: string[] = []
+  const detail: Array<string> = []
   const url = str(record.url)
   if (url) detail.push(`url: ${url}`)
   const body = str(record.responseBody)

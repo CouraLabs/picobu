@@ -6,12 +6,12 @@ const MINIMUM_INTERVAL_MS = 1000
 const DEFAULT_POLL_INTERVAL_SECONDS = 5
 const SLOW_DOWN_INTERVAL_INCREMENT_MS = 5000
 type OAuthDeviceCodeIncompletePollResult = { status: 'pending' } | { status: 'slow_down'; intervalSeconds?: number } | { status: 'failed'; message: string }
-export type OAuthDeviceCodePollResult<T> = OAuthDeviceCodeIncompletePollResult | { status: 'complete'; value: T }
-export type OAuthDeviceCodePollOptions<T> = {
+export type OAuthDeviceCodePollResult<TValue> = OAuthDeviceCodeIncompletePollResult | { status: 'complete'; value: TValue }
+export interface OAuthDeviceCodePollOptions<TValue> {
   intervalSeconds?: number
   expiresInSeconds?: number
   waitBeforeFirstPoll?: boolean
-  poll: () => Promise<OAuthDeviceCodePollResult<T>>
+  poll: () => Promise<OAuthDeviceCodePollResult<TValue>>
   signal: AbortSignal
 }
 export function abortableSleep(ms: number, signal: AbortSignal, cancelMessage: string): Promise<void> {
@@ -31,7 +31,7 @@ export function abortableSleep(ms: number, signal: AbortSignal, cancelMessage: s
     signal.addEventListener('abort', onAbort, { once: true })
   })
 }
-export async function pollOAuthDeviceCodeFlow<T>(options: OAuthDeviceCodePollOptions<T>): Promise<T> {
+export async function pollOAuthDeviceCodeFlow<TValue>(options: OAuthDeviceCodePollOptions<TValue>): Promise<TValue> {
   const deadline = typeof options.expiresInSeconds === 'number' ? Date.now() + options.expiresInSeconds * 1000 : Number.POSITIVE_INFINITY
   let intervalMs = Math.max(MINIMUM_INTERVAL_MS, Math.floor((options.intervalSeconds ?? DEFAULT_POLL_INTERVAL_SECONDS) * 1000))
   let slowDownResponses = 0

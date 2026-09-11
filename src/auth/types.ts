@@ -1,11 +1,11 @@
-export type OAuthCredential = {
+export interface OAuthCredential {
   type: 'oauth'
   access: string
   refresh: string
   expires: number
   accountId?: string
   enterpriseUrl?: string
-  availableModelIds?: string[]
+  availableModelIds?: Array<string>
 }
 
 export type AuthNotifyEvent =
@@ -19,16 +19,16 @@ export type AuthNotifyEvent =
     }
   | { type: 'progress'; message: string }
 
-export type AuthInteraction = {
+export interface AuthInteraction {
   signal: AbortSignal
   notify: (event: AuthNotifyEvent) => void
 }
 
-export type AuthLoginOptions = {
+export interface AuthLoginOptions {
   enterpriseDomain?: string
 }
 
-export type OAuthAuth = {
+export interface OAuthAuth {
   id: string
   name: string
   login: (interaction: AuthInteraction, options?: AuthLoginOptions) => Promise<OAuthCredential>

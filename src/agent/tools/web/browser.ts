@@ -89,7 +89,7 @@ async function getBrowser(): Promise<Browser> {
 
 const PAGE_LIMIT = 4
 let pagesOpen = 0
-const waiters: (() => void)[] = []
+const waiters: Array<() => void> = []
 async function acquirePageSlot(): Promise<void> {
   if (pagesOpen < PAGE_LIMIT) {
     pagesOpen++
@@ -153,7 +153,7 @@ export const assertSafeUrl = (raw: string, allowPrivate = false): URL => {
   return parsed
 }
 
-export type RenderedPage = {
+export interface RenderedPage {
   url: string
   contentType: string
   status: number

@@ -2,7 +2,7 @@ import type { RGBA } from '@opentui/core'
 import { theme } from '@states/theme-state.ts'
 import { Show } from 'solid-js'
 
-export type StatusSegmentProps = {
+export interface StatusSegmentProps {
   icon: string
   label?: string
   value: string

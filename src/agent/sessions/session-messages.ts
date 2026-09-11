@@ -6,7 +6,7 @@ function isPreliminaryToolPart(part: unknown): boolean {
   return typeof part === 'object' && part !== null && 'preliminary' in part && part.preliminary === true
 }
 
-export function sanitizeMessages<M extends UIMessage>(messages: M[]): M[] {
+export function sanitizeMessages<M extends UIMessage>(messages: Array<M>): Array<M> {
   return messages.flatMap((m) => {
     const parts = m.parts.filter((part) => {
       if (part.type !== 'dynamic-tool' && !part.type.startsWith('tool-')) return true
@@ -17,7 +17,7 @@ export function sanitizeMessages<M extends UIMessage>(messages: M[]): M[] {
   })
 }
 
-export function stripUnreplayableReasoning<M extends UIMessage>(messages: M[]): M[] {
+export function stripUnreplayableReasoning<M extends UIMessage>(messages: Array<M>): Array<M> {
   return messages.map((m) => {
     if (m.role !== 'assistant') return m
     let changed = false
@@ -43,7 +43,7 @@ export function hasVisibleResponse(m: UIMessage): boolean {
   })
 }
 
-export function lastAssistantText(messages: UIMessage[]): string | undefined {
+export function lastAssistantText(messages: Array<UIMessage>): string | undefined {
   for (let i = messages.length - 1; i >= 0; i--) {
     const m = messages[i]
     if (!m) continue
@@ -58,7 +58,7 @@ export function lastAssistantText(messages: UIMessage[]): string | undefined {
   return undefined
 }
 
-export function dropUnansweredPrompt<M extends UIMessage>(messages: M[]): M[] {
+export function dropUnansweredPrompt<M extends UIMessage>(messages: Array<M>): Array<M> {
   const last = messages[messages.length - 1]
   if (!last) return messages
   if (last.role === 'assistant' && !hasVisibleResponse(last)) {
@@ -72,7 +72,7 @@ export function dropUnansweredPrompt<M extends UIMessage>(messages: M[]): M[] {
 
 const RUNNING_TOOL_STATES = new Set(['input-streaming', 'input-available'])
 
-export function settleAbortedToolParts<M extends UIMessage>(messages: M[]): M[] {
+export function settleAbortedToolParts<M extends UIMessage>(messages: Array<M>): Array<M> {
   let changed = false
   const out = messages.map((m) => {
     let messageChanged = false
@@ -90,7 +90,7 @@ export function settleAbortedToolParts<M extends UIMessage>(messages: M[]): M[] 
   return changed ? out : messages
 }
 
-export function settleStreamingParts<M extends UIMessage>(messages: M[]): M[] {
+export function settleStreamingParts<M extends UIMessage>(messages: Array<M>): Array<M> {
   let changed = false
   const out = messages.map((m) => {
     let messageChanged = false
@@ -109,7 +109,7 @@ export function settleStreamingParts<M extends UIMessage>(messages: M[]): M[] {
   return changed ? out : messages
 }
 
-export function stripAnalysedImages<M extends UIMessage>(messages: M[]): M[] {
+export function stripAnalysedImages<M extends UIMessage>(messages: Array<M>): Array<M> {
   let changed = false
   const out = messages.map((m) => {
     let messageChanged = false

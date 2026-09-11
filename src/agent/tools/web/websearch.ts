@@ -26,8 +26,8 @@ export const WebsearchProgressSchema = z.object({
 export const WebsearchStreamChunkSchema = z.union([WebsearchToolOutputSchema, WebsearchProgressSchema])
 const SEARCH_ENDPOINT = 'https://html.duckduckgo.com/html/'
 
-export type ParsedSearchPage = {
-  results: { title: string; url: string; snippet: string }[]
+export interface ParsedSearchPage {
+  results: Array<{ title: string; url: string; snippet: string }>
   nextOffset: number | null
 }
 
@@ -48,7 +48,7 @@ export function resolveDdgHref(href: string): string | null {
 }
 
 export function parseSearchPage(html: string): ParsedSearchPage {
-  const results: { title: string; url: string; snippet: string }[] = []
+  const results: Array<{ title: string; url: string; snippet: string }> = []
   const anchorRe = /<a\b([^>]*)>([\s\S]*?)<\/a>/g
   for (const match of html.matchAll(anchorRe)) {
     const attrs = match[1] ?? ''
@@ -86,7 +86,7 @@ export const websearchTool = {
   kind: 'external' as const,
   handler: async function* (args: z.infer<typeof WebsearchToolArgsSchema>): AsyncGenerator<z.infer<typeof WebsearchStreamChunkSchema>> {
     const seen = new Set<string>()
-    const results: z.infer<typeof WebsearchResultSchema>[] = []
+    const results: Array<z.infer<typeof WebsearchResultSchema>> = []
     const snapshot = () => results.map((r) => ({ ...r }))
     let offset: number | null = null
     let pages = 0
@@ -126,7 +126,7 @@ export const websearchTool = {
     }
     let completed = 0
     type Slot = { promise: Promise<void>; done: boolean }
-    const slots: Slot[] = []
+    const slots: Array<Slot> = []
     const launch = (result: z.infer<typeof WebsearchResultSchema>): Slot => {
       const slot: Slot = { promise: Promise.resolve(), done: false }
       slot.promise = (async () => {

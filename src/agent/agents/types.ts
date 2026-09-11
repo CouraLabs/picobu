@@ -1,9 +1,9 @@
 export type AgentCategory = 'coding' | 'persistent'
-export type AgentType = {
+export interface AgentType {
   name: string
   description: string
   category: AgentCategory
-  tools: string[]
+  tools: Array<string>
   model?: string
   temperature?: number
   topP?: number

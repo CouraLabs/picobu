@@ -16,24 +16,24 @@ import { clearStreamBackup, recoverStreamBackup, writeStreamBackup } from '@agen
 import { options, type ProviderModelReasoningEffort } from '@config/options.ts'
 import { type AsyncIterableStream, type ChatInit, type ChatState, type ChatStatus, type ChatTransport, type CreateUIMessage, generateId, readUIMessageStream, type UIMessageChunk } from 'ai'
 
-export type SessionUsage = {
+export interface SessionUsage {
   finishReason?: string
 }
 
 export type SessionPrompt = string | CreateUIMessage<LoopMessage>
-export type QueuedFile = {
+export interface QueuedFile {
   mediaType: string
   filename?: string
   url: string
 }
-export type QueuedPrompt = {
+export interface QueuedPrompt {
   id: string
   text: string
   queuedAt: number
   steered: boolean
-  files: QueuedFile[]
+  files: Array<QueuedFile>
 }
-type PendingPrompt = {
+interface PendingPrompt {
   id: string
   queuedAt: number
   steered: boolean
@@ -43,14 +43,17 @@ type PendingPrompt = {
 }
 
 export type FlowToolName = 'ask' | 'plan-write'
-export type FlowToolOutput = { status: string; message: string }
-export type RespondFlowToolInput = {
+export interface FlowToolOutput {
+  status: string
+  message: string
+}
+export interface RespondFlowToolInput {
   tool: FlowToolName
   toolCallId: string
   output: FlowToolOutput
 }
 
-type LooseFlowPart = {
+interface LooseFlowPart {
   type?: unknown
   toolName?: unknown
   toolCallId?: unknown
@@ -65,7 +68,7 @@ const flowToolPartName = (part: LooseFlowPart): string | undefined => {
   return undefined
 }
 
-const findFlowPart = (messages: LoopMessage[], tool: string, toolCallId: string): { message: LoopMessage; part: LooseFlowPart } | undefined => {
+const findFlowPart = (messages: Array<LoopMessage>, tool: string, toolCallId: string): { message: LoopMessage; part: LooseFlowPart } | undefined => {
   for (let i = messages.length - 1; i >= 0; i--) {
     const message = messages[i]
     if (!message) continue
@@ -93,8 +96,8 @@ export const queuedTextFromMessage = (message: CreateUIMessage<LoopMessage>): st
     .map((p) => p.text)
     .join('\n')
 
-export const queuedFilesFromMessage = (message: CreateUIMessage<LoopMessage>): QueuedFile[] => {
-  const out: QueuedFile[] = []
+export const queuedFilesFromMessage = (message: CreateUIMessage<LoopMessage>): Array<QueuedFile> => {
+  const out: Array<QueuedFile> = []
   for (const raw of message.parts ?? []) {
     const part = raw as { type?: unknown; mediaType?: unknown; filename?: unknown; url?: unknown }
     if (part.type !== 'file') continue
@@ -108,21 +111,21 @@ export const queuedFilesFromMessage = (message: CreateUIMessage<LoopMessage>): Q
   return out
 }
 
-export type Session = {
+export interface Session {
   readonly id: string
   readonly status: ChatStatus
   readonly error: Error | undefined
-  readonly messages: LoopMessage[]
+  readonly messages: Array<LoopMessage>
   readonly lastMessage: LoopMessage | undefined
   readonly config: LoopConfig
   readonly title: string | undefined
-  readonly skills: Command[]
-  readonly workflows: Command[]
-  readonly rules: Rule[]
+  readonly skills: Array<Command>
+  readonly workflows: Array<Command>
+  readonly rules: Array<Rule>
   readonly agents: ReturnType<typeof listAgents>
   readonly mcp: {
-    servers: () => Promise<import('@integrations/mcp/client.ts').McpServerSnapshot[]>
-    tools: () => Promise<string[]>
+    servers: () => Promise<Array<import('@integrations/mcp/client.ts').McpServerSnapshot>>
+    tools: () => Promise<Array<string>>
     refresh: () => Promise<void>
     reload: () => Promise<void>
   }
@@ -145,10 +148,10 @@ export type Session = {
   switchModel: (modelKey: string) => void
   switchThinking: (thinking: ProviderModelReasoningEffort) => void
   queue: (prompt: SessionPrompt) => void
-  readonly queued: QueuedPrompt[]
+  readonly queued: Array<QueuedPrompt>
   readonly queuedCount: number
   removeQueued: (id: string) => boolean
-  onQueueChange: (listener: (items: QueuedPrompt[]) => void) => () => void
+  onQueueChange: (listener: (items: Array<QueuedPrompt>) => void) => () => void
   onStatsChange: (listener: (stats: LoopStats) => void) => () => void
   dequeueNewest: () => QueuedPrompt | undefined
   stream: () => AsyncGenerator<UIMessageChunk>
@@ -168,7 +171,7 @@ export type CreateSessionInit = Omit<ChatInit<LoopMessage>, 'transport'> & {
   }
 }
 
-const deriveState = (chat: { status: ChatStatus; error: Error | undefined; messages: LoopMessage[] }): SessionState =>
+const deriveState = (chat: { status: ChatStatus; error: Error | undefined; messages: Array<LoopMessage> }): SessionState =>
   chat.status === 'submitted' || chat.status === 'streaming' ? 'running' : chat.error ? 'error' : isWaiting(chat.messages) ? 'waiting' : 'finished'
 
 export async function createSession(init: CreateSessionInit): Promise<Session> {
@@ -179,12 +182,12 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
   const folderKey = folderKeyFor(cwd)
   const saver = new SessionSaver(sessionFilePath(folderKey, id))
   const storedMessages = messages ?? (sessionId ? await loadSession(folderKey, id) : undefined)
-  let initialMessages = storedMessages as LoopMessage[] | undefined
+  let initialMessages = storedMessages as Array<LoopMessage> | undefined
   if (!messages) {
     try {
       const recovered = await recoverStreamBackup(folderKey, id)
       if (recovered) {
-        initialMessages = recovered as LoopMessage[]
+        initialMessages = recovered as Array<LoopMessage>
         await saver.save(initialMessages)
         await clearStreamBackup(folderKey, id)
       }
@@ -243,9 +246,9 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
     reconnectToStream: (options) => loop.transport.reconnectToStream(options),
   }
 
-  const pendingPrompts: PendingPrompt[] = []
-  const queueListeners = new Set<(items: QueuedPrompt[]) => void>()
-  const snapshotQueued = (): QueuedPrompt[] =>
+  const pendingPrompts: Array<PendingPrompt> = []
+  const queueListeners = new Set<(items: Array<QueuedPrompt>) => void>()
+  const snapshotQueued = (): Array<QueuedPrompt> =>
     pendingPrompts.map((item) => ({
       id: item.id,
       text: queuedTextFromMessage(item.message),
@@ -404,7 +407,7 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
 
   const streamChunks = (): AsyncGenerator<UIMessageChunk> =>
     (async function* () {
-      const queue: UIMessageChunk[] = []
+      const queue: Array<UIMessageChunk> = []
       let notify: () => void = () => {}
       let ended = false
       const listener = (chunk: UIMessageChunk) => {

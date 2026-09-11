@@ -1,16 +1,16 @@
-export type McpServerOptions = {
+export interface McpServerOptions {
   id: string
   type: 'http' | 'sse' | 'stdio'
   url?: string
   headers?: Record<string, string>
   command?: string
-  args?: string[]
+  args?: Array<string>
   env?: Record<string, string>
   auth?: boolean
   instructions?: string
   maxRetries?: number
 }
-export type McpOptions = {
+export interface McpOptions {
   servers: Record<string, McpServerOptions>
 }
 export const DEFAULT_MCP_OPTIONS: McpOptions = { servers: {} }
@@ -80,14 +80,14 @@ export const normalizeServer = (id: string, raw: unknown): McpServerOptions => {
   return server
 }
 
-export const normalizeServerMap = (raw: unknown): McpServerOptions[] => {
+export const normalizeServerMap = (raw: unknown): Array<McpServerOptions> => {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
     throw new Error('MCP server config must be an object of servers')
   }
   return Object.entries(raw as Record<string, unknown>).map(([id, entry]) => normalizeServer(id, entry))
 }
 
-export const mergeMcpServers = (globalServers: McpServerOptions[], projectServers: McpServerOptions[]): McpServerOptions[] => {
+export const mergeMcpServers = (globalServers: Array<McpServerOptions>, projectServers: Array<McpServerOptions>): Array<McpServerOptions> => {
   const merged = new Map<string, McpServerOptions>()
   for (const server of globalServers) merged.set(server.id, server)
   for (const server of projectServers) merged.set(server.id, server)

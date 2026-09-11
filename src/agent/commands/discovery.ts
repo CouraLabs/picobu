@@ -7,9 +7,9 @@ import { parseMarkdown, parseMarkdownFile } from '@agent/markdown/markdown-parse
 import { BUILTIN_WORKFLOWS } from '@agent/workflows/builtin.ts'
 import { options } from '@config/options.ts'
 
-const skillRoots = (cwd: string): string[] => [join(cwd, '.agents', 'skills'), join(options.app.systemDir, 'skills'), join(options.app.homeDir, '.agents', 'skills')]
+const skillRoots = (cwd: string): Array<string> => [join(cwd, '.agents', 'skills'), join(options.app.systemDir, 'skills'), join(options.app.homeDir, '.agents', 'skills')]
 
-const workflowRoots = (cwd: string): string[] => [
+const workflowRoots = (cwd: string): Array<string> => [
   join(cwd, '.agents', 'workflows'),
   join(cwd, '.agents', 'prompts'),
   join(cwd, '.agents', 'commands'),
@@ -30,7 +30,7 @@ const humanize = (s: string): string =>
 
 const collides = (taken: Set<string>, entry: Command): boolean => taken.has(entry.name.toLowerCase()) || entry.aliases.some((a) => taken.has(a.toLowerCase()))
 
-const tryRegister = (taken: Set<string>, list: Command[], entry: Command): boolean => {
+const tryRegister = (taken: Set<string>, list: Array<Command>, entry: Command): boolean => {
   if (collides(taken, entry)) return false
   list.push(entry)
   taken.add(entry.name.toLowerCase())
@@ -72,9 +72,9 @@ const fileExistsSync = (p: string): boolean => {
   }
 }
 
-async function scanSkills(root: string, taken: Set<string>, out: Command[]): Promise<void> {
+async function scanSkills(root: string, taken: Set<string>, out: Array<Command>): Promise<void> {
   if (!(await dirExists(root))) return
-  let entries: Dirent[]
+  let entries: Array<Dirent>
   try {
     entries = await readdir(root, { withFileTypes: true })
   } catch (err) {
@@ -106,9 +106,9 @@ async function scanSkills(root: string, taken: Set<string>, out: Command[]): Pro
   }
 }
 
-async function scanWorkflows(root: string, taken: Set<string>, out: Command[]): Promise<void> {
+async function scanWorkflows(root: string, taken: Set<string>, out: Array<Command>): Promise<void> {
   if (!(await dirExists(root))) return
-  let files: string[]
+  let files: Array<string>
   try {
     files = (await readdir(root)).filter((f) => f.endsWith('.md'))
   } catch (err) {
@@ -135,9 +135,9 @@ async function scanWorkflows(root: string, taken: Set<string>, out: Command[]): 
   }
 }
 
-function scanSkillsSync(root: string, taken: Set<string>, out: Command[]): void {
+function scanSkillsSync(root: string, taken: Set<string>, out: Array<Command>): void {
   if (!dirExistsSync(root)) return
-  let entries: Dirent[]
+  let entries: Array<Dirent>
   try {
     entries = readdirSync(root, { withFileTypes: true })
   } catch (err) {
@@ -169,9 +169,9 @@ function scanSkillsSync(root: string, taken: Set<string>, out: Command[]): void 
   }
 }
 
-function scanWorkflowsSync(root: string, taken: Set<string>, out: Command[]): void {
+function scanWorkflowsSync(root: string, taken: Set<string>, out: Array<Command>): void {
   if (!dirExistsSync(root)) return
-  let files: string[]
+  let files: Array<string>
   try {
     files = readdirSync(root).filter((f) => f.endsWith('.md'))
   } catch (err) {
@@ -198,7 +198,7 @@ function scanWorkflowsSync(root: string, taken: Set<string>, out: Command[]): vo
   }
 }
 
-const registerBuiltinWorkflows = (out: Command[]): void => {
+const registerBuiltinWorkflows = (out: Array<Command>): void => {
   const takenKebab = new Set(out.filter((c) => c.kind === 'workflow').flatMap((c) => [toKebab(c.name), ...c.aliases.map((a) => toKebab(a))]))
   for (const builtin of BUILTIN_WORKFLOWS) {
     if (takenKebab.has(toKebab(builtin.name))) continue
@@ -206,8 +206,8 @@ const registerBuiltinWorkflows = (out: Command[]): void => {
   }
 }
 
-export const loadCommandCatalog = async (cwd: string = options.app.cwd): Promise<Command[]> => {
-  const cmd: Command[] = []
+export const loadCommandCatalog = async (cwd: string = options.app.cwd): Promise<Array<Command>> => {
+  const cmd: Array<Command> = []
   const taken = new Set<string>()
   for (const root of skillRoots(cwd)) await scanSkills(root, taken, cmd)
   for (const root of workflowRoots(cwd)) await scanWorkflows(root, taken, cmd)
@@ -215,8 +215,8 @@ export const loadCommandCatalog = async (cwd: string = options.app.cwd): Promise
   return cmd
 }
 
-export const loadCommandCatalogSync = (cwd: string = options.app.cwd): Command[] => {
-  const cmd: Command[] = []
+export const loadCommandCatalogSync = (cwd: string = options.app.cwd): Array<Command> => {
+  const cmd: Array<Command> = []
   const taken = new Set<string>()
   for (const root of skillRoots(cwd)) scanSkillsSync(root, taken, cmd)
   for (const root of workflowRoots(cwd)) scanWorkflowsSync(root, taken, cmd)
@@ -224,7 +224,7 @@ export const loadCommandCatalogSync = (cwd: string = options.app.cwd): Command[]
   return cmd
 }
 
-const commandParams = (rest: string): { param: string; value: string }[] => [
+const commandParams = (rest: string): Array<{ param: string; value: string }> => [
   { param: '{APP_NAME}', value: options.app.name },
   { param: '{APP_CWD}', value: options.app.cwd },
   { param: '{APP_OS}', value: options.app.os },

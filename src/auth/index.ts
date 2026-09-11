@@ -7,15 +7,19 @@ import { getCredential, initAuth, listCredentials, setCredential } from '@auth/s
 import type { OAuthAuth } from '@auth/types.ts'
 
 const REFRESH_GRACE_MS = 5 * 60 * 1000
-export const OAUTH_AUTHS: OAuthAuth[] = [openaiOAuth, anthropicOAuth, githubCopilotOAuth]
+export const OAUTH_AUTHS: Array<OAuthAuth> = [openaiOAuth, anthropicOAuth, githubCopilotOAuth]
 const PROVIDER_ALIASES: Record<string, string> = { copilot: 'github-copilot', claude: 'anthropic', chatgpt: 'openai' }
 export const oauthAuthById = (raw: string): OAuthAuth | undefined => {
   const normalized = raw.trim().toLowerCase()
   const id = PROVIDER_ALIASES[normalized] ?? normalized
   return OAUTH_AUTHS.find((auth) => auth.id === id)
 }
-export type OAuthProviderInfo = { id: string; name: string; loggedIn: boolean }
-export const listOAuthProviders = (): OAuthProviderInfo[] =>
+export interface OAuthProviderInfo {
+  id: string
+  name: string
+  loggedIn: boolean
+}
+export const listOAuthProviders = (): Array<OAuthProviderInfo> =>
   OAUTH_AUTHS.map((auth) => ({
     id: auth.id,
     name: auth.name,

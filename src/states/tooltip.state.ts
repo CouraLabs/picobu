@@ -1,7 +1,7 @@
 import type { JSX } from '@opentui/solid/jsx-runtime'
 import { createSignal } from 'solid-js'
 
-export type TooltipPlacement = {
+export interface TooltipPlacement {
   x: number
   y: number
   width: number
@@ -10,7 +10,7 @@ export type TooltipPlacement = {
 
 export type TooltipPosition = 'top' | 'bottom'
 
-export type TooltipOpenState = {
+export interface TooltipOpenState {
   content: () => JSX.Element
   placement: TooltipPlacement
   maxWidth: number

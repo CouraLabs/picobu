@@ -11,7 +11,7 @@ export const initLockDir = (systemDir: string): void => {
   lockDir = systemDir
 }
 const ourPid = process.pid
-export type LockHandle = {
+export interface LockHandle {
   path: string
   release: () => void
 }
@@ -109,7 +109,7 @@ export async function acquireLock(filePath: string): Promise<LockHandle> {
     throw error
   }
 }
-export async function withLock<T>(filePath: string, fn: () => Promise<T>): Promise<T> {
+export async function withLock<TValue>(filePath: string, fn: () => Promise<TValue>): Promise<TValue> {
   const path = resolve(filePath)
   assertSafeLockPath(path)
   const nesting = lockNesting.getStore()

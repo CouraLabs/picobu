@@ -7,9 +7,9 @@ import type { AgentTool } from '@agent/tools/toolset.ts'
 import type { McpManager } from '@integrations/mcp/client.ts'
 import type { ToolLoopAgentSettings, ToolSet } from 'ai'
 
-export type PrepareCallDeps = {
+export interface PrepareCallDeps {
   getConfig: () => LoopConfig
-  toolSet: { getTools: (names?: string[]) => AgentTool[]; getToolSet: (names?: string[]) => ToolSet }
+  toolSet: { getTools: (names?: Array<string>) => Array<AgentTool>; getToolSet: (names?: Array<string>) => ToolSet }
   mcp: McpManager
   buildSystem: (agentId: string) => Promise<string>
 }
@@ -31,7 +31,7 @@ export const createPrepareCall = (deps: PrepareCallDeps): ToolLoopAgentSettings<
       toolOrder: buildToolOrder(Object.keys(tools), (name) => localKindByName.get(name) ?? 'mcp'),
       activeTools: agentDef.tools.length ? agentDef.tools : undefined,
       instructions: await buildSystem(persistent ? 'persistent' : config.agentId),
-      reasoning: config.thinking as unknown as AgentReasoning,
+      reasoning: config.thinking as AgentReasoning,
       providerOptions: {
         cacheControl: { type: 'ephemeral', ttl: '1h' },
       },

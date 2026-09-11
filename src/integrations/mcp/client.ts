@@ -9,7 +9,7 @@ import { describeError } from '@shared/error-report.ts'
 
 const TOOL_TTL_MS = 60_000
 
-type McpServerRuntime = {
+interface McpServerRuntime {
   server: McpServerOptions
   client?: MCPClient
   error?: string
@@ -17,7 +17,7 @@ type McpServerRuntime = {
   serverInstructions?: string
 }
 
-export type McpServerSnapshot = {
+export interface McpServerSnapshot {
   id: string
   type: 'http' | 'sse' | 'stdio'
   connected: boolean
@@ -27,13 +27,16 @@ export type McpServerSnapshot = {
   tools: ListToolsResult['tools']
 }
 
-type ReattachState = { sessionId?: string; initializeResult?: InitializeResult }
+interface ReattachState {
+  sessionId?: string
+  initializeResult?: InitializeResult
+}
 const reattach = new Map<string, ReattachState>()
 
 type McpTools = Awaited<ReturnType<MCPClient['tools']>>
-export type McpManager = {
+export interface McpManager {
   tools: () => Promise<McpTools>
-  snapshot: () => Promise<McpServerSnapshot[]>
+  snapshot: () => Promise<Array<McpServerSnapshot>>
   refresh: () => Promise<void>
   connectAll: () => Promise<void>
   readonly generation: number
@@ -41,12 +44,12 @@ export type McpManager = {
 }
 
 export type McpTransportFactory = (server: McpServerOptions) => MCPClientConfig['transport']
-export const createMcpManager = (opts: { dir?: string; servers?: McpServerOptions[]; transportFactory?: McpTransportFactory } = {}): McpManager => {
+export const createMcpManager = (opts: { dir?: string; servers?: Array<McpServerOptions>; transportFactory?: McpTransportFactory } = {}): McpManager => {
   const runtimes = new Map<string, McpServerRuntime>()
   const connecting = new Map<string, Promise<void>>()
   let generation = 0
   let toolCache: { namespaced: McpTools; expiresAt: number } | undefined
-  const configServers = async (): Promise<McpServerOptions[]> => opts.servers ?? (await loadMcpConfig(opts.dir ?? options.app.cwd))
+  const configServers = async (): Promise<Array<McpServerOptions>> => opts.servers ?? (await loadMcpConfig(opts.dir ?? options.app.cwd))
   const runtimeFor = (server: McpServerOptions): McpServerRuntime => {
     let runtime = runtimes.get(server.id)
     if (!runtime) {
@@ -167,7 +170,7 @@ export const createMcpManager = (opts: { dir?: string; servers?: McpServerOption
     toolCache = { namespaced, expiresAt: Date.now() + TOOL_TTL_MS }
     return namespaced
   }
-  const snapshot = async (): Promise<McpServerSnapshot[]> => {
+  const snapshot = async (): Promise<Array<McpServerSnapshot>> => {
     await ensureConnected()
     const servers = await configServers()
     return servers.map((server) => {

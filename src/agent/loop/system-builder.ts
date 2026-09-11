@@ -12,16 +12,16 @@ import type { McpManager } from '@integrations/mcp/client.ts'
 import { renderMcpServerToolsInfo } from '@integrations/mcp/tools-info.ts'
 import type { ToolSet } from 'ai'
 
-export type SystemBuilderDeps = {
+export interface SystemBuilderDeps {
   getConfig: () => LoopConfig
   cwd: string
-  toolSet: { getTools: (names?: string[]) => AgentTool[]; getToolSet: (names?: string[]) => ToolSet }
+  toolSet: { getTools: (names?: Array<string>) => Array<AgentTool>; getToolSet: (names?: Array<string>) => ToolSet }
   mcp: McpManager
 }
 
 export const createSystemBuilder = (deps: SystemBuilderDeps): { buildSystem: (agentId: string) => Promise<string> } => {
   const { getConfig, cwd, toolSet, mcp } = deps
-  const mcpInfo = async (agentDef: { tools: string[] }): Promise<string> => {
+  const mcpInfo = async (agentDef: { tools: Array<string> }): Promise<string> => {
     const hasMcpTools = agentDef.tools.length === 0 || agentDef.tools.some((name) => name.startsWith('mcp_'))
     if (!hasMcpTools) return ''
     const snapshots = await mcp.snapshot()

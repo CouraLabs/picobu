@@ -9,14 +9,14 @@ import { lastAssistantText } from '@agent/sessions/session-messages.ts'
 import { generateSessionId } from '@agent/sessions/session-paths.ts'
 import { truncate } from '@shared/text-stats.ts'
 
-export type SpawnSubSessionParams = {
+export interface SpawnSubSessionParams {
   parentId: string
   subagent: string
   prompt: SessionPrompt
   depth: number
 }
 
-export type SpawnContext = {
+export interface SpawnContext {
   manager: SessionManager
   cwd: string
   maxAgents: number

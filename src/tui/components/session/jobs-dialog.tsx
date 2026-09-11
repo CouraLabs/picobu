@@ -6,7 +6,7 @@ import { theme } from '@states/theme-state.ts'
 import { Button } from '@tui/components/button.tsx'
 import { createSignal, For, onCleanup, onMount } from 'solid-js'
 
-export type JobsDialogProps = {
+export interface JobsDialogProps {
   manager: SessionManager
   onOpenSession: (sessionId: string, label: string) => void
 }
@@ -26,7 +26,7 @@ const JobRowView = (props: { job: JobRow; live: boolean; onOpen: () => void; onA
 )
 
 const JobsDialogView = (props: JobsDialogProps) => {
-  const [jobs, setJobs] = createSignal<JobRow[]>(props.manager.jobs().slice(-100))
+  const [jobs, setJobs] = createSignal<Array<JobRow>>(props.manager.jobs().slice(-100))
 
   onMount(() => {
     const off = props.manager.onJobs((rows) => setJobs(rows.slice(-100)))

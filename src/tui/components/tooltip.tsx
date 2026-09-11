@@ -16,7 +16,7 @@ import {
 } from '@states/tooltip.state.ts'
 import { createEffect, createSignal, on, onCleanup, onMount, Show } from 'solid-js'
 
-export type TooltipProps = {
+export interface TooltipProps {
   content: JSX.Element
   maxWidth?: number
   position?: TooltipPosition

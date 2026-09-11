@@ -15,7 +15,7 @@ const abbreviate = (value: unknown): string => {
   const flat = text.replace(/\s+/g, ' ').trim()
   return flat.length > MAX_TOOL_CHARS ? `${flat.slice(0, MAX_TOOL_CHARS)}…` : flat
 }
-type LoosePart = {
+interface LoosePart {
   type: string
   text?: unknown
   state?: unknown
@@ -27,11 +27,11 @@ type LoosePart = {
 const isToolPart = (part: LoosePart): boolean => part.type === 'dynamic-tool' || part.type.startsWith('tool-')
 const toolPartName = (part: LoosePart): string => (part.type === 'dynamic-tool' ? String(part.toolName ?? 'unknown') : part.type.slice('tool-'.length))
 
-const serializeForSummary = (messages: UIMessage[]): string =>
+const serializeForSummary = (messages: Array<UIMessage>): string =>
   messages
     .flatMap((m) => {
       if (m.role !== 'user' && m.role !== 'assistant') return []
-      const lines = (m.parts as LoosePart[]).flatMap((part): string[] => {
+      const lines = (m.parts as Array<LoosePart>).flatMap((part): Array<string> => {
         if (part.type === 'text') {
           const text = typeof part.text === 'string' ? part.text.trim() : ''
           return text ? [`${m.role}: ${text}`] : []
@@ -52,12 +52,12 @@ export const summarizerPrompt = `Summarize the conversation below for a coding-a
 3. The current state: what exists now, what was verified.
 4. Anything pending or unresolved (open questions, failed steps, next steps).
 Be factual and concise; do not invent work that is not in the transcript.`
-export type SummarizeParams = {
-  messages: UIMessage[]
+export interface SummarizeParams {
+  messages: Array<UIMessage>
   modelKey: string
   thinking?: ProviderModelReasoningEffort
 }
-export type SummarizeResult = {
+export interface SummarizeResult {
   summary: string
 }
 
@@ -69,7 +69,7 @@ export async function summarizeSession({ messages, modelKey, thinking }: Summari
     model,
     system: summarizerPrompt,
     prompt: transcript,
-    ...(thinking !== undefined ? { reasoning: thinking as unknown as AgentReasoning } : {}),
+    ...(thinking !== undefined ? { reasoning: thinking as AgentReasoning } : {}),
   })
   const summary = text.trim()
   if (!summary) throw new Error('The model returned an empty summary')

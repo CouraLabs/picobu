@@ -9,11 +9,11 @@ import { theme } from '@states/theme-state.ts'
 import { pushToast } from '@states/toast.state.ts'
 import { getClipboardService } from '@tui/hooks/clipboard.state.ts'
 import { icons } from '@tui/themes/icons.ts'
-import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show } from 'solid-js'
+import { batch, createEffect, createMemo, createSignal, For, mergeProps, on, onCleanup, onMount, Show } from 'solid-js'
 
 export type PromptMode = 'normal' | 'steer'
 
-export type AttachedFile = {
+export interface AttachedFile {
   id: string
   seq: number
   mediaType: string
@@ -22,18 +22,18 @@ export type AttachedFile = {
   bytes: Uint8Array
 }
 
-export type PromptPayload = {
+export interface PromptPayload {
   text: string
-  files: AttachedFile[]
+  files: Array<AttachedFile>
 }
 
-export type EditRequest = {
+export interface EditRequest {
   text: string
-  files: AttachedFile[]
+  files: Array<AttachedFile>
   nonce: number
 }
 
-export type SessionPromptProps = {
+export interface SessionPromptProps {
   onPrompt: (payload: PromptPayload) => void
   streaming?: boolean
   waiting?: boolean
@@ -45,7 +45,7 @@ export type SessionPromptProps = {
   historyProjectKey: string
 }
 
-type CommandItem = {
+interface CommandItem {
   label: string
   description: string
   kind: CommandKind
@@ -57,7 +57,10 @@ const MAX_FILE_BYTES = 10 * 1024 * 1024
 
 export const HISTORY_DOUBLE_PRESS_MS = 100
 
-export type HistoryKeyPress = { name: 'up' | 'down'; time: number }
+export interface HistoryKeyPress {
+  name: 'up' | 'down'
+  time: number
+}
 
 export const isDoublePress = (prev: HistoryKeyPress | null, name: HistoryKeyPress['name'], now: number): boolean => prev !== null && prev.name === name && now - prev.time <= HISTORY_DOUBLE_PRESS_MS
 
@@ -71,18 +74,18 @@ export const fileToken = (seq: number, mediaType: string, size: number): string 
 
 const tokenPattern = /\[(\d+) ([^\s\]]+) ([^\]]+)\]/g
 
-export const parseTokenSeqs = (text: string): number[] => {
-  const out: number[] = []
+export const parseTokenSeqs = (text: string): Array<number> => {
+  const out: Array<number> = []
   for (const match of text.matchAll(tokenPattern)) out.push(Number(match[1]))
   return out
 }
 
-export const retainReferencedFiles = (staged: AttachedFile[], text: string): AttachedFile[] => {
+export const retainReferencedFiles = (staged: Array<AttachedFile>, text: string): Array<AttachedFile> => {
   const seqs = new Set(parseTokenSeqs(text))
   return staged.filter((f) => seqs.has(f.seq))
 }
 
-export const nextFileSeq = (staged: AttachedFile[]): number => {
+export const nextFileSeq = (staged: Array<AttachedFile>): number => {
   const used = new Set(staged.map((f) => f.seq))
   let seq = 1
   while (used.has(seq)) seq += 1
@@ -90,12 +93,13 @@ export const nextFileSeq = (staged: AttachedFile[]): number => {
 }
 
 export const SessionPrompt = (props: SessionPromptProps) => {
+  const merged = mergeProps({ streaming: false, waiting: false }, props)
   let textareaRef: TextareaRenderable | null = null
   const [text, setText] = createSignal('')
   const [highlight, setHighlight] = createSignal(0)
-  const [history, setHistory] = createSignal<string[]>([])
+  const [history, setHistory] = createSignal<Array<string>>([])
   const [navIndex, setNavIndex] = createSignal(-1)
-  const [files, setFiles] = createSignal<AttachedFile[]>([])
+  const [files, setFiles] = createSignal<Array<AttachedFile>>([])
   let draftStash = ''
   let draftTimer: ReturnType<typeof setTimeout> | undefined
   let prevKey = ''
@@ -103,12 +107,17 @@ export const SessionPrompt = (props: SessionPromptProps) => {
 
   onMount(() => {
     textareaRef?.focus()
-    prevKey = props.historyProjectKey
-    setHistory(loadPromptHistory(prevKey))
+    prevKey = merged.historyProjectKey
+    const initialHistory = loadPromptHistory(prevKey)
     const draft = loadDraft(prevKey)
     if (draft && (textareaRef?.plainText ?? '').length === 0) {
       textareaRef?.setText(draft)
-      setText(draft)
+      batch(() => {
+        setHistory(initialHistory)
+        setText(draft)
+      })
+    } else {
+      setHistory(initialHistory)
     }
   })
 
@@ -117,25 +126,28 @@ export const SessionPrompt = (props: SessionPromptProps) => {
   })
 
   createEffect(() => {
-    const key = props.historyProjectKey
+    const key = merged.historyProjectKey
     if (!key || key === prevKey) return
     const current = textareaRef?.plainText ?? ''
     if (current.trim().length > 0 && navIndex() === -1) saveDraft(current, prevKey)
     prevKey = key
-    setNavIndex(-1)
     draftStash = ''
-    setHistory(loadPromptHistory(key))
-    setFiles([])
+    const nextHistory = loadPromptHistory(key)
     const draft = loadDraft(key)
     textareaRef?.setText(draft)
-    setText(draft)
+    batch(() => {
+      setNavIndex(-1)
+      setHistory(nextHistory)
+      setFiles([])
+      setText(draft)
+    })
   })
 
   const scheduleDraft = () => {
     if (draftTimer !== undefined) clearTimeout(draftTimer)
     draftTimer = setTimeout(() => {
       if (navIndex() !== -1) return
-      saveDraft(textareaRef?.plainText ?? '', props.historyProjectKey)
+      saveDraft(textareaRef?.plainText ?? '', merged.historyProjectKey)
     }, DRAFT_DEBOUNCE_MS)
   }
 
@@ -146,48 +158,54 @@ export const SessionPrompt = (props: SessionPromptProps) => {
     if (kept.length !== staged.length) setFiles(kept)
   }
 
-  const queueMode = () => props.streaming === true
-  const waitingMode = () => props.waiting === true
-  const steeringMode = () => props.mode === 'steer'
+  const queueMode = () => merged.streaming === true
+  const waitingMode = () => merged.waiting === true
+  const steeringMode = () => merged.mode === 'steer'
   const commandOpen = () => text().startsWith('/')
 
   createEffect(() => {
-    props.onCommandOpenChange?.(commandOpen())
+    merged.onCommandOpenChange?.(commandOpen())
   })
 
   createEffect(() => {
-    const nonce = props.commandExitNonce ?? 0
+    const nonce = merged.commandExitNonce ?? 0
     if (nonce > 0 && commandOpen()) {
       const next = text().replace(/^\//, '')
       textareaRef?.setText(next)
-      setText(next)
-      setHighlight(0)
+      batch(() => {
+        setText(next)
+        setHighlight(0)
+      })
     }
   })
 
   createEffect(() => {
-    const request = props.editRequest
+    const request = merged.editRequest
     if (!request || request.nonce <= 0 || request.nonce === lastEditNonce) return
     lastEditNonce = request.nonce
     const current = textareaRef?.plainText ?? ''
     const currentFiles = files()
     if (current.trim().length === 0) {
       textareaRef?.setText(request.text)
-      setText(request.text)
-      setFiles(request.files)
+      batch(() => {
+        setText(request.text)
+        setFiles(request.files)
+      })
     } else if (request.text.trim().length === 0) {
       return
     } else {
       textareaRef?.setText(`${current}\n${request.text}`)
-      setText(`${current}\n${request.text}`)
-      setFiles([...currentFiles, ...request.files])
+      batch(() => {
+        setText(`${current}\n${request.text}`)
+        setFiles([...currentFiles, ...request.files])
+      })
     }
     setNavIndex(-1)
     textareaRef?.focus()
     scheduleDraft()
   })
 
-  const catalogItems = createMemo<CommandItem[]>(() => {
+  const catalogItems = createMemo<Array<CommandItem>>(() => {
     void catalogVersion()
     try {
       const workflows = listCommands().filter((c) => c.kind === 'workflow')
@@ -234,16 +252,21 @@ export const SessionPrompt = (props: SessionPromptProps) => {
     return Math.min(items, cap)
   })
 
-  createEffect(() => {
-    const index = highlight()
-    void filteredItems().length
-    flyoutListRef?.scrollTo(Math.max(0, index - 2))
-  })
+  createEffect(
+    on([highlight, filteredItems], ([index]) => {
+      flyoutListRef?.scrollTo(Math.max(0, index - 2))
+    }),
+  )
 
-  createEffect(() => {
-    void text()
-    setHighlight(0)
-  })
+  createEffect(
+    on(
+      text,
+      () => {
+        setHighlight(0)
+      },
+      { defer: true },
+    ),
+  )
 
   const completeItem = (index: number) => {
     const item = filteredItems()[index]
@@ -281,14 +304,20 @@ export const SessionPrompt = (props: SessionPromptProps) => {
     if (navIndex() === -1) {
       draftStash = textareaRef?.plainText ?? ''
       const idx = items.length - 1
-      setNavIndex(idx)
-      textareaRef?.setText(items[idx] ?? '')
-      setText(items[idx] ?? '')
+      const next = items[idx] ?? ''
+      textareaRef?.setText(next)
+      batch(() => {
+        setNavIndex(idx)
+        setText(next)
+      })
     } else if (navIndex() > 0) {
       const idx = navIndex() - 1
-      setNavIndex(idx)
-      textareaRef?.setText(items[idx] ?? '')
-      setText(items[idx] ?? '')
+      const next = items[idx] ?? ''
+      textareaRef?.setText(next)
+      batch(() => {
+        setNavIndex(idx)
+        setText(next)
+      })
     }
     textareaRef?.gotoBufferEnd()
   }
@@ -304,14 +333,19 @@ export const SessionPrompt = (props: SessionPromptProps) => {
       return
     }
     if (navIndex() >= items.length - 1) {
-      setNavIndex(-1)
       textareaRef?.setText(draftStash)
-      setText(draftStash)
+      batch(() => {
+        setNavIndex(-1)
+        setText(draftStash)
+      })
     } else {
       const idx = navIndex() + 1
-      setNavIndex(idx)
-      textareaRef?.setText(items[idx] ?? '')
-      setText(items[idx] ?? '')
+      const next = items[idx] ?? ''
+      textareaRef?.setText(next)
+      batch(() => {
+        setNavIndex(idx)
+        setText(next)
+      })
     }
     textareaRef?.gotoBufferEnd()
   }
@@ -380,7 +414,7 @@ export const SessionPrompt = (props: SessionPromptProps) => {
     return sub.split('+')[0] ?? 'bin'
   }
 
-  const attachFiles = (entries: { mediaType: string; filename?: string; bytes: Uint8Array }[]) => {
+  const attachFiles = (entries: Array<{ mediaType: string; filename?: string; bytes: Uint8Array }>) => {
     const current = files()
     for (const entry of entries) {
       if (current.length >= MAX_FILES) {
@@ -397,8 +431,12 @@ export const SessionPrompt = (props: SessionPromptProps) => {
       current.push(file)
       textareaRef?.insertText(`${fileToken(seq, file.mediaType, file.size)} `)
     }
-    setFiles([...current])
-    setText(textareaRef?.plainText ?? '')
+    const nextText = textareaRef?.plainText ?? ''
+    const nextFiles = [...current]
+    batch(() => {
+      setFiles(nextFiles)
+      setText(nextText)
+    })
     textareaRef?.focus()
     scheduleDraft()
   }
@@ -502,19 +540,21 @@ export const SessionPrompt = (props: SessionPromptProps) => {
     if (staged.length > 0 && (referenced.length !== staged.length || seqs.length !== referenced.length)) {
       pushToast(`Sending ${referenced.length} of ${staged.length} file(s); pasted markers may have been edited`, 'warning')
     }
-    const key = props.historyProjectKey
+    const key = merged.historyProjectKey
     addPrompt(value, key)
     clearDraft(key)
-    setNavIndex(-1)
     draftStash = ''
-    props.onPrompt({ text: value, files: referenced })
+    merged.onPrompt({ text: value, files: referenced })
     textareaRef?.clear()
-    setText('')
-    setFiles([])
-    setHighlight(0)
+    batch(() => {
+      setNavIndex(-1)
+      setText('')
+      setFiles([])
+      setHighlight(0)
+    })
   }
 
-  const queueSuffix = () => (props.queueDepth > 0 ? ` (${props.queueDepth})` : '')
+  const queueSuffix = () => (merged.queueDepth > 0 ? ` (${merged.queueDepth})` : '')
 
   const borderColor = () => (waitingMode() ? theme().info : queueMode() ? theme().info : steeringMode() ? theme().error : commandOpen() ? theme().accent : theme().border)
   const titleColor = () => (waitingMode() ? theme().info : queueMode() ? theme().info : steeringMode() ? theme().error : commandOpen() ? theme().accent : theme().textMuted)

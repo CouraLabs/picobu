@@ -2,14 +2,14 @@ import type { Command } from '@agent/commands/types.ts'
 
 export type SystemCommandName = 'q' | 'models' | 'fork' | 'summarize' | 'roles' | 'cd' | 'new' | 'reload'
 
-export type SystemCommandDef = {
+export interface SystemCommandDef {
   name: SystemCommandName
-  aliases: string[]
+  aliases: Array<string>
   description: string
   usage: string
 }
 
-export const SYSTEM_COMMANDS: SystemCommandDef[] = [
+export const SYSTEM_COMMANDS: Array<SystemCommandDef> = [
   { name: 'q', aliases: ['exit', 'leave'], description: 'Quit the app', usage: '/q' },
   { name: 'models', aliases: [], description: 'Switch model', usage: '/models' },
   { name: 'fork', aliases: [], description: 'Fork the session at the last message', usage: '/fork' },
@@ -34,19 +34,19 @@ export const matchSystemCommand = (name: string): SystemCommandDef | undefined =
 }
 
 export type ParsedCommandLine =
-  | { kind: 'skills'; skills: string[]; prompt: string }
+  | { kind: 'skills'; skills: Array<string>; prompt: string }
   | { kind: 'system'; command: SystemCommandDef; args: string }
   | { kind: 'workflow'; command: Command; args: string }
   | { kind: 'unknown'; name: string }
 
-export const parseCommandLine = (text: string, catalog: Command[]): ParsedCommandLine | null => {
+export const parseCommandLine = (text: string, catalog: Array<Command>): ParsedCommandLine | null => {
   if (!text.startsWith('/')) return null
   const tokens = text.trim().split(/\s+/).filter(Boolean)
   if (tokens.length === 0) return null
   const first = tokens[0]
   if (!first) return null
   if (first.toLowerCase().startsWith('/skill:')) {
-    const skills: string[] = []
+    const skills: Array<string> = []
     let consumed = 0
     for (const token of tokens) {
       const match = token.match(/^\/skill:([A-Za-z0-9][A-Za-z0-9._-]*)$/)
@@ -71,12 +71,12 @@ export const parseCommandLine = (text: string, catalog: Command[]): ParsedComman
 
 export type CommandTokenKind = 'skill' | 'command' | 'text'
 
-export type CommandToken = {
+export interface CommandToken {
   text: string
   kind: CommandTokenKind
 }
 
-export const tokenizeCommandLine = (text: string): CommandToken[] => {
+export const tokenizeCommandLine = (text: string): Array<CommandToken> => {
   if (!text.startsWith('/')) return [{ text, kind: 'text' }]
   return text
     .split(/(\s+)/)

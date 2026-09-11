@@ -1,7 +1,7 @@
 import { theme } from '@states/theme-state.ts'
 import { createSignal } from 'solid-js'
 
-export type ButtonProps = {
+export interface ButtonProps {
   id?: string
   isActive?: boolean
   label: string

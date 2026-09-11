@@ -2,7 +2,7 @@ import { createSignal } from 'solid-js'
 
 export type ToastKind = 'info' | 'success' | 'error' | 'warning'
 
-export type ToastItem = {
+export interface ToastItem {
   id: number
   kind: ToastKind
   message: string

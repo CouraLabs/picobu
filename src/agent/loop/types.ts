@@ -7,7 +7,7 @@ import type { DirectChatTransport, InferUITools, ToolLoopAgent, ToolSet, UIMessa
 
 export type AiReasoningEffort = 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max' | 'provider-default'
 
-export type LoopConfig = {
+export interface LoopConfig {
   agentId: string
   modelKey: string
   thinking: ProviderModelReasoningEffort
@@ -20,13 +20,15 @@ export type LoopConfig = {
   spawn?: SpawnToolContext
 }
 
-export type LoopCallOptions = { sessionMode?: 'chat' | 'persistent' }
+export interface LoopCallOptions {
+  sessionMode?: 'chat' | 'persistent'
+}
 
 export type LoopMessage = UIMessage<unknown, never, InferUITools<ToolSet>>
 
 export type AgentReasoning = Exclude<AiReasoningEffort, 'max'>
 
-export type Loop = {
+export interface Loop {
   agent: ToolLoopAgent<LoopCallOptions, ToolSet, Record<string, unknown>, never>
   transport: DirectChatTransport<LoopCallOptions, ToolSet, Record<string, unknown>, never, LoopMessage>
   mcp: McpManager

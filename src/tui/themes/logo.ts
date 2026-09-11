@@ -10,7 +10,7 @@ export type PicobuLogoColorKey = (typeof PICOBU_LOGO_ROW_COLOR_KEYS)[number]
 
 export type PicobuLogoTheme = Pick<Theme, PicobuLogoColorKey>
 
-export type CloseMessageStatus = {
+export interface CloseMessageStatus {
   messageCount?: number
   inputTokens?: number
   outputTokens?: number
@@ -21,14 +21,14 @@ export type CloseMessageTheme = Pick<Theme, PicobuLogoColorKey | 'textMuted' | '
 
 export const PICOBU_ANSI = PICOBU_LOGO_LINES.join('\n')
 
-export const logoColorsFromTheme = (theme: PicobuLogoTheme): RGBA[] => PICOBU_LOGO_ROW_COLOR_KEYS.map((key) => theme[key])
+export const logoColorsFromTheme = (theme: PicobuLogoTheme): Array<RGBA> => PICOBU_LOGO_ROW_COLOR_KEYS.map((key) => theme[key])
 
 const ansiForeground = (color: RGBA): string => {
   const [r, g, b] = color.toInts()
   return `\x1b[38;2;${r};${g};${b}m`
 }
 
-export const colorizeLogo = (colors: RGBA[]): string => {
+export const colorizeLogo = (colors: Array<RGBA>): string => {
   const reset = '\x1b[0m'
   return PICOBU_LOGO_LINES.map((line, index) => {
     const color = colors[index]
@@ -46,7 +46,7 @@ const paint = (value: string, color?: RGBA): string => {
 
 const statusSummary = (status: CloseMessageStatus | undefined, theme?: CloseMessageTheme): string | undefined => {
   if (!status) return undefined
-  const segments: string[] = []
+  const segments: Array<string> = []
   if (status.messageCount !== undefined && status.messageCount > 0) {
     segments.push(paint(`${status.messageCount} msgs`, theme?.text))
   }
@@ -58,7 +58,7 @@ const statusSummary = (status: CloseMessageStatus | undefined, theme?: CloseMess
 
 export const closeMessage = (sessionId: string, theme?: CloseMessageTheme, status?: CloseMessageStatus): string => {
   const logo = theme ? colorizeLogoWithTheme(theme) : PICOBU_ANSI
-  const lines: string[] = [logo]
+  const lines: Array<string> = [logo]
   const summary = statusSummary(status, theme)
   if (summary) lines.push(summary)
   lines.push(paint('To continue this session:', theme?.textMuted))

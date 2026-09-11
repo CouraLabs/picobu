@@ -19,7 +19,7 @@ const partContent = (part: MessagePart): string => {
   }
 }
 
-export type MessagePartViewProps = {
+export interface MessagePartViewProps {
   role: LoopMessage['role']
   part: MessagePart
   message: LoopMessage

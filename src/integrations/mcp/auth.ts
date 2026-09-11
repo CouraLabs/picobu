@@ -11,7 +11,7 @@ const CALLBACK_PORT = 19888
 const CALLBACK_PATH = '/callback'
 export const MCP_REDIRECT_URL = `http://localhost:${CALLBACK_PORT}${CALLBACK_PATH}`
 
-export type McpAuthEntry = {
+export interface McpAuthEntry {
   tokens: OAuthTokens
   expiresAt?: number
   clientInformation?: OAuthClientInformation
@@ -172,7 +172,11 @@ export const createMcpAuthProvider = (server: McpServerOptions): { provider: OAu
   return { provider, lastAuthorizationUrl: () => lastAuthorizationUrl }
 }
 
-type CallbackResult = { code: string; state?: string; issuer?: string }
+interface CallbackResult {
+  code: string
+  state?: string
+  issuer?: string
+}
 
 export const startMcpLogin = async (server: McpServerOptions): Promise<void> => {
   if (server.type === 'stdio') {

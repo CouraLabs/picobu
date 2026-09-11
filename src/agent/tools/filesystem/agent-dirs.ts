@@ -3,7 +3,7 @@ import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:pat
 import { options } from '@config/options.ts'
 
 const AGENT_SUBDIRS = ['skills', 'workflows', 'prompts', 'commands', 'rules']
-export const agentDirCandidates = (base: string): string[] => [
+export const agentDirCandidates = (base: string): Array<string> => [
   join(base, '.agents'),
   join(options.app.cwd, '.agents'),
   join(options.app.homeDir, '.agents'),
@@ -16,9 +16,9 @@ const dirExists = async (p: string): Promise<boolean> => {
     return false
   }
 }
-export const agentDirsUnder = async (base: string): Promise<string[]> => {
+export const agentDirsUnder = async (base: string): Promise<Array<string>> => {
   const root = resolve(base)
-  const out: string[] = []
+  const out: Array<string> = []
   const seen = new Set<string>()
   for (const candidate of agentDirCandidates(root)) {
     const dir = resolve(candidate)

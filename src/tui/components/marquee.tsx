@@ -1,9 +1,9 @@
 import type { RGBA } from '@opentui/core'
 import { useTimeline } from '@opentui/solid'
 import { theme } from '@states/theme-state.ts'
-import { createEffect, createMemo, createSignal } from 'solid-js'
+import { createEffect, createMemo, createSignal, mergeProps } from 'solid-js'
 
-export type MarqueeProps = {
+export interface MarqueeProps {
   content: string
   maxWidth: number
   speed?: number
@@ -13,16 +13,17 @@ export type MarqueeProps = {
 }
 
 export const Marquee = (props: MarqueeProps) => {
+  const merged = mergeProps({ speed: 3000 }, props)
   const [hovered, setHovered] = createSignal(false)
-  const speedMs = () => props.speed ?? 3000
+  const speedMs = () => merged.speed
   const driver = { phase: 0 }
   const timeline = useTimeline({ autoplay: false, duration: speedMs() * 2, loop: true })
-  const chars = createMemo(() => Array.from(props.content))
-  const overflowCols = createMemo(() => Math.max(0, chars().length - props.maxWidth))
+  const chars = createMemo(() => Array.from(merged.content))
+  const overflowCols = createMemo(() => Math.max(0, chars().length - merged.maxWidth))
   const sliceWindow = (start: number): string => {
-    if (overflowCols() === 0) return props.content
+    if (overflowCols() === 0) return merged.content
     return chars()
-      .slice(start, start + props.maxWidth)
+      .slice(start, start + merged.maxWidth)
       .join('')
   }
   const [visible, setVisible] = createSignal(sliceWindow(0))
@@ -46,7 +47,7 @@ export const Marquee = (props: MarqueeProps) => {
   createEffect(() => {
     const isHovered = hovered()
     const overflow = overflowCols()
-    const active = (isHovered || props.scrolling === true) && overflow > 0
+    const active = (isHovered || merged.scrolling === true) && overflow > 0
 
     if (active && !timeline.isPlaying) {
       resetToHead()
@@ -62,8 +63,8 @@ export const Marquee = (props: MarqueeProps) => {
       truncate
       selectable={false}
       wrapMode={'none'}
-      fg={props.fg ?? theme().text}
-      width={overflowCols() > 0 || props.fillWidth ? props.maxWidth : 'auto'}
+      fg={merged.fg ?? theme().text}
+      width={overflowCols() > 0 || merged.fillWidth ? merged.maxWidth : 'auto'}
       onMouseOver={() => setHovered(true)}
       onMouseOut={() => setHovered(false)}>
       {visible()}

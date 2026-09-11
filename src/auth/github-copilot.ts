@@ -10,15 +10,23 @@ const COPILOT_HEADERS = {
   'Copilot-Integration-Id': 'vscode-chat',
 } as const
 const COPILOT_API_VERSION = '2026-06-01'
-type DeviceCodeResponse = {
+interface DeviceCodeResponse {
   device_code: string
   user_code: string
   verification_uri: string
   interval?: number
   expires_in: number
 }
-type DeviceTokenSuccessResponse = { access_token: string; token_type?: string; scope?: string }
-type DeviceTokenErrorResponse = { error: string; error_description?: string; interval?: number }
+interface DeviceTokenSuccessResponse {
+  access_token: string
+  token_type?: string
+  scope?: string
+}
+interface DeviceTokenErrorResponse {
+  error: string
+  error_description?: string
+  interval?: number
+}
 export const normalizeDomain = (input: string): string | null => {
   const trimmed = input.trim()
   if (!trimmed) return null
@@ -51,7 +59,7 @@ export const getGitHubCopilotBaseUrl = (token?: string, enterpriseDomain?: strin
   return 'https://api.individual.githubcopilot.com'
 }
 const asRecord = (value: unknown): Record<string, unknown> | undefined => (value && typeof value === 'object' ? (value as Record<string, unknown>) : undefined)
-export const parseGitHubCopilotModelCatalog = (raw: unknown, allowPolicyFallback: boolean): string[] => {
+export const parseGitHubCopilotModelCatalog = (raw: unknown, allowPolicyFallback: boolean): Array<string> => {
   const data = asRecord(raw)?.data
   if (!Array.isArray(data)) {
     throw new Error('Invalid Copilot models response')

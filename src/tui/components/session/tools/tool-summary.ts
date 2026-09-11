@@ -2,7 +2,7 @@ import type { LoopMessage } from '@agent/loop/create-loop.ts'
 import type { TodoItem } from '@agent/tools/flow/todo.ts'
 import { icons } from '@tui/themes/icons.ts'
 
-export type ToolPartLike = {
+export interface ToolPartLike {
   type: string
   toolName?: string
   toolCallId?: string
@@ -14,7 +14,7 @@ export type ToolPartLike = {
 
 export type ToolTone = 'running' | 'pending' | 'success' | 'error' | 'warning' | 'info'
 
-export type ToolStateView = {
+export interface ToolStateView {
   icon: string
   tone: ToolTone
 }
@@ -39,10 +39,10 @@ export const isTodoTool = (part: ToolPartLike): boolean => part.type === 'tool-t
 const isTodoItemValue = (value: unknown): value is TodoItem =>
   typeof value === 'object' && value !== null && typeof (value as { title?: unknown }).title === 'string' && typeof (value as { done?: unknown }).done === 'boolean'
 
-export const todoItems = (part: ToolPartLike): TodoItem[] | undefined => {
+export const todoItems = (part: ToolPartLike): Array<TodoItem> | undefined => {
   const output = part.output
   if (typeof output === 'object' && output !== null && Array.isArray((output as { items?: unknown }).items)) {
-    const items = (output as { items: unknown[] }).items.filter(isTodoItemValue)
+    const items = (output as { items: Array<unknown> }).items.filter(isTodoItemValue)
     if (items.length > 0) return items
   }
   const input = part.input
@@ -56,7 +56,7 @@ export const todoItems = (part: ToolPartLike): TodoItem[] | undefined => {
   return undefined
 }
 
-export const latestTodoItems = (messages: LoopMessage[]): TodoItem[] | undefined => {
+export const latestTodoItems = (messages: Array<LoopMessage>): Array<TodoItem> | undefined => {
   for (let i = messages.length - 1; i >= 0; i--) {
     const parts = messages[i]?.parts
     if (!Array.isArray(parts)) continue
@@ -91,10 +91,10 @@ export const spawnPrompt = (input: unknown): string | undefined => {
   return undefined
 }
 
-export const askTitles = (input: unknown): string[] => {
+export const askTitles = (input: unknown): Array<string> => {
   const questions = (input as { questions?: unknown } | undefined)?.questions
   if (!Array.isArray(questions)) return []
-  return questions.flatMap((q): string[] => {
+  return questions.flatMap((q): Array<string> => {
     if (typeof q !== 'object' || q === null) return []
     const title = (q as { title?: unknown }).title
     return typeof title === 'string' && title.length > 0 ? [title] : []
@@ -345,27 +345,27 @@ export const toolDiff = (output: unknown): string | undefined => {
   return typeof diff === 'string' && diff.length > 0 ? diff : undefined
 }
 
-export type AskOptionView = {
+export interface AskOptionView {
   answer: string
   answerDescription?: string
 }
 
-export type AskQuestionView = {
+export interface AskQuestionView {
   title: string
   question: string
   type: 'single' | 'multiple'
-  options: AskOptionView[]
+  options: Array<AskOptionView>
 }
 
-export const toolAskQuestions = (input: unknown): AskQuestionView[] => {
+export const toolAskQuestions = (input: unknown): Array<AskQuestionView> => {
   const questions = (input as { questions?: unknown } | undefined)?.questions
   if (!Array.isArray(questions)) return []
-  return questions.flatMap((q): AskQuestionView[] => {
+  return questions.flatMap((q): Array<AskQuestionView> => {
     if (typeof q !== 'object' || q === null) return []
     const { title, question, type, answerMode, options } = q as Record<string, unknown>
     if (typeof title !== 'string' || title.length === 0) return []
     const parsedType = answerMode === 'multiple' || (answerMode === undefined && type === 'multiple') ? 'multiple' : 'single'
-    const parsedOptions = (Array.isArray(options) ? options : []).flatMap((o): AskOptionView[] => {
+    const parsedOptions = (Array.isArray(options) ? options : []).flatMap((o): Array<AskOptionView> => {
       if (typeof o !== 'object' || o === null) return []
       const { answer, answerDescription } = o as Record<string, unknown>
       if (typeof answer !== 'string' || answer.length === 0) return []
@@ -386,7 +386,7 @@ export const flowOutputMessage = (part: ToolPartLike): string => {
   return output !== null && typeof output === 'object' && typeof output.message === 'string' ? output.message : ''
 }
 
-export type KnowledgeDetail = {
+export interface KnowledgeDetail {
   kind: 'skill' | 'rule'
   name: string
   description: string

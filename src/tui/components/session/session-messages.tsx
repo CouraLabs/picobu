@@ -5,8 +5,8 @@ import { type ToolFlowResponse, ToolPart } from '@tui/components/session/tools/t
 import { asToolPart, isToolPart, type ToolPartLike } from '@tui/components/session/tools/tool-summary.ts'
 import { createMemo, Index, Show } from 'solid-js'
 
-export type SessionMessagesProps = {
-  messages: LoopMessage[]
+export interface SessionMessagesProps {
+  messages: Array<LoopMessage>
   isStreaming?: boolean
   onFlowResponse?: (response: ToolFlowResponse) => void | Promise<void>
   onMessageOpen?: (message: LoopMessage) => void
@@ -15,7 +15,7 @@ export type SessionMessagesProps = {
 
 type MessagePart = LoopMessage['parts'][number]
 
-type RenderPart = {
+interface RenderPart {
   role: LoopMessage['role']
   part: MessagePart
   message: LoopMessage
@@ -24,7 +24,7 @@ type RenderPart = {
 }
 
 export const SessionMessages = (props: SessionMessagesProps) => {
-  const allMessageParts = createMemo<RenderPart[]>(() => {
+  const allMessageParts = createMemo<Array<RenderPart>>(() => {
     const list = props.messages
     const last = list.length > 0 ? list[list.length - 1] : undefined
     const lastId = last?.id

@@ -1,12 +1,12 @@
 import { execFileSync } from 'node:child_process'
 
-export type GitInfo = {
+export interface GitInfo {
   branch: string
   additions: number
   deletions: number
 }
 
-type CacheEntry = {
+interface CacheEntry {
   at: number
   info: GitInfo | null
 }
@@ -14,7 +14,7 @@ type CacheEntry = {
 const TTL_MS = 5000
 const cache = new Map<string, CacheEntry>()
 
-const run = (cwd: string, args: string[]): string | null => {
+const run = (cwd: string, args: Array<string>): string | null => {
   try {
     return execFileSync('git', args, { cwd, encoding: 'utf8', timeout: 5000, stdio: ['ignore', 'pipe', 'ignore'] }).trim()
   } catch {

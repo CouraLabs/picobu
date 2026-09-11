@@ -140,7 +140,7 @@ const handleConnectionUpdate = (
   }
 }
 
-const handleIncoming = (messages: readonly unknown[]): void => {
+const handleIncoming = (messages: ReadonlyArray<unknown>): void => {
   for (const raw of messages) {
     const m = raw as BaileysMessage
     if (!m.message || !m.key?.remoteJid) continue
@@ -171,7 +171,7 @@ const handleIncoming = (messages: readonly unknown[]): void => {
   }
 }
 
-type BaileysMessage = {
+interface BaileysMessage {
   key: {
     remoteJid?: string | null
     remoteJidAlt?: string | null
@@ -180,7 +180,7 @@ type BaileysMessage = {
   pushName?: string | null
   message?: BaileysMessageBody | null
 }
-type BaileysMessageBody = {
+interface BaileysMessageBody {
   conversation?: string | null
   extendedTextMessage?: { text?: string | null } | null
   ephemeralMessage?: { message?: BaileysMessageBody | null } | null
@@ -192,7 +192,7 @@ const messageText = (message: BaileysMessageBody | null | undefined): string | n
   return inner?.conversation ?? inner?.extendedTextMessage?.text ?? null
 }
 
-type BaileysContact = {
+interface BaileysContact {
   id?: string | null
   phoneNumber?: string | null
   name?: string | null
@@ -205,7 +205,7 @@ const toContactInput = (c: BaileysContact): { phone: string; name: string | null
   lastAt: 0,
 })
 
-type BaileysChat = {
+interface BaileysChat {
   id?: string | null
   name?: string | null
 }

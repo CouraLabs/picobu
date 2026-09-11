@@ -13,14 +13,14 @@ import { getCostSplit, getCostValue, getRunAttribution } from './status-cost.ts'
 import { getCacheSummary, getInputLabel, getOutputLabel, lastTokensFromMessages, type UsageWithCost } from './status-tokens.ts'
 import { thinkingColor } from './thinking.ts'
 
-export type SessionStatusProps = {
+export interface SessionStatusProps {
   agentId: string | undefined
   modelKey: string | undefined
   thinking: ProviderModelReasoningEffort | undefined
   title: string | undefined
   cwd: string | undefined
   git: { branch: string; additions: number; deletions: number } | null | undefined
-  messages: LoopMessage[]
+  messages: Array<LoopMessage>
   totals?: unknown
   usage?: SessionUsage
   streaming: boolean
@@ -30,9 +30,14 @@ export type SessionStatusProps = {
   mcp?: { connected: number; total: number; tools: number }
 }
 
-export type MessageStats = { total: number; tools: number; user: number; assistant: number }
+export interface MessageStats {
+  total: number
+  tools: number
+  user: number
+  assistant: number
+}
 
-export const latestMeta = (messages: LoopMessage[]): { finishReason?: string } | undefined => {
+export const latestMeta = (messages: Array<LoopMessage>): { finishReason?: string } | undefined => {
   for (let i = messages.length - 1; i >= 0; i--) {
     const meta = messages[i]?.metadata as { finishReason?: string } | undefined
     if (meta?.finishReason) return meta
@@ -40,7 +45,7 @@ export const latestMeta = (messages: LoopMessage[]): { finishReason?: string } |
   return undefined
 }
 
-export const latestUsage = (_messages: LoopMessage[]): UsageWithCost | undefined => undefined
+export const latestUsage = (_messages: Array<LoopMessage>): UsageWithCost | undefined => undefined
 
 export const getAgentName = (agentId: string | undefined): string => {
   try {
@@ -53,7 +58,7 @@ export const getAgentName = (agentId: string | undefined): string => {
 export const getAgentColor = (agentId: string | undefined): string | RGBA => {
   try {
     const color = getAgent(agentId ?? '').color
-    const t = theme() as unknown as Record<string, unknown>
+    const t = theme() as Record<string, unknown>
     return color !== undefined && t[color] instanceof RGBA ? (t[color] as RGBA) : theme().text
   } catch {
     return theme().text
@@ -70,7 +75,7 @@ export const getModelLabel = (modelKey: string | undefined): string => {
   }
 }
 
-export const getMessageStats = (messages: LoopMessage[]): MessageStats => {
+export const getMessageStats = (messages: Array<LoopMessage>): MessageStats => {
   let tools = 0
   let user = 0
   let assistant = 0
@@ -102,14 +107,14 @@ export const getDiffLabel = (git: SessionStatusProps['git']): { added: string; r
 })
 
 export const getQueueLabel = (mode: string | undefined, queueDepth: number | undefined, waiting: boolean | undefined): string | undefined => {
-  const parts: string[] = []
+  const parts: Array<string> = []
   if (mode && mode !== 'normal') parts.push(mode)
   if ((queueDepth ?? 0) > 0) parts.push(`On queue ${queueDepth}`)
   if (waiting) parts.push('waiting')
   return parts.length > 0 ? parts.join(' ') : undefined
 }
 
-export type SessionStatusData = {
+export interface SessionStatusData {
   msgUsage: () => UsageWithCost | undefined
   meta: () => { finishReason?: string } | undefined
   activity: () => ActivityKind | undefined
@@ -140,7 +145,7 @@ export type SessionStatusData = {
   gitLabel: () => string
   diffLabel: () => { added: string; removed: string }
   queueLabel: () => string | undefined
-  todoItems: () => TodoItem[] | undefined
+  todoItems: () => Array<TodoItem> | undefined
 }
 
 export const createSessionStatusData = (props: SessionStatusProps): SessionStatusData => {

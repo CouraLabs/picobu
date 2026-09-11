@@ -10,7 +10,7 @@ import type { LanguageModel } from 'ai'
 
 initLockDir(options.app.systemDir)
 
-export type ResolvedModel = {
+export interface ResolvedModel {
   provider: ProviderOptions
   modelId: string
   model: LanguageModel
@@ -113,19 +113,19 @@ export const resolveDefaultModelKey = (): string => {
   return `${ref.provider.id}/${ref.modelId}`
 }
 
-export type ModelEntry = {
+export interface ModelEntry {
   key: string
   providerId: string
   providerName: string
   modelId: string
   modelName: string
-  supports: ProviderModelCapability[]
+  supports: Array<ProviderModelCapability>
   context: number
   output: number
   billing?: ProviderModelBilling
 }
 
-export function listModels(): ModelEntry[] {
+export function listModels(): Array<ModelEntry> {
   return options.providers.flatMap((p) =>
     p.models.map((m) => ({
       key: `${p.id}/${m.id}`,

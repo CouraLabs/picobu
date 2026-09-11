@@ -33,7 +33,7 @@ function parseCategory(value: unknown): AgentCategory {
   return typeof value === 'string' && value.trim().toLowerCase() === 'persistent' ? 'persistent' : 'coding'
 }
 
-function parseTools(value: unknown): string[] {
+function parseTools(value: unknown): Array<string> {
   if (typeof value !== 'string') return []
   if (value.trim().toLowerCase() === 'none') return [NO_TOOLS]
   if (value.trim() === '' || value.trim() === '*') return []

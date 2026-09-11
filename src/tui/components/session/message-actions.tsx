@@ -6,7 +6,7 @@ import { Button } from '@tui/components/button.tsx'
 import { getClipboardService } from '@tui/hooks/clipboard.state.ts'
 import { onMount } from 'solid-js'
 
-export type MessageActionsProps = {
+export interface MessageActionsProps {
   message: LoopMessage
   onRevert?: (messageId: string) => void
   onFork?: (messageId: string) => void
@@ -24,7 +24,7 @@ const MessageActionsDialog = (props: MessageActionsProps) => {
   let selectRef: SelectRenderable | null = null
   onMount(() => selectRef?.focus())
 
-  const actions: SelectOption[] = [
+  const actions: Array<SelectOption> = [
     { name: 'Revert', description: 'Discards every message after this one', value: 'revert' },
     { name: 'Copy', description: 'Copy the message text to the clipboard', value: 'copy' },
     { name: 'Fork', description: 'Continue the conversation in a new session', value: 'fork' },

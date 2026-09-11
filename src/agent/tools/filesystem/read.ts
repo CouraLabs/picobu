@@ -62,7 +62,7 @@ export const readTool = {
       const decoder = new TextDecoder()
       let lineIndex = 0
       let pending = ''
-      const wanted: string[] = []
+      const wanted: Array<string> = []
       try {
         for (;;) {
           const chunk = await reader.read()

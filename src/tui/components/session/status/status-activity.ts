@@ -15,7 +15,11 @@ export const ACTIVITY_LABELS: Record<ActivityKind, string> = {
   answering: 'Answering',
 }
 
-type ActivityPart = { type?: unknown; state?: unknown; preliminary?: unknown }
+interface ActivityPart {
+  type?: unknown
+  state?: unknown
+  preliminary?: unknown
+}
 
 const isActiveToolState = (part: ActivityPart): boolean => {
   if (part.preliminary === true && part.state === 'output-available') return true
@@ -29,7 +33,7 @@ const isActiveToolState = (part: ActivityPart): boolean => {
   }
 }
 
-export const getActivity = (messages: LoopMessage[], streaming: boolean | undefined): ActivityKind | undefined => {
+export const getActivity = (messages: Array<LoopMessage>, streaming: boolean | undefined): ActivityKind | undefined => {
   if (!streaming) return undefined
   if (messages.length === 0) return 'prompting'
   const last = messages[messages.length - 1]
@@ -52,7 +56,7 @@ export const getActivity = (messages: LoopMessage[], streaming: boolean | undefi
   return 'prompting'
 }
 
-export const getFinishReason = (meta: { finishReason?: string } | undefined, usage: SessionUsage | undefined, messages?: LoopMessage[], streaming?: boolean): string | undefined => {
+export const getFinishReason = (meta: { finishReason?: string } | undefined, usage: SessionUsage | undefined, messages?: Array<LoopMessage>, streaming?: boolean): string | undefined => {
   const activity = getActivity(messages ?? [], streaming)
   if (activity) return ACTIVITY_LABELS[activity]
   return meta?.finishReason ?? usage?.finishReason

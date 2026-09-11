@@ -8,7 +8,7 @@ export const GlobToolArgsSchema = z.object({
   pattern: z.string(),
   cwd: z.string().optional(),
 })
-async function runArgv(argv: string[], cwd: string, toolOptions?: ToolExecuteOptions) {
+async function runArgv(argv: Array<string>, cwd: string, toolOptions?: ToolExecuteOptions) {
   const sandbox = toolOptions?.experimental_sandbox as LocalSandboxSession | undefined
   if (sandbox && typeof sandbox.exec === 'function') return sandbox.exec(argv, { cwd })
   const proc = Bun.spawn({
@@ -50,7 +50,7 @@ export const globTool = {
       for (const file of pass.stdout.trim().split('\n').filter(Boolean)) allowed.add(file)
     }
     const glob = new Bun.Glob(args.pattern)
-    const matches: string[] = []
+    const matches: Array<string> = []
     for await (const match of glob.scan({ cwd, dot: true })) {
       if (allowed.has(match)) matches.push(match)
     }

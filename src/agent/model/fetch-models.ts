@@ -31,7 +31,7 @@ const ModelsResponseSchema = z.object({ data: z.array(ModelsEntrySchema) })
 const toProviderModel = (entry: z.infer<typeof ModelsEntrySchema>): ProviderModelOptions | null => {
   if (!entry.id) return null
   const efforts = (entry.reasoning?.effort_levels ?? []).map((level) => level.value).filter((value): value is string => Boolean(value))
-  const supports: ProviderModelCapability[] = ['text']
+  const supports: Array<ProviderModelCapability> = ['text']
   if (entry.capabilities?.vision) supports.push('vision')
   return {
     id: entry.id,
@@ -53,7 +53,7 @@ const toProviderModel = (entry: z.infer<typeof ModelsEntrySchema>): ProviderMode
   }
 }
 
-export const parseModelsResponse = (payload: unknown): ProviderModelOptions[] => {
+export const parseModelsResponse = (payload: unknown): Array<ProviderModelOptions> => {
   const parsed = ModelsResponseSchema.safeParse(payload)
   if (!parsed.success) return []
   return parsed.data.data.flatMap((entry) => {
@@ -62,7 +62,7 @@ export const parseModelsResponse = (payload: unknown): ProviderModelOptions[] =>
   })
 }
 
-export const fetchModels = async (url: string, apiKey: string): Promise<ProviderModelOptions[]> => {
+export const fetchModels = async (url: string, apiKey: string): Promise<Array<ProviderModelOptions>> => {
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${apiKey}` },
   })

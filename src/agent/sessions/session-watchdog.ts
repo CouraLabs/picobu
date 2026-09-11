@@ -2,18 +2,18 @@ import { isWaiting } from '@agent/sessions/session-meta.ts'
 
 export const DEFAULT_STALE_TIMEOUT_MS = 5 * 60 * 1000
 
-type WatchdogMessage = {
+interface WatchdogMessage {
   role: string
-  parts: unknown[]
+  parts: Array<unknown>
   metadata?: { finishReason?: unknown } | null
 }
 
-type LooseTextPart = {
+interface LooseTextPart {
   type?: unknown
   text?: unknown
 }
 
-export const hasFinishStep = (messages: WatchdogMessage[]): boolean => {
+export const hasFinishStep = (messages: Array<WatchdogMessage>): boolean => {
   for (let i = messages.length - 1; i >= 0; i--) {
     const meta = messages[i]?.metadata
     if (!meta) continue
@@ -22,11 +22,11 @@ export const hasFinishStep = (messages: WatchdogMessage[]): boolean => {
   return false
 }
 
-export const lastAssistantText = (messages: WatchdogMessage[]): string | undefined => {
+export const lastAssistantText = (messages: Array<WatchdogMessage>): string | undefined => {
   for (let i = messages.length - 1; i >= 0; i--) {
     const message = messages[i]
     if (message?.role !== 'assistant') continue
-    const texts: string[] = []
+    const texts: Array<string> = []
     for (const raw of message?.parts ?? []) {
       const part = raw as LooseTextPart
       if (part.type !== 'text' || typeof part.text !== 'string') continue
@@ -39,9 +39,9 @@ export const lastAssistantText = (messages: WatchdogMessage[]): string | undefin
   return undefined
 }
 
-export type StaleCheck = {
+export interface StaleCheck {
   status: string
-  messages: WatchdogMessage[]
+  messages: Array<WatchdogMessage>
   error?: unknown
   lastActivityAt: number
   now: number
@@ -51,19 +51,19 @@ export type StaleCheck = {
 export const isSessionStale = (check: StaleCheck): boolean => {
   if (check.status !== 'submitted' && check.status !== 'streaming') return false
   if (check.error) return false
-  if (isWaiting(check.messages as { role: string; parts: unknown[] }[])) return false
+  if (isWaiting(check.messages as Array<{ role: string; parts: Array<unknown> }>)) return false
   if (check.now - check.lastActivityAt < check.staleTimeoutMs) return false
   if (hasFinishStep(check.messages)) return false
   if (lastAssistantText(check.messages) !== undefined) return false
   return true
 }
 
-export type SessionWatchdog = {
+export interface SessionWatchdog {
   recordActivity: (at?: number) => void
   reset: (at?: number) => void
-  isStale: (input: { status: string; messages: WatchdogMessage[]; error?: unknown; now?: number }) => boolean
-  shouldNotifyStale: (input: { status: string; messages: WatchdogMessage[]; error?: unknown; now?: number }) => boolean
-  shouldSendContinue: (input: { status: string; messages: WatchdogMessage[]; error?: unknown; now?: number }) => boolean
+  isStale: (input: { status: string; messages: Array<WatchdogMessage>; error?: unknown; now?: number }) => boolean
+  shouldNotifyStale: (input: { status: string; messages: Array<WatchdogMessage>; error?: unknown; now?: number }) => boolean
+  shouldSendContinue: (input: { status: string; messages: Array<WatchdogMessage>; error?: unknown; now?: number }) => boolean
 }
 
 export const createSessionWatchdog = (opts?: { staleTimeoutMs?: number }): SessionWatchdog => {
@@ -71,7 +71,7 @@ export const createSessionWatchdog = (opts?: { staleTimeoutMs?: number }): Sessi
   let lastActivityAt = Date.now()
   let staleNotified = false
   let continueSent = false
-  const checkStale = (input: { status: string; messages: WatchdogMessage[]; error?: unknown; now?: number }): boolean =>
+  const checkStale = (input: { status: string; messages: Array<WatchdogMessage>; error?: unknown; now?: number }): boolean =>
     isSessionStale({ status: input.status, messages: input.messages, error: input.error, lastActivityAt, now: input.now ?? Date.now(), staleTimeoutMs })
   return {
     recordActivity: (at = Date.now()) => {

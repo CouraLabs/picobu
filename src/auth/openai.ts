@@ -11,9 +11,13 @@ const TOKEN_URL = `${AUTH_BASE_URL}/oauth/token`
 const REDIRECT_URI = 'http://localhost:1455/auth/callback'
 const SCOPE = 'openid profile email offline_access'
 const JWT_CLAIM_PATH = 'https://api.openai.com/auth'
-type OAuthToken = { access: string; refresh: string; expires: number }
+interface OAuthToken {
+  access: string
+  refresh: string
+  expires: number
+}
 type TokenOperation = 'exchange' | 'refresh'
-export type JwtPayload = {
+export interface JwtPayload {
   [JWT_CLAIM_PATH]?: { chatgpt_account_id?: string }
   [key: string]: unknown
 }
@@ -21,7 +25,7 @@ const CALLBACK_PORT = 1455
 const LOGIN_TIMEOUT_MS = 15 * 60 * 1000
 const callbackHost = (): string => process.env.PICOBU_OAUTH_CALLBACK_HOST || '127.0.0.1'
 const createState = (): string => randomBytes(16).toString('hex')
-const withTimeout = async <T>(promise: Promise<T>, ms: number, message: string): Promise<T> => {
+const withTimeout = async <TValue>(promise: Promise<TValue>, ms: number, message: string): Promise<TValue> => {
   let timer: ReturnType<typeof setTimeout> | undefined
   try {
     return await Promise.race([
@@ -106,7 +110,7 @@ async function refreshAccessToken(refreshToken: string, signal: AbortSignal): Pr
   })
   return readTokenResponse(response, 'refresh')
 }
-type CallbackServerInfo = {
+interface CallbackServerInfo {
   close: () => void
   cancelWait: () => void
   waitForCode: () => Promise<{ code: string } | null>

@@ -2,7 +2,7 @@ import type { ToolKind } from '@agent/tools/toolset.ts'
 
 const TOOL_KIND_RANK: Record<ToolKind, number> = { flow: 0, filesystem: 1, external: 2, integration: 2, mcp: 2 }
 
-export const buildToolOrder = (names: readonly string[], kindOf: (name: string) => ToolKind | undefined): string[] => {
+export const buildToolOrder = (names: ReadonlyArray<string>, kindOf: (name: string) => ToolKind | undefined): Array<string> => {
   const unique = [...new Set(names)]
   return unique.sort((a, b) => {
     const rankA = TOOL_KIND_RANK[kindOf(a) ?? 'mcp']

@@ -3,7 +3,9 @@ import { dirname, isAbsolute, relative, resolve, sep } from 'node:path'
 import type { Experimental_SandboxProcess, Experimental_SandboxSession } from 'ai'
 
 type SandboxProcessOptions = Parameters<Experimental_SandboxSession['run']>[0]
-export type ShellSpec = { cmd: string[] }
+export interface ShellSpec {
+  cmd: Array<string>
+}
 export function shellSpec(shellLabel: string): ShellSpec {
   const [platform, shell] = shellLabel.split(':')
   if (platform === 'Windows') {
@@ -32,7 +34,7 @@ export function shellSpec(shellLabel: string): ShellSpec {
 
 export type LocalSandboxSession = Experimental_SandboxSession & {
   readonly root: string
-  exec(argv: string[], opts?: { cwd?: string; env?: Record<string, string>; abortSignal?: AbortSignal }): Promise<{ exitCode: number; stdout: string; stderr: string }>
+  exec(argv: Array<string>, opts?: { cwd?: string; env?: Record<string, string>; abortSignal?: AbortSignal }): Promise<{ exitCode: number; stdout: string; stderr: string }>
 }
 export const sandboxRoot = (sandbox: unknown): string | undefined =>
   typeof sandbox === 'object' && sandbox !== null && 'root' in sandbox && typeof (sandbox as LocalSandboxSession).root === 'string' ? (sandbox as LocalSandboxSession).root : undefined
@@ -62,7 +64,7 @@ export function createLocalSandboxSession(root: string, shellLabel: string): Loc
     return joined
   }
   const start = (
-    cmd: string[],
+    cmd: Array<string>,
     opts: { cwd?: string; env?: Record<string, string>; abortSignal?: AbortSignal },
   ): { proc: Bun.Subprocess<'ignore' | 'pipe', 'ignore' | 'pipe', 'ignore' | 'pipe'>; onAbort: () => void } => {
     const proc = Bun.spawn({

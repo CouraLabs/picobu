@@ -7,8 +7,8 @@ import { icons } from '@tui/themes/icons.ts'
 import { createComputed, createSignal, For, on, Show } from 'solid-js'
 import type { AskQuestionView } from './tool-summary.ts'
 
-export type AskFormProps = {
-  questions: AskQuestionView[]
+export interface AskFormProps {
+  questions: Array<AskQuestionView>
   status?: string
   outputMessage?: string
   interactive: boolean
@@ -21,13 +21,13 @@ const COMMENT_MAX_WIDTH = 48
 
 export const AskForm = (props: AskFormProps) => {
   const [active, setActive] = createSignal(0)
-  const [answers, setAnswers] = createSignal<string[][]>(props.questions.map(() => []))
+  const [answers, setAnswers] = createSignal<Array<Array<string>>>(props.questions.map(() => []))
   const [hovered, setHovered] = createSignal<{ index: number; answer: string }>({ index: -1, answer: '' })
-  const [comments, setComments] = createSignal<string[]>(props.questions.map(() => ''))
+  const [comments, setComments] = createSignal<Array<string>>(props.questions.map(() => ''))
   const [responded, setResponded] = createSignal(false)
   const [dismissed, setDismissed] = createSignal(false)
   const [sending, setSending] = createSignal(false)
-  const inputRefs: (InputRenderable | null)[] = []
+  const inputRefs: Array<InputRenderable | null> = []
 
   createComputed(
     on(

@@ -14,7 +14,7 @@ export const GrepToolArgsSchema = z.object({
   pattern: z.string().min(1),
   path: z.string().optional(),
 })
-async function runArgv(argv: string[], cwd: string, toolOptions?: ToolExecuteOptions) {
+async function runArgv(argv: Array<string>, cwd: string, toolOptions?: ToolExecuteOptions) {
   const sandbox = toolOptions?.experimental_sandbox as LocalSandboxSession | undefined
   if (sandbox && typeof sandbox.exec === 'function') return sandbox.exec(argv, { cwd })
   const proc = Bun.spawn({

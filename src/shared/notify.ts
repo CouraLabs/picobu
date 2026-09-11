@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process'
 
 const APP_NAME = 'Picobu'
 
-type NotifyStyle = {
+interface NotifyStyle {
   error?: boolean
 }
 

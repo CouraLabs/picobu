@@ -10,7 +10,7 @@ export const EditToolArgsSchema = z.object({
   oldString: z.string().min(1),
   newString: z.string(),
 })
-export type EditToolResult = {
+export interface EditToolResult {
   message: string
   diff: string
 }

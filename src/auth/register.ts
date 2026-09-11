@@ -6,7 +6,7 @@ import type { OAuthAuth, OAuthCredential } from '@auth/types.ts'
 import { type HarnessOptions, type HarnessOptionsInput, options, type ProviderModelOptions, type ProviderOptions, updateSettings } from '@config/options.ts'
 import type { Provider as ModelsDevProvider } from '@opencode-ai/models'
 
-type ProviderMeta = {
+interface ProviderMeta {
   type: 'openai' | 'anthropic' | 'openai-compatible'
   baseUrl?: string
   catalogEnv: string
@@ -16,7 +16,7 @@ const PROVIDER_META: Record<string, ProviderMeta> = {
   anthropic: { type: 'anthropic', baseUrl: 'https://api.anthropic.com/v1', catalogEnv: 'ANTHROPIC_API_KEY' },
   'github-copilot': { type: 'openai-compatible', catalogEnv: 'GITHUB_TOKEN' },
 }
-export const selectCopilotModels = (catalog: ModelsDevProvider, availableModelIds: string[] | undefined): ProviderModelOptions[] => {
+export const selectCopilotModels = (catalog: ModelsDevProvider, availableModelIds: Array<string> | undefined): Array<ProviderModelOptions> => {
   if (availableModelIds === undefined) return modelsFromModelsDev(catalog)
   const ids = availableModelIds
   if (ids.length === 0) return []
@@ -25,7 +25,7 @@ export const selectCopilotModels = (catalog: ModelsDevProvider, availableModelId
   const extras = ids.filter((id) => !fromCatalog.some((m) => m.id === id)).map((id): ProviderModelOptions => ({ id, name: id, context: 0, output: 0, supports: ['text'] }))
   return [...fromCatalog, ...extras]
 }
-export const pickDefaultModel = (models: ProviderModelOptions[]): string | undefined => (models.find((m) => m.reasoning === true) ?? models[0])?.id
+export const pickDefaultModel = (models: Array<ProviderModelOptions>): string | undefined => (models.find((m) => m.reasoning === true) ?? models[0])?.id
 export const registerOAuthProvider = async (auth: OAuthAuth, credential: OAuthCredential): Promise<void> => {
   const meta = PROVIDER_META[auth.id]
   if (!meta) throw new Error(`No registration metadata for OAuth provider "${auth.id}"`)
@@ -54,7 +54,7 @@ export const registerOAuthProvider = async (auth: OAuthAuth, credential: OAuthCr
   options.providers = next.providers
   if (next.harness) options.harness = next.harness
 }
-export const fixHarnessAfterLogout = (harness: HarnessOptions | undefined, providerId: string, providers: ProviderOptions[]): HarnessOptionsInput => {
+export const fixHarnessAfterLogout = (harness: HarnessOptions | undefined, providerId: string, providers: Array<ProviderOptions>): HarnessOptionsInput => {
   const first = providers[0]
   const firstModel = first ? (pickDefaultModel(first.models) ?? first.models[0]?.id) : undefined
   const fallback = first && firstModel ? `${first.id}/${firstModel}` : undefined
@@ -70,7 +70,7 @@ export const fixHarnessAfterLogout = (harness: HarnessOptions | undefined, provi
     },
   }
 }
-export const repointModelKey = (modelKey: string, removedProviderId: string, providers: ProviderOptions[]): string => {
+export const repointModelKey = (modelKey: string, removedProviderId: string, providers: Array<ProviderOptions>): string => {
   if (!modelKey.startsWith(`${removedProviderId}/`)) return modelKey
   const first = providers[0]
   const model = first ? (pickDefaultModel(first.models) ?? first.models[0]?.id) : undefined

@@ -12,7 +12,7 @@ import { createSignal, Show } from 'solid-js'
 import { setClipboardService } from './hooks/clipboard.state.ts'
 import { ClipboardProvider } from './hooks/clipboard-provider.tsx'
 import { takeExitStatus } from './hooks/exit-status.ts'
-export type TuiAppOptions = {
+export interface TuiAppOptions {
   debug?: boolean
   sessionId?: string
 }

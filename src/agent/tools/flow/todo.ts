@@ -44,7 +44,7 @@ export const createTodoTool = (todoFilePath: string) => ({
           throw new Error(`Corrupt todo file at ${todoFilePath}: ${parsed.error.message}`)
         }
       }
-      const items: TodoItem[] = args.items.map((it) => ({ phase: it.phase, title: it.title, prompt: it.prompt, done: it.done ?? false }))
+      const items: Array<TodoItem> = args.items.map((it) => ({ phase: it.phase, title: it.title, prompt: it.prompt, done: it.done ?? false }))
       const doneCount = items.filter((it) => it.done).length
       const message = items.length === 0 ? 'todo list cleared' : `${doneCount} of ${items.length} done`
       await mkdir(dirname(todoFilePath), { recursive: true })

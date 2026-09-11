@@ -294,4 +294,4 @@ export default {
       },
     },
   ],
-} satisfies { parsers: { filetype: string; aliases?: string[]; wasm: string; queries: { highlights: string[]; injections?: string[] } }[] }
+} satisfies { parsers: Array<{ filetype: string; aliases?: Array<string>; wasm: string; queries: { highlights: Array<string>; injections?: Array<string> } }> }

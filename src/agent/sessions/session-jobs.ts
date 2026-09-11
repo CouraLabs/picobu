@@ -1,6 +1,6 @@
 import type { SessionState } from '@agent/sessions/session-meta.ts'
 
-export type JobRow = {
+export interface JobRow {
   sessionId: string
   parentId: string
   subagent: string
@@ -11,7 +11,7 @@ export type JobRow = {
 
 export class JobTracker {
   private readonly rows = new Map<string, JobRow>()
-  private readonly listeners = new Set<(rows: JobRow[]) => void>()
+  private readonly listeners = new Set<(rows: Array<JobRow>) => void>()
   private readonly slotQueue: Array<() => void> = []
   private active = 0
 
@@ -33,11 +33,11 @@ export class JobTracker {
     this.emit()
   }
 
-  all(): JobRow[] {
+  all(): Array<JobRow> {
     return [...this.rows.values()]
   }
 
-  onJobs(listener: (rows: JobRow[]) => void): () => void {
+  onJobs(listener: (rows: Array<JobRow>) => void): () => void {
     this.listeners.add(listener)
     return () => this.listeners.delete(listener)
   }

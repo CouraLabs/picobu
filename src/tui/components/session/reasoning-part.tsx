@@ -5,7 +5,7 @@ import { getSharedTreeSitterClientSync } from '@wrappers/treesitter-wrapper.ts'
 import type { ReasoningUIPart } from 'ai'
 import { createSignal, Show } from 'solid-js'
 
-export type ReasoningPartProps = {
+export interface ReasoningPartProps {
   part: ReasoningUIPart
   isStreamingTail: boolean
 }

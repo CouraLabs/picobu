@@ -11,7 +11,7 @@ export const RuleToolOutputSchema = z.object({
   content: z.string(),
 })
 
-export const createRuleTool = (getRules: () => Rule[] = listRules) => ({
+export const createRuleTool = (getRules: () => Array<Rule> = listRules) => ({
   name: 'rule',
   kind: 'flow' as const,
   description: 'Load a rule by exact name from the Rules section and apply it to the current task.',

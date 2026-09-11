@@ -37,9 +37,9 @@ import { openSubagentMessages } from '@tui/components/session/subagent-dialog.ts
 import type { ToolFlowResponse } from '@tui/components/session/tools/tool-part.tsx'
 import { setExitStatus } from '@tui/hooks/exit-status.ts'
 import type { CreateUIMessage } from 'ai'
-import { createEffect, createSignal, onCleanup, onMount } from 'solid-js'
+import { batch, createEffect, createSignal, onCleanup, onMount } from 'solid-js'
 
-export type SessionPageProps = {
+export interface SessionPageProps {
   sessionId?: string
   visible: boolean
 }
@@ -70,14 +70,14 @@ const showInfo = (title: string, body: string) => {
   ))
 }
 
-type LooseFlowPart = {
+interface LooseFlowPart {
   type?: unknown
   toolName?: unknown
   toolCallId?: unknown
   output?: unknown
 }
 
-const pendingFlowPart = (parts: unknown[]): { tool: 'ask' | 'plan-write'; toolCallId: string } | undefined => {
+const pendingFlowPart = (parts: Array<unknown>): { tool: 'ask' | 'plan-write'; toolCallId: string } | undefined => {
   for (const raw of parts) {
     const part = raw as LooseFlowPart
     const name = part.type === 'dynamic-tool' ? part.toolName : typeof part.type === 'string' && part.type.startsWith('tool-') ? part.type.slice('tool-'.length) : undefined
@@ -90,7 +90,7 @@ const pendingFlowPart = (parts: unknown[]): { tool: 'ask' | 'plan-write'; toolCa
   return undefined
 }
 
-const lastUserText = (messages: LoopMessage[]): string | undefined => {
+const lastUserText = (messages: Array<LoopMessage>): string | undefined => {
   for (let i = messages.length - 1; i >= 0; i--) {
     const m = messages[i]
     if (m?.role !== 'user') continue
@@ -106,7 +106,7 @@ const lastUserText = (messages: LoopMessage[]): string | undefined => {
 
 export const SessionPage = (props: SessionPageProps) => {
   const [session, setSession] = createSignal<Session | undefined>(undefined)
-  const [messages, setMessages] = createSignal<LoopMessage[]>([])
+  const [messages, setMessages] = createSignal<Array<LoopMessage>>([])
   const [isStreaming, setIsStreaming] = createSignal(false)
   const [waiting, setWaiting] = createSignal(false)
   const [answering, setAnswering] = createSignal(false)
@@ -120,7 +120,7 @@ export const SessionPage = (props: SessionPageProps) => {
   const [git, setGit] = createSignal<{ branch: string; additions: number; deletions: number } | null>(null)
   const [mode, setMode] = createSignal<PromptMode>('normal')
   const [queueDepth, setQueueDepth] = createSignal(0)
-  const [queued, setQueued] = createSignal<QueuedPrompt[]>([])
+  const [queued, setQueued] = createSignal<Array<QueuedPrompt>>([])
   const [editRequest, setEditRequest] = createSignal<EditRequest | undefined>(undefined)
   const [projectKey, setProjectKey] = createSignal<string>(projectKeyFor())
   const [commandOpen, setCommandOpen] = createSignal(false)
@@ -140,8 +140,12 @@ export const SessionPage = (props: SessionPageProps) => {
   })
 
   const refreshGit = (dir: string | undefined) => {
-    setCwd(dir)
-    setGit(dir ? getGitInfo(dir) : null)
+    const nextCwd = dir
+    const nextGit = dir ? getGitInfo(dir) : null
+    batch(() => {
+      setCwd(nextCwd)
+      setGit(nextGit)
+    })
   }
 
   const refreshMcp = (target: Session | undefined) => {
@@ -168,8 +172,8 @@ export const SessionPage = (props: SessionPageProps) => {
     }
   }
 
-  const attachedFromQueued = (item: QueuedPrompt): AttachedFile[] => {
-    const seqs: number[] = []
+  const attachedFromQueued = (item: QueuedPrompt): Array<AttachedFile> => {
+    const seqs: Array<number> = []
     for (const match of item.text.matchAll(/\[(\d+) ([^\s\]]+) ([^\]]+)\]/g)) seqs.push(Number(match[1]))
     return item.files.map((f, index) => {
       const bytes = bytesFromDataUrl(f.url)
@@ -177,7 +181,7 @@ export const SessionPage = (props: SessionPageProps) => {
     })
   }
 
-  const buildMessage = (text: string, files: AttachedFile[]): CreateUIMessage<LoopMessage> =>
+  const buildMessage = (text: string, files: Array<AttachedFile>): CreateUIMessage<LoopMessage> =>
     ({
       parts: [
         { type: 'text', text },
@@ -191,29 +195,44 @@ export const SessionPage = (props: SessionPageProps) => {
     }) as CreateUIMessage<LoopMessage>
 
   const syncQueue = (target: Session) => {
-    setQueued([...target.queued])
-    setQueueDepth(target.queuedCount)
+    const nextQueued = [...target.queued]
+    const nextDepth = target.queuedCount
+    batch(() => {
+      setQueued(nextQueued)
+      setQueueDepth(nextDepth)
+    })
   }
 
   const attachSession = (next: Session) => {
     detachQueue?.()
-    setSession(next)
-    setActiveId(next.id)
-    setAgentId(next.config.agentId)
-    setModelKey(next.config.modelKey)
-    setThinking(next.config.thinking)
-    setTitle(next.title)
-    setMessages([...next.messages])
-    syncQueue(next)
-    setProjectKey(projectKeyFor(next.config.cwd ?? sessionMgr.currentCwd))
-    detachQueue = next.onQueueChange((items) => {
-      setQueued([...items])
-      setQueueDepth(items.length)
-    })
     const streaming = next.status === 'submitted' || next.status === 'streaming'
     const w = isWaiting(next.messages)
-    setIsStreaming(streaming)
-    setWaiting(w)
+    const nextProjectKey = projectKeyFor(next.config.cwd ?? sessionMgr.currentCwd)
+    const nextMessages = [...next.messages]
+    const nextQueued = [...next.queued]
+    const nextDepth = next.queuedCount
+    batch(() => {
+      setSession(next)
+      setActiveId(next.id)
+      setAgentId(next.config.agentId)
+      setModelKey(next.config.modelKey)
+      setThinking(next.config.thinking)
+      setTitle(next.title)
+      setMessages(nextMessages)
+      setQueued(nextQueued)
+      setQueueDepth(nextDepth)
+      setProjectKey(nextProjectKey)
+      setIsStreaming(streaming)
+      setWaiting(w)
+    })
+    detachQueue = next.onQueueChange((items) => {
+      const changedQueued = [...items]
+      const changedDepth = items.length
+      batch(() => {
+        setQueued(changedQueued)
+        setQueueDepth(changedDepth)
+      })
+    })
     prevStreaming = streaming
     prevWaiting = w
     prevErrorMessage = next.error?.message
@@ -248,7 +267,7 @@ export const SessionPage = (props: SessionPageProps) => {
     const msgs = messages()
     const last = msgs[msgs.length - 1]
     if (last?.role !== 'assistant') return
-    const found = pendingFlowPart(last.parts as unknown[])
+    const found = pendingFlowPart(last.parts as Array<unknown>)
     if (!found) return
     if (found.tool === 'ask') {
       await handleFlowResponse({
@@ -387,7 +406,7 @@ export const SessionPage = (props: SessionPageProps) => {
       if (!target) return
       const status = target.status
       if (status !== 'submitted' && status !== 'streaming') return
-      const snapshot = { status, messages: messages() as never[], error: target.error }
+      const snapshot = { status, messages: messages() as Array<never>, error: target.error }
       if (options.watchdog.enableNotificationWhenStale && watchdog.shouldNotifyStale(snapshot)) {
         pushToast('The session is stale', 'warning')
         notifyStale('The session is stale')
@@ -419,27 +438,32 @@ export const SessionPage = (props: SessionPageProps) => {
       const next = await sessionMgr.startSession({
         id,
         onChange: (state) => {
-          setMessages([...state.messages])
+          const nextMessages = [...state.messages]
           const streaming = state.status === 'submitted' || state.status === 'streaming'
-          setIsStreaming(streaming)
-          if (streaming) watchdog.recordActivity()
-          if (streaming || state.status === 'error') setAnswering(false)
+          const shouldClearAnswering = streaming || state.status === 'error'
           const w = isWaiting(state.messages)
-          setWaiting(w)
+          batch(() => {
+            setMessages(nextMessages)
+            setIsStreaming(streaming)
+            if (shouldClearAnswering) setAnswering(false)
+            setWaiting(w)
+          })
+          if (streaming) watchdog.recordActivity()
           const live = session()
           if (live) {
-            setTitle(live.title)
+            const nextAgentId = live.config.agentId !== agentId() ? live.config.agentId : undefined
+            batch(() => {
+              setTitle(live.title)
+              if (nextAgentId !== undefined) setAgentId(nextAgentId)
+            })
             syncQueue(live)
-            if (live.config.agentId !== agentId()) {
-              setAgentId(live.config.agentId)
-              pushToast(`Agent switched to ${live.config.agentId}`, 'info')
-            }
+            if (nextAgentId !== undefined) pushToast(`Agent switched to ${live.config.agentId}`, 'info')
           }
           const current = session()
           refreshGit(current?.config.cwd ?? sessionMgr.currentCwd)
           if (!prevWaiting && w) {
             const last = state.messages[state.messages.length - 1]
-            const found = last?.role === 'assistant' ? pendingFlowPart(last.parts as unknown[]) : undefined
+            const found = last?.role === 'assistant' ? pendingFlowPart(last.parts as Array<unknown>) : undefined
             if (found?.tool === 'plan-write') {
               pushToast('Then agent waiting you to verify the plan', 'warning')
               notifyBlocking('Then agent waiting you to verify the plan')
@@ -578,13 +602,15 @@ export const SessionPage = (props: SessionPageProps) => {
       } catch {}
       detachQueue?.()
       await target.close()
-      setSession(undefined)
-      setMessages([])
-      setIsStreaming(false)
-      setWaiting(false)
-      setAnswering(false)
-      setQueued([])
-      setQueueDepth(0)
+      batch(() => {
+        setSession(undefined)
+        setMessages([])
+        setIsStreaming(false)
+        setWaiting(false)
+        setAnswering(false)
+        setQueued([])
+        setQueueDepth(0)
+      })
       await openSession(undefined)
     } catch (error) {
       showError(error)
@@ -598,7 +624,7 @@ export const SessionPage = (props: SessionPageProps) => {
     syncQueue(target)
   }
 
-  const dispatchCommand = async (line: string, target: Session, payloadFiles: AttachedFile[] = []) => {
+  const dispatchCommand = async (line: string, target: Session, payloadFiles: Array<AttachedFile> = []) => {
     if (payloadFiles.length > 0) pushToast('Files are ignored for slash commands', 'warning')
     let parsed: ParsedCommandLine | null
     try {
@@ -830,11 +856,13 @@ export const SessionPage = (props: SessionPageProps) => {
       const { sessionId: forkId } = await sessionMgr.forkSession(target.id, { upToMessageId: messageId })
       closeDialog()
       await target.close()
-      setSession(undefined)
-      setMessages([])
-      setIsStreaming(false)
-      setWaiting(false)
-      setAnswering(false)
+      batch(() => {
+        setSession(undefined)
+        setMessages([])
+        setIsStreaming(false)
+        setWaiting(false)
+        setAnswering(false)
+      })
       await openSession(forkId)
     } catch (error) {
       showError(error)

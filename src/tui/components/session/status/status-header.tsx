@@ -59,7 +59,7 @@ export const StatusHeader = (props: { status: SessionStatusProps; data: SessionS
         </Show>
       </Show>
       <Show when={props.data.todoItems()} keyed>
-        {(items: TodoItem[]) => (
+        {(items: Array<TodoItem>) => (
           <box flexDirection="row" flexShrink={0} columnGap={1}>
             <StatusSeparator sep={icons.middleDot} />
             <Tooltip content={<TodoList items={items} />} maxWidth={TOOLTIP_DEFAULT_MAX_WIDTH} position="top">

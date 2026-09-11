@@ -1,7 +1,7 @@
 import type { ProviderModelBilling } from '@config/options.ts'
 import type { LanguageModelUsage } from 'ai'
 
-export type StepCost = {
+export interface StepCost {
   input: number
   output: number
   cache: number

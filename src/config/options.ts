@@ -3,7 +3,7 @@ import { homedir } from 'node:os'
 import { DEFAULT_MCP_OPTIONS, type McpOptions } from '@integrations/mcp/config.ts'
 import { acquireLock } from '@shared/lock.ts'
 import { detectShell } from '@shared/shell.ts'
-export type ProviderModelBilling = {
+export interface ProviderModelBilling {
   multiplier?: number
   input?: number
   output?: number
@@ -13,66 +13,66 @@ export type ProviderModelBilling = {
 }
 export type ProviderModelCapability = 'text' | 'vision' | (string & {})
 export type ProviderModelReasoningEffort = 'none' | 'low' | 'medium' | 'high' | 'xhigh' | 'max' | (string & {})
-export type ProviderModelOptions = {
+export interface ProviderModelOptions {
   id: string
   name: string
   description?: string
   context: number
   output: number
   reasoning?: boolean
-  supports?: ProviderModelCapability[]
-  efforts?: ProviderModelReasoningEffort[]
+  supports?: Array<ProviderModelCapability>
+  efforts?: Array<ProviderModelReasoningEffort>
   defaultEffort?: ProviderModelReasoningEffort
   billing?: ProviderModelBilling
 }
-export type ProviderOptions = {
+export interface ProviderOptions {
   id: string
   name: string
   type: 'openai' | 'openai-compatible' | 'openai-responses' | 'anthropic' | (string & {})
   baseUrl: string
   apiKey?: string
   headers?: Record<string, string>
-  models: ProviderModelOptions[]
+  models: Array<ProviderModelOptions>
 }
 export type ModelRoleId = 'tiny' | 'flash' | 'flashThinking' | 'heavy' | 'heavyThinkingLevel'
-export type ModelRoles = {
+export interface ModelRoles {
   tiny?: string
   flash?: string
   flashThinking?: ProviderModelReasoningEffort
   heavy?: string
   heavyThinkingLevel?: ProviderModelReasoningEffort
 }
-export type HarnessOptions = {
+export interface HarnessOptions {
   defaultModel?: string
   modelRoles?: ModelRoles
   maxAgents?: number
 }
-export type HarnessOptionsInput = {
+export interface HarnessOptionsInput {
   defaultModel?: string
   modelRoles?: ModelRoles
   maxAgents?: number
 }
-export type ThemePrefs = {
+export interface ThemePrefs {
   key: string
   variant: 'dark' | 'light'
 }
-export type TuiOptionsInput = {
+export interface TuiOptionsInput {
   theme?: ThemePrefs
   maxMessages?: number
 }
-export type TuiOptions = {
+export interface TuiOptions {
   theme: ThemePrefs
   maxMessages: number
 }
 export const DEFAULT_TUI_OPTIONS: Pick<Required<TuiOptionsInput>, 'maxMessages'> = {
   maxMessages: 20,
 }
-export type WatchdogOptionsInput = {
+export interface WatchdogOptionsInput {
   staleTimeoutMs?: number
   enableNotificationWhenStale?: boolean
   enableContinuePromptWhenStale?: boolean
 }
-export type WatchdogOptions = {
+export interface WatchdogOptions {
   staleTimeoutMs: number
   enableNotificationWhenStale: boolean
   enableContinuePromptWhenStale: boolean
@@ -82,13 +82,13 @@ export const DEFAULT_WATCHDOG_OPTIONS: WatchdogOptions = {
   enableNotificationWhenStale: true,
   enableContinuePromptWhenStale: false,
 }
-export type WebServerOptions = {
+export interface WebServerOptions {
   host: string
   port: number
 }
-export type WhatsAppOptions = {
+export interface WhatsAppOptions {
   enabled: boolean
-  allowedNumbers: string[]
+  allowedNumbers: Array<string>
 }
 export const DEFAULT_WHATSAPP_OPTIONS: WhatsAppOptions = {
   enabled: false,
@@ -98,8 +98,8 @@ export const DEFAULT_WEB_OPTIONS: WebServerOptions = {
   host: '0.0.0.0',
   port: 8080,
 }
-export type OptionsExternal = {
-  providers?: ProviderOptions[]
+export interface OptionsExternal {
+  providers?: Array<ProviderOptions>
   harness?: HarnessOptionsInput
   theme?: ThemePrefs
   tui?: TuiOptionsInput
@@ -108,7 +108,7 @@ export type OptionsExternal = {
   mcp?: McpOptions
   watchdog?: WatchdogOptionsInput
 }
-export type GlobalOptions = {
+export interface GlobalOptions {
   app: {
     name: string
     dir: string
@@ -120,7 +120,7 @@ export type GlobalOptions = {
   }
 }
 export type Options = GlobalOptions & {
-  providers: ProviderOptions[]
+  providers: Array<ProviderOptions>
   harness: HarnessOptions
   tui: TuiOptions
   web: WebServerOptions

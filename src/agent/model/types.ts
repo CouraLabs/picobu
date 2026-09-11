@@ -1,4 +1,4 @@
-export type LlmProviderDefinition = {
+export interface LlmProviderDefinition {
   id: string
   name: string
   type: 'openai-compatible'

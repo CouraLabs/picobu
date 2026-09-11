@@ -4,7 +4,7 @@ export type Frontmatter = Record<string, unknown>
 export type ParsedMarkdown<F extends Frontmatter = Frontmatter> = F & {
   content: string
 }
-export type MarkdownParam = {
+export interface MarkdownParam {
   param: string
   value: string
 }
@@ -14,7 +14,7 @@ const FRONTMATTER_DELIMITER = /^---\s*$/
 const FRONTMATTER_SCAN_LINES = 20
 const STRING_FRONTMATTER_KEYS = new Set(['name', 'title', 'description', 'category', 'tools', 'model', 'color', 'path', 'aliases'])
 
-export function parseMarkdown<F extends Frontmatter = Frontmatter>(raw: string, params: MarkdownParam[] = []): ParsedMarkdown<F> {
+export function parseMarkdown<F extends Frontmatter = Frontmatter>(raw: string, params: Array<MarkdownParam> = []): ParsedMarkdown<F> {
   const source = raw.replace(/^\uFEFF/, '')
   const lines = source.split(NEWLINE)
   let frontmatterStart = 0
@@ -38,11 +38,11 @@ export function parseMarkdown<F extends Frontmatter = Frontmatter>(raw: string, 
   } as ParsedMarkdown<F>
 }
 
-export async function parseMarkdownFile<F extends Frontmatter = Frontmatter>(filePath: string, params: MarkdownParam[] = []): Promise<ParsedMarkdown<F>> {
+export async function parseMarkdownFile<F extends Frontmatter = Frontmatter>(filePath: string, params: Array<MarkdownParam> = []): Promise<ParsedMarkdown<F>> {
   return parseMarkdown<F>(await readFile(filePath, 'utf8'), params)
 }
 
-function applyParams(content: string, params: MarkdownParam[]): string {
+function applyParams(content: string, params: Array<MarkdownParam>): string {
   if (params.length === 0) return content
   let result = content
   for (const { param, value } of params) {

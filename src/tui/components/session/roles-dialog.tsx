@@ -7,7 +7,7 @@ import { ModelSelect } from '@tui/components/session/model-select.tsx'
 import { THINKING_LEVELS } from '@tui/components/session/session-status.tsx'
 import { createSignal, For, Show } from 'solid-js'
 
-const EFFORTS: string[] = [...THINKING_LEVELS]
+const EFFORTS: Array<string> = [...THINKING_LEVELS]
 
 const cycleEffort = (current: string): string => {
   const index = EFFORTS.indexOf(current)
@@ -44,14 +44,14 @@ const RolesDialogView = (props: { reopen: () => void }) => {
   const [error, setError] = createSignal<string | undefined>(undefined)
   const [saving, setSaving] = createSignal(false)
 
-  const modelRows: { label: string; value: () => string; set: (v: string) => void }[] = [
+  const modelRows: Array<{ label: string; value: () => string; set: (v: string) => void }> = [
     { label: 'default', value: defaultModel, set: setDefaultModel },
     { label: 'tiny', value: tiny, set: setTiny },
     { label: 'flash', value: flash, set: setFlash },
     { label: 'heavy', value: heavy, set: setHeavy },
   ]
 
-  const effortRows: { label: string; value: () => string; set: (v: string) => void }[] = [
+  const effortRows: Array<{ label: string; value: () => string; set: (v: string) => void }> = [
     { label: 'flashThinking', value: flashThinking, set: setFlashThinking },
     { label: 'heavyThinkingLevel', value: heavyThinking, set: setHeavyThinking },
   ]

@@ -4,7 +4,7 @@ import type { McpManager } from '@integrations/mcp/client.ts'
 import { serverTarget } from '@integrations/mcp/config.ts'
 import { loadMcpConfig, loadProjectMcpServers } from '@integrations/mcp/discover.ts'
 
-export type McpServerInfo = {
+export interface McpServerInfo {
   id: string
   type: 'http' | 'sse' | 'stdio'
   target: string
@@ -15,7 +15,7 @@ export type McpServerInfo = {
   error?: string
 }
 
-export const listMcpServers = async (manager?: McpManager): Promise<McpServerInfo[]> => {
+export const listMcpServers = async (manager?: McpManager): Promise<Array<McpServerInfo>> => {
   const servers = await loadMcpConfig(options.app.cwd)
   try {
     await initMcpAuth()

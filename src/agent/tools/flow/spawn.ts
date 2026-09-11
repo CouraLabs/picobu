@@ -9,7 +9,7 @@ export const SpawnToolOutputSchema = z.object({
   summary: z.string(),
 })
 
-export type SpawnToolContext = {
+export interface SpawnToolContext {
   manager: SessionManager
   parentId: string
   depth: number

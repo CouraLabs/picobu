@@ -1,7 +1,7 @@
 import { options } from '@config/options.ts'
 import { type McpServerOptions, mergeMcpServers, normalizeServerMap, PROJECT_MCP_FILENAME } from '@integrations/mcp/config.ts'
 
-export const parseProjectMcpJson = (raw: unknown, source = PROJECT_MCP_FILENAME): McpServerOptions[] => {
+export const parseProjectMcpJson = (raw: unknown, source = PROJECT_MCP_FILENAME): Array<McpServerOptions> => {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
     throw new Error(`${source} must contain a JSON object`)
   }
@@ -17,7 +17,7 @@ export const parseProjectMcpJson = (raw: unknown, source = PROJECT_MCP_FILENAME)
   }
 }
 
-export const loadProjectMcpServers = async (dir: string): Promise<McpServerOptions[]> => {
+export const loadProjectMcpServers = async (dir: string): Promise<Array<McpServerOptions>> => {
   const file = Bun.file(`${dir}/${PROJECT_MCP_FILENAME}`)
   if (!(await file.exists())) return []
   let raw: unknown
@@ -29,8 +29,8 @@ export const loadProjectMcpServers = async (dir: string): Promise<McpServerOptio
   return parseProjectMcpJson(raw)
 }
 
-export type McpConfigLoadResult = {
-  servers: McpServerOptions[]
+export interface McpConfigLoadResult {
+  servers: Array<McpServerOptions>
   warning?: string
 }
 
@@ -39,7 +39,7 @@ let lastMcpConfigWarning: string | undefined
 export const getLastMcpConfigWarning = (): string | undefined => lastMcpConfigWarning
 
 export const loadMcpConfigDetailed = async (dir: string = options.app.cwd): Promise<McpConfigLoadResult> => {
-  let projectServers: McpServerOptions[] = []
+  let projectServers: Array<McpServerOptions> = []
   let warning: string | undefined
   try {
     projectServers = await loadProjectMcpServers(dir)
@@ -52,7 +52,7 @@ export const loadMcpConfigDetailed = async (dir: string = options.app.cwd): Prom
   return warning ? { servers, warning } : { servers }
 }
 
-export const loadMcpConfig = async (dir: string = options.app.cwd): Promise<McpServerOptions[]> => {
+export const loadMcpConfig = async (dir: string = options.app.cwd): Promise<Array<McpServerOptions>> => {
   return (await loadMcpConfigDetailed(dir)).servers
 }
 

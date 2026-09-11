@@ -91,16 +91,16 @@ const bundledAssetLoaders: Record<string, () => Promise<FileImportModule>> = {
 
 interface DefaultParserDescriptor {
   readonly filetype: string
-  readonly aliases?: readonly string[]
+  readonly aliases?: ReadonlyArray<string>
   readonly queries: {
-    readonly highlights: readonly string[]
-    readonly injections?: readonly string[]
+    readonly highlights: ReadonlyArray<string>
+    readonly injections?: ReadonlyArray<string>
   }
   readonly wasm: string
   readonly injectionMapping?: InjectionMapping
 }
 
-const defaultParserDescriptors: readonly DefaultParserDescriptor[] = [
+const defaultParserDescriptors: ReadonlyArray<DefaultParserDescriptor> = [
   {
     filetype: 'python',
     queries: {
@@ -381,11 +381,13 @@ const defaultParserDescriptors: readonly DefaultParserDescriptor[] = [
   },
 ]
 
-export const defaultParserAssetPaths: readonly string[] = [...new Set(defaultParserDescriptors.flatMap((parser) => [...parser.queries.highlights, parser.wasm, ...(parser.queries.injections ?? [])]))]
+export const defaultParserAssetPaths: ReadonlyArray<string> = [
+  ...new Set(defaultParserDescriptors.flatMap((parser) => [...parser.queries.highlights, parser.wasm, ...(parser.queries.injections ?? [])])),
+]
 
-let cachedParsers: Promise<FiletypeParserOptions[]> | undefined
+let cachedParsers: Promise<Array<FiletypeParserOptions>> | undefined
 
-export function getParsers(): Promise<FiletypeParserOptions[]> {
+export function getParsers(): Promise<Array<FiletypeParserOptions>> {
   cachedParsers ??= Promise.all(defaultParserDescriptors.map(resolveDefaultParser))
   return cachedParsers
 }

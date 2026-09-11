@@ -3,13 +3,13 @@ import { folderKeyForSession, readSessionMeta, writeSessionMeta } from '@agent/s
 import { folderKeyFor, generateSessionId } from '@agent/sessions/session-paths.ts'
 import { loadSession, writeSessionFile } from '@agent/sessions/session-store.ts'
 
-export type ForkDeps = {
+export interface ForkDeps {
   cwd: string
   live: Map<string, Session>
   startSession: (id: string) => Promise<Session>
 }
 
-export function sliceMessagesUpTo<M extends { id: string }>(messages: M[], messageId: string): M[] {
+export function sliceMessagesUpTo<M extends { id: string }>(messages: Array<M>, messageId: string): Array<M> {
   const index = messages.findIndex((m) => m.id === messageId)
   if (index < 0) throw new Error(`Unknown message "${messageId}"`)
   return messages.slice(0, index + 1)

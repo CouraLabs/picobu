@@ -2,7 +2,11 @@ import pkg from '../../package.json' with { type: 'json' }
 
 export type VersionKind = 'feature' | 'build'
 
-export type ParsedVersion = { major: number; minor: number; patch: number }
+export interface ParsedVersion {
+  major: number
+  minor: number
+  patch: number
+}
 
 let cached: string | undefined
 

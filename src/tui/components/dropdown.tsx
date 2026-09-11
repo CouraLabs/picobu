@@ -3,13 +3,13 @@ import { useKeyboard, useRenderer } from '@opentui/solid'
 import { closeDropdown, dropdownState, openDropdown } from '@states/dropdown.state.ts'
 import { theme } from '@states/theme-state.ts'
 import { Marquee } from '@tui/components/marquee.tsx'
-import { createComputed, createMemo, createSignal, For, on } from 'solid-js'
-export type DropdownOption = {
+import { createComputed, createMemo, createSignal, For, mergeProps, on } from 'solid-js'
+export interface DropdownOption {
   name: string
   value?: unknown
 }
-export type DropdownProps = {
-  options: DropdownOption[]
+export interface DropdownProps {
+  options: Array<DropdownOption>
   onSelect: (option: DropdownOption, index: number) => void
   selected?: number
   maxWidth?: number
@@ -19,26 +19,27 @@ export type DropdownProps = {
 const POPUP_Z = 1000
 const CATCHER_Z = POPUP_Z - 1
 export const Dropdown = (props: DropdownProps) => {
-  const maxWidth = () => props.maxWidth ?? 20
+  const merged = mergeProps({ selected: 0, maxWidth: 20, maxVisible: 6 }, props)
+  const maxWidth = () => merged.maxWidth
   const [hovered, setHovered] = createSignal(false)
-  const [selectedIndex, setSelectedIndex] = createSignal(props.selected ?? 0)
+  const [selectedIndex, setSelectedIndex] = createSignal(merged.selected)
   createComputed(
     on(
-      () => props.selected,
-      (v) => setSelectedIndex(v ?? 0),
+      () => merged.selected,
+      (v) => setSelectedIndex(v),
     ),
   )
   let buttonRef: BoxRenderable | null = null
-  const labelText = () => props.options[selectedIndex()]?.name ?? props.placeholder ?? 'Select…'
+  const labelText = () => merged.options[selectedIndex()]?.name ?? merged.placeholder ?? 'Select…'
   const background = () => (hovered() ? theme().accent : theme().backgroundElement)
   const labelFg = () => (hovered() ? theme().selected(background()) : theme().accent)
   const openPopup = () => {
     const btn = buttonRef
     openDropdown({
-      options: props.options,
+      options: merged.options,
       onSelect: (option, index) => {
         setSelectedIndex(index)
-        props.onSelect(option, index)
+        merged.onSelect(option, index)
       },
       placement: {
         x: btn?.screenX ?? 0,
@@ -47,7 +48,7 @@ export const Dropdown = (props: DropdownProps) => {
         height: btn?.height ?? 1,
       },
       maxWidth: maxWidth(),
-      maxVisible: props.maxVisible ?? 6,
+      maxVisible: merged.maxVisible,
       selected: selectedIndex(),
     })
   }

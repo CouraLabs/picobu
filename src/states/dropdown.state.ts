@@ -1,13 +1,13 @@
 import type { DropdownOption } from '@tui/components/dropdown.tsx'
 import { createSignal } from 'solid-js'
-export type DropdownPlacement = {
+export interface DropdownPlacement {
   x: number
   y: number
   width: number
   height: number
 }
-export type DropdownOpenState = {
-  options: DropdownOption[]
+export interface DropdownOpenState {
+  options: Array<DropdownOption>
   onSelect: (option: DropdownOption, index: number) => void
   placement: DropdownPlacement
   maxWidth: number

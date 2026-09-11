@@ -2,7 +2,7 @@ import type { JSX } from '@opentui/solid/jsx-runtime'
 import { theme } from '@states/theme-state.ts'
 import { Show } from 'solid-js'
 
-export type DialogShellProps = {
+export interface DialogShellProps {
   title?: string
   hint?: string
   width?: number

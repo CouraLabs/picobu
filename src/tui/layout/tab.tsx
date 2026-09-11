@@ -1,12 +1,12 @@
 import { Button } from '@tui/components/button.tsx'
 import { For } from 'solid-js'
 
-export type TabProps = {
+export interface TabProps {
   curr: string
-  tabs: {
+  tabs: Array<{
     id: string
     label: string
-  }[]
+  }>
   onChange: (tab: string) => void
 }
 

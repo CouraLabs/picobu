@@ -16,10 +16,10 @@ export const SkillToolOutputSchema = z.object({
   content: z.string(),
 })
 
-const listSkillFiles = async (dir: string): Promise<string[]> => {
-  const files: string[] = []
+const listSkillFiles = async (dir: string): Promise<Array<string>> => {
+  const files: Array<string> = []
   const walk = async (current: string, prefix: string): Promise<void> => {
-    let entries: Dirent[]
+    let entries: Array<Dirent>
     try {
       entries = await readdir(current, { withFileTypes: true })
     } catch {
@@ -35,7 +35,7 @@ const listSkillFiles = async (dir: string): Promise<string[]> => {
   return files.sort()
 }
 
-export const createSkillTool = (getSkills: () => Command[] = listSkills) => ({
+export const createSkillTool = (getSkills: () => Array<Command> = listSkills) => ({
   name: 'skill',
   kind: 'flow' as const,
   description: 'Load a skill by exact name and follow its instructions, reading related files from skillDir. For chained /skill:<name> requests, call once per skill.',

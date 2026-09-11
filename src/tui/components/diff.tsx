@@ -2,7 +2,7 @@ import { theme } from '@states/theme-state.ts'
 import { getSharedTreeSitterClientSync } from '@wrappers/treesitter-wrapper.ts'
 import { createMemo, Show } from 'solid-js'
 
-export type DiffProps = {
+export interface DiffProps {
   diff: string
   maxHeight?: number
 }

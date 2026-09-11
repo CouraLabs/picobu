@@ -8,7 +8,7 @@ import type { UIMessage } from 'ai'
 
 export const streamBackupPath = (folderKey: string, sessionId: string): string => join(sessionsRoot(), folderKey, `${sessionId}.stream.json`)
 
-export async function writeStreamBackup(folderKey: string, sessionId: string, messages: UIMessage[]): Promise<void> {
+export async function writeStreamBackup(folderKey: string, sessionId: string, messages: Array<UIMessage>): Promise<void> {
   const path = streamBackupPath(folderKey, sessionId)
   await withLock(path, async () => {
     mkdirSync(join(sessionsRoot(), folderKey), { recursive: true })
@@ -22,7 +22,7 @@ const isBackupMessage = (value: unknown): value is UIMessage => {
   return typeof record.id === 'string' && typeof record.role === 'string' && Array.isArray(record.parts)
 }
 
-export async function readStreamBackup(folderKey: string, sessionId: string): Promise<UIMessage[] | undefined> {
+export async function readStreamBackup(folderKey: string, sessionId: string): Promise<Array<UIMessage> | undefined> {
   let raw: string
   try {
     raw = await readFile(streamBackupPath(folderKey, sessionId), 'utf8')
@@ -44,7 +44,7 @@ export async function clearStreamBackup(folderKey: string, sessionId: string): P
   } catch {}
 }
 
-export async function recoverStreamBackup(folderKey: string, sessionId: string): Promise<UIMessage[] | undefined> {
+export async function recoverStreamBackup(folderKey: string, sessionId: string): Promise<Array<UIMessage> | undefined> {
   const staged = await readStreamBackup(folderKey, sessionId)
   if (!staged || staged.length === 0) return undefined
   return sanitizeMessages(settleStreamingParts(settleAbortedToolParts(staged)))

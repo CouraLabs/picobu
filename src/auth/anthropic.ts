@@ -15,7 +15,7 @@ const SCOPES = 'org:create_api_key user:profile user:inference user:sessions:cla
 const callbackHost = (): string => process.env.PICOBU_OAUTH_CALLBACK_HOST || '127.0.0.1'
 const LOGIN_TIMEOUT_MS = 15 * 60 * 1000
 const createOAuthState = (): string => randomBytes(16).toString('hex')
-const withTimeout = async <T>(promise: Promise<T>, ms: number, message: string): Promise<T> => {
+const withTimeout = async <TValue>(promise: Promise<TValue>, ms: number, message: string): Promise<TValue> => {
   let timer: ReturnType<typeof setTimeout> | undefined
   try {
     return await Promise.race([
@@ -28,7 +28,7 @@ const withTimeout = async <T>(promise: Promise<T>, ms: number, message: string):
     clearTimeout(timer)
   }
 }
-type CallbackServerInfo = {
+interface CallbackServerInfo {
   server: Server
   cancelWait: () => void
   waitForCode: () => Promise<{ code: string } | null>
@@ -119,7 +119,11 @@ async function postJson(url: string, body: Record<string, string | number>, sign
   }
   return responseBody
 }
-type AnthropicToken = { access_token: string; refresh_token: string; expires_in: number }
+interface AnthropicToken {
+  access_token: string
+  refresh_token: string
+  expires_in: number
+}
 const validateAnthropicToken = (json: unknown, url: string, body: string): AnthropicToken => {
   const record = json as { access_token?: unknown; refresh_token?: unknown; expires_in?: unknown } | null
   if (!record || typeof record.access_token !== 'string' || typeof record.refresh_token !== 'string' || typeof record.expires_in !== 'number') {

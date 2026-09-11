@@ -10,7 +10,7 @@ export const WriteToolArgsSchema = z.object({
   contents: z.string(),
 })
 const CONTENT_PREVIEW_MAX_CHARS = 4_000
-export type WriteToolResult = {
+export interface WriteToolResult {
   message: string
   content: string
 }

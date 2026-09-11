@@ -15,7 +15,7 @@ import { options, type ProviderModelReasoningEffort, resolveModelRole } from '@c
 import type { UIMessage } from 'ai'
 
 export type { JobRow, SessionListRow, SpawnSubSessionParams }
-export type CreateSessionOptions = {
+export interface CreateSessionOptions {
   id?: string
   agentId?: string
   modelKey?: string
@@ -110,7 +110,7 @@ export class SessionManager {
     return this.live.get(id)
   }
 
-  async loadMessages(id: string): Promise<UIMessage[] | null> {
+  async loadMessages(id: string): Promise<Array<UIMessage> | null> {
     const folderKey = await folderKeyForSession(this.cwd, id)
     return loadSession(folderKey, id)
   }
@@ -152,7 +152,7 @@ export class SessionManager {
     return forkSession({ cwd: this.cwd, live: this.live, startSession: (forkId) => this.startSession({ id: forkId }) }, id, opts)
   }
 
-  async listSessions(): Promise<SessionListRow[]> {
+  async listSessions(): Promise<Array<SessionListRow>> {
     return listSessionsFor({ cwd: this.cwd, live: this.live, jobs: this.jobTracker })
   }
 
@@ -164,11 +164,11 @@ export class SessionManager {
     return deleteSessionCascade({ cwd: this.cwd, live: this.live, jobs: this.jobTracker }, id)
   }
 
-  jobs(): JobRow[] {
+  jobs(): Array<JobRow> {
     return this.jobTracker.all()
   }
 
-  onJobs(listener: (rows: JobRow[]) => void): () => void {
+  onJobs(listener: (rows: Array<JobRow>) => void): () => void {
     return this.jobTracker.onJobs(listener)
   }
 

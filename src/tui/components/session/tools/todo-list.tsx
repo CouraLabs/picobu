@@ -4,8 +4,8 @@ import { theme } from '@states/theme-state.ts'
 import { icons } from '@tui/themes/icons.ts'
 import { For } from 'solid-js'
 
-export type TodoListProps = {
-  items: TodoItem[]
+export interface TodoListProps {
+  items: Array<TodoItem>
 }
 
 export const TodoList = (props: TodoListProps) => {

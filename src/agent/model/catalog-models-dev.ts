@@ -12,13 +12,13 @@ export const fetchModelsDevProvider = async (apiKeyEnv: string): Promise<ModelsD
   return Object.values(snapshot.providers).find((provider) => provider.env?.includes(apiKeyEnv) ?? false)
 }
 
-const modelsDevEfforts = (model: ModelsDevModel): ProviderModelReasoningEffort[] | undefined => {
+const modelsDevEfforts = (model: ModelsDevModel): Array<ProviderModelReasoningEffort> | undefined => {
   const values = (model.reasoning_options ?? []).flatMap((option) => (option.type === 'effort' ? option.values : []))
   const efforts = values.filter((value): value is Exclude<typeof value, null | undefined> => value !== null && value !== undefined)
   return efforts.length > 0 ? efforts : undefined
 }
 
-export const modelsFromModelsDev = (provider: ModelsDevProvider): ProviderModelOptions[] =>
+export const modelsFromModelsDev = (provider: ModelsDevProvider): Array<ProviderModelOptions> =>
   Object.values(provider.models ?? {}).map((model) => {
     const supports = ['text']
     if (model.modalities?.input?.includes('image') ?? false) supports.push('vision')

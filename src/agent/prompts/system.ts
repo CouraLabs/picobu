@@ -12,11 +12,11 @@ Be concise and direct: lead with the result, skip filler and pleasantries. Expan
 - Resolve ambiguity from conventions and reasonable defaults; escalate only on materially different tradeoffs.
 - Mark unobserved claims [INFERENCE].
 - Reply in the user's language, regardless of code or prompt language.`
-export type SystemPromptSection = {
+export interface SystemPromptSection {
   key: string
   content: string
 }
-export type GenerateSystemMessageParams = {
+export interface GenerateSystemMessageParams {
   appName: string
   cwd: string
   os: string
@@ -37,11 +37,11 @@ const shortDesc = (value: string): string => {
   return oneLine.length > MAX_DESC_CHARS ? `${oneLine.slice(0, MAX_DESC_CHARS - 1)}…` : oneLine
 }
 
-export function buildSkillsSection(skills: { name: string; description: string }[]): string {
+export function buildSkillsSection(skills: Array<{ name: string; description: string }>): string {
   return ['Call the `skill` tool with the exact name to load instructions, then follow them.', '', ...skills.map((s) => `- ${s.name}: ${shortDesc(s.description)}`)].join('\n')
 }
 
-export function buildSubagentsSection(subagents: { name: string; description: string }[], maxAgents: number): string {
+export function buildSubagentsSection(subagents: Array<{ name: string; description: string }>, maxAgents: number): string {
   return [
     `Call \`spawn\` with the exact name and a self-contained prompt (subagents can't ask questions).` +
       (maxAgents > 0 ? ` Up to ${maxAgents} in parallel.` : ' Spawning is disabled (maxAgents is 0).'),
@@ -50,12 +50,12 @@ export function buildSubagentsSection(subagents: { name: string; description: st
   ].join('\n')
 }
 
-export function buildRulesSection(rules: { name: string; description: string }[]): string {
+export function buildRulesSection(rules: Array<{ name: string; description: string }>): string {
   return ['Call the `rule` tool with the exact name to load instructions, then follow them.', '', ...rules.map((r) => `- ${r.name}: ${shortDesc(r.description)}`)].join('\n')
 }
 
-export function generateSystemMessage(params: GenerateSystemMessageParams): SystemPromptSection[] {
-  const paramsList: MarkdownParam[] = [
+export function generateSystemMessage(params: GenerateSystemMessageParams): Array<SystemPromptSection> {
+  const paramsList: Array<MarkdownParam> = [
     { param: '{APP_NAME}', value: params.appName },
     { param: '{APP_CWD}', value: params.cwd },
     { param: '{APP_OS}', value: params.os },
@@ -86,8 +86,8 @@ export function generateSystemMessage(params: GenerateSystemMessageParams): Syst
   }
   return sections
 }
-function splitIntoSections(content: string): SystemPromptSection[] {
-  const sections: SystemPromptSection[] = []
+function splitIntoSections(content: string): Array<SystemPromptSection> {
+  const sections: Array<SystemPromptSection> = []
   let current: SystemPromptSection | null = null
   for (const line of content.split('\n')) {
     const heading = /^#\s+(.+)$/.exec(line)

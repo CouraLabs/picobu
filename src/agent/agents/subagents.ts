@@ -8,7 +8,7 @@ import { explorerSubagentMarkdown } from '@agent/subagent/explorer.ts'
 import { reviewerSubAgent } from '@agent/subagent/reviewer.ts'
 import { options } from '@config/options.ts'
 
-export const INTERACTIVE_FLOW_TOOLS: readonly string[] = ['ask', 'plan-write', 'plan-exit']
+export const INTERACTIVE_FLOW_TOOLS: ReadonlyArray<string> = ['ask', 'plan-write', 'plan-exit']
 
 export const SUBAGENT_DEPTH_CAP = 3
 
@@ -24,7 +24,7 @@ export const BUILT_IN_SUBAGENTS: Record<string, AgentType> = {
 
 const subagentsDir = (cwd: string): string => join(cwd, '.agents', 'agents')
 
-const parseSubagentTools = (value: unknown): string[] => {
+const parseSubagentTools = (value: unknown): Array<string> => {
   if (typeof value !== 'string') return []
   if (value.trim().toLowerCase() === 'none') return [NO_TOOLS]
   if (value.trim() === '' || value.trim() === '*') return []
@@ -34,10 +34,10 @@ const parseSubagentTools = (value: unknown): string[] => {
     .filter(Boolean)
 }
 
-export async function listSubagents(cwd: string = options.app.cwd): Promise<AgentType[]> {
+export async function listSubagents(cwd: string = options.app.cwd): Promise<Array<AgentType>> {
   const byName = new Map<string, AgentType>()
   for (const def of Object.values(BUILT_IN_SUBAGENTS)) byName.set(def.name.toLowerCase(), def)
-  let files: string[]
+  let files: Array<string>
   try {
     files = (await readdir(subagentsDir(cwd))).filter((f) => f.endsWith('.md'))
   } catch {

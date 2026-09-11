@@ -1,7 +1,7 @@
 import type { JSX } from '@opentui/solid/jsx-runtime'
 import { createMemo, createSignal } from 'solid-js'
 
-export type DialogState = {
+export interface DialogState {
   status: 'open' | 'close'
   content: (() => JSX.Element) | null
 }

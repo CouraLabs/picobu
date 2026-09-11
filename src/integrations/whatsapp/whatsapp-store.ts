@@ -1,12 +1,15 @@
 export type WhatsAppStatus = 'disconnected' | 'connecting' | 'awaiting-qr' | 'connected' | 'error'
-export type WhatsAppLogEntry = { at: number; message: string }
-export type WhatsAppState = {
+export interface WhatsAppLogEntry {
+  at: number
+  message: string
+}
+export interface WhatsAppState {
   status: WhatsAppStatus
   qr: string | null
   pairingCode: string | null
   jid: string | null
   error: string | null
-  log: WhatsAppLogEntry[]
+  log: Array<WhatsAppLogEntry>
 }
 const MAX_LOG = 100
 export type WhatsAppStoreState = WhatsAppState

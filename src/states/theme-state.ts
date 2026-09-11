@@ -3,14 +3,14 @@ import type { RGBA, SyntaxStyle } from '@opentui/core'
 import { allThemes, generateSubtleSyntax, generateSyntax, resolveTheme, selectedForeground, type Theme } from '@tui/themes/index.ts'
 import { createMemo, createSignal } from 'solid-js'
 export type ThemeVariant = 'dark' | 'light'
-export type ThemeState = {
+export interface ThemeState {
   name: string
   variant: ThemeVariant
   theme: Theme
   syntax: SyntaxStyle
   syntaxMuted: SyntaxStyle
 }
-function listEntries(): string[] {
+function listEntries(): Array<string> {
   return Object.entries(allThemes())
     .map(([name]) => name)
     .sort((a, b) => a.localeCompare(b))
@@ -81,7 +81,7 @@ export const toggleThemeVariant = () => {
   const info = themeInfo()
   setTheme(info.name, info.variant === 'dark' ? 'light' : 'dark')
 }
-export const indexOfTheme = (names: string[]): number => {
+export const indexOfTheme = (names: Array<string>): number => {
   const index = names.indexOf(themeInfo().name)
   return index < 0 ? 0 : index
 }

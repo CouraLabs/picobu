@@ -1,10 +1,10 @@
 import type { LoopMessage } from '@agent/loop/create-loop.ts'
 
-export type UsageWithCost = {
+export interface UsageWithCost {
   finishReason?: string
 }
 
-export type NormalizedTokens = {
+export interface NormalizedTokens {
   prompt: number
   completion: number
   cacheRead: number
@@ -15,7 +15,7 @@ export type NormalizedTokens = {
 
 export const normalizeUsageTokens = (_raw?: unknown): NormalizedTokens | undefined => undefined
 
-export const lastTokensFromMessages = (_messages: LoopMessage[]): NormalizedTokens | undefined => undefined
+export const lastTokensFromMessages = (_messages: Array<LoopMessage>): NormalizedTokens | undefined => undefined
 
 export const getInputLabel = (_tokens?: unknown, _totals?: unknown): string => '0'
 

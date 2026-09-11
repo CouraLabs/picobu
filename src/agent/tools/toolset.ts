@@ -18,19 +18,19 @@ import { type Experimental_SandboxSession, type Tool, type ToolSet, tool } from 
 import type z from 'zod'
 
 export type ToolKind = 'filesystem' | 'flow' | 'external' | 'integration' | 'mcp'
-export type AgentTool = {
+export interface AgentTool {
   name: string
   kind: ToolKind
   tool: Tool
   info: string
 }
 
-export type ToolExecuteOptions = {
+export interface ToolExecuteOptions {
   abortSignal?: AbortSignal
   experimental_sandbox?: Experimental_SandboxSession
 }
 
-export type ToolSetContext = {
+export interface ToolSetContext {
   todoFilePath?: string
   sessionId?: string
   interactive?: boolean
@@ -39,7 +39,7 @@ export type ToolSetContext = {
 }
 
 export function buildToolSet(ctx: ToolSetContext = {}) {
-  const allTools: AgentTool[] = [
+  const allTools: Array<AgentTool> = [
     wrapTool(readTool),
     wrapTool(createWriteTool(ctx.checkpointsPath)),
     wrapTool(createEditTool(ctx.checkpointsPath)),
@@ -55,18 +55,18 @@ export function buildToolSet(ctx: ToolSetContext = {}) {
     ...(ctx.sessionId ? [...(ctx.interactive === false ? [] : [wrapTool(createAskTool()), wrapTool(createPlanExitTool()), wrapTool(createPlanWriteTool())])] : []),
     ...(ctx.sessionId && ctx.spawn ? [wrapTool(createSpawnTool(ctx.spawn))] : []),
   ]
-  const getTools = (names?: string[]): AgentTool[] => (names?.length ? allTools.filter((t) => names.includes(t.name)) : allTools)
-  const getToolSet = (names?: string[]): ToolSet => {
+  const getTools = (names?: Array<string>): Array<AgentTool> => (names?.length ? allTools.filter((t) => names.includes(t.name)) : allTools)
+  const getToolSet = (names?: Array<string>): ToolSet => {
     return toToolSet(getTools(names))
   }
   return { getTools, getToolSet }
 }
 
-export function toToolSet(tools: AgentTool[]): ToolSet {
+export function toToolSet(tools: Array<AgentTool>): ToolSet {
   return Object.fromEntries(tools.map((t) => [t.name, t.tool]))
 }
 
-export function toolsInfo(tools: AgentTool[]): string {
+export function toolsInfo(tools: Array<AgentTool>): string {
   return tools.map((t) => t.info).join('\n')
 }
 function wrapTool<TSchema extends z.ZodType, TOutput extends z.ZodType>(def: {

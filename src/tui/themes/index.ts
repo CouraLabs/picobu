@@ -36,7 +36,7 @@ import vitesse from '@tui/themes/assets/vitesse.json' with { type: 'json' }
 import zenburn from '@tui/themes/assets/zenburn.json' with { type: 'json' }
 
 export * from './icons.ts'
-export type Theme = {
+export interface Theme {
   readonly primary: RGBA
   readonly secondary: RGBA
   readonly accent: RGBA
@@ -124,12 +124,12 @@ export function contrastRatio(a: RGBA, b: RGBA): number {
 }
 type HexColor = `#${string}`
 type RefName = string
-type Variant = {
+interface Variant {
   dark: HexColor | RefName
   light: HexColor | RefName
 }
 type ColorValue = HexColor | RefName | Variant | RGBA
-export type ThemeJson = {
+export interface ThemeJson {
   $schema?: string
   defs?: Record<string, HexColor | RefName>
   theme: Omit<Record<ThemeColor, ColorValue>, 'selectedListItemText' | 'backgroundMenu'> & {
@@ -195,7 +195,7 @@ export function hasTheme(name: string) {
 }
 export function resolveTheme(theme: ThemeJson, mode: 'dark' | 'light') {
   const defs = theme.defs ?? {}
-  function resolveColor(c: ColorValue, chain: string[] = []): RGBA {
+  function resolveColor(c: ColorValue, chain: Array<string> = []): RGBA {
     if (c instanceof RGBA) return c
     if (typeof c === 'string') {
       if (c === 'transparent' || c === 'none') return RGBA.fromInts(0, 0, 0, 0)

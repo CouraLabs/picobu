@@ -7,7 +7,7 @@ import { folderKeyFor, sessionFilePath } from '@agent/sessions/session-paths.ts'
 import { listSessions } from '@agent/sessions/session-store.ts'
 import { options } from '@config/options.ts'
 
-export type SessionListRow = {
+export interface SessionListRow {
   id: string
   mtimeMs: number
   firstPrompt: string
@@ -17,17 +17,17 @@ export type SessionListRow = {
   cwd?: string
 }
 
-export type QueryDeps = {
+export interface QueryDeps {
   cwd: string
   live: Map<string, Session>
   jobs: JobTracker
 }
 
-export async function listSessionsFor(deps: QueryDeps): Promise<SessionListRow[]> {
+export async function listSessionsFor(deps: QueryDeps): Promise<Array<SessionListRow>> {
   const { cwd } = deps
   const folderKey = folderKeyFor(cwd)
   const rows = await listSessions(folderKey)
-  const out: SessionListRow[] = []
+  const out: Array<SessionListRow> = []
   for (const row of rows) {
     const meta = await readSessionMeta(folderKey, row.id)
     if (meta && meta.cwd !== cwd) continue
@@ -42,10 +42,10 @@ export async function listSessionsFor(deps: QueryDeps): Promise<SessionListRow[]
   return out
 }
 
-export async function listSessionTree(cwd: string): Promise<Array<SessionMeta & { children: SessionMeta[] }>> {
+export async function listSessionTree(cwd: string): Promise<Array<SessionMeta & { children: Array<SessionMeta> }>> {
   const folderKey = folderKeyFor(cwd)
   const metas = await readAllMetas(folderKey, cwd)
-  const childrenOf = (parentId: string): SessionMeta[] => metas.filter((m) => m.parentSessionId === parentId)
+  const childrenOf = (parentId: string): Array<SessionMeta> => metas.filter((m) => m.parentSessionId === parentId)
   return metas.filter((m) => !m.parentSessionId).map((root) => ({ ...root, children: childrenOf(root.id) }))
 }
 
@@ -69,10 +69,10 @@ export async function deleteSessionCascade(deps: QueryDeps, id: string): Promise
   return subtree.length
 }
 
-async function collectSubtree(folderKey: string, cwd: string, rootId: string): Promise<string[]> {
+async function collectSubtree(folderKey: string, cwd: string, rootId: string): Promise<Array<string>> {
   const allMetas = await readAllMetas(folderKey, cwd)
   if (!allMetas.some((meta) => meta.id === rootId)) throw new Error(`Unknown session "${rootId}"`)
-  const byParent = new Map<string, string[]>()
+  const byParent = new Map<string, Array<string>>()
   for (const meta of allMetas) {
     if (!meta.parentSessionId) continue
     const list = byParent.get(meta.parentSessionId) ?? []
@@ -92,8 +92,8 @@ async function collectSubtree(folderKey: string, cwd: string, rootId: string): P
   return out
 }
 
-async function readAllMetas(folderKey: string, cwd: string): Promise<SessionMeta[]> {
-  let names: string[]
+async function readAllMetas(folderKey: string, cwd: string): Promise<Array<SessionMeta>> {
+  let names: Array<string>
   try {
     names = (await readdir(join(options.app.systemDir, 'sessions', folderKey))).filter((n) => n.endsWith('.meta.json')).map((n) => n.slice(0, -'.meta.json'.length))
   } catch {

@@ -1,11 +1,11 @@
-export type InboundEvent = {
+export interface InboundEvent {
   source: 'whatsapp'
   title: string
   text: string
 }
 type Listener = (event: InboundEvent) => void
 const listeners = new Set<Listener>()
-const pending: InboundEvent[] = []
+const pending: Array<InboundEvent> = []
 const MAX_PENDING = 100
 
 const pushPending = (event: InboundEvent): void => {

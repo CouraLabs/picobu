@@ -31,7 +31,7 @@ export function getAgent(name: string): AgentType {
 
 export const getDefaultAgent = (): AgentType => getAgent(DEFAULT_AGENT_ID)
 
-export function listAgents(category?: AgentCategory): { id: string; name: string; category: AgentCategory }[] {
+export function listAgents(category?: AgentCategory): Array<{ id: string; name: string; category: AgentCategory }> {
   return Object.entries(AGENTS)
     .filter(([, agent]) => !category || agent.category === category)
     .map(([id, agent]) => ({ id, name: agent.name, category: agent.category }))

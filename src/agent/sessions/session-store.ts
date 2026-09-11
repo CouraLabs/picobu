@@ -23,7 +23,7 @@ type SessionLine = z.infer<typeof sessionLineSchema>
 
 const isStreamingMessage = (message: UIMessage): boolean => message.parts.some((part) => (part as { state?: string }).state === 'streaming')
 
-export async function loadSession(folderKey: string, sessionId: string): Promise<UIMessage[] | null> {
+export async function loadSession(folderKey: string, sessionId: string): Promise<Array<UIMessage> | null> {
   const filePath = sessionFilePath(folderKey, sessionId)
   let content: string
   try {
@@ -54,7 +54,7 @@ export async function loadSession(folderKey: string, sessionId: string): Promise
     if (existing) existing.line = parsed
     else byId.set(parsed.id, { line: parsed, index })
   }
-  const ordered = [...byId.values()].sort((a, b) => a.index - b.index).map((e) => e.line as unknown as UIMessage)
+  const ordered = [...byId.values()].sort((a, b) => a.index - b.index).map((e) => e.line as UIMessage)
   return sanitizeMessages(ordered)
 }
 
@@ -87,9 +87,13 @@ function firstPromptPreview(content: string): string {
   return '(no text)'
 }
 
-export type SessionRow = { id: string; mtimeMs: number; firstPrompt: string }
+export interface SessionRow {
+  id: string
+  mtimeMs: number
+  firstPrompt: string
+}
 
-export async function writeSessionFile(folderKey: string, sessionId: string, messages: UIMessage[]): Promise<void> {
+export async function writeSessionFile(folderKey: string, sessionId: string, messages: Array<UIMessage>): Promise<void> {
   const filePath = sessionFilePath(folderKey, sessionId)
   await withLock(filePath, async () => {
     mkdirSync(dirname(filePath), { recursive: true })
@@ -97,14 +101,14 @@ export async function writeSessionFile(folderKey: string, sessionId: string, mes
   })
 }
 
-export async function listSessions(folderKey: string): Promise<SessionRow[]> {
-  let names: string[]
+export async function listSessions(folderKey: string): Promise<Array<SessionRow>> {
+  let names: Array<string>
   try {
     names = await readdir(sessionDir(folderKey))
   } catch {
     return []
   }
-  const rows: SessionRow[] = []
+  const rows: Array<SessionRow> = []
   for (const name of names) {
     if (!name.endsWith('.jsonl')) continue
     const id = name.slice(0, -'.jsonl'.length)
@@ -122,12 +126,12 @@ export class SessionSaver {
   private queue: Promise<void> = Promise.resolve()
   private initialized = false
   constructor(private readonly filePath: string) {}
-  save(messages: UIMessage[]): Promise<void> {
+  save(messages: Array<UIMessage>): Promise<void> {
     if (!this.initialized) {
       mkdirSync(dirname(this.filePath), { recursive: true })
       this.initialized = true
     }
-    const tasks: Promise<void>[] = []
+    const tasks: Array<Promise<void>> = []
     const enqueue = (operation: () => Promise<void>): void => {
       const task = this.queue.then(operation)
       this.queue = task.catch(() => {})

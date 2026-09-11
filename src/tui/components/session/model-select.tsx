@@ -6,12 +6,12 @@ import { theme } from '@states/theme-state.ts'
 import { icons } from '@tui/themes/icons.ts'
 import { createEffect, createMemo, createSignal, For, onMount, Show } from 'solid-js'
 
-export type ModelSelectProps = {
+export interface ModelSelectProps {
   currentModelKey: string | undefined
   onSelect: (modelKey: string) => void
 }
 
-type ModelRow = {
+interface ModelRow {
   key: string
   provider: string
   model: string
@@ -43,7 +43,7 @@ export const ModelSelect = (props: ModelSelectProps) => {
 
   onMount(() => inputRef?.focus())
 
-  const models = createMemo<ModelRow[]>(() =>
+  const models = createMemo<Array<ModelRow>>(() =>
     options.providers.flatMap((provider) =>
       provider.models.map((model) => ({
         key: `${provider.id}/${model.id}`,
@@ -130,14 +130,15 @@ export const ModelSelect = (props: ModelSelectProps) => {
                 e.preventDefault()
                 e.stopPropagation()
               }}>
-              <Show when={row.key === props.currentModelKey}>
+              <Show
+                when={row.key === props.currentModelKey}
+                fallback={
+                  <text fg={theme().backgroundPanel} selectable={false}>
+                    {' '}
+                  </text>
+                }>
                 <text fg={theme().success} selectable={false}>
                   {icons.success}
-                </text>
-              </Show>
-              <Show when={row.key !== props.currentModelKey}>
-                <text fg={theme().backgroundPanel} selectable={false}>
-                  {' '}
                 </text>
               </Show>
               <text fg={row.key === props.currentModelKey ? theme().success : theme().text}>{tableCell(row.model, modelWidth())}</text>

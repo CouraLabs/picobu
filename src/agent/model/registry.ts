@@ -4,9 +4,9 @@ import { fetchModels } from '@agent/model/fetch-models.ts'
 import type { LlmProviderDefinition } from '@agent/model/types.ts'
 import { options, type ProviderModelOptions, type ProviderOptions, updateSettings } from '@config/options.ts'
 
-export const LLM_PROVIDERS: LlmProviderDefinition[] = [hyper]
+export const LLM_PROVIDERS: Array<LlmProviderDefinition> = [hyper]
 
-export const upsertProvider = (providers: ProviderOptions[], provider: ProviderOptions): ProviderOptions[] => [...providers.filter((p) => p.id !== provider.id), provider]
+export const upsertProvider = (providers: Array<ProviderOptions>, provider: ProviderOptions): Array<ProviderOptions> => [...providers.filter((p) => p.id !== provider.id), provider]
 
 const stableStringify = (value: unknown): string => {
   if (Array.isArray(value)) return `[${value.map(stableStringify).join(',')}]`
@@ -30,7 +30,7 @@ const autoloadProvider = async (definition: LlmProviderDefinition): Promise<void
   const apiKey = process.env[definition.apiKeyEnv]
   if (!apiKey) return
   const apiKeyRef = `env:${definition.apiKeyEnv}`
-  let models: ProviderModelOptions[] = []
+  let models: Array<ProviderModelOptions> = []
   try {
     models = await fetchModels(definition.modelsUrl, apiKey)
   } catch (error) {

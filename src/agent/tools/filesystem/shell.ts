@@ -17,7 +17,7 @@ const PROGRESS_TAIL_LINES = 10
 const PROGRESS_LINE_MAX = 160
 const OUTPUT_MAX_CHARS = 100_000
 const DRAIN_GRACE_MS = 500
-type Child = {
+interface Child {
   stdout: ReadableStream<Uint8Array>
   stderr: ReadableStream<Uint8Array>
   exited: PromiseLike<number>
@@ -60,7 +60,7 @@ const runStreaming = async function* (label: string, child: Child, toolOptions: 
   }, timeoutSeconds * 1000)
   let stdout = ''
   let stderr = ''
-  const tailLines: string[] = []
+  const tailLines: Array<string> = []
   let tailPending = ''
   let lastProgress = ''
   const pushText = (text: string) => {

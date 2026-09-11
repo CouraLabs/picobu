@@ -3,8 +3,15 @@ import { sendText } from '@integrations/whatsapp/connection.ts'
 import { normalizePhone } from '@integrations/whatsapp/phone.ts'
 import { withLock } from '@shared/lock.ts'
 
-export type TodayTask = { id: string; text: string; createdAt: number }
-type TodayFile = { day: string; items: TodayTask[] }
+export interface TodayTask {
+  id: string
+  text: string
+  createdAt: number
+}
+interface TodayFile {
+  day: string
+  items: Array<TodayTask>
+}
 export const whatsappFilePath = (name: string): string => `${options.app.systemDir}/whatsapp/${name}.json`
 
 const todayKey = (now = Date.now()): string => {

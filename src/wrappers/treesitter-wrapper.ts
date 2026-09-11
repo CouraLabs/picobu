@@ -6,12 +6,12 @@ import { getParsers } from '@wrappers/parsers/assets.ts'
 export { destroyTreeSitterClient } from '@opentui/core'
 export type ParserDescriptor = FiletypeParserOptions
 
-export type CreateTreeSitterClientOptions = {
+export interface CreateTreeSitterClientOptions {
   dataPath?: string
   initTimeout?: number
 }
 
-export function loadParsers(): Promise<ParserDescriptor[]> {
+export function loadParsers(): Promise<Array<ParserDescriptor>> {
   return getParsers()
 }
 

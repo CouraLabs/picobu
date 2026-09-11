@@ -4,13 +4,13 @@ import { basename, extname, join } from 'node:path'
 import { parseMarkdown } from '@agent/markdown/markdown-parser.ts'
 import { options } from '@config/options.ts'
 
-export type Rule = {
+export interface Rule {
   name: string
   description: string
   path: string
 }
 
-const ruleRoots = (cwd: string): string[] => [join(cwd, '.agents', 'rules'), join(options.app.systemDir, 'rules'), join(options.app.homeDir, '.agents', 'rules')]
+const ruleRoots = (cwd: string): Array<string> => [join(cwd, '.agents', 'rules'), join(options.app.systemDir, 'rules'), join(options.app.homeDir, '.agents', 'rules')]
 
 const dirExists = async (p: string): Promise<boolean> => {
   try {
@@ -28,9 +28,9 @@ const dirExistsSync = (p: string): boolean => {
   }
 }
 
-async function scanRules(root: string, taken: Set<string>, out: Rule[]): Promise<void> {
+async function scanRules(root: string, taken: Set<string>, out: Array<Rule>): Promise<void> {
   if (!(await dirExists(root))) return
-  let files: string[]
+  let files: Array<string>
   try {
     files = (await readdir(root)).filter((f) => f.endsWith('.md'))
   } catch (err) {
@@ -54,9 +54,9 @@ async function scanRules(root: string, taken: Set<string>, out: Rule[]): Promise
   }
 }
 
-function scanRulesSync(root: string, taken: Set<string>, out: Rule[]): void {
+function scanRulesSync(root: string, taken: Set<string>, out: Array<Rule>): void {
   if (!dirExistsSync(root)) return
-  let files: string[]
+  let files: Array<string>
   try {
     files = readdirSync(root).filter((f) => f.endsWith('.md'))
   } catch (err) {
@@ -80,15 +80,15 @@ function scanRulesSync(root: string, taken: Set<string>, out: Rule[]): void {
   }
 }
 
-export const loadRules = async (cwd: string = options.app.cwd): Promise<Rule[]> => {
-  const rules: Rule[] = []
+export const loadRules = async (cwd: string = options.app.cwd): Promise<Array<Rule>> => {
+  const rules: Array<Rule> = []
   const taken = new Set<string>()
   for (const root of ruleRoots(cwd)) await scanRules(root, taken, rules)
   return rules
 }
 
-export const listRules = (cwd: string = options.app.cwd): Rule[] => {
-  const rules: Rule[] = []
+export const listRules = (cwd: string = options.app.cwd): Array<Rule> => {
+  const rules: Array<Rule> = []
   const taken = new Set<string>()
   for (const root of ruleRoots(cwd)) scanRulesSync(root, taken, rules)
   return rules

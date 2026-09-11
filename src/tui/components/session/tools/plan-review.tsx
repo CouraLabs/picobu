@@ -7,7 +7,7 @@ import { createSignal, For, Show } from 'solid-js'
 
 export type PlanVerdict = 'approved' | 'rejected'
 
-export type PlanReviewProps = {
+export interface PlanReviewProps {
   plan: string
   status?: string
   outputMessage?: string
@@ -18,13 +18,13 @@ export type PlanReviewProps = {
 
 export const PlanReview = (props: PlanReviewProps) => {
   const lines = () => props.plan.split('\n').filter((l) => l.trim().length > 0)
-  const [lineComments, setLineComments] = createSignal<string[]>(lines().map(() => ''))
+  const [lineComments, setLineComments] = createSignal<Array<string>>(lines().map(() => ''))
   const [openLine, setOpenLine] = createSignal<number | undefined>(undefined)
   const [overall, setOverall] = createSignal('')
   const [responded, setResponded] = createSignal(false)
   const [dismissed, setDismissed] = createSignal(false)
   const [sending, setSending] = createSignal(false)
-  const lineRefs: (InputRenderable | null)[] = []
+  const lineRefs: Array<InputRenderable | null> = []
   let overallRef: TextareaRenderable | null = null
 
   const readonly = () => !props.interactive || sending() || responded() || (props.status !== undefined && props.status !== 'pending')
@@ -43,7 +43,7 @@ export const PlanReview = (props: PlanReviewProps) => {
   const hasComment = () => lineComments().some((c) => c.trim().length > 0) || overall().trim().length > 0
 
   const buildMessage = (): string => {
-    const parts: string[] = []
+    const parts: Array<string> = []
     lines().forEach((line, index) => {
       const comment = (lineComments()[index] ?? '').trim()
       if (comment) parts.push(`Line ${index + 1} "${clip(line.trim(), 80)}": ${comment}`)

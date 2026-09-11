@@ -14,10 +14,13 @@ export const CheckpointRecordSchema = z.object({
 export type CheckpointRecord = z.infer<typeof CheckpointRecordSchema>
 
 export const checkpointsPath = (folderKey: string, sessionId: string): string => join(options.app.systemDir, 'sessions', folderKey, sessionId, 'checkpoints.jsonl')
-export type UndoResult = { applied: number; paths: string[] }
+export interface UndoResult {
+  applied: number
+  paths: Array<string>
+}
 
 export class CheckpointStore {
-  private records: CheckpointRecord[] = []
+  private records: Array<CheckpointRecord> = []
   private pointer = -1
   private loaded = false
   constructor(readonly path: string) {}
@@ -32,7 +35,7 @@ export class CheckpointStore {
       this.loaded = true
       return
     }
-    const records: CheckpointRecord[] = []
+    const records: Array<CheckpointRecord> = []
     for (const raw of content.split('\n')) {
       if (!raw.trim()) continue
       try {

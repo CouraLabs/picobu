@@ -88,7 +88,7 @@ function migrateLegacy(project: string): void {
     const database = getDb()
     const insert = database.prepare('INSERT OR IGNORE INTO history (project, body_b64, created_at) VALUES (?, ?, ?)')
     const now = Date.now()
-    const run = database.transaction((items: string[]) => {
+    const run = database.transaction((items: Array<string>) => {
       for (const item of items) {
         const trimmed = item.trim()
         if (!trimmed) continue
@@ -100,13 +100,13 @@ function migrateLegacy(project: string): void {
   } catch {}
 }
 
-export function loadPromptHistory(projectKey?: string): string[] {
+export function loadPromptHistory(projectKey?: string): Array<string> {
   const project = projectKey ?? projectKeyFor()
   try {
     const database = getDb()
     migrateLegacy(project)
-    const rows = database.query('SELECT body_b64 AS b FROM history WHERE project = ? ORDER BY id DESC LIMIT ?').all(project, PROMPT_HISTORY_LIMIT) as { b: string }[]
-    const out: string[] = []
+    const rows = database.query('SELECT body_b64 AS b FROM history WHERE project = ? ORDER BY id DESC LIMIT ?').all(project, PROMPT_HISTORY_LIMIT) as Array<{ b: string }>
+    const out: Array<string> = []
     for (let i = rows.length - 1; i >= 0; i--) {
       const text = decode(rows[i]?.b ?? '')
       if (text !== undefined && text.trim().length > 0) out.push(text)
@@ -117,7 +117,7 @@ export function loadPromptHistory(projectKey?: string): string[] {
   }
 }
 
-export function addPrompt(text: string, projectKey?: string): string[] {
+export function addPrompt(text: string, projectKey?: string): Array<string> {
   const project = projectKey ?? projectKeyFor()
   const trimmed = text.trim()
   if (!trimmed) return loadPromptHistory(project)
