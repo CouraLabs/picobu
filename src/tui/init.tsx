@@ -45,17 +45,14 @@ export async function runTui(options: TuiAppOptions = {}): Promise<void> {
     onDestroy: () => {
       clipboardService.dispose()
       resetConsoleTitle()
-      const active = getActiveSessionClose()
-      if (active?.hasMessages) {
-        console.log(
-          closeMessage(active.id, theme(), {
-            messageCount: active.messageCount ?? 0,
-            inputTokens: 0,
-            outputTokens: 0,
-            cost: 0,
-          }),
-        )
-      }
+      console.log(
+        closeMessage('sessionId', theme(), {
+          messageCount: 0,
+          inputTokens: 0,
+          outputTokens: 0,
+          cost: 0,
+        }),
+      )
       process.exit(0)
     },
   })
