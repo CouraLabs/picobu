@@ -1,11 +1,15 @@
+import { listSubagents } from '@agent/agents/subagents.ts'
+import type { AgentType } from '@agent/agents/types.ts'
 import { listCommands, listSkills } from '@agent/commands/index.ts'
 import { SYSTEM_COMMANDS, toKebab } from '@agent/commands/parse-command-line.ts'
-import { TextAttributes } from '@opentui/core'
+import { listRules } from '@agent/rules/rules.ts'
 import { useTerminalDimensions } from '@opentui/solid'
+import { catalogVersion } from '@states/catalog-state.ts'
 import { closeDialog, openDialog } from '@states/dialog.state.ts'
 import { theme } from '@states/theme-state.ts'
 import { Button } from '@tui/components/button.tsx'
-import { createMemo, For, Show } from 'solid-js'
+import { getSharedTreeSitterClientSync } from '@wrappers/treesitter-wrapper.ts'
+import { createMemo, createSignal, onMount } from 'solid-js'
 
 const shortcuts: { keys: string; what: string }[] = [
   { keys: 'CTRL + H', what: 'Open this help' },
@@ -23,11 +27,20 @@ const shortcuts: { keys: string; what: string }[] = [
   { keys: 'CTRL + A', what: 'Select all text in the prompt' },
 ]
 
+const footerLines: string[] = [
+  'The footer under the prompt shows the session at a glance. Token and timing segments reflect the latest step; `$` cost is the session lifetime total.',
+  '',
+  '- **Agent row**: agent, model, thinking level, finish reason or live activity (`Prompting`, `Reasoning`, `Tooling`, `Delegating`, `Answering`), session title.',
+  '- **Metrics row**: `⧖` time to first output, `↯` output tokens/sec, `⌛` step time, `↻` LLM response time, `⯿` tool execution time, `↑` input tokens, `↓` output tokens, `⛁` cache total (hit %), `$` session cost, cost split (`in` / `out` / `read` / `write`).',
+  '- **Session row**: message count (`u`ser / `a`ssistant), tool calls, run count with subagent cost, `compacted` flag, MCP connections, queue state.',
+]
+
 export const HelpDialog = () => {
   const dims = useTerminalDimensions()
   const dialogWidth = () => Math.max(20, Math.min(Math.floor(dims().width * 0.7), dims().width - 2))
   const dialogHeight = () => Math.max(10, Math.min(Math.floor(dims().height * 0.9), dims().height - 2))
   const workflows = createMemo(() => {
+    void catalogVersion()
     try {
       return listCommands().filter((c) => c.kind === 'workflow')
     } catch {
@@ -35,73 +48,56 @@ export const HelpDialog = () => {
     }
   })
   const skills = createMemo(() => {
+    void catalogVersion()
     try {
       return listSkills()
     } catch {
       return []
     }
   })
+  const rules = createMemo(() => {
+    void catalogVersion()
+    try {
+      return listRules()
+    } catch {
+      return []
+    }
+  })
+  const [subagents, setSubagents] = createSignal<AgentType[]>([])
+  onMount(() => {
+    listSubagents()
+      .then(setSubagents)
+      .catch(() => {})
+  })
+  const helpMarkdown = createMemo(() => {
+    const lines: string[] = ['## Keyboard', '']
+    for (const row of shortcuts) lines.push(`- \`${row.keys}\` — ${row.what}`)
+    lines.push('', '## Commands', '')
+    const commandRows = [
+      ...SYSTEM_COMMANDS.map((c) => `- \`/${c.name}\` — ${c.description}`),
+      ...workflows().map((w) => `- \`/${toKebab(w.name)}\` — ${w.description || w.title}`),
+      ...skills().map((s) => `- \`/skill:${toKebab(s.name)}\` — ${s.description}`),
+    ]
+    if (commandRows.length > 0) lines.push(...commandRows)
+    else lines.push('No workflows or skills configured.')
+    lines.push('', '## Rules', '')
+    const ruleList = rules()
+    if (ruleList.length > 0) for (const r of ruleList) lines.push(`- **${r.name}** — ${r.description}`)
+    else lines.push('No rules configured.')
+    lines.push('', '## Subagents', '')
+    const subList = subagents()
+    if (subList.length > 0) for (const a of subList) lines.push(`- **${a.name}** — ${a.description}`)
+    else lines.push('No subagents configured.')
+    lines.push('', '## Session footer', '', ...footerLines)
+    return lines.join('\n')
+  })
   return (
     <box flexDirection="column" width={dialogWidth()} height={dialogHeight()} paddingX={2} paddingY={1} gap={1}>
       <box border={['bottom']} borderColor={theme().border} flexShrink={0}>
         <text fg={theme().text}>Help</text>
       </box>
-      <text fg={theme().text} attributes={TextAttributes.BOLD}>
-        Keyboard
-      </text>
-      <box flexDirection="column" flexShrink={0}>
-        <For each={shortcuts}>
-          {(row) => (
-            <box flexDirection="row" gap={1} flexShrink={0}>
-              <text fg={theme().accent} flexShrink={0}>
-                {row.keys}
-              </text>
-              <box flexGrow={1} flexShrink={1} minWidth={0}>
-                <text fg={theme().text}>{row.what}</text>
-              </box>
-            </box>
-          )}
-        </For>
-      </box>
-      <text fg={theme().text} attributes={TextAttributes.BOLD}>
-        Commands
-      </text>
       <scrollbox flexGrow={1} flexShrink={1} flexBasis={0} minHeight={0} scrollY overflow="hidden">
-        <box flexDirection="column" flexShrink={0}>
-          <For each={SYSTEM_COMMANDS}>
-            {(c) => (
-              <box flexDirection="row" gap={1} flexShrink={0}>
-                <text fg={theme().text} flexShrink={0}>
-                  /{c.name}
-                </text>
-                <text fg={theme().textMuted}>{c.description}</text>
-              </box>
-            )}
-          </For>
-          <For each={workflows()}>
-            {(w) => (
-              <box flexDirection="row" gap={1} flexShrink={0}>
-                <text fg={theme().info} flexShrink={0}>
-                  /{toKebab(w.name)}
-                </text>
-                <text fg={theme().textMuted}>{w.description || w.title}</text>
-              </box>
-            )}
-          </For>
-          <For each={skills()}>
-            {(s) => (
-              <box flexDirection="row" gap={1} flexShrink={0}>
-                <text fg={theme().warning} flexShrink={0}>
-                  /skill:{toKebab(s.name)}
-                </text>
-                <text fg={theme().textMuted}>{s.description}</text>
-              </box>
-            )}
-          </For>
-          <Show when={workflows().length === 0 && skills().length === 0}>
-            <text fg={theme().textMuted}>No workflows or skills configured.</text>
-          </Show>
-        </box>
+        <markdown syntaxStyle={theme().syntax} treeSitterClient={getSharedTreeSitterClientSync()} conceal content={helpMarkdown()} />
       </scrollbox>
       <box flexDirection="row" gap={1} justifyContent="flex-end" flexShrink={0} border={['top']} borderColor={theme().border}>
         <Button label="Close" onClick={closeDialog} />

@@ -228,6 +228,12 @@ Sub sessions & spawn: `spawn` is blocking and waits for every call to settle; ne
 
 Cost accounting: `session.usage` is last-run (status bar + auto-compaction); `session.totals` is the lifetime view across runs and sub sessions with per-run `costDetails`, persisted on every settle.
 
+Session footer: three rows under the prompt. Token and timing segments reflect the latest step; `$` cost is the session lifetime total.
+
+- Agent row: agent, model, thinking level, finish reason or live activity (`Prompting`, `Reasoning`, `Tooling`, `Delegating`, `Answering`), session title.
+- Metrics row: `⧖` time to first output, `↯` output tokens/sec, `⌛` step time, `↻` LLM response time, `⯿` tool execution time, `↑` input tokens, `↓` output tokens, `⛁` cache total (hit %), `$` session cost, cost split (`in` / `out` / `read` / `write`).
+- Session row: message count (`u`ser / `a`ssistant), tool calls, run count with subagent cost, `compacted` flag, MCP connections, queue state.
+
 Sandbox: each session runs inside a local sandbox rooted at its cwd (AI SDK `experimental_sandbox` over Bun); `shell` uses your detected shell, abort kills running commands; relative paths resolve against the cwd (absolute paths pass through — no jail in v1); `setSandbox(false)` is a runtime kill switch for subsequently created sessions.
 
 Compaction: the full conversation is summarized by the running model and appended as a cut message; everything before the cut stays saved (undoable, forkable) but never reaches the LLM again. Auto-compacts at 80% of context (opt-in via `autoCompact`; sub sessions never auto-compact); `forkOnCompact` forks the full history first, then hard-resets to the summary. `session.compact({ fork: true })` does this on demand; `manager.forkSession(id)` clones under a new id (`(forked)` suffix), optionally from the last cut.

@@ -2,8 +2,9 @@ import { listCommands, listSkills } from '@agent/commands/index.ts'
 import { SYSTEM_COMMANDS, toKebab, tokenizeCommandLine } from '@agent/commands/parse-command-line.ts'
 import type { CommandKind } from '@agent/commands/types.ts'
 import { addPrompt, clearDraft, loadDraft, loadPromptHistory, saveDraft } from '@agent/sessions/prompt-history.ts'
-import type { MouseEvent, TextareaRenderable } from '@opentui/core'
-import { useKeyboard } from '@opentui/solid'
+import type { MouseEvent, ScrollBoxRenderable, TextareaRenderable } from '@opentui/core'
+import { useKeyboard, useTerminalDimensions } from '@opentui/solid'
+import { catalogVersion } from '@states/catalog-state.ts'
 import { theme } from '@states/theme-state.ts'
 import { pushToast } from '@states/toast.state.ts'
 import { getClipboardService } from '@tui/hooks/clipboard.state.ts'
@@ -50,7 +51,6 @@ type CommandItem = {
   kind: CommandKind
 }
 
-const FLYOUT_WINDOW = 8
 const DRAFT_DEBOUNCE_MS = 450
 const MAX_FILES = 5
 const MAX_FILE_BYTES = 10 * 1024 * 1024
@@ -182,6 +182,7 @@ export const SessionPrompt = (props: SessionPromptProps) => {
   })
 
   const catalogItems = createMemo<CommandItem[]>(() => {
+    void catalogVersion()
     try {
       const workflows = listCommands().filter((c) => c.kind === 'workflow')
       const skills = listSkills()
@@ -218,12 +219,19 @@ export const SessionPrompt = (props: SessionPromptProps) => {
 
   const isFlyoutOpen = () => commandOpen() && filteredItems().length > 0
 
-  const visibleItems = createMemo(() => {
-    const items = filteredItems()
-    const active = highlight()
-    if (items.length <= FLYOUT_WINDOW) return { items, offset: 0 }
-    const start = Math.min(Math.max(0, active - 3), items.length - FLYOUT_WINDOW)
-    return { items: items.slice(start, start + FLYOUT_WINDOW), offset: start }
+  const dims = useTerminalDimensions()
+  let flyoutListRef: ScrollBoxRenderable | null = null
+  const flyoutHeight = createMemo(() => {
+    const items = filteredItems().length
+    if (items === 0) return 1
+    const cap = Math.max(4, Math.floor(dims().height * 0.4))
+    return Math.min(items, cap)
+  })
+
+  createEffect(() => {
+    const index = highlight()
+    void filteredItems().length
+    flyoutListRef?.scrollTo(Math.max(0, index - 2))
   })
 
   createEffect(() => {
@@ -509,35 +517,36 @@ export const SessionPrompt = (props: SessionPromptProps) => {
           <For each={tokenPreview()}>{(token) => <text fg={tokenColor(token.kind, token.text)}>{token.text}</text>}</For>
         </box>
         <Show when={filteredItems().length > 0}>
-          <box flexDirection="column" flexShrink={0} border={['top']} borderColor={theme().border} maxHeight={10} overflow="hidden">
-            <For each={visibleItems().items}>
-              {(item, index) => (
-                <box
-                  flexDirection="row"
-                  gap={1}
-                  flexShrink={0}
-                  flexWrap="wrap"
-                  paddingX={1}
-                  backgroundColor={highlight() === index() + visibleItems().offset ? theme().backgroundElement : undefined}
-                  onMouseOver={() => setHighlight(index() + visibleItems().offset)}
-                  onMouseUp={() => completeItem(index() + visibleItems().offset)}>
-                  <box flexDirection="row" gap={1} flexShrink={0}>
-                    <text fg={labelColor(item.kind)}>{item.label}</text>
-                    <text fg={theme().textMuted}>({item.kind})</text>
-                  </box>
-                  <box flexGrow={1} flexShrink={1} minWidth={0}>
-                    <text fg={theme().textMuted}>{item.description}</text>
-                  </box>
-                </box>
-              )}
-            </For>
-            <Show when={filteredItems().length > FLYOUT_WINDOW}>
-              <box flexShrink={0} paddingX={1}>
-                <text fg={theme().textMuted}>
-                  {highlight() + 1}/{filteredItems().length} — arrows to navigate, TAB to complete
-                </text>
+          <box flexDirection="column" flexShrink={0} border={['top']} borderColor={theme().border}>
+            <scrollbox ref={(r) => (flyoutListRef = r)} height={flyoutHeight()} scrollY overflow="hidden" flexShrink={0}>
+              <box flexDirection="column" flexShrink={0}>
+                <For each={filteredItems()}>
+                  {(item, index) => (
+                    <box
+                      flexDirection="row"
+                      gap={1}
+                      flexShrink={0}
+                      paddingX={1}
+                      backgroundColor={highlight() === index() ? theme().backgroundElement : undefined}
+                      onMouseOver={() => setHighlight(index())}
+                      onMouseUp={() => completeItem(index())}>
+                      <box flexDirection="row" gap={1} flexShrink={0}>
+                        <text fg={labelColor(item.kind)}>{item.label}</text>
+                        <text fg={theme().textMuted}>({item.kind})</text>
+                      </box>
+                      <box flexGrow={1} flexShrink={1} minWidth={0}>
+                        <text fg={theme().textMuted}>{item.description}</text>
+                      </box>
+                    </box>
+                  )}
+                </For>
               </box>
-            </Show>
+            </scrollbox>
+            <box flexShrink={0} paddingX={1}>
+              <text fg={theme().textMuted}>
+                {highlight() + 1}/{filteredItems().length} — arrows to navigate, TAB to complete
+              </text>
+            </box>
           </box>
         </Show>
       </Show>

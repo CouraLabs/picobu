@@ -21,7 +21,7 @@ import { compactorPrompt } from '../../src/agent/prompts/compactor.ts'
 import { bytesToDataUrl, countLines, fileEmbedLabel, resolvePrompt, textEmbedLabel } from '../../src/agent/prompts/embeds.ts'
 import { persistentMarkdown } from '../../src/agent/prompts/persistent.ts'
 import { planMarkdown } from '../../src/agent/prompts/plan.ts'
-import { generateSessionTitle, sessionTitlePrompt } from '../../src/agent/prompts/session-title.ts'
+import { buildTitlePrompt, generateSessionTitle, sessionTitlePrompt } from '../../src/agent/prompts/session-title.ts'
 import { summarizerPrompt } from '../../src/agent/prompts/summarizer.ts'
 import { buildRulesSection, buildSkillsSection, buildSubagentsSection, generateSystemMessage, systemMarkdown } from '../../src/agent/prompts/system.ts'
 import { listRules, loadRules } from '../../src/agent/rules/rules.ts'
@@ -312,17 +312,41 @@ describe('computeCostSplit', () => {
     const split = computeCostSplit({ inputTokens: 1000, outputTokens: 500, cacheReadTokens: 100, cacheWriteTokens: 200 }, { input: 3, output: 6, cacheRead: 1, cacheWrite: 2 })
     expect(split?.inputCost).toBeCloseTo(0.0021, 10)
     expect(split?.outputCost).toBeCloseTo(0.003, 10)
+    expect(split?.cacheReadCost).toBeCloseTo(0.0001, 10)
+    expect(split?.cacheWriteCost).toBeCloseTo(0.0004, 10)
     expect(split?.cacheCost).toBeCloseTo(0.0005, 10)
+    expect(split?.total).toBeCloseTo(0.0056, 10)
+  })
+  test('reads accumulators from computed', () => {
+    const split = computeCostSplit(
+      {
+        inputTokens: 100,
+        outputTokens: 10,
+        totalTokens: 110,
+        computed: {
+          accNoCacheInputTokens: 700,
+          accOutputTokens: 500,
+          accCacheReadTokens: 100,
+          accCacheWriteTokens: 200,
+          accReasoningTokens: 0,
+          accTextTokens: 0,
+        },
+      },
+      { input: 3, output: 6, cacheRead: 1, cacheWrite: 2 },
+    )
+    expect(split?.inputCost).toBeCloseTo(0.0021, 10)
+    expect(split?.total).toBeCloseTo(0.0056, 10)
   })
   test('applies multiplier', () => {
     const split = computeCostSplit({ inputTokens: 1000 }, { input: 3, multiplier: 2 })
     expect(split?.inputCost).toBeCloseTo(0.006, 10)
     expect(split?.outputCost).toBe(0)
     expect(split?.cacheCost).toBe(0)
+    expect(split?.total).toBeCloseTo(0.006, 10)
   })
   test('clamps negatives and cache overcount', () => {
     const split = computeCostSplit({ inputTokens: -5, outputTokens: -2, cacheReadTokens: -1, cacheWriteTokens: -1 }, { input: 3, output: 6, cacheRead: 1, cacheWrite: 2 })
-    expect(split).toEqual({ inputCost: 0, outputCost: 0, cacheCost: 0 })
+    expect(split).toEqual({ inputCost: 0, outputCost: 0, cacheReadCost: 0, cacheWriteCost: 0, cacheCost: 0, total: 0 })
     const over = computeCostSplit({ inputTokens: 10, cacheReadTokens: 8, cacheWriteTokens: 5 }, { input: 3 })
     expect(over?.inputCost).toBe(0)
   })
@@ -532,6 +556,18 @@ describe('agent prompt texts', () => {
     expect(sessionTitlePrompt).toContain('title')
     expect(sessionTitlePrompt).toContain('50')
     expect(await generateSessionTitle('   ')).toBe('')
+  })
+  test('session title prompt builds assistant context for regenerations', () => {
+    const first = buildTitlePrompt('fix the bug')
+    expect(first).toContain('User request:')
+    expect(first).toContain('fix the bug')
+    expect(first).not.toContain('Last assistant reply:')
+    const second = buildTitlePrompt('now add tests', 'Fixed the parser bug in main.ts')
+    expect(second).toContain('Last assistant reply:')
+    expect(second).toContain('Fixed the parser bug in main.ts')
+    expect(second).toContain('now add tests')
+    expect(second.indexOf('Last assistant reply:')).toBeLessThan(second.indexOf('User request:'))
+    expect(buildTitlePrompt('fix the bug', '   ')).toBe(first)
   })
   test('system markdown has preamble and placeholders', () => {
     expect(systemMarkdown).toContain('System Preamble')

@@ -6,7 +6,7 @@ export type StatusSeparatorProps = {
 }
 
 export const StatusSeparator = (props: StatusSeparatorProps) => (
-  <text fg={theme().border} flexShrink={0} selectable={false}>
+  <text fg={theme().textMuted} flexShrink={0} selectable={false}>
     {props.sep ? props.sep : icons.boxVertical}
   </text>
 )

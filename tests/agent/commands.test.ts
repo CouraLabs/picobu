@@ -41,6 +41,7 @@ describe('matchSystemCommand', () => {
     expect(matchSystemCommand('compact')?.name).toBe('compact')
     expect(matchSystemCommand('roles')?.name).toBe('roles')
     expect(matchSystemCommand('cd')?.name).toBe('cd')
+    expect(matchSystemCommand('reload')?.name).toBe('reload')
   })
   test('rejects unknown names', () => {
     expect(matchSystemCommand('nope')).toBeUndefined()

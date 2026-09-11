@@ -26,7 +26,11 @@ export const markActiveSessionHasMessages = (): void => {
 }
 
 export const setActiveSessionStats = (totals: SessionTotals, messageCount: number): void => {
-  activeTotals = { ...totals, costDetails: { ...totals.costDetails, details: [...totals.costDetails.details] } }
+  activeTotals = {
+    ...totals,
+    computed: { ...totals.computed, ...(totals.computed.cost ? { cost: { ...totals.computed.cost } } : {}) },
+    costDetails: { ...totals.costDetails, details: [...totals.costDetails.details] },
+  }
   activeMessageCount = messageCount
   if (messageCount > 0) activeHasMessages = true
 }

@@ -7,8 +7,8 @@ import type { SessionStatusData, SessionStatusProps } from './session-status-dat
 
 export const StatusFooter = (props: { status: SessionStatusProps; data: SessionStatusData }) => (
   <box flexDirection="row" columnGap={2} flexShrink={0} flexWrap="wrap">
-    <StatusSegment icon={icons.fileText} label="msgs" value={`${props.data.stats().total} (u${props.data.stats().user}/a${props.data.stats().assistant})`} />
-    <StatusSegment icon={icons.tool} label="tools" value={`${props.data.stats().tools}`} />
+    <StatusSegment icon={icons.fileText} value={`${props.data.stats().total} msgs`} />
+    <StatusSegment icon={icons.tool} value={`${props.data.stats().tools} tools`} />
     <Show when={props.data.runAttribution()}>
       <StatusSeparator sep={icons.middleDot} />
       <StatusSegment icon={icons.star} value={props.data.runAttribution() as string} />

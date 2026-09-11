@@ -1,6 +1,6 @@
 import { getAgent } from '@agent/agents/registry.ts'
 import type { LoopMessage, LoopMessageMetadata } from '@agent/loop/create-loop.ts'
-import { projectedContext } from '@agent/model/cost.ts'
+import type { LoopUsage } from '@agent/model/cost.ts'
 import { resolveModelRef } from '@agent/model/resolver.ts'
 import type { SessionUsage } from '@agent/sessions/session.ts'
 import type { SessionTotals } from '@agent/sessions/session-meta.ts'
@@ -29,8 +29,6 @@ export type SessionStatusProps = {
 }
 
 export type UsageWithCost = NonNullable<LoopMessageMetadata['usage']> & { cost?: number }
-
-export type TokenKey = 'inputTokens' | 'outputTokens' | 'cacheReadTokens' | 'cacheWriteTokens' | 'reasoningTokens' | 'textTokens' | 'totalTokens'
 
 export type MessageStats = { total: number; tools: number; user: number; assistant: number; compacted: boolean }
 
@@ -65,13 +63,6 @@ export const getAgentColor = (agentId: string | undefined): string | RGBA => {
   }
 }
 
-export const effectiveTokens = (totals: SessionTotals | undefined, fallback: UsageWithCost | undefined, key: TokenKey): number => {
-  const record = totals as unknown as Record<string, number | undefined> | undefined
-  if (record && typeof record[key] === 'number') return record[key] as number
-  if (fallback && typeof (fallback as unknown as Record<string, number | undefined>)[key] === 'number') return (fallback as unknown as Record<string, number>)[key] as number
-  return 0
-}
-
 export const getModelLabel = (modelKey: string | undefined): string => {
   if (!modelKey) return '–'
   try {
@@ -82,13 +73,55 @@ export const getModelLabel = (modelKey: string | undefined): string => {
   }
 }
 
-export const getOutputLimit = (modelKey: string | undefined): number | undefined => {
-  if (!modelKey) return undefined
-  try {
-    return resolveModelRef(modelKey).modelMeta.output
-  } catch {
-    return undefined
+export type NormalizedTokens = {
+  prompt: number
+  completion: number
+  cacheRead: number
+  cacheWrite: number
+  cacheTotal: number
+  total: number
+  noCache: number
+  computed?: LoopUsage['computed']
+}
+
+export const normalizeUsageTokens = (raw?: LoopUsage): NormalizedTokens | undefined => {
+  if (!raw || typeof raw !== 'object') return undefined
+  const input = Number(raw.inputTokens ?? 0)
+  const output = Number(raw.outputTokens ?? 0)
+  if (!input && !output) return undefined
+  const cacheRead = Number(raw.cacheReadTokens ?? 0)
+  const cacheWrite = Number(raw.cacheWriteTokens ?? 0)
+  const noCache = Number(raw.noCacheInputTokens ?? Math.max(0, input - cacheRead - cacheWrite))
+  return {
+    prompt: input,
+    completion: output,
+    cacheRead,
+    cacheWrite,
+    cacheTotal: cacheRead + cacheWrite,
+    total: Number(raw.totalTokens ?? input + output),
+    noCache,
+    ...(raw.computed ? { computed: raw.computed } : {}),
   }
+}
+
+export const lastTokensFromMessages = (messages: LoopMessage[]): NormalizedTokens | undefined => {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i]
+    if (m?.role !== 'assistant') continue
+    const meta = m.metadata as LoopMessageMetadata | undefined
+    const tokens = normalizeUsageTokens(meta?.usage)
+    if (tokens && tokens.completion > 0) return tokens
+  }
+  return undefined
+}
+
+export const getInputLabel = (tokens: NormalizedTokens | undefined): string => fmtTokens(tokens?.prompt ?? 0)
+
+export const getOutputLabel = (tokens: NormalizedTokens | undefined): string => fmtTokens(tokens?.completion ?? 0)
+
+export const getCacheSummary = (tokens: NormalizedTokens | undefined): string => {
+  const hit = tokens && tokens.prompt > 0 ? Math.round((tokens.cacheRead / tokens.prompt) * 100) : 0
+  return `${fmtTokens(tokens?.cacheTotal ?? 0)} (${hit}%)`
 }
 
 export const getContextLimit = (modelKey: string | undefined): number | undefined => {
@@ -101,15 +134,7 @@ export const getContextLimit = (modelKey: string | undefined): number | undefine
   }
 }
 
-export const getContextValue = (totals: SessionTotals | undefined, latest: UsageWithCost | undefined): number => {
-  if (totals && (totals.contextTokens > 0 || totals.lastOutputTokens > 0)) return projectedContext(totals)
-  if (latest) {
-    const projected = projectedContext(latest)
-    if (projected > 0) return projected
-    if (latest.inputTokens !== undefined) return latest.inputTokens
-  }
-  return 0
-}
+export const getContextValue = (tokens: NormalizedTokens | undefined): number => tokens?.total ?? 0
 
 export const getContextPercent = (modelKey: string | undefined, contextValue: number): number | undefined => {
   const context = getContextLimit(modelKey)
@@ -119,7 +144,7 @@ export const getContextPercent = (modelKey: string | undefined, contextValue: nu
 
 export const getContextLabel = (modelKey: string | undefined, contextValue: number): string => {
   const context = getContextLimit(modelKey)
-  if (!modelKey || !context) return '–'
+  if (!context) return fmtTokens(contextValue)
   return `${fmtTokens(contextValue)}/${fmtTokens(context)}`
 }
 
@@ -130,30 +155,22 @@ export const getContextColor = (percent: number | undefined): string | RGBA => {
   return theme().text
 }
 
-export const getInputUiValue = (totals: SessionTotals | undefined, latest: UsageWithCost | undefined): number =>
-  Math.max(0, effectiveTokens(totals, latest, 'inputTokens') - effectiveTokens(totals, latest, 'cacheReadTokens') - effectiveTokens(totals, latest, 'cacheWriteTokens'))
-
-export const getCacheSummary = (totals: SessionTotals | undefined, latest: UsageWithCost | undefined): string => {
-  const read = effectiveTokens(totals, latest, 'cacheReadTokens')
-  const write = effectiveTokens(totals, latest, 'cacheWriteTokens')
-  const input = effectiveTokens(totals, latest, 'inputTokens')
-  const hit = input > 0 ? Math.round((read / input) * 100) : 0
-  return `${fmtTokens(read + write)} (${hit}%)`
-}
-
 export const getCostValue = (totals: SessionTotals | undefined, latest: UsageWithCost | undefined, usage: SessionUsage | undefined): string => {
-  const cost = totals?.cost ?? latest?.cost ?? usage?.cost
+  const totalsTotal = totals?.computed.cost?.total ?? (totals && totals.costDetails.details.length > 0 ? totals.costDetails.total : undefined)
+  const cost = totalsTotal ?? latest?.cost ?? latest?.computed?.cost?.total ?? usage?.computed?.cost?.total ?? usage?.cost
   if (cost === undefined) return '–'
   return fmtCostPreciseBare(cost)
 }
 
-export const getCostSplit = (totals: SessionTotals | undefined): string | undefined => {
-  const details = totals?.costDetails
-  if (!details) return undefined
+export const getCostSplit = (totals: SessionTotals | undefined, latest?: UsageWithCost): string | undefined => {
+  const cost = totals?.computed.cost ?? (totals && totals.costDetails.details.length > 0 ? totals.costDetails : undefined) ?? latest?.computed?.cost
+  if (!cost) return undefined
+  if (cost.total === 0 && cost.inputCost === 0 && cost.outputCost === 0 && cost.cacheReadCost === 0 && cost.cacheWriteCost === 0) return undefined
   const parts: string[] = []
-  if (details.inputCost !== undefined) parts.push(`in ${fmtCost(details.inputCost)}`)
-  if (details.outputCost !== undefined) parts.push(`out ${fmtCost(details.outputCost)}`)
-  if (details.cacheCost !== undefined) parts.push(`cache ${fmtCost(details.cacheCost)}`)
+  if (cost.inputCost) parts.push(`in ${fmtCost(cost.inputCost)}`)
+  if (cost.outputCost) parts.push(`out ${fmtCost(cost.outputCost)}`)
+  if (cost.cacheReadCost) parts.push(`read ${fmtCost(cost.cacheReadCost)}`)
+  if (cost.cacheWriteCost) parts.push(`write ${fmtCost(cost.cacheWriteCost)}`)
   return parts.length > 0 ? parts.join(' ') : undefined
 }
 
@@ -236,14 +253,20 @@ export const getFinishColor = (reason: string | undefined): string | RGBA => {
   }
 }
 
-export const getTpsLabel = (usage: SessionUsage | undefined, meta: LoopMessageMetadata | undefined): string => fmtTps(usage?.tps ?? meta?.tps)
+export const getTpsLabel = (usage: SessionUsage | undefined, meta: LoopMessageMetadata | undefined): string =>
+  fmtTps(usage?.performance?.outputTokensPerSecond ?? meta?.usage?.performance?.outputTokensPerSecond)
 
-export const getTtftLabel = (usage: SessionUsage | undefined, meta: LoopMessageMetadata | undefined): string => fmtMs(usage?.ttftMs ?? meta?.ttftMs)
+export const getTtftLabel = (usage: SessionUsage | undefined, meta: LoopMessageMetadata | undefined): string =>
+  fmtMs(usage?.performance?.timeToFirstOutputMs ?? meta?.usage?.performance?.timeToFirstOutputMs)
 
-export const getOutputWithLimit = (totals: SessionTotals | undefined, latest: UsageWithCost | undefined, modelKey: string | undefined): string => {
-  const out = effectiveTokens(totals, latest, 'outputTokens')
-  const limit = getOutputLimit(modelKey)
-  return limit ? `${fmtTokens(out)}/${fmtTokens(limit)}` : fmtTokens(out)
+export const getStepTimeLabel = (latest: UsageWithCost | undefined): string => fmtMs(latest?.performance?.stepTimeMs)
+
+export const getResponseTimeLabel = (latest: UsageWithCost | undefined): string => fmtMs(latest?.performance?.responseTimeMs)
+
+export const getToolExecLabel = (latest: UsageWithCost | undefined): string => {
+  const entries = latest?.performance?.toolExecutionMs
+  if (!entries) return fmtMs(undefined)
+  return fmtMs(Object.values(entries).reduce((sum, ms) => sum + ms, 0))
 }
 
 export const getRunAttribution = (totals: SessionTotals | undefined): string | undefined => {
@@ -252,7 +275,7 @@ export const getRunAttribution = (totals: SessionTotals | undefined): string | u
   const runs = details.filter((d) => d.source === 'run').length
   const subs = details.filter((d) => d.source === 'subagent')
   if (subs.length === 0) return `${runs} runs`
-  const subCost = subs.reduce((sum, d) => sum + (d.cost ?? 0), 0)
+  const subCost = subs.reduce((sum, d) => sum + (d.cost?.total ?? 0), 0)
   return `${runs} runs · ${subs.length} sub ${fmtCost(subCost)}`
 }
 
@@ -304,13 +327,12 @@ export type SessionStatusData = {
   activity: () => ActivityKind | undefined
   agentName: () => string
   agentColor: () => string | RGBA
-  effective: (key: TokenKey) => number
   modelLabel: () => string
   contextValue: () => number
   contextPercent: () => number | undefined
   contextLabel: () => string
   contextColor: () => string | RGBA
-  inputUiValue: () => number
+  inputLabel: () => string
   cacheSummary: () => string
   costValue: () => string
   costSplit: () => string | undefined
@@ -318,7 +340,10 @@ export type SessionStatusData = {
   finishColor: () => string | RGBA
   tpsLabel: () => string
   ttftLabel: () => string
-  outputWithLimit: () => string
+  stepTimeLabel: () => string
+  responseTimeLabel: () => string
+  toolExecLabel: () => string
+  outputLabel: () => string
   runAttribution: () => string | undefined
   stats: () => MessageStats
   thinkingLabel: () => string
@@ -333,8 +358,8 @@ export const createSessionStatusData = (props: SessionStatusProps): SessionStatu
   const msgUsage = () => latestUsage(props.messages)
   const meta = () => latestMeta(props.messages)
   const activity = () => getActivity(props.messages, props.streaming)
-  const effective = (key: TokenKey) => effectiveTokens(props.totals, msgUsage(), key)
-  const contextValue = () => getContextValue(props.totals, msgUsage())
+  const tokens = () => lastTokensFromMessages(props.messages)
+  const contextValue = () => getContextValue(tokens())
   const contextPercent = () => getContextPercent(props.modelKey, contextValue())
   return {
     msgUsage,
@@ -342,21 +367,23 @@ export const createSessionStatusData = (props: SessionStatusProps): SessionStatu
     activity,
     agentName: () => getAgentName(props.agentId),
     agentColor: () => getAgentColor(props.agentId),
-    effective,
     modelLabel: () => getModelLabel(props.modelKey),
     contextValue,
     contextPercent,
     contextLabel: () => getContextLabel(props.modelKey, contextValue()),
     contextColor: () => getContextColor(contextPercent()),
-    inputUiValue: () => Math.max(0, effective('inputTokens') - effective('cacheReadTokens') - effective('cacheWriteTokens')),
-    cacheSummary: () => getCacheSummary(props.totals, msgUsage()),
+    inputLabel: () => getInputLabel(tokens()),
+    cacheSummary: () => getCacheSummary(tokens()),
     costValue: () => getCostValue(props.totals, msgUsage(), props.usage),
-    costSplit: () => getCostSplit(props.totals),
+    costSplit: () => getCostSplit(props.totals, msgUsage()),
     finishReason: () => getFinishReason(meta(), props.usage, props.messages, props.streaming),
     finishColor: () => getFinishColor(getFinishReason(meta(), props.usage, props.messages, props.streaming)),
     tpsLabel: () => getTpsLabel(props.usage, meta()),
     ttftLabel: () => getTtftLabel(props.usage, meta()),
-    outputWithLimit: () => getOutputWithLimit(props.totals, msgUsage(), props.modelKey),
+    stepTimeLabel: () => getStepTimeLabel(msgUsage()),
+    responseTimeLabel: () => getResponseTimeLabel(msgUsage()),
+    toolExecLabel: () => getToolExecLabel(msgUsage()),
+    outputLabel: () => getOutputLabel(tokens()),
     runAttribution: () => getRunAttribution(props.totals),
     stats: () => getMessageStats(props.messages),
     thinkingLabel: () => getThinkingLabel(props.thinking),

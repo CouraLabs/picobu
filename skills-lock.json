@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "solid-js-best-practices": {
+      "source": "richardcarls/solid-js-best-practices",
+      "sourceType": "github",
+      "skillPath": "SKILL.md",
+      "computedHash": "de51587bd2edb9f9ebf5724c93b2d5db0cb6f1645c45a57d73cc5c62a201e66a"
+    }
+  }
+}

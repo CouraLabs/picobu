@@ -15,6 +15,7 @@ import {
   type CostDetail,
   emptyTotals,
   isWaiting,
+  liveTotals,
   readSessionMeta,
   type SessionMeta,
   type SessionState,
@@ -29,8 +30,6 @@ import type { ChatState } from 'ai'
 import { type AsyncIterableStream, type ChatInit, type ChatStatus, type ChatTransport, type CreateUIMessage, generateId, readUIMessageStream, type UIMessageChunk } from 'ai'
 
 export type SessionUsage = LoopUsage & {
-  tps?: number
-  ttftMs?: number
   cost?: number
   finishReason?: string
 }
@@ -139,6 +138,7 @@ export type Session = {
     servers: () => Promise<import('@integrations/mcp/client.ts').McpServerSnapshot[]>
     tools: () => Promise<string[]>
     refresh: () => Promise<void>
+    reload: () => Promise<void>
   }
   readonly usage: SessionUsage | undefined
   readonly totals: SessionTotals
@@ -225,6 +225,7 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
   }
   let totals: SessionTotals = meta.totals ?? emptyTotals()
   let title: string | undefined = meta.title
+  let lastUsage: SessionUsage | undefined
 
   const streamListeners = new Set<(chunk: UIMessageChunk) => void>()
   const runEndListeners = new Set<() => void>()
@@ -319,11 +320,6 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
     if (chat.error) throw new Error(`Cannot ${op} while the session is in the error state`)
   }
 
-  let runStart: number | undefined
-  let firstTokenAt: number | undefined
-  let lastUsage: SessionUsage | undefined
-  const currentTtftMs = (): number | undefined => (firstTokenAt !== undefined && runStart !== undefined ? firstTokenAt - runStart : undefined)
-  const tpsFor = (outputTokens: number | undefined): number | undefined => (outputTokens && firstTokenAt !== undefined ? (outputTokens / Math.max(1, Date.now() - firstTokenAt)) * 1000 : undefined)
   const latestUsageMeta = (msgs: LoopMessage[]): LoopMessageMetadata | undefined => {
     for (let i = msgs.length - 1; i >= 0; i--) {
       const meta = msgs[i]?.metadata as LoopMessageMetadata | undefined
@@ -335,18 +331,12 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
   let lastDerivedState: SessionState | undefined
   const handleStateChange = (state: ChatState<LoopMessage>): void => {
     if (state.status === 'submitted') {
-      runStart = Date.now()
-      firstTokenAt = undefined
       lastUsage = undefined
-    } else if (state.status === 'streaming' && firstTokenAt === undefined) {
-      firstTokenAt = Date.now()
     }
-    if (state.status === 'streaming' && firstTokenAt !== undefined) {
+    if (state.status === 'streaming') {
       const liveMeta = latestUsageMeta(chat.messages)
       lastUsage = {
         ...(liveMeta?.usage ?? {}),
-        ttftMs: currentTtftMs(),
-        tps: tpsFor(liveMeta?.usage?.outputTokens),
         finishReason: liveMeta?.finishReason,
         cost: liveMeta?.cost,
       }
@@ -434,33 +424,31 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
       } catch {
         billing = undefined
       }
-      const ttftMs = currentTtftMs()
-      const tps = tpsFor(usage?.outputTokens)
       lastUsage = {
         ...(usage ?? {}),
-        ttftMs,
-        tps,
         finishReason: meta?.finishReason,
         cost: usage ? computeCost(usage, billing) : undefined,
       }
       if (usage) {
         const split = computeCostSplit(usage, billing)
+        const acc = usage.computed
+        const inputTokens = acc ? acc.accNoCacheInputTokens + acc.accCacheReadTokens + acc.accCacheWriteTokens : (usage.inputTokens ?? 0)
         totals = addToTotals(totals, {
           source: 'run',
           modelKey: effectiveConfig().modelKey,
-          inputTokens: usage.inputTokens ?? 0,
-          outputTokens: usage.outputTokens ?? 0,
-          cacheReadTokens: usage.cacheReadTokens ?? 0,
-          cacheWriteTokens: usage.cacheWriteTokens ?? 0,
-          reasoningTokens: usage.reasoningTokens ?? 0,
-          textTokens: usage.textTokens ?? 0,
-          totalTokens: usage.totalTokens ?? (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0),
-          contextTokens: usage.contextTokens ?? usage.inputTokens ?? 0,
-          lastOutputTokens: usage.lastOutputTokens ?? 0,
-          cost: lastUsage.cost,
-          ...(split ?? {}),
+          inputTokens,
+          outputTokens: acc ? acc.accOutputTokens : (usage.outputTokens ?? 0),
+          cacheReadTokens: acc ? acc.accCacheReadTokens : (usage.cacheReadTokens ?? 0),
+          cacheWriteTokens: acc ? acc.accCacheWriteTokens : (usage.cacheWriteTokens ?? 0),
+          reasoningTokens: acc ? acc.accReasoningTokens : (usage.reasoningTokens ?? 0),
+          textTokens: acc ? acc.accTextTokens : (usage.textTokens ?? 0),
+          totalTokens: inputTokens + (acc ? acc.accOutputTokens : (usage.outputTokens ?? 0)),
+          noCacheInputTokens: acc ? acc.accNoCacheInputTokens : (usage.noCacheInputTokens ?? 0),
+          ...(split ? { cost: split } : {}),
         })
-        persistMeta({ totals })
+        persistMeta({
+          totals,
+        })
       }
       if (!wasAborting && !chat.error && !isWaiting(chat.messages)) {
         const stripped = stripAnalysedImages(chat.messages)
@@ -643,6 +631,10 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
         servers: () => loop.mcp.snapshot(),
         tools: async () => Object.keys(await loop.mcp.tools()),
         refresh: () => loop.mcp.refresh(),
+        reload: async () => {
+          await loop.mcp.close()
+          await loop.mcp.connectAll()
+        },
       }
     },
     get usage() {
@@ -650,19 +642,21 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
     },
     get totals() {
       if ((chat.status === 'streaming' || chat.status === 'submitted') && lastUsage) {
-        return {
-          ...totals,
-          inputTokens: totals.inputTokens + (lastUsage.inputTokens ?? 0),
-          outputTokens: totals.outputTokens + (lastUsage.outputTokens ?? 0),
-          cacheReadTokens: totals.cacheReadTokens + (lastUsage.cacheReadTokens ?? 0),
-          cacheWriteTokens: totals.cacheWriteTokens + (lastUsage.cacheWriteTokens ?? 0),
-          reasoningTokens: totals.reasoningTokens + (lastUsage.reasoningTokens ?? 0),
-          textTokens: totals.textTokens + (lastUsage.textTokens ?? 0),
-          totalTokens: totals.totalTokens + (lastUsage.totalTokens ?? 0),
-          contextTokens: lastUsage.contextTokens ?? lastUsage.inputTokens ?? totals.contextTokens,
-          lastOutputTokens: lastUsage.lastOutputTokens ?? 0,
-          cost: lastUsage.cost !== undefined ? (totals.cost ?? 0) + lastUsage.cost : totals.cost,
-        }
+        const acc = lastUsage.computed
+        const inputTokens = acc ? acc.accNoCacheInputTokens + acc.accCacheReadTokens + acc.accCacheWriteTokens : (lastUsage.inputTokens ?? 0)
+        const outputTokens = acc ? acc.accOutputTokens : (lastUsage.outputTokens ?? 0)
+        return liveTotals(totals, {
+          source: 'run',
+          inputTokens,
+          outputTokens,
+          cacheReadTokens: acc ? acc.accCacheReadTokens : (lastUsage.cacheReadTokens ?? 0),
+          cacheWriteTokens: acc ? acc.accCacheWriteTokens : (lastUsage.cacheWriteTokens ?? 0),
+          reasoningTokens: acc ? acc.accReasoningTokens : (lastUsage.reasoningTokens ?? 0),
+          textTokens: acc ? acc.accTextTokens : (lastUsage.textTokens ?? 0),
+          totalTokens: inputTokens + outputTokens,
+          noCacheInputTokens: acc ? acc.accNoCacheInputTokens : (lastUsage.noCacheInputTokens ?? 0),
+          ...(acc?.cost ? { cost: acc.cost } : {}),
+        })
       }
       return totals
     },

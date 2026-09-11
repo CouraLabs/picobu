@@ -52,6 +52,10 @@ describe('cost', () => {
   test('undefined billing yields undefined', () => {
     expect(computeCost({ inputTokens: 10, outputTokens: 5 })).toBeUndefined()
   })
+  test('single step derives noCache from top level', () => {
+    const cost = computeCost({ inputTokens: 1000, outputTokens: 500, cacheReadTokens: 100, cacheWriteTokens: 200 }, { input: 3, output: 6, cacheRead: 1, cacheWrite: 2 })
+    expect(cost).toBeCloseTo(0.0056, 10)
+  })
   test('clamps cache overcount to zero uncached', () => {
     const cost = computeCost({ inputTokens: 10, cacheReadTokens: 8, cacheWriteTokens: 5 }, { input: 1, output: 1, cacheRead: 1, cacheWrite: 1 })
     expect(cost).toBeGreaterThanOrEqual(0)

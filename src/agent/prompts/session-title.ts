@@ -17,18 +17,27 @@ export const sessionTitlePrompt = [
 ].join('\n')
 
 const MAX_PROMPT_CHARS = 2000
+const MAX_CONTEXT_CHARS = 2000
 
-export async function generateSessionTitle(prompt: string): Promise<string> {
+export const buildTitlePrompt = (prompt: string, assistantReply?: string): string => {
+  const sections = [sessionTitlePrompt]
+  const assistant = assistantReply?.trim()
+  if (assistant) sections.push('', 'Last assistant reply:', assistant.slice(0, MAX_CONTEXT_CHARS))
+  sections.push('', 'User request:', prompt.trim().slice(0, MAX_PROMPT_CHARS))
+  return sections.join('\n')
+}
+
+export async function generateSessionTitle(prompt: string, assistantReply?: string): Promise<string> {
   const trimmed = prompt.trim()
   const fallback = truncate(trimmed)
   if (!trimmed) return fallback
   try {
-    const { modelKey, thinking } = resolveModelRole(options.harness, 'tiny')
+    const { modelKey } = resolveModelRole(options.harness, 'tiny')
     const { model } = resolveModel(modelKey)
     const { text } = await generateText({
       model,
-      reasoning: thinking as unknown as AgentReasoning,
-      prompt: [sessionTitlePrompt, '', 'User request:', trimmed.slice(0, MAX_PROMPT_CHARS)].join('\n'),
+      reasoning: 'none' satisfies AgentReasoning,
+      prompt: buildTitlePrompt(prompt, assistantReply),
     })
     const title = (text.split('\n')[0] ?? '')
       .trim()

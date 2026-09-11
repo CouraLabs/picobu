@@ -1,5 +1,5 @@
 import type { AgentReasoning } from '@agent/loop/create-loop.ts'
-import { computeCost, type LoopUsage } from '@agent/model/cost.ts'
+import { deriveNoCacheInputTokens, type LoopUsage, nextUsage } from '@agent/model/cost.ts'
 import { resolveModel, resolveModelRef } from '@agent/model/resolver.ts'
 import { serializeForCompaction } from '@agent/sessions/session-compaction.ts'
 import type { ProviderModelBilling, ProviderModelReasoningEffort } from '@config/options.ts'
@@ -35,13 +35,22 @@ export async function summarizeSession({ messages, modelKey, thinking }: Summari
   })
   const summary = text.trim()
   if (!summary) throw new Error('The model returned an empty summary')
-  const loopUsage: LoopUsage = {
-    inputTokens: usage.inputTokens,
-    outputTokens: usage.outputTokens,
-    cacheReadTokens: usage.inputTokenDetails?.cacheReadTokens ?? 0,
-    cacheWriteTokens: usage.inputTokenDetails?.cacheWriteTokens ?? 0,
-    contextTokens: usage.inputTokens,
-    lastOutputTokens: usage.outputTokens,
+  const inputTokens = usage.inputTokens ?? 0
+  const outputTokens = usage.outputTokens ?? 0
+  const cacheReadTokens = usage.inputTokenDetails?.cacheReadTokens ?? 0
+  const cacheWriteTokens = usage.inputTokenDetails?.cacheWriteTokens ?? 0
+  const outputDetails = usage.outputTokenDetails as { reasoningTokens?: number; reasoning?: number; textTokens?: number; text?: number } | undefined
+  const reasoningTokens = outputDetails?.reasoningTokens ?? outputDetails?.reasoning ?? 0
+  const textTokens = outputDetails?.textTokens ?? outputDetails?.text ?? 0
+  const step: LoopUsage = {
+    inputTokens,
+    noCacheInputTokens: deriveNoCacheInputTokens(inputTokens, cacheReadTokens, cacheWriteTokens),
+    outputTokens,
+    cacheReadTokens,
+    cacheWriteTokens,
+    reasoningTokens,
+    textTokens,
+    totalTokens: inputTokens + outputTokens,
   }
   let billing: ProviderModelBilling | undefined
   try {
@@ -49,5 +58,6 @@ export async function summarizeSession({ messages, modelKey, thinking }: Summari
   } catch {
     billing = undefined
   }
-  return { summary, usage: loopUsage, cost: computeCost(loopUsage, billing) }
+  const loopUsage = nextUsage(undefined, step, billing)
+  return { summary, usage: loopUsage, cost: loopUsage.computed?.cost?.total }
 }

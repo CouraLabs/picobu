@@ -1,5 +1,6 @@
 import { stat } from 'node:fs/promises'
 import { resolve } from 'node:path'
+import { listSubagents } from '@agent/agents/subagents.ts'
 import { buildCommandPrompt } from '@agent/commands/discovery.ts'
 import { listCommands } from '@agent/commands/index.ts'
 import { type ParsedCommandLine, parseCommandLine } from '@agent/commands/parse-command-line.ts'
@@ -8,15 +9,19 @@ import { generateSessionTitle } from '@agent/prompts/session-title.ts'
 import { closePromptHistory, projectKeyFor } from '@agent/sessions/prompt-history.ts'
 import type { QueuedPrompt, Session, SessionUsage } from '@agent/sessions/session.ts'
 import { SessionManager } from '@agent/sessions/session-manager.ts'
+import { lastAssistantText } from '@agent/sessions/session-messages.ts'
 import type { SessionTotals } from '@agent/sessions/session-meta.ts'
 import { isWaiting } from '@agent/sessions/session-meta.ts'
 import { createSessionWatchdog } from '@agent/sessions/session-watchdog.ts'
+import { resetAuthCache } from '@auth/store.ts'
 import type { ProviderModelReasoningEffort } from '@config/options.ts'
 import { options } from '@config/options.ts'
+import { resetMcpAuthCache } from '@integrations/mcp/auth.ts'
 import { useKeyboard, useRenderer } from '@opentui/solid'
 import { setConsoleTitle } from '@shared/console-title.ts'
 import { getGitInfo } from '@shared/git-info.ts'
 import { notifyBlocking, notifyCompletion, notifyFailure, notifyStale } from '@shared/notify.ts'
+import { bumpCatalog } from '@states/catalog-state.ts'
 import { closeDialog, dialogStatus, openDialog } from '@states/dialog.state.ts'
 import { flushThemeSave, theme } from '@states/theme-state.ts'
 import { pushToast } from '@states/toast.state.ts'
@@ -82,6 +87,20 @@ const pendingFlowPart = (parts: unknown[]): { tool: 'ask' | 'plan-write'; toolCa
     if (typeof part.toolCallId !== 'string' || part.toolCallId.length === 0) continue
     if (output?.status !== 'pending') continue
     return { tool: name, toolCallId: part.toolCallId }
+  }
+  return undefined
+}
+
+const lastUserText = (messages: LoopMessage[]): string | undefined => {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i]
+    if (m?.role !== 'user') continue
+    const text = m.parts
+      .filter((p): p is { type: 'text'; text: string } => p.type === 'text')
+      .map((p) => p.text)
+      .join('\n')
+      .trim()
+    if (text) return text
   }
   return undefined
 }
@@ -445,6 +464,7 @@ export const SessionPage = (props: SessionPageProps) => {
             } else {
               pushToast('Run is complete', 'success')
               notifyCompletion('Run complete')
+              if (live) regenerateTitle(live)
             }
             refreshMcp(live)
           } else if (state.error && state.error.message !== prevErrorMessage) {
@@ -478,6 +498,26 @@ export const SessionPage = (props: SessionPageProps) => {
         }
         target.setTitle(generated)
         setTitle(generated)
+      })
+      .catch(() => {
+        titleGenerationPending.delete(target.id)
+      })
+  }
+
+  const regenerateTitle = (target: Session) => {
+    if (!target.title) return
+    if (titleGenerationPending.has(target.id)) return
+    const promptText = lastUserText(target.messages)
+    if (!promptText?.trim()) return
+    const assistantReply = lastAssistantText(target.messages)
+    if (!assistantReply?.trim()) return
+    titleGenerationPending.add(target.id)
+    generateSessionTitle(promptText, assistantReply)
+      .then((generated) => {
+        titleGenerationPending.delete(target.id)
+        if (!generated) return
+        target.setTitle(generated)
+        if (session()?.id === target.id) setTitle(generated)
       })
       .catch(() => {
         titleGenerationPending.delete(target.id)
@@ -521,6 +561,7 @@ export const SessionPage = (props: SessionPageProps) => {
       } catch {}
       const fresh = await sessionMgr.changeDirectory(next)
       if (!fresh) return
+      bumpCatalog()
       attachSession(fresh)
     } catch (error) {
       showError(error)
@@ -664,6 +705,32 @@ export const SessionPage = (props: SessionPageProps) => {
       case 'new':
         await handleNewSession(target)
         break
+      case 'reload': {
+        if (target.status === 'submitted' || target.status === 'streaming') {
+          showError(new Error('Cannot reload while a run is in progress'))
+          break
+        }
+        resetAuthCache()
+        resetMcpAuthCache()
+        try {
+          await target.mcp.reload()
+        } catch (error) {
+          showError(error)
+        }
+        bumpCatalog()
+        const [skills, workflows, rules, subagents, servers] = await Promise.all([
+          Promise.resolve(target.skills).catch(() => []),
+          Promise.resolve(target.workflows).catch(() => []),
+          Promise.resolve(target.rules).catch(() => []),
+          listSubagents(target.config.cwd ?? options.app.cwd).catch(() => []),
+          target.mcp.servers().catch(() => []),
+        ])
+        const connected = servers.filter((s) => s.connected).length
+        const tools = servers.reduce((n, s) => n + s.tools.length, 0)
+        pushToast(`Reloaded ${skills.length} skills, ${workflows.length} workflows, ${rules.length} rules, ${subagents.length} subagents, MCP ${connected}/${servers.length} (${tools} tools)`, 'info')
+        refreshMcp(target)
+        break
+      }
     }
   }
 

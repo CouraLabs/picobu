@@ -1,6 +1,8 @@
 import { mkdirSync } from 'node:fs'
 import { readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import type { LoopUsageComputed, LoopUsageComputedCost } from '@agent/model/cost.ts'
+import { zeroComputedCost } from '@agent/model/cost.ts'
 import { folderKeyFor, sessionsRoot } from '@agent/sessions/session-paths.ts'
 import { withLock } from '@shared/lock.ts'
 import { z } from 'zod'
@@ -39,19 +41,11 @@ export type CostDetail = {
   reasoningTokens?: number
   textTokens?: number
   totalTokens?: number
-  contextTokens?: number
-  lastOutputTokens?: number
-  cost?: number
-  inputCost?: number
-  outputCost?: number
-  cacheCost?: number
+  noCacheInputTokens?: number
+  cost?: LoopUsageComputedCost
 }
 
-export type CostDetails = {
-  totalCost?: number
-  inputCost?: number
-  outputCost?: number
-  cacheCost?: number
+export type CostDetails = LoopUsageComputedCost & {
   details: CostDetail[]
 }
 
@@ -63,11 +57,13 @@ export type SessionTotals = {
   reasoningTokens: number
   textTokens: number
   totalTokens: number
-  contextTokens: number
-  lastOutputTokens: number
-  cost?: number
+  noCacheInputTokens: number
+  computed: LoopUsageComputed
   costDetails: CostDetails
 }
+
+const emptyCost = (): LoopUsageComputedCost => zeroComputedCost()
+
 export const emptyTotals = (): SessionTotals => ({
   inputTokens: 0,
   outputTokens: 0,
@@ -76,21 +72,50 @@ export const emptyTotals = (): SessionTotals => ({
   reasoningTokens: 0,
   textTokens: 0,
   totalTokens: 0,
-  contextTokens: 0,
-  lastOutputTokens: 0,
-  costDetails: { details: [] },
+  noCacheInputTokens: 0,
+  computed: {
+    accNoCacheInputTokens: 0,
+    accOutputTokens: 0,
+    accCacheReadTokens: 0,
+    accCacheWriteTokens: 0,
+    accReasoningTokens: 0,
+    accTextTokens: 0,
+  },
+  costDetails: { ...emptyCost(), details: [] },
 })
 
-export function addToTotals(totals: SessionTotals, detail: CostDetail): SessionTotals {
+const detailNoCache = (detail: CostDetail): number => detail.noCacheInputTokens ?? Math.max(0, detail.inputTokens - detail.cacheReadTokens - detail.cacheWriteTokens)
+
+const mergeCost = (base: LoopUsageComputedCost | undefined, add: LoopUsageComputedCost | undefined): LoopUsageComputedCost | undefined => {
+  if (!base && !add) return undefined
+  const b = base ?? zeroComputedCost()
+  const a = add ?? zeroComputedCost()
+  const inputCost = b.inputCost + a.inputCost
+  const outputCost = b.outputCost + a.outputCost
+  const cacheReadCost = b.cacheReadCost + a.cacheReadCost
+  const cacheWriteCost = b.cacheWriteCost + a.cacheWriteCost
+  return { inputCost, outputCost, cacheReadCost, cacheWriteCost, cacheCost: cacheReadCost + cacheWriteCost, total: inputCost + outputCost + cacheReadCost + cacheWriteCost }
+}
+
+const mergeTotals = (totals: SessionTotals, detail: CostDetail, appendDetail: boolean): SessionTotals => {
+  const noCache = detailNoCache(detail)
+  const totalTokens = detail.totalTokens ?? detail.inputTokens + detail.outputTokens
+  const accNoCacheInputTokens = totals.computed.accNoCacheInputTokens + noCache
+  const accOutputTokens = totals.computed.accOutputTokens + detail.outputTokens
+  const accCacheReadTokens = totals.computed.accCacheReadTokens + detail.cacheReadTokens
+  const accCacheWriteTokens = totals.computed.accCacheWriteTokens + detail.cacheWriteTokens
+  const accReasoningTokens = totals.computed.accReasoningTokens + (detail.reasoningTokens ?? 0)
+  const accTextTokens = totals.computed.accTextTokens + (detail.textTokens ?? 0)
+  const computedCost = mergeCost(totals.computed.cost, detail.cost)
+  const base = totals.costDetails
   const costDetails: CostDetails = {
-    ...totals.costDetails,
-    details: [...totals.costDetails.details, detail],
-  }
-  if (detail.cost !== undefined) {
-    costDetails.totalCost = (costDetails.totalCost ?? 0) + detail.cost
-    if (detail.inputCost !== undefined) costDetails.inputCost = (costDetails.inputCost ?? 0) + detail.inputCost
-    if (detail.outputCost !== undefined) costDetails.outputCost = (costDetails.outputCost ?? 0) + detail.outputCost
-    if (detail.cacheCost !== undefined) costDetails.cacheCost = (costDetails.cacheCost ?? 0) + detail.cacheCost
+    inputCost: base.inputCost + (detail.cost?.inputCost ?? 0),
+    outputCost: base.outputCost + (detail.cost?.outputCost ?? 0),
+    cacheReadCost: base.cacheReadCost + (detail.cost?.cacheReadCost ?? 0),
+    cacheWriteCost: base.cacheWriteCost + (detail.cost?.cacheWriteCost ?? 0),
+    cacheCost: base.cacheCost + (detail.cost?.cacheCost ?? 0),
+    total: base.total + (detail.cost?.total ?? 0),
+    details: appendDetail ? [...base.details, detail] : base.details,
   }
   return {
     inputTokens: totals.inputTokens + detail.inputTokens,
@@ -99,13 +124,47 @@ export function addToTotals(totals: SessionTotals, detail: CostDetail): SessionT
     cacheWriteTokens: totals.cacheWriteTokens + detail.cacheWriteTokens,
     reasoningTokens: totals.reasoningTokens + (detail.reasoningTokens ?? 0),
     textTokens: totals.textTokens + (detail.textTokens ?? 0),
-    totalTokens: totals.totalTokens + (detail.totalTokens ?? detail.inputTokens + detail.outputTokens),
-    contextTokens: detail.source === 'subagent' ? totals.contextTokens : (detail.contextTokens ?? detail.inputTokens),
-    lastOutputTokens: detail.source === 'subagent' ? totals.lastOutputTokens : (detail.lastOutputTokens ?? 0),
-    cost: detail.cost !== undefined ? (totals.cost ?? 0) + detail.cost : totals.cost,
+    totalTokens: totals.totalTokens + totalTokens,
+    noCacheInputTokens: totals.noCacheInputTokens + noCache,
+    computed: {
+      accNoCacheInputTokens,
+      accOutputTokens,
+      accCacheReadTokens,
+      accCacheWriteTokens,
+      accReasoningTokens,
+      accTextTokens,
+      ...(computedCost ? { cost: computedCost } : {}),
+    },
     costDetails,
   }
 }
+
+export function addToTotals(totals: SessionTotals, detail: CostDetail): SessionTotals {
+  return mergeTotals(totals, detail, true)
+}
+
+export function liveTotals(totals: SessionTotals, detail: CostDetail): SessionTotals {
+  return mergeTotals(totals, detail, false)
+}
+
+const costSchema = z.object({
+  inputCost: z.number(),
+  outputCost: z.number(),
+  cacheReadCost: z.number(),
+  cacheWriteCost: z.number(),
+  cacheCost: z.number(),
+  total: z.number(),
+})
+
+const computedSchema: z.ZodType<LoopUsageComputed> = z.object({
+  accNoCacheInputTokens: z.number(),
+  accOutputTokens: z.number(),
+  accCacheReadTokens: z.number(),
+  accCacheWriteTokens: z.number(),
+  accReasoningTokens: z.number(),
+  accTextTokens: z.number(),
+  cost: costSchema.optional(),
+})
 
 const totalsSchema: z.ZodType<SessionTotals> = z.object({
   inputTokens: z.number(),
@@ -115,14 +174,15 @@ const totalsSchema: z.ZodType<SessionTotals> = z.object({
   reasoningTokens: z.number().optional().default(0),
   textTokens: z.number().optional().default(0),
   totalTokens: z.number().optional().default(0),
-  contextTokens: z.number().optional().default(0),
-  lastOutputTokens: z.number().optional().default(0),
-  cost: z.number().optional(),
+  noCacheInputTokens: z.number().optional().default(0),
+  computed: computedSchema,
   costDetails: z.object({
-    totalCost: z.number().optional(),
-    inputCost: z.number().optional(),
-    outputCost: z.number().optional(),
-    cacheCost: z.number().optional(),
+    inputCost: z.number().optional().default(0),
+    outputCost: z.number().optional().default(0),
+    cacheReadCost: z.number().optional().default(0),
+    cacheWriteCost: z.number().optional().default(0),
+    cacheCost: z.number().optional().default(0),
+    total: z.number().optional().default(0),
     details: z.array(z.any()),
   }),
 })

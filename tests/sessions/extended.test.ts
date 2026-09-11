@@ -3,6 +3,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { UIMessage } from 'ai'
+import { projectedContext } from '../../src/agent/model/cost.ts'
 import { CheckpointStore } from '../../src/agent/sessions/checkpoints.ts'
 import {
   addPrompt,
@@ -240,6 +241,28 @@ describe('session compaction pure helpers', () => {
     expect(shouldCompact(80, 100)).toBe(true)
     expect(shouldCompact(79, 100)).toBe(false)
     expect(shouldCompact(10, 0)).toBe(false)
+  })
+  test('projectedContext measures last-call context, not run-summed input', () => {
+    const finishUsage = {
+      inputTokens: 43_392,
+      outputTokens: 740,
+      totalTokens: 43_392 + 740,
+      computed: {
+        accNoCacheInputTokens: 1_389_678,
+        accOutputTokens: 15_261,
+        accCacheReadTokens: 0,
+        accCacheWriteTokens: 0,
+        accReasoningTokens: 0,
+        accTextTokens: 0,
+      },
+    }
+    expect(projectedContext(finishUsage)).toBe(43_392 + 740)
+    expect(shouldCompact(projectedContext(finishUsage), 1_048_576)).toBe(false)
+    expect(shouldCompact(1_389_678 + 740, 1_048_576)).toBe(true)
+  })
+  test('projectedContext falls back to input plus output', () => {
+    expect(projectedContext({ inputTokens: 100, outputTokens: 50 })).toBe(150)
+    expect(projectedContext(undefined)).toBe(0)
   })
   test('compactedMessageText starts with header and keeps summary', () => {
     const text = compactedMessageText('my summary')

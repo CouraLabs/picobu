@@ -1,6 +1,6 @@
 import type { Command } from '@agent/commands/types.ts'
 
-export type SystemCommandName = 'q' | 'compact' | 'models' | 'fork' | 'summarize' | 'roles' | 'cd' | 'new'
+export type SystemCommandName = 'q' | 'compact' | 'models' | 'fork' | 'summarize' | 'roles' | 'cd' | 'new' | 'reload'
 
 export type SystemCommandDef = {
   name: SystemCommandName
@@ -18,6 +18,7 @@ export const SYSTEM_COMMANDS: SystemCommandDef[] = [
   { name: 'roles', aliases: [], description: 'Assign models and thinking levels to roles', usage: '/roles' },
   { name: 'cd', aliases: [], description: 'Change project folder (starts a new session)', usage: '/cd <path>' },
   { name: 'new', aliases: ['clear', 'cls'], description: 'Start a new session', usage: '/new' },
+  { name: 'reload', aliases: [], description: 'Reload skills, workflows, rules, agents, prompts and MCP from disk', usage: '/reload' },
 ]
 
 export const toKebab = (value: string): string =>

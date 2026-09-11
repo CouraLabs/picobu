@@ -2,7 +2,7 @@ import { getAgent } from '@agent/agents/registry.ts'
 import { listSubagents } from '@agent/agents/subagents.ts'
 import type { AgentType } from '@agent/agents/types.ts'
 import { listSkills } from '@agent/commands/index.ts'
-import { computeCost, type LoopUsage } from '@agent/model/cost.ts'
+import { computeCost, deriveNoCacheInputTokens, type LoopUsage, nextUsage, toLoopPerformance } from '@agent/model/cost.ts'
 import { resolveModel, resolveModelRef } from '@agent/model/resolver.ts'
 import { loadAgentsMarkdown } from '@agent/prompts/agents-md.ts'
 import { buildRulesSection, buildSkillsSection, buildSubagentsSection, generateSystemMessage } from '@agent/prompts/system.ts'
@@ -41,8 +41,6 @@ export type LoopMessageMetadata = {
   usage?: LoopUsage
   finishReason?: string
   cost?: number
-  tps?: number
-  ttftMs?: number
   compaction?: CompactionMetadata
 }
 
@@ -198,18 +196,13 @@ export function createLoop(getConfig: () => LoopConfig): Loop {
         generate: (callOptions: Parameters<typeof loopAgent.generate>[0]) => loopAgent.generate({ ...callOptions, experimental_sandbox: sandboxSession }),
       } as ToolLoopAgent<LoopCallOptions, ToolSet, Record<string, unknown>, never>)
     : loopAgent
-  const addUsage = (a: LoopUsage | undefined, b: LoopUsage): LoopUsage => ({
-    inputTokens: (a?.inputTokens ?? 0) + (b.inputTokens ?? 0),
-    outputTokens: (a?.outputTokens ?? 0) + (b.outputTokens ?? 0),
-    cacheReadTokens: (a?.cacheReadTokens ?? 0) + (b.cacheReadTokens ?? 0),
-    cacheWriteTokens: (a?.cacheWriteTokens ?? 0) + (b.cacheWriteTokens ?? 0),
-    reasoningTokens: (a?.reasoningTokens ?? 0) + (b.reasoningTokens ?? 0),
-    textTokens: (a?.textTokens ?? 0) + (b.textTokens ?? 0),
-    totalTokens: (a?.totalTokens ?? 0) + (b.totalTokens ?? 0),
-    noCacheTokens: (a?.noCacheTokens ?? 0) + (b.noCacheTokens ?? 0),
-    contextTokens: b.contextTokens ?? b.inputTokens ?? a?.contextTokens ?? 0,
-    lastOutputTokens: b.lastOutputTokens ?? b.outputTokens ?? a?.lastOutputTokens ?? 0,
-  })
+  const resolveBilling = (): ProviderModelBilling | undefined => {
+    try {
+      return resolveModelRef(getConfig().modelKey).modelMeta.billing
+    } catch {
+      return undefined
+    }
+  }
   let runUsage: LoopUsage | undefined
   const transport = new DirectChatTransport({
     agent,
@@ -222,52 +215,48 @@ export function createLoop(getConfig: () => LoopConfig): Loop {
     onError: formatStreamError,
 
     messageMetadata: (opts) => {
-      const build = (usage: LoopUsage, extra?: Omit<LoopMessageMetadata, 'usage' | 'cost'>): LoopMessageMetadata => {
-        let billing: ProviderModelBilling | undefined
-        try {
-          billing = resolveModelRef(getConfig().modelKey).modelMeta.billing
-        } catch {
-          billing = undefined
-        }
-        return { usage, cost: computeCost(usage, billing), ...extra }
-      }
+      const build = (usage: LoopUsage, extra?: Omit<LoopMessageMetadata, 'usage' | 'cost'>): LoopMessageMetadata => ({ usage, cost: computeCost(usage, resolveBilling()), ...extra })
       if (opts.part.type === 'start') {
         runUsage = undefined
         return undefined
       }
       if (opts.part.type === 'finish-step') {
+        const inputTokens = opts.part.usage.inputTokens ?? 0
+        const outputTokens = opts.part.usage.outputTokens ?? 0
+        const cacheReadTokens = opts.part.usage.inputTokenDetails?.cacheReadTokens ?? 0
+        const cacheWriteTokens = opts.part.usage.inputTokenDetails?.cacheWriteTokens ?? 0
         const stepUsage: LoopUsage = {
-          inputTokens: opts.part.usage.inputTokens,
-          outputTokens: opts.part.usage.outputTokens,
-          cacheReadTokens: opts.part.usage.inputTokenDetails?.cacheReadTokens ?? 0,
-          cacheWriteTokens: opts.part.usage.inputTokenDetails?.cacheWriteTokens ?? 0,
+          inputTokens,
+          noCacheInputTokens: deriveNoCacheInputTokens(inputTokens, cacheReadTokens, cacheWriteTokens),
+          outputTokens,
+          cacheReadTokens,
+          cacheWriteTokens,
           reasoningTokens: opts.part.usage.outputTokenDetails?.reasoningTokens ?? 0,
           textTokens: opts.part.usage.outputTokenDetails?.textTokens ?? 0,
-          totalTokens: opts.part.usage.totalTokens ?? 0,
-          noCacheTokens: opts.part.usage.inputTokenDetails?.noCacheTokens ?? 0,
-          contextTokens: opts.part.usage.inputTokens,
-          lastOutputTokens: opts.part.usage.outputTokens,
+          totalTokens: opts.part.usage.totalTokens ?? inputTokens + outputTokens,
+          performance: toLoopPerformance(opts.part.performance),
         }
-        runUsage = addUsage(runUsage, stepUsage)
+        runUsage = nextUsage(runUsage, stepUsage, resolveBilling())
         return build(runUsage)
       }
       if (opts.part.type === 'finish') {
+        if (runUsage) return { ...build(runUsage), finishReason: opts.part.finishReason }
         const total = opts.part.totalUsage
-        return {
-          ...build({
-            inputTokens: total.inputTokens,
-            outputTokens: total.outputTokens,
-            cacheReadTokens: total.inputTokenDetails?.cacheReadTokens ?? 0,
-            cacheWriteTokens: total.inputTokenDetails?.cacheWriteTokens ?? 0,
-            reasoningTokens: total.outputTokenDetails?.reasoningTokens ?? 0,
-            textTokens: total.outputTokenDetails?.textTokens ?? 0,
-            totalTokens: total.totalTokens ?? 0,
-            noCacheTokens: total.inputTokenDetails?.noCacheTokens ?? 0,
-            contextTokens: runUsage?.contextTokens ?? total.inputTokens,
-            lastOutputTokens: runUsage?.lastOutputTokens ?? total.outputTokens ?? 0,
-          }),
-          finishReason: opts.part.finishReason,
+        const inputTokens = total.inputTokens ?? 0
+        const outputTokens = total.outputTokens ?? 0
+        const cacheReadTokens = total.inputTokenDetails?.cacheReadTokens ?? 0
+        const cacheWriteTokens = total.inputTokenDetails?.cacheWriteTokens ?? 0
+        const fallback: LoopUsage = {
+          inputTokens,
+          noCacheInputTokens: deriveNoCacheInputTokens(inputTokens, cacheReadTokens, cacheWriteTokens),
+          outputTokens,
+          cacheReadTokens,
+          cacheWriteTokens,
+          reasoningTokens: total.outputTokenDetails?.reasoningTokens ?? 0,
+          textTokens: total.outputTokenDetails?.textTokens ?? 0,
+          totalTokens: total.totalTokens ?? inputTokens + outputTokens,
         }
+        return { ...build(nextUsage(undefined, fallback, resolveBilling())), finishReason: opts.part.finishReason }
       }
       return undefined
     },

@@ -1,4 +1,3 @@
-import { fmtTokens } from '@shared/format.ts'
 import { theme } from '@states/theme-state.ts'
 import { contextBar, contextIcon } from '@tui/components/shared/status-format.ts'
 import { StatusSegment } from '@tui/components/shared/status-segment.tsx'
@@ -19,11 +18,16 @@ export const StatusContext = (props: { data: SessionStatusData }) => (
 
 export const StatusMetrics = (props: { data: SessionStatusData }) => (
   <box flexDirection="row" columnGap={2} flexShrink={0} flexWrap="wrap">
-    <StatusSegment icon={icons.clock} value={props.data.ttftLabel()} valueColor={theme().primary} />
-    <StatusSegment icon={icons.speed} value={props.data.tpsLabel()} valueColor={theme().primary} />
+    <StatusSegment icon={'TTFT'} value={props.data.ttftLabel()} valueColor={theme().primary} />
+    <StatusSegment icon={'TPS'} value={props.data.tpsLabel()} valueColor={theme().primary} />
+    {/* 
+    <StatusSegment icon={icons.hourglass} value={props.data.stepTimeLabel()} valueColor={theme().primary} />
+    <StatusSegment icon={icons.refresh} value={props.data.responseTimeLabel()} valueColor={theme().primary} /> 
+    */}
+    <StatusSegment icon={'TT'} value={props.data.toolExecLabel()} valueColor={theme().primary} />
     <StatusSeparator sep={icons.middleDot} />
-    <StatusSegment icon={icons.arrowUp} value={fmtTokens(props.data.inputUiValue())} valueColor={theme().info} />
-    <StatusSegment icon={icons.arrowDown} value={props.data.outputWithLimit()} valueColor={theme().success} />
+    <StatusSegment icon={icons.arrowUp} value={props.data.inputLabel()} valueColor={theme().info} />
+    <StatusSegment icon={icons.arrowDown} value={props.data.outputLabel()} valueColor={theme().success} />
     <StatusSegment icon={icons.cache} value={props.data.cacheSummary()} valueColor={theme().secondary} />
     <StatusSeparator sep={icons.middleDot} />
     <StatusSegment icon={icons.cost} value={props.data.costValue()} valueColor={theme().warning} />

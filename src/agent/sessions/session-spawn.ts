@@ -101,16 +101,21 @@ export async function spawnSubSession(
       if (!summary) {
         const result = await child.summarize().catch(() => undefined)
         if (result) {
+          const acc = result.usage.computed
+          const inputTokens = acc ? acc.accNoCacheInputTokens + acc.accCacheReadTokens + acc.accCacheWriteTokens : (result.usage.inputTokens ?? 0)
+          const outputTokens = acc ? acc.accOutputTokens : (result.usage.outputTokens ?? 0)
           child.addUsage({
             source: 'run',
             modelKey,
-            inputTokens: result.usage.inputTokens ?? 0,
-            outputTokens: result.usage.outputTokens ?? 0,
-            cacheReadTokens: result.usage.cacheReadTokens ?? 0,
-            cacheWriteTokens: result.usage.cacheWriteTokens ?? 0,
-            contextTokens: result.usage.contextTokens ?? result.usage.inputTokens ?? 0,
-            lastOutputTokens: result.usage.lastOutputTokens ?? result.usage.outputTokens ?? 0,
-            cost: result.cost,
+            inputTokens,
+            outputTokens,
+            cacheReadTokens: acc ? acc.accCacheReadTokens : (result.usage.cacheReadTokens ?? 0),
+            cacheWriteTokens: acc ? acc.accCacheWriteTokens : (result.usage.cacheWriteTokens ?? 0),
+            reasoningTokens: acc ? acc.accReasoningTokens : (result.usage.reasoningTokens ?? 0),
+            textTokens: acc ? acc.accTextTokens : (result.usage.textTokens ?? 0),
+            totalTokens: inputTokens + outputTokens,
+            noCacheInputTokens: acc ? acc.accNoCacheInputTokens : (result.usage.noCacheInputTokens ?? 0),
+            ...((acc?.cost ?? result.cost !== undefined) ? { cost: acc?.cost ?? { inputCost: 0, outputCost: 0, cacheReadCost: 0, cacheWriteCost: 0, cacheCost: 0, total: result.cost ?? 0 } } : {}),
           })
         }
         summary = result?.summary ?? '(sub agent produced no output)'
@@ -128,9 +133,11 @@ export async function spawnSubSession(
         reasoningTokens: childTotals.reasoningTokens,
         textTokens: childTotals.textTokens,
         totalTokens: childTotals.totalTokens,
-        cost: childTotals.cost,
+        noCacheInputTokens: childTotals.noCacheInputTokens,
+        ...(childTotals.computed.cost ? { cost: childTotals.computed.cost } : {}),
       })
       ctx.jobs.patch(sessionId, { state: 'finished' })
+      const childTotal = childTotals.computed.cost?.total ?? childTotals.costDetails.total
       return {
         sessionId,
         summary,
@@ -139,7 +146,7 @@ export async function spawnSubSession(
           outputTokens: childTotals.outputTokens,
           cacheRead: childTotals.cacheReadTokens,
           cacheWrite: childTotals.cacheWriteTokens,
-          ...(childTotals.cost !== undefined ? { cost: childTotals.cost } : {}),
+          ...(childTotal !== undefined && childTotal !== 0 ? { cost: childTotal } : {}),
         },
       }
     } finally {

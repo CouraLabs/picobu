@@ -53,7 +53,7 @@ export async function runTui(options: TuiAppOptions = {}): Promise<void> {
             messageCount: active.messageCount ?? 0,
             inputTokens: totals?.inputTokens,
             outputTokens: totals?.outputTokens,
-            cost: totals?.cost,
+            cost: totals?.computed.cost?.total,
           }),
         )
       }

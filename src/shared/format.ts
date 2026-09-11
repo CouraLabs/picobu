@@ -26,8 +26,8 @@ export const fmtTokens = (n: number): string => {
 
 export const fmtCost = (n?: number): string => {
   if (n === undefined) return ''
-  const fixed = n.toFixed(2)
-  return `$${fixed.replace(/\.00$/, '')}`
+  if (Number.isInteger(n)) return `$${n}`
+  return `$${n.toFixed(2)}`
 }
 
 export const fmtCostPrecise = (n?: number): string => {
@@ -54,7 +54,7 @@ export const fmtTps = (tps: number | undefined): string => {
 }
 
 export const fmtRate = (rate: number | undefined): string => {
-  if (rate === undefined) return '–'
+  if (rate === undefined) return '0/M'
   return `$${rate % 1 === 0 ? rate.toFixed(0) : rate.toFixed(2)}/M`
 }
 
