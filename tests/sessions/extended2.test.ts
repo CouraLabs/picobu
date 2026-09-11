@@ -163,20 +163,10 @@ describe('session store tombstone and preview', () => {
     expect(byId.get('one')).toBe('hello world')
     expect(byId.get('two')).toBe('(no text)')
   })
-  test('listSessions skips compaction header and metadata', async () => {
-    const { COMPACTION_HEADER } = await import('../../src/agent/sessions/session-compaction.ts')
-    await writeSessionFile(folderKey, 'cut', [
-      {
-        id: 'a',
-        role: 'user',
-        metadata: { compaction: { summary: 's', compactedMessageIds: [], createdAt: 1 } },
-        parts: [{ type: 'text', text: 'hidden' }],
-      } as unknown as UIMessage,
-      userMessage('b', `${COMPACTION_HEADER} summary]\n\nvisible`),
-      userMessage('c', 'real first'),
-    ])
+  test('listSessions previews first user text', async () => {
+    await writeSessionFile(folderKey, 'cut', [userMessage('a', 'hidden'), userMessage('b', 'visible'), userMessage('c', 'real first')])
     const rows = await listSessions(folderKey)
-    expect(rows.find((r) => r.id === 'cut')?.firstPrompt).toBe('real first')
+    expect(rows.find((r) => r.id === 'cut')?.firstPrompt).toBe('hidden')
   })
   test('listSessions returns empty for missing dir', async () => {
     expect(await listSessions('absent-folder-xyz')).toEqual([])

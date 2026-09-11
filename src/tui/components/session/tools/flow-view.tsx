@@ -16,7 +16,6 @@ export type ToolFlowResponse = {
   tool: 'ask' | 'plan-write'
   toolCallId: string
   output: { status: string; message: string }
-  compact?: boolean
 }
 
 export const FlowStaticView = (props: FlowViewProps) => {
@@ -82,9 +81,7 @@ export const FlowStaticView = (props: FlowViewProps) => {
           status={status()}
           outputMessage={message()}
           interactive={interactive()}
-          onVerdict={(verdict: PlanVerdict, verdictMessage: string, compact: boolean) =>
-            props.onFlowResponse?.({ tool: 'plan-write', toolCallId: toolCallId(), output: { status: verdict, message: verdictMessage }, compact })
-          }
+          onVerdict={(verdict: PlanVerdict, verdictMessage: string) => props.onFlowResponse?.({ tool: 'plan-write', toolCallId: toolCallId(), output: { status: verdict, message: verdictMessage } })}
           onCancel={() => props.onFlowResponse?.({ tool: 'plan-write', toolCallId: toolCallId(), output: { status: 'cancelled', message: 'The user dismissed the plan review' } })}
         />
       </Show>

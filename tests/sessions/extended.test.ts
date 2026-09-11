@@ -16,15 +16,6 @@ import {
   resetPromptHistoryCache,
   saveDraft,
 } from '../../src/agent/sessions/prompt-history.ts'
-import {
-  buildPlanHandoffCut,
-  COMPACTION_HEADER,
-  compactedMessageText,
-  isCompactionCut,
-  messagesForLlm,
-  PLAN_HANDOFF_HEADER,
-  serializeForCompaction,
-} from '../../src/agent/sessions/session-compaction.ts'
 import { JobTracker } from '../../src/agent/sessions/session-jobs.ts'
 import { dropUnansweredPrompt, hasVisibleResponse, lastAssistantText, sanitizeMessages, settleAbortedToolParts, stripUnreplayableReasoning } from '../../src/agent/sessions/session-messages.ts'
 import { folderKeyFor, generateSessionId, persistentRoot, persistentTurnFilePath, sessionDir, sessionFilePath, sessionsRoot, sessionTodoFilePath } from '../../src/agent/sessions/session-paths.ts'
@@ -257,64 +248,6 @@ describe('prompt history with tmp file', () => {
     expect(cleared.history).toBeGreaterThanOrEqual(1)
     expect(loadPromptHistory('alpha-11111111')).toEqual([])
     expect(loadDraft('alpha-11111111')).toBe('')
-  })
-})
-describe('session compaction pure helpers', () => {
-  test('compactedMessageText starts with header and keeps summary', () => {
-    const text = compactedMessageText('my summary')
-    expect(text.startsWith(COMPACTION_HEADER)).toBe(true)
-    expect(text).toContain('my summary')
-  })
-  test('isCompactionCut detects compaction metadata', () => {
-    expect(isCompactionCut(undefined)).toBe(false)
-    expect(isCompactionCut(textMessage('a', 'user', 'hi'))).toBe(false)
-    const cut = {
-      id: 'c',
-      role: 'user',
-      metadata: { compaction: { summary: 's', compactedMessageIds: [], createdAt: 1 } },
-      parts: [{ type: 'text', text: 'cut' }],
-    } as unknown as UIMessage
-    expect(isCompactionCut(cut)).toBe(true)
-  })
-  test('messagesForLlm slices from last cut', () => {
-    const plain = textMessage('a', 'user', 'first')
-    const cut = {
-      id: 'b',
-      role: 'user',
-      metadata: { compaction: { summary: 's', compactedMessageIds: ['a'], createdAt: 1 } },
-      parts: [{ type: 'text', text: 'cut' }],
-    } as unknown as UIMessage
-    const after = textMessage('c', 'user', 'after')
-    expect(messagesForLlm([plain, cut, after] as UIMessage[]).map((m) => m.id)).toEqual(['b', 'c'])
-    expect(messagesForLlm([plain, after] as UIMessage[]).map((m) => m.id)).toEqual(['a', 'c'])
-  })
-  test('serializeForCompaction skips system and reasoning', () => {
-    const messages = [
-      textMessage('a', 'system', 'ignored'),
-      textMessage('b', 'user', 'hello'),
-      {
-        id: 'c',
-        role: 'assistant',
-        parts: [
-          { type: 'reasoning', text: 'think' },
-          { type: 'text', text: 'answer' },
-        ],
-      } as unknown as UIMessage,
-    ]
-    const serialized = serializeForCompaction(messages as UIMessage[])
-    expect(serialized).toContain('user: hello')
-    expect(serialized).toContain('assistant: answer')
-    expect(serialized).not.toContain('ignored')
-    expect(serialized).not.toContain('think')
-  })
-  test('buildPlanHandoffCut keeps last user intent and plan', () => {
-    const messages = [textMessage('a', 'user', 'first request'), textMessage('b', 'assistant', 'reply'), textMessage('c', 'user', 'latest request')]
-    const cut = buildPlanHandoffCut({ messages: messages as UIMessage[], plan: 'do things', verdict: 'looks good' })
-    expect(cut.text.startsWith(PLAN_HANDOFF_HEADER)).toBe(true)
-    expect(cut.summary).toContain('latest request')
-    expect(cut.summary).toContain('do things')
-    expect(cut.summary).toContain('looks good')
-    expect(cut.compactedMessageIds).toEqual(['a', 'b', 'c'])
   })
 })
 describe('CheckpointStore transitions', () => {

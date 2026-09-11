@@ -1,9 +1,50 @@
 import type { AgentReasoning } from '@agent/loop/create-loop.ts'
 import { resolveModel } from '@agent/model/resolver.ts'
-import { serializeForCompaction } from '@agent/sessions/session-compaction.ts'
 import type { ProviderModelReasoningEffort } from '@config/options.ts'
 import type { UIMessage } from 'ai'
 import { generateText } from 'ai'
+
+const MAX_TOOL_CHARS = 200
+const abbreviate = (value: unknown): string => {
+  let text: string
+  try {
+    text = typeof value === 'string' ? value : JSON.stringify(value)
+  } catch {
+    text = String(value)
+  }
+  const flat = text.replace(/\s+/g, ' ').trim()
+  return flat.length > MAX_TOOL_CHARS ? `${flat.slice(0, MAX_TOOL_CHARS)}…` : flat
+}
+type LoosePart = {
+  type: string
+  text?: unknown
+  state?: unknown
+  toolName?: unknown
+  input?: unknown
+  output?: unknown
+  errorText?: unknown
+}
+const isToolPart = (part: LoosePart): boolean => part.type === 'dynamic-tool' || part.type.startsWith('tool-')
+const toolPartName = (part: LoosePart): string => (part.type === 'dynamic-tool' ? String(part.toolName ?? 'unknown') : part.type.slice('tool-'.length))
+
+const serializeForSummary = (messages: UIMessage[]): string =>
+  messages
+    .flatMap((m) => {
+      if (m.role !== 'user' && m.role !== 'assistant') return []
+      const lines = (m.parts as LoosePart[]).flatMap((part): string[] => {
+        if (part.type === 'text') {
+          const text = typeof part.text === 'string' ? part.text.trim() : ''
+          return text ? [`${m.role}: ${text}`] : []
+        }
+        if (part.type === 'reasoning') return []
+        if (isToolPart(part)) {
+          return [`tool ${toolPartName(part)} (${String(part.state ?? 'unknown')}): ${abbreviate(part.input)} -> ${abbreviate(part.output ?? part.errorText)}`]
+        }
+        return []
+      })
+      return lines
+    })
+    .join('\n')
 
 export const summarizerPrompt = `Summarize the conversation below for a coding-agent session. Capture, in this order:
 1. The user's goal and any decisions that were made.
@@ -21,7 +62,7 @@ export type SummarizeResult = {
 }
 
 export async function summarizeSession({ messages, modelKey, thinking }: SummarizeParams): Promise<SummarizeResult> {
-  const transcript = serializeForCompaction(messages)
+  const transcript = serializeForSummary(messages)
   if (!transcript) throw new Error('Nothing to summarize: the session has no content')
   const { model } = resolveModel(modelKey)
   const { text } = await generateText({

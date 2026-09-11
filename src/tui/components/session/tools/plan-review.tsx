@@ -12,7 +12,7 @@ export type PlanReviewProps = {
   status?: string
   outputMessage?: string
   interactive: boolean
-  onVerdict: (status: PlanVerdict, message: string, compact: boolean) => void | Promise<void>
+  onVerdict: (status: PlanVerdict, message: string) => void | Promise<void>
   onCancel: () => void | Promise<void>
 }
 
@@ -21,7 +21,6 @@ export const PlanReview = (props: PlanReviewProps) => {
   const [lineComments, setLineComments] = createSignal<string[]>(lines().map(() => ''))
   const [openLine, setOpenLine] = createSignal<number | undefined>(undefined)
   const [overall, setOverall] = createSignal('')
-  const [compact, setCompact] = createSignal(false)
   const [responded, setResponded] = createSignal(false)
   const [dismissed, setDismissed] = createSignal(false)
   const [sending, setSending] = createSignal(false)
@@ -60,7 +59,7 @@ export const PlanReview = (props: PlanReviewProps) => {
     const message = buildMessage()
     setSending(true)
     try {
-      await props.onVerdict(status, message.length > 0 ? message : 'Approved', compact())
+      await props.onVerdict(status, message.length > 0 ? message : 'Approved')
       setDismissed(false)
       setResponded(true)
     } catch {
@@ -171,14 +170,6 @@ export const PlanReview = (props: PlanReviewProps) => {
               if (!readonly()) setOverall(overallRef?.plainText ?? '')
             }}
           />
-        </box>
-        <box flexDirection="row" gap={1} marginTop={1} flexWrap="wrap" onMouseUp={() => setCompact(!compact())}>
-          <text flexShrink={0} fg={compact() ? theme().success : theme().textMuted} selectable={false}>
-            {compact() ? `[${icons.cross}]` : '[ ]'}
-          </text>
-          <text fg={theme().textMuted} selectable={false}>
-            Compact context before handoff
-          </text>
         </box>
         <box flexDirection="row" gap={1} marginTop={1} flexWrap="wrap">
           <Button label={`${icons.success} Approve`} isActive onClick={() => verdict('approved')} />

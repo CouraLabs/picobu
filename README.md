@@ -31,11 +31,11 @@ A headless autonomous coding agent core. One agent loop — read, plan, edit —
 
 Picobu started from frustration. I used Claude Code, Codex, GitHub Copilot, Opencode, and Pi extensively — and each of them got something right. Claude Code's agentic loop, Codex's task focus, Copilot's editor presence and model access, Opencode's openness and provider flexibility, Pi's minimalism. But none of them put the whole package together: every tool coupled the agent to its own interface, its own provider deals, its own opinions about how you should work. Switching tools meant relearning workflows and losing session history, and bending any of them to a custom frontend — a bot, a web view, a chat channel — meant fighting the product instead of building on it.
 
-So Picobu takes the opposite bet: keep the agent runtime headless and take the best ideas from each of those tools — strong plan-then-execute flows, interruptible `ask` steps, delegating subagents, model-role routing, MCP extensibility, persistent sessions with undo and compaction — and ship them as one open core you can attach anything to.
+So Picobu takes the opposite bet: keep the agent runtime headless and take the best ideas from each of those tools — strong plan-then-execute flows, interruptible `ask` steps, delegating subagents, model-role routing, MCP extensibility, persistent sessions with undo — and ship them as one open core you can attach anything to.
 
 Technically, that means the core owns the agent loop (`ToolLoopAgent` from the `ai` SDK, 100-step cap per run), session persistence, model resolution, tool execution, subagent delegation, MCP clients, OAuth credentials, and the WhatsApp connection. Frontends — the reference OpenTUI terminal UI, or anything you build on the session facade and headless chat state — only render and drive runs.
 
-Project instructions are automatic: when a session starts, the system prompt embeds `AGENTS.md` (or `CLAUDE.md`) from the working directory (truncated at 2000 chars), plus discovered skills, rules, subagents, and MCP tool schemas. Every write/edit is checkpointed for undo/redo, every run accumulates cost totals, and long conversations compact at 80% of the model's context window.
+Project instructions are automatic: when a session starts, the system prompt embeds `AGENTS.md` (or `CLAUDE.md`) from the working directory (truncated at 2000 chars), plus discovered skills, rules, subagents, and MCP tool schemas. Every write/edit is checkpointed for undo/redo and every run accumulates cost totals.
 
 > Your documentation is complete when someone can use your module without ever
 > having to look at its code.
@@ -220,23 +220,21 @@ The `Session` facade drives every frontend:
 
 - Runs: `sendMessage`, `queue` (parks a prompt until the run settles), `steer` (mid-run follow-up), `regenerate`, `stop`/`abort`, `flush`/`close` (drains and tears down, MCP included).
 - Streaming: `stream()` (raw chunks), `streamMessages()` (whole messages), `onChange` notifications.
-- History: `revertToMessage` (truncates + persists), `undo`/`redo` (file-level, no LLM call, refused mid-run; new edits drop the redo tail; shell mutations are not checkpointed), `switchAgent`/`switchModel`/`switchThinking` mid-session, `addToolOutput` (deliver `ask`/`plan-write` answers without a run), `summarize` (read-only one-shot summary), `compact`/`uncompact`/`fork`.
+- History: `revertToMessage` (truncates + persists), `undo`/`redo` (file-level, no LLM call, refused mid-run; new edits drop the redo tail; shell mutations are not checkpointed), `switchAgent`/`switchModel`/`switchThinking` mid-session, `addToolOutput` (deliver `ask`/`plan-write` answers without a run), `summarize` (read-only one-shot summary), `fork`.
 - Catalogs: `skills`, `workflows`, `rules`, `agents`, `mcp` (snapshots, tool names, `refresh()`).
 - Multi-worktree: `changeDirectory(path)` starts a new session under the new folder key; worktrees run concurrently with separate sandboxes.
 
 Sub sessions & spawn: `spawn` is blocking and waits for every call to settle; nested spawns fail fast when over capacity (root spawns queue FIFO) so holders can never deadlock; depth cap 3 (no self/ancestor spawns); subagents never get interactive tools (`ask`, `plan-write`, `plan-exit`) and report back `{ summary, usage }`. `manager.jobs()`/`onJobs()`/`abortJob()` expose the job registry.
 
-Cost accounting: `session.usage` is last-run (status bar + auto-compaction); `session.totals` is the lifetime view across runs and sub sessions with per-run `costDetails`, persisted on every settle.
+Cost accounting: `session.usage` is last-run (status bar); `session.stats` is the lifetime `LoopStats` view — per-step usage and cost, `total` accumulated across runs, `currentTotal` as the live sum of all recorded steps — persisted to the session stats file on every step and settle.
 
 Session footer: three rows under the prompt. Token and timing segments reflect the latest step; `$` cost is the session lifetime total.
 
 - Agent row: agent, model, thinking level, finish reason or live activity (`Prompting`, `Reasoning`, `Tooling`, `Delegating`, `Answering`), session title.
 - Metrics row: `⧖` time to first output, `↯` output tokens/sec, `⌛` step time, `↻` LLM response time, `⯿` tool execution time, `↑` input tokens, `↓` output tokens, `⛁` cache total (hit %), `$` session cost, cost split (`in` / `out` / `read` / `write`).
-- Session row: message count (`u`ser / `a`ssistant), tool calls, run count with subagent cost, `compacted` flag, MCP connections, queue state.
+- Session row: message count (`u`ser / `a`ssistant), tool calls, run count with subagent cost, MCP connections, queue state.
 
 Sandbox: each session runs inside a local sandbox rooted at its cwd (AI SDK `experimental_sandbox` over Bun); `shell` uses your detected shell, abort kills running commands; relative paths resolve against the cwd (absolute paths pass through — no jail in v1); `setSandbox(false)` is a runtime kill switch for subsequently created sessions.
-
-Compaction: the full conversation is summarized by the running model and appended as a cut message; everything before the cut stays saved (undoable, forkable) but never reaches the LLM again. Auto-compacts at 80% of context (opt-in via `autoCompact`; sub sessions never auto-compact); `forkOnCompact` forks the full history first, then hard-resets to the summary. `session.compact({ fork: true })` does this on demand; `manager.forkSession(id)` clones under a new id (`(forked)` suffix), optionally from the last cut.
 
 Prompt history: last 20 prompts persist per project to a SQLite store at `~/.picobu/prompts.db` (drafts too); in the TUI, double-press Arrow Up/Down within 200 ms to cycle through them (single presses move the cursor normally). Session titles come from a one-shot `tiny`-role call (≤50 chars).
 

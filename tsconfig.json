@@ -24,6 +24,7 @@
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "noPropertyAccessFromIndexSignature": false,
+    "types": ["bun"],
 
     // Path aliases: each src folder is importable as @<folder>
     "paths": {

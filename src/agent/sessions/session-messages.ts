@@ -90,6 +90,25 @@ export function settleAbortedToolParts<M extends UIMessage>(messages: M[]): M[] 
   return changed ? out : messages
 }
 
+export function settleStreamingParts<M extends UIMessage>(messages: M[]): M[] {
+  let changed = false
+  const out = messages.map((m) => {
+    let messageChanged = false
+    const parts = m.parts.map((part) => {
+      const loose = part as { type?: unknown; state?: unknown }
+      if ((loose.type === 'text' || loose.type === 'reasoning') && loose.state === 'streaming') {
+        messageChanged = true
+        return { ...part, state: 'done' } as M['parts'][number]
+      }
+      return part
+    })
+    if (!messageChanged) return m
+    changed = true
+    return { ...m, parts } as M
+  })
+  return changed ? out : messages
+}
+
 export function stripAnalysedImages<M extends UIMessage>(messages: M[]): M[] {
   let changed = false
   const out = messages.map((m) => {

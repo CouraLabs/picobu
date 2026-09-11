@@ -38,7 +38,6 @@ describe('matchSystemCommand', () => {
     expect(matchSystemCommand('q')?.name).toBe('q')
     expect(matchSystemCommand('exit')?.name).toBe('q')
     expect(matchSystemCommand('leave')?.name).toBe('q')
-    expect(matchSystemCommand('compact')?.name).toBe('compact')
     expect(matchSystemCommand('roles')?.name).toBe('roles')
     expect(matchSystemCommand('cd')?.name).toBe('cd')
     expect(matchSystemCommand('reload')?.name).toBe('reload')
@@ -106,11 +105,11 @@ describe('parseCommandLine', () => {
 
 describe('tokenizeCommandLine', () => {
   test('marks skill and command tokens', () => {
-    const tokens = tokenizeCommandLine('/skill:review /compact check it')
+    const tokens = tokenizeCommandLine('/skill:review /fork check it')
     const kinds = tokens.filter((t) => t.text.trim().length > 0).map((t) => [t.text, t.kind])
     expect(kinds).toEqual([
       ['/skill:review', 'skill'],
-      ['/compact', 'command'],
+      ['/fork', 'command'],
       ['check', 'text'],
       ['it', 'text'],
     ])

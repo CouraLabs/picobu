@@ -1,6 +1,6 @@
 import type { Command } from '@agent/commands/types.ts'
 
-export type SystemCommandName = 'q' | 'compact' | 'models' | 'fork' | 'summarize' | 'roles' | 'cd' | 'new' | 'reload'
+export type SystemCommandName = 'q' | 'models' | 'fork' | 'summarize' | 'roles' | 'cd' | 'new' | 'reload'
 
 export type SystemCommandDef = {
   name: SystemCommandName
@@ -11,7 +11,6 @@ export type SystemCommandDef = {
 
 export const SYSTEM_COMMANDS: SystemCommandDef[] = [
   { name: 'q', aliases: ['exit', 'leave'], description: 'Quit the app', usage: '/q' },
-  { name: 'compact', aliases: [], description: 'Compact the session context', usage: '/compact' },
   { name: 'models', aliases: [], description: 'Switch model', usage: '/models' },
   { name: 'fork', aliases: [], description: 'Fork the session at the last message', usage: '/fork' },
   { name: 'summarize', aliases: [], description: 'Summarize the session', usage: '/summarize' },

@@ -20,8 +20,6 @@ export type CreateSessionOptions = {
   agentId?: string
   modelKey?: string
   title?: string
-  autoCompact?: boolean
-  forkOnCompact?: boolean
   onChange?: ChatChangeHandler
 }
 const DEFAULT_MAX_AGENTS = 4
@@ -101,9 +99,7 @@ export class SessionManager {
     const session = await createSession({
       config: () => this.baseConfig({ agentId: init.agentId, modelKey: init.modelKey, sessionId: id, spawn: { manager: this, parentId: id, depth: 0 } }),
       id,
-      meta: { cwd: this.cwd, title: init.title, forkHost: () => this.forkSession(id).then((r) => r.sessionId) },
-      autoCompact: init.autoCompact,
-      forkOnCompact: init.forkOnCompact,
+      meta: { cwd: this.cwd, title: init.title },
       ...(init.onChange ? { onChange: init.onChange } : {}),
     })
     this.live.set(id, session)
@@ -152,7 +148,7 @@ export class SessionManager {
     }
   }
 
-  async forkSession(id: string, opts: { fromCompaction?: boolean; upToMessageId?: string } = {}): Promise<{ sessionId: string }> {
+  async forkSession(id: string, opts: { upToMessageId?: string } = {}): Promise<{ sessionId: string }> {
     return forkSession({ cwd: this.cwd, live: this.live, startSession: (forkId) => this.startSession({ id: forkId }) }, id, opts)
   }
 

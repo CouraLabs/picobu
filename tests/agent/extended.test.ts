@@ -16,7 +16,6 @@ import { createModelInstance, listModels, resolveApiKey, resolveAuth } from '../
 import { loadAgentsMarkdown } from '../../src/agent/prompts/agents-md.ts'
 import { askMarkdown } from '../../src/agent/prompts/ask.ts'
 import { coderMarkdown } from '../../src/agent/prompts/coder.ts'
-import { compactorPrompt } from '../../src/agent/prompts/compactor.ts'
 import { bytesToDataUrl, countLines, fileEmbedLabel, resolvePrompt, textEmbedLabel } from '../../src/agent/prompts/embeds.ts'
 import { persistentMarkdown } from '../../src/agent/prompts/persistent.ts'
 import { planMarkdown } from '../../src/agent/prompts/plan.ts'
@@ -398,9 +397,7 @@ describe('agent prompt texts', () => {
     expect(persistentMarkdown).toContain('WhatsApp')
     expect(persistentMarkdown).toContain('wwp-msg')
   })
-  test('compactor and summarizer prompts carry markers', () => {
-    expect(compactorPrompt).toContain('compactor')
-    expect(compactorPrompt).toContain('[INFERENCE]')
+  test('summarizer prompt carries markers', () => {
     expect(summarizerPrompt).toContain('Summarize')
     expect(summarizerPrompt).toContain('coding-agent')
   })

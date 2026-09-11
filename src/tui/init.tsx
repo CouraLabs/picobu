@@ -1,17 +1,17 @@
 import { autoloadLlmProviders } from '@agent/model/registry.ts'
 import { ensureOAuthTokens } from '@auth/index.ts'
-import { CliRenderEvents, createClipboard, createCliRenderer, createHostClipboard, createRendererClipboardAdapter, DebugOverlayCorner, engine } from '@opentui/core'
+import { CliRenderEvents, ConsolePosition, createClipboard, createCliRenderer, createHostClipboard, createRendererClipboardAdapter, DebugOverlayCorner, engine } from '@opentui/core'
 import { render } from '@opentui/solid'
 import { resetConsoleTitle, setConsoleTitle } from '@shared/console-title.ts'
 import { theme } from '@states/theme-state.ts'
 import { Splash } from '@tui/components/splash.tsx'
-import { getActiveSessionClose } from '@tui/hooks/active-session.ts'
 import { App } from '@tui/layout/app.tsx'
 import { closeMessage } from '@tui/themes/logo.ts'
 import { getSharedTreeSitterClient, registerParsers } from '@wrappers/treesitter-wrapper.ts'
 import { createSignal, Show } from 'solid-js'
 import { setClipboardService } from './hooks/clipboard.state.ts'
 import { ClipboardProvider } from './hooks/clipboard-provider.tsx'
+import { takeExitStatus } from './hooks/exit-status.ts'
 export type TuiAppOptions = {
   debug?: boolean
   sessionId?: string
@@ -31,7 +31,7 @@ export async function runTui(options: TuiAppOptions = {}): Promise<void> {
   process.on('unhandledRejection', onUnhandledRejection)
   setConsoleTitle(undefined)
 
-  const debug = options.debug === true
+  const debug = true
   const renderer = await createCliRenderer({
     exitOnCtrlC: false,
     useMouse: true,
@@ -40,17 +40,25 @@ export async function runTui(options: TuiAppOptions = {}): Promise<void> {
     useKittyKeyboard: { disambiguate: true, alternateKeys: true },
     targetFps: 30,
     gatherStats: debug,
+    consoleOptions: {
+      onCopySelection(text) {
+        clipboardService.writeText(text, { destination: 'all-available' })
+      },
+      sizePercent: 50,
+      position: ConsolePosition.RIGHT,
+    },
     memorySnapshotInterval: debug ? 3000 : 0,
     backgroundColor: theme().background,
     onDestroy: () => {
       clipboardService.dispose()
       resetConsoleTitle()
+      const exit = takeExitStatus()
       console.log(
-        closeMessage('sessionId', theme(), {
-          messageCount: 0,
-          inputTokens: 0,
-          outputTokens: 0,
-          cost: 0,
+        closeMessage(exit?.sessionId ?? 'sessionId', theme(), {
+          messageCount: exit?.messageCount ?? 0,
+          inputTokens: exit?.inputTokens ?? 0,
+          outputTokens: exit?.outputTokens ?? 0,
+          cost: exit?.cost ?? 0,
         }),
       )
       process.exit(0)

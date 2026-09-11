@@ -35,7 +35,7 @@ import { SessionQueue } from '@tui/components/session/session-queue.tsx'
 import { SessionStatus, THINKING_LEVELS } from '@tui/components/session/session-status.tsx'
 import { openSubagentMessages } from '@tui/components/session/subagent-dialog.tsx'
 import type { ToolFlowResponse } from '@tui/components/session/tools/tool-part.tsx'
-import { markActiveSessionHasMessages, setActiveSessionId, setActiveSessionStats } from '@tui/hooks/active-session.ts'
+import { setExitStatus } from '@tui/hooks/exit-status.ts'
 import type { CreateUIMessage } from 'ai'
 import { createEffect, createSignal, onCleanup, onMount } from 'solid-js'
 
@@ -210,9 +210,6 @@ export const SessionPage = (props: SessionPageProps) => {
       setQueued([...items])
       setQueueDepth(items.length)
     })
-    setActiveSessionId(next.id)
-    if (next.messages.length > 0) markActiveSessionHasMessages()
-    setActiveSessionStats(next.messages.length)
     const streaming = next.status === 'submitted' || next.status === 'streaming'
     const w = isWaiting(next.messages)
     setIsStreaming(streaming)
@@ -429,12 +426,10 @@ export const SessionPage = (props: SessionPageProps) => {
           if (streaming || state.status === 'error') setAnswering(false)
           const w = isWaiting(state.messages)
           setWaiting(w)
-          if (state.messages.length > 0) markActiveSessionHasMessages()
           const live = session()
           if (live) {
             setTitle(live.title)
             syncQueue(live)
-            setActiveSessionStats(state.messages.length)
             if (live.config.agentId !== agentId()) {
               setAgentId(live.config.agentId)
               pushToast(`Agent switched to ${live.config.agentId}`, 'info')
@@ -526,6 +521,17 @@ export const SessionPage = (props: SessionPageProps) => {
     try {
       await target?.flush()
     } catch {}
+    setExitStatus(
+      target
+        ? {
+            sessionId: target.id,
+            messageCount: target.messages.length,
+            inputTokens: target.stats?.total.usage.inputTokens,
+            outputTokens: target.stats?.total.usage.outputTokens,
+            cost: target.stats?.total.cost.total,
+          }
+        : undefined,
+    )
     try {
       await flushThemeSave()
     } catch {}
@@ -657,13 +663,6 @@ export const SessionPage = (props: SessionPageProps) => {
       case 'q':
         await quitApp()
         break
-      case 'compact':
-        try {
-          await target.compact()
-        } catch (error) {
-          showError(error)
-        }
-        break
       case 'models':
         openModelDialog()
         break
@@ -793,9 +792,6 @@ export const SessionPage = (props: SessionPageProps) => {
     }
     setAnswering(true)
     try {
-      if (response.tool === 'plan-write' && response.output.status === 'approved') {
-        target.setPlanHandoffCompact(response.compact !== false)
-      }
       await target.respondFlowTool({
         tool: response.tool,
         toolCallId: response.toolCallId,

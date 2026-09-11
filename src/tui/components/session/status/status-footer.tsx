@@ -13,10 +13,6 @@ export const StatusFooter = (props: { status: SessionStatusProps; data: SessionS
       <StatusSeparator sep={icons.middleDot} />
       <StatusSegment icon={icons.star} value={props.data.runAttribution() as string} />
     </Show>
-    <Show when={props.data.stats().compacted}>
-      <StatusSeparator sep={icons.middleDot} />
-      <StatusSegment icon={icons.fileArchive} value="compacted" valueColor={theme().warning} />
-    </Show>
     <Show when={props.status.mcp && props.status.mcp.total > 0}>
       <StatusSeparator sep={icons.middleDot} />
       <StatusSegment icon={icons.plug} value={`${props.status.mcp?.connected}/${props.status.mcp?.total} mcp · ${props.status.mcp?.tools} tools`} />

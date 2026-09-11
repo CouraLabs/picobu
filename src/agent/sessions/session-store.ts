@@ -1,7 +1,6 @@
 import { mkdirSync } from 'node:fs'
 import { appendFile, readdir, readFile, stat, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
-import { COMPACTION_HEADER } from '@agent/sessions/session-compaction.ts'
 import { sanitizeMessages } from '@agent/sessions/session-messages.ts'
 import { sessionDir, sessionFilePath } from '@agent/sessions/session-paths.ts'
 import { withLock } from '@shared/lock.ts'
@@ -81,11 +80,8 @@ function firstPromptPreview(content: string): string {
       continue
     }
     if (line.role !== 'user') continue
-    const meta = line.metadata as { compaction?: unknown } | undefined
-    if (meta?.compaction) continue
     const text = (line.parts ?? []).find(isTextPart)?.text.trim()
     if (!text) continue
-    if (text.startsWith(COMPACTION_HEADER)) continue
     return truncate(text)
   }
   return '(no text)'

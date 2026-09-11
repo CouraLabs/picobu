@@ -12,6 +12,9 @@ describe('createLoop', () => {
     expect(loop.agent).toBeDefined()
     expect(loop.transport).toBeDefined()
     expect(loop.mcp).toBeDefined()
+    expect(typeof loop.stats).toBe('function')
+    expect(typeof loop.onStats).toBe('function')
+    expect(loop.stats().steps).toEqual([])
   })
   test('reflects config agent on rebuild', () => {
     const loop = createLoop(() => ({ agentId: 'coder', modelKey: 'test/test', thinking: 'minimal' }))

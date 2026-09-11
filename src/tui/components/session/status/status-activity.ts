@@ -1,4 +1,4 @@
-import type { LoopMessage, LoopMessageMetadata } from '@agent/loop/create-loop.ts'
+import type { LoopMessage } from '@agent/loop/create-loop.ts'
 import type { SessionUsage } from '@agent/sessions/session.ts'
 import type { RGBA } from '@opentui/core'
 import { theme } from '@states/theme-state.ts'
@@ -52,7 +52,7 @@ export const getActivity = (messages: LoopMessage[], streaming: boolean | undefi
   return 'prompting'
 }
 
-export const getFinishReason = (meta: LoopMessageMetadata | undefined, usage: SessionUsage | undefined, messages?: LoopMessage[], streaming?: boolean): string | undefined => {
+export const getFinishReason = (meta: { finishReason?: string } | undefined, usage: SessionUsage | undefined, messages?: LoopMessage[], streaming?: boolean): string | undefined => {
   const activity = getActivity(messages ?? [], streaming)
   if (activity) return ACTIVITY_LABELS[activity]
   return meta?.finishReason ?? usage?.finishReason

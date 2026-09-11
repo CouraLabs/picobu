@@ -1,5 +1,5 @@
 import { getAgent } from '@agent/agents/registry.ts'
-import type { LoopMessage, LoopMessageMetadata } from '@agent/loop/create-loop.ts'
+import type { LoopMessage } from '@agent/loop/create-loop.ts'
 import { resolveModelRef } from '@agent/model/resolver.ts'
 import type { SessionUsage } from '@agent/sessions/session.ts'
 import type { TodoItem } from '@agent/tools/flow/todo.ts'
@@ -30,11 +30,11 @@ export type SessionStatusProps = {
   mcp?: { connected: number; total: number; tools: number }
 }
 
-export type MessageStats = { total: number; tools: number; user: number; assistant: number; compacted: boolean }
+export type MessageStats = { total: number; tools: number; user: number; assistant: number }
 
-export const latestMeta = (messages: LoopMessage[]): LoopMessageMetadata | undefined => {
+export const latestMeta = (messages: LoopMessage[]): { finishReason?: string } | undefined => {
   for (let i = messages.length - 1; i >= 0; i--) {
-    const meta = messages[i]?.metadata as LoopMessageMetadata | undefined
+    const meta = messages[i]?.metadata as { finishReason?: string } | undefined
     if (meta?.finishReason) return meta
   }
   return undefined
@@ -74,17 +74,14 @@ export const getMessageStats = (messages: LoopMessage[]): MessageStats => {
   let tools = 0
   let user = 0
   let assistant = 0
-  let compacted = false
   for (const m of messages) {
     if (m.role === 'user') user += 1
     if (m.role === 'assistant') assistant += 1
-    const md = m.metadata as LoopMessageMetadata | undefined
-    if (md?.compaction) compacted = true
     for (const part of m.parts ?? []) {
       if (isToolPart(part)) tools += 1
     }
   }
-  return { total: messages.length, tools, user, assistant, compacted }
+  return { total: messages.length, tools, user, assistant }
 }
 
 export const getThinkingLabel = (thinking: ProviderModelReasoningEffort | undefined): string => (thinking ? `${thinking}` : '')
@@ -114,7 +111,7 @@ export const getQueueLabel = (mode: string | undefined, queueDepth: number | und
 
 export type SessionStatusData = {
   msgUsage: () => UsageWithCost | undefined
-  meta: () => LoopMessageMetadata | undefined
+  meta: () => { finishReason?: string } | undefined
   activity: () => ActivityKind | undefined
   agentName: () => string
   agentColor: () => string | RGBA

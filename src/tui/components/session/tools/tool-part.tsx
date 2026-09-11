@@ -294,7 +294,7 @@ export const ToolPart = (props: ToolPartProps) => {
           status={flowStatus()}
           outputMessage={flowMessage()}
           interactive={flowInteractive()}
-          onVerdict={(status: PlanVerdict, message: string, compact: boolean) => props.onFlowResponse?.({ tool: 'plan-write', toolCallId: toolCallId(), output: { status, message }, compact })}
+          onVerdict={(status: PlanVerdict, message: string) => props.onFlowResponse?.({ tool: 'plan-write', toolCallId: toolCallId(), output: { status, message } })}
           onCancel={() => props.onFlowResponse?.({ tool: 'plan-write', toolCallId: toolCallId(), output: { status: 'cancelled', message: 'The user dismissed the plan review' } })}
         />
       </Show>

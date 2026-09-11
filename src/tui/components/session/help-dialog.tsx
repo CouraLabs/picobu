@@ -32,7 +32,7 @@ const footerLines: string[] = [
   '',
   '- **Agent row**: agent, model, thinking level, finish reason or live activity (`Prompting`, `Reasoning`, `Tooling`, `Delegating`, `Answering`), session title.',
   '- **Metrics row**: `⧖` time to first output, `↯` output tokens/sec, `⯿` tool execution time, `↑` input `0`, `↓` output `0`, `⛁` cache `0 (0%)`, `$` cost `0`.',
-  '- **Session row**: message count (`u`ser / `a`ssistant), tool calls, `compacted` flag, MCP connections, queue state.',
+  '- **Session row**: message count (`u`ser / `a`ssistant), tool calls, MCP connections, queue state.',
 ]
 
 export const HelpDialog = () => {

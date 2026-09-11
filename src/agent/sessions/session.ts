@@ -1,20 +1,20 @@
 import { randomUUID } from 'node:crypto'
 import { AGENTS, listAgents } from '@agent/agents/registry.ts'
 import { type Command, listCommands, listSkills } from '@agent/commands/index.ts'
-import { createLoop, type LoopConfig, type LoopMessage, type LoopMessageMetadata } from '@agent/loop/create-loop.ts'
+import { createLoop, type LoopConfig, type LoopMessage, type LoopStats } from '@agent/loop/create-loop.ts'
 import { resolveModelRef } from '@agent/model/resolver.ts'
 import { type SummarizeResult, summarizeSession } from '@agent/prompts/summarizer.ts'
 import { listRules, type Rule } from '@agent/rules/rules.ts'
 import { CheckpointStore, checkpointsPath, type UndoResult } from '@agent/sessions/checkpoints.ts'
-import { buildPlanHandoffCut, type CompactResult, compactedMessageText, compactSession, isCompactionCut, messagesForLlm } from '@agent/sessions/session-compaction.ts'
 import { Chat, type ChatChangeHandler, createHeadlessChatState } from '@agent/sessions/session-headless-chat.ts'
 import { dropUnansweredPrompt, settleAbortedToolParts, stripAnalysedImages, stripUnreplayableReasoning } from '@agent/sessions/session-messages.ts'
 import { isWaiting, readSessionMeta, type SessionMeta, type SessionState, updateSessionMeta, writeSessionMeta } from '@agent/sessions/session-meta.ts'
 import { folderKeyFor, generateSessionId, sessionFilePath } from '@agent/sessions/session-paths.ts'
+import { readLoopStats, writeLoopStats } from '@agent/sessions/session-stats-io.ts'
 import { loadSession, SessionSaver } from '@agent/sessions/session-store.ts'
+import { clearStreamBackup, recoverStreamBackup, writeStreamBackup } from '@agent/sessions/session-stream-backup.ts'
 import { options, type ProviderModelReasoningEffort } from '@config/options.ts'
-import type { ChatState } from 'ai'
-import { type AsyncIterableStream, type ChatInit, type ChatStatus, type ChatTransport, type CreateUIMessage, generateId, readUIMessageStream, type UIMessageChunk } from 'ai'
+import { type AsyncIterableStream, type ChatInit, type ChatState, type ChatStatus, type ChatTransport, type CreateUIMessage, generateId, readUIMessageStream, type UIMessageChunk } from 'ai'
 
 export type SessionUsage = {
   finishReason?: string
@@ -127,6 +127,7 @@ export type Session = {
     reload: () => Promise<void>
   }
   readonly usage: SessionUsage | undefined
+  readonly stats: LoopStats | undefined
   readonly state: SessionState
   summarize: () => Promise<SummarizeResult>
   setTitle: (title: string) => void
@@ -140,7 +141,6 @@ export type Session = {
   clearError: Chat['clearError']
   addToolOutput: Chat['addToolOutput']
   respondFlowTool: (input: RespondFlowToolInput) => Promise<void>
-  setPlanHandoffCompact: (compact: boolean) => void
   switchAgent: (agentId: string) => void
   switchModel: (modelKey: string) => void
   switchThinking: (thinking: ProviderModelReasoningEffort) => void
@@ -149,12 +149,11 @@ export type Session = {
   readonly queuedCount: number
   removeQueued: (id: string) => boolean
   onQueueChange: (listener: (items: QueuedPrompt[]) => void) => () => void
+  onStatsChange: (listener: (stats: LoopStats) => void) => () => void
   dequeueNewest: () => QueuedPrompt | undefined
   stream: () => AsyncGenerator<UIMessageChunk>
   streamMessages: () => AsyncIterableStream<LoopMessage>
   steer: (prompt: SessionPrompt) => Promise<void>
-  compact: (opts?: { fork?: boolean }) => Promise<CompactResult>
-  uncompact: () => void
   flush: () => Promise<void>
   close: () => Promise<void>
 }
@@ -166,27 +165,38 @@ export type CreateSessionInit = Omit<ChatInit<LoopMessage>, 'transport'> & {
     cwd?: string
     parentSessionId?: string
     title?: string
-    forkHost?: () => Promise<string>
   }
-  autoCompact?: boolean
-  forkOnCompact?: boolean
 }
 
 const deriveState = (chat: { status: ChatStatus; error: Error | undefined; messages: LoopMessage[] }): SessionState =>
   chat.status === 'submitted' || chat.status === 'streaming' ? 'running' : chat.error ? 'error' : isWaiting(chat.messages) ? 'waiting' : 'finished'
 
 export async function createSession(init: CreateSessionInit): Promise<Session> {
-  const { config: configInit, onChange, messages, onFinish, id: sessionId, meta: metaInit, autoCompact: _autoCompact, forkOnCompact: _forkOnCompact, ...chatInit } = init
-  const forkHost = metaInit?.forkHost
+  const { config: configInit, onChange, messages, id: sessionId, meta: metaInit, ...chatInit } = init
   const getConfig = typeof configInit === 'function' ? configInit : () => configInit
   const id = sessionId ?? generateSessionId()
   const cwd = metaInit?.cwd ?? getConfig().cwd ?? options.app.cwd
   const folderKey = folderKeyFor(cwd)
-  const initialMessages = messages ?? (sessionId ? ((await loadSession(folderKey, id)) as LoopMessage[]) : undefined)
+  const saver = new SessionSaver(sessionFilePath(folderKey, id))
+  const storedMessages = messages ?? (sessionId ? await loadSession(folderKey, id) : undefined)
+  let initialMessages = storedMessages as LoopMessage[] | undefined
+  if (!messages) {
+    try {
+      const recovered = await recoverStreamBackup(folderKey, id)
+      if (recovered) {
+        initialMessages = recovered as LoopMessage[]
+        await saver.save(initialMessages)
+        await clearStreamBackup(folderKey, id)
+      }
+    } catch (error) {
+      console.error('picobu: stream backup recovery failed:', error)
+    }
+  }
   const overrides: Partial<LoopConfig> = {}
   const effectiveConfig = (): LoopConfig => ({ ...getConfig(), ...overrides, sessionId: id })
   const loop = createLoop(effectiveConfig)
-  const saver = new SessionSaver(sessionFilePath(folderKey, id))
+  const persistedStats = await readLoopStats(folderKey, id)
+  if (persistedStats) loop.restoreStats(persistedStats)
 
   let meta: SessionMeta | null = await readSessionMeta(folderKey, id)
   if (!meta) {
@@ -209,6 +219,9 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
   }
   let title: string | undefined = meta.title
   let lastUsage: SessionUsage | undefined
+  let lastStats: LoopStats | undefined = loop.stats()
+  let pendingStatsWrite: Promise<void> = Promise.resolve()
+  const statsListeners = new Set<(stats: LoopStats) => void>()
 
   const streamListeners = new Set<(chunk: UIMessageChunk) => void>()
   const runEndListeners = new Set<() => void>()
@@ -216,7 +229,7 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
     sendMessages: async (options) => {
       const upstream = await loop.transport.sendMessages({
         ...options,
-        messages: stripUnreplayableReasoning(messagesForLlm(options.messages)),
+        messages: stripUnreplayableReasoning(options.messages),
       })
       return upstream.pipeThrough(
         new TransformStream<UIMessageChunk, UIMessageChunk>({
@@ -245,11 +258,9 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
     for (const listener of queueListeners) listener(snapshot)
   }
   let draining = false
-  let compaction: Promise<void> | undefined
   let resumeOnce = false
-  let planHandoffOnce = false
+  let planExitOnce = false
   let resuming = false
-  let planHandoffCompact = false
   const consumedPlanExits = new Set<string>()
   const isRunning = (): boolean => chat.status === 'submitted' || chat.status === 'streaming'
   const abortFailure = (): Error => {
@@ -263,8 +274,6 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
     try {
       while (pendingPrompts.length > 0 && !isRunning()) {
         if (isWaiting(chat.messages)) break
-        const pendingCompaction = compaction
-        if (pendingCompaction) await pendingCompaction
         if (isRunning()) break
         if (isWaiting(chat.messages)) break
         const item = pendingPrompts.shift()
@@ -302,26 +311,11 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
     assertNotRunning(op)
     if (chat.error) throw new Error(`Cannot ${op} while the session is in the error state`)
   }
-
-  const latestUsageMeta = (msgs: LoopMessage[]): LoopMessageMetadata | undefined => {
-    for (let i = msgs.length - 1; i >= 0; i--) {
-      const meta = msgs[i]?.metadata as LoopMessageMetadata | undefined
-      if (meta?.finishReason) return meta
-    }
-    return undefined
-  }
   let aborting = false
   let lastDerivedState: SessionState | undefined
+  let lastStreamBackupAt = 0
+  const STREAM_BACKUP_INTERVAL_MS = 1000
   const handleStateChange = (state: ChatState<LoopMessage>): void => {
-    if (state.status === 'submitted') {
-      lastUsage = undefined
-    }
-    if (state.status === 'streaming') {
-      const liveMeta = latestUsageMeta(chat.messages)
-      lastUsage = {
-        finishReason: liveMeta?.finishReason,
-      }
-    }
     if (resuming && state.status !== 'ready') resuming = false
     const derived = deriveState(chat)
     if (derived !== lastDerivedState) {
@@ -332,6 +326,18 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
     saver.save(state.messages).catch((error) => {
       console.error('picobu: session save failed:', error)
     })
+    if (state.status === 'submitted' || state.status === 'streaming') {
+      const now = Date.now()
+      if (now - lastStreamBackupAt >= STREAM_BACKUP_INTERVAL_MS) {
+        lastStreamBackupAt = now
+        writeStreamBackup(folderKey, id, state.messages).catch((error) => {
+          console.error('picobu: stream backup save failed:', error)
+        })
+      }
+    } else {
+      lastStreamBackupAt = 0
+      void clearStreamBackup(folderKey, id)
+    }
   }
   const chatState = createHeadlessChatState(initialMessages ?? [], handleStateChange)
   const chat = new Chat({
@@ -341,8 +347,8 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
         resumeOnce = false
         return true
       }
-      if (planHandoffOnce) {
-        planHandoffOnce = false
+      if (planExitOnce) {
+        planExitOnce = false
         return true
       }
       return false
@@ -368,119 +374,33 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
       if (freshExits.length > 0) {
         overrides.agentId = 'coder'
         resuming = true
-        if (planHandoffCompact) {
-          const planPart = (finished.parts ?? []).map((p) => p as LooseFlowPart).find((p) => flowToolPartName(p) === 'plan-write' && flowOutputStatus(p) === 'approved')
-          const planInput = planPart?.input as { plan?: unknown } | undefined
-          const planText = typeof planInput?.plan === 'string' ? planInput.plan : undefined
-          const planOutput = planPart?.output as { message?: unknown } | undefined
-          const planMessage = planOutput?.message
-          const verdictText = typeof planMessage === 'string' ? String(planMessage) : ''
-          if (planText) {
-            const cut = buildPlanHandoffCut({ messages: chat.messages, plan: planText, verdict: verdictText })
-            chat.messages = [
-              ...chat.messages,
-              {
-                id: randomUUID(),
-                role: 'user',
-                metadata: {
-                  compaction: {
-                    summary: cut.summary,
-                    compactedMessageIds: cut.compactedMessageIds,
-                    createdAt: Date.now(),
-                    kind: 'plan-handoff',
-                  },
-                },
-                parts: [{ type: 'text', text: cut.text }],
-              } as LoopMessage,
-            ]
-          }
-        }
-        planHandoffCompact = false
-        planHandoffOnce = true
+        planExitOnce = true
       }
-      const meta = options.message.metadata as LoopMessageMetadata | undefined
+      const meta = options.message.metadata as { finishReason?: string } | undefined
       lastUsage = {
-        finishReason: meta?.finishReason,
+        finishReason: meta?.finishReason ?? lastUsage?.finishReason,
       }
       if (!wasAborting && !chat.error && !isWaiting(chat.messages)) {
         const stripped = stripAnalysedImages(chat.messages)
         if (stripped !== chat.messages) chat.messages = stripped
       }
-      handleStateChange(chatState)
-      onFinish?.(options)
+      onChange?.(chatState)
+      chatInit.onFinish?.(options)
       for (const listener of runEndListeners) listener()
       void drain()
     },
     loop,
   })
 
-  let compacting = false
-  const compactInternal = async ({ fork }: { fork?: boolean } = {}): Promise<CompactResult> => {
-    if (compacting) throw new Error('Compaction already in progress')
-    assertNotRunning('compact')
-    if (isWaiting(chat.messages)) {
-      throw new Error('Cannot compact while waiting on a flow tool')
-    }
-    const config = effectiveConfig()
-    if (fork && !forkHost) throw new Error('Forking requires a session manager')
-    compacting = true
-    const run = (async () => {
-      try {
-        const { summary } = await compactSession({
-          messages: chat.messages,
-          modelKey: config.modelKey,
-          thinking: config.thinking,
-        })
-        assertNotRunning('compact')
-        const forkedSessionId = fork ? await forkHost?.() : undefined
-        assertNotRunning('compact')
-        const text = compactedMessageText(summary)
-        if (fork) {
-          const compactedMessageIds = chat.messages.map((message) => message.id)
-          const reset: LoopMessage = {
-            id: randomUUID(),
-            role: 'user',
-            metadata: {
-              compaction: {
-                summary,
-                compactedMessageIds,
-                createdAt: Date.now(),
-              },
-            },
-            parts: [{ type: 'text', text }],
-          }
-          chat.messages = [reset]
-          return { summary, cutMessageId: reset.id, forkedSessionId }
-        }
-        const cut: LoopMessage = {
-          id: randomUUID(),
-          role: 'user',
-          metadata: {
-            compaction: {
-              summary,
-              compactedMessageIds: chat.messages.map((m) => m.id),
-              createdAt: Date.now(),
-            },
-          },
-          parts: [{ type: 'text', text }],
-        }
-        chat.messages = [...chat.messages, cut]
-        return { summary, cutMessageId: cut.id, forkedSessionId }
-      } finally {
-        compacting = false
-      }
-    })()
-
-    const settled = run.then(
-      () => {},
-      () => {},
-    )
-    compaction = settled
-    settled.then(() => {
-      if (compaction === settled) compaction = undefined
+  const unsubscribeLoopStats = loop.onStats((stats) => {
+    lastStats = stats
+    lastUsage = { finishReason: stats.finishReason ?? lastUsage?.finishReason }
+    for (const listener of statsListeners) listener(stats)
+    onChange?.(chatState)
+    pendingStatsWrite = writeLoopStats(folderKey, id, stats).catch((error) => {
+      console.error('picobu: session stats persist failed:', error)
     })
-    return run
-  }
+  })
 
   const streamChunks = (): AsyncGenerator<UIMessageChunk> =>
     (async function* () {
@@ -564,6 +484,9 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
     get usage() {
       return lastUsage
     },
+    get stats() {
+      return lastStats
+    },
     get state(): SessionState {
       return deriveState(chat)
     },
@@ -618,7 +541,6 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
       const found = findFlowPart(chat.messages, tool, toolCallId)
       if (!found || found.message.id !== last.id) throw new Error('No pending question to answer')
       if (flowOutputStatus(found.part) !== 'pending') throw new Error('This question was already answered')
-      if (tool === 'plan-write' && output.status !== 'approved') planHandoffCompact = false
       resumeOnce = true
       resuming = true
       try {
@@ -628,9 +550,6 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
         resuming = false
         throw error
       }
-    },
-    setPlanHandoffCompact: (compact) => {
-      planHandoffCompact = compact
     },
     switchAgent: (agentId) => {
       if (!AGENTS[agentId]) throw new Error(`Unknown agent "${agentId}". Known agents: ${Object.keys(AGENTS).join(', ')}`)
@@ -669,6 +588,12 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
       queueListeners.add(listener)
       return () => {
         queueListeners.delete(listener)
+      }
+    },
+    onStatsChange: (listener) => {
+      statsListeners.add(listener)
+      return () => {
+        statsListeners.delete(listener)
       }
     },
     dequeueNewest: () => {
@@ -721,18 +646,12 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
           void drain()
         }
       }),
-    compact: (opts) => compactInternal(opts ?? {}),
-    uncompact: () => {
-      assertNotRunning('uncompact')
-      for (let i = chat.messages.length - 1; i >= 0; i--) {
-        if (!isCompactionCut(chat.messages[i])) continue
-        chat.messages = chat.messages.filter((_, index) => index !== i)
-        return
-      }
-      throw new Error('Nothing to uncompact: the session has no compaction cut')
+    flush: async () => {
+      await saver.flush()
+      await pendingStatsWrite
     },
-    flush: () => saver.flush(),
     close: async () => {
+      unsubscribeLoopStats()
       settlePending()
       if (isRunning()) {
         markAborting()
@@ -741,6 +660,8 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
         } catch {}
       }
       await saver.flush()
+      await pendingStatsWrite
+      await clearStreamBackup(folderKey, id)
       await loop.mcp.close()
     },
   }
