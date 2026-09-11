@@ -20,15 +20,15 @@ describe('createLoop', () => {
 })
 
 describe('todo tool in tests scope', () => {
-  test('ins and del round trip in isolation', async () => {
+  test('write and clear round trip in isolation', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'picobu-gap-todo-'))
     initLockDir(dir)
     try {
       const tool = createTodoTool(join(dir, 'todos.json'))
-      const added = await tool.handler({ actionType: 'ins', action: { ins: [{ phase: 'p', title: 't', prompt: 'q', done: false }] } })
-      expect(added.items).toHaveLength(1)
-      const removed = await tool.handler({ actionType: 'del', action: { del: { index: 0 } } })
-      expect(removed.items).toHaveLength(0)
+      const written = await tool.handler({ items: [{ phase: 'p', title: 't', prompt: 'q', done: false }] })
+      expect(written.items).toHaveLength(1)
+      const cleared = await tool.handler({ items: [] })
+      expect(cleared.items).toHaveLength(0)
     } finally {
       await rm(dir, { recursive: true, force: true })
     }

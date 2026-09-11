@@ -6,7 +6,7 @@ export const AskOptionSchema = z.object({
 export const AskQuestionSchema = z.object({
   title: z.string().min(1),
   question: z.string().min(1),
-  type: z.enum(['multiple', 'single']),
+  answerMode: z.enum(['single', 'multiple']).optional().default('single').describe("How many options the user may pick: 'single' = exactly one answer, 'multiple' = one or more answers"),
   options: z.array(AskOptionSchema).min(1),
 })
 export const AskToolArgsSchema = z.object({
@@ -21,7 +21,8 @@ export const AskToolOutputSchema = z.discriminatedUnion('status', [
 export const createAskTool = () => ({
   name: 'ask',
   kind: 'flow' as const,
-  description: 'Ask the user up to 5 structured single/multiple-choice questions; the run pauses and answers return as the tool result.',
+  description:
+    'Ask the user up to 5 structured choice questions; the run pauses and answers return as the tool result. Each question needs title, question text, answerMode ("single" = pick exactly one, "multiple" = pick one or more; defaults to "single" when omitted), and at least one option.',
   parameters: AskToolArgsSchema,
   output: AskToolOutputSchema,
   handler: (args: z.infer<typeof AskToolArgsSchema>): z.infer<typeof AskToolOutputSchema> => {

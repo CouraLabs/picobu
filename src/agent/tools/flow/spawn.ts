@@ -7,13 +7,6 @@ export const SpawnToolArgsSchema = z.object({
 export const SpawnToolOutputSchema = z.object({
   sessionId: z.string().optional(),
   summary: z.string(),
-  usage: z.object({
-    inputTokens: z.number(),
-    outputTokens: z.number(),
-    cacheRead: z.number(),
-    cacheWrite: z.number(),
-    cost: z.number().optional(),
-  }),
 })
 
 export type SpawnToolContext = {

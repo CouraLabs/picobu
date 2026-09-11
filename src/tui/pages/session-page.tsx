@@ -7,10 +7,9 @@ import { type ParsedCommandLine, parseCommandLine } from '@agent/commands/parse-
 import type { LoopMessage } from '@agent/loop/create-loop.ts'
 import { generateSessionTitle } from '@agent/prompts/session-title.ts'
 import { closePromptHistory, projectKeyFor } from '@agent/sessions/prompt-history.ts'
-import type { QueuedPrompt, Session, SessionUsage } from '@agent/sessions/session.ts'
+import type { QueuedPrompt, Session } from '@agent/sessions/session.ts'
 import { SessionManager } from '@agent/sessions/session-manager.ts'
 import { lastAssistantText } from '@agent/sessions/session-messages.ts'
-import type { SessionTotals } from '@agent/sessions/session-meta.ts'
 import { isWaiting } from '@agent/sessions/session-meta.ts'
 import { createSessionWatchdog } from '@agent/sessions/session-watchdog.ts'
 import { resetAuthCache } from '@auth/store.ts'
@@ -116,8 +115,6 @@ export const SessionPage = (props: SessionPageProps) => {
   const [modelKey, setModelKey] = createSignal<string | undefined>(undefined)
   const [thinking, setThinking] = createSignal<ProviderModelReasoningEffort | undefined>(undefined)
   const [title, setTitle] = createSignal<string | undefined>(undefined)
-  const [totals, setTotals] = createSignal<SessionTotals | undefined>(undefined)
-  const [usage, setUsage] = createSignal<SessionUsage | undefined>(undefined)
   const [mcp, setMcp] = createSignal<{ connected: number; total: number; tools: number }>({ connected: 0, total: 0, tools: 0 })
   const [cwd, setCwd] = createSignal<string | undefined>(undefined)
   const [git, setGit] = createSignal<{ branch: string; additions: number; deletions: number } | null>(null)
@@ -206,8 +203,6 @@ export const SessionPage = (props: SessionPageProps) => {
     setModelKey(next.config.modelKey)
     setThinking(next.config.thinking)
     setTitle(next.title)
-    setTotals({ ...next.totals })
-    setUsage(next.usage ? { ...next.usage } : undefined)
     setMessages([...next.messages])
     syncQueue(next)
     setProjectKey(projectKeyFor(next.config.cwd ?? sessionMgr.currentCwd))
@@ -217,7 +212,7 @@ export const SessionPage = (props: SessionPageProps) => {
     })
     setActiveSessionId(next.id)
     if (next.messages.length > 0) markActiveSessionHasMessages()
-    setActiveSessionStats({ ...next.totals }, next.messages.length)
+    setActiveSessionStats(next.messages.length)
     const streaming = next.status === 'submitted' || next.status === 'streaming'
     const w = isWaiting(next.messages)
     setIsStreaming(streaming)
@@ -439,9 +434,11 @@ export const SessionPage = (props: SessionPageProps) => {
           if (live) {
             setTitle(live.title)
             syncQueue(live)
-            setTotals({ ...live.totals })
-            setUsage(live.usage ? { ...live.usage } : undefined)
-            setActiveSessionStats({ ...live.totals }, state.messages.length)
+            setActiveSessionStats(state.messages.length)
+            if (live.config.agentId !== agentId()) {
+              setAgentId(live.config.agentId)
+              pushToast(`Agent switched to ${live.config.agentId}`, 'info')
+            }
           }
           const current = session()
           refreshGit(current?.config.cwd ?? sessionMgr.currentCwd)
@@ -859,8 +856,6 @@ export const SessionPage = (props: SessionPageProps) => {
           cwd={cwd()}
           git={git()}
           messages={messages()}
-          totals={totals()}
-          usage={usage()}
           streaming={isStreaming()}
           queueDepth={queueDepth()}
           mode={mode()}
@@ -894,8 +889,6 @@ export const SessionPage = (props: SessionPageProps) => {
           cwd={cwd()}
           git={git()}
           messages={messages()}
-          totals={totals()}
-          usage={usage()}
           streaming={isStreaming()}
           queueDepth={queueDepth()}
           mode={mode()}

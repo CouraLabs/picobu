@@ -3,7 +3,6 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { UIMessage } from 'ai'
-import { projectedContext } from '../../src/agent/model/cost.ts'
 import { CheckpointStore } from '../../src/agent/sessions/checkpoints.ts'
 import {
   addPrompt,
@@ -25,10 +24,9 @@ import {
   messagesForLlm,
   PLAN_HANDOFF_HEADER,
   serializeForCompaction,
-  shouldCompact,
 } from '../../src/agent/sessions/session-compaction.ts'
 import { JobTracker } from '../../src/agent/sessions/session-jobs.ts'
-import { dropUnansweredPrompt, hasVisibleResponse, lastAssistantText, sanitizeMessages, stripUnreplayableReasoning } from '../../src/agent/sessions/session-messages.ts'
+import { dropUnansweredPrompt, hasVisibleResponse, lastAssistantText, sanitizeMessages, settleAbortedToolParts, stripUnreplayableReasoning } from '../../src/agent/sessions/session-messages.ts'
 import { folderKeyFor, generateSessionId, persistentRoot, persistentTurnFilePath, sessionDir, sessionFilePath, sessionsRoot, sessionTodoFilePath } from '../../src/agent/sessions/session-paths.ts'
 import { options } from '../../src/config/options.ts'
 import { initLockDir } from '../../src/shared/lock.ts'
@@ -165,6 +163,31 @@ describe('session message helpers', () => {
     expect(out[0]?.parts?.map((p) => (p as { text?: string }).text)).toEqual(['signed', 'done'])
   })
 })
+
+describe('settleAbortedToolParts', () => {
+  test('marks running tool parts as output-error', () => {
+    const message = toolMessage('a', { type: 'tool-shell', toolCallId: 't1', state: 'input-available', input: { command: 'bun test' } })
+    const out = settleAbortedToolParts([message] as UIMessage[])
+    const part = out[0]?.parts?.[0] as { state?: string; errorText?: string; output?: unknown }
+    expect(part.state).toBe('output-error')
+    expect(part.errorText).toBe('Aborted')
+  })
+  test('settles input-streaming and dynamic-tool parts', () => {
+    const streaming = toolMessage('a', { type: 'tool-shell', toolCallId: 't1', state: 'input-streaming', input: {} })
+    const dynamic = toolMessage('b', { type: 'dynamic-tool', toolName: 'ask', toolCallId: 't2', state: 'input-available', input: {} })
+    const out = settleAbortedToolParts([streaming, dynamic] as UIMessage[])
+    const first = out[0]?.parts?.[0] as { state?: string } | undefined
+    const second = out[1]?.parts?.[0] as { state?: string } | undefined
+    expect(first?.state).toBe('output-error')
+    expect(second?.state).toBe('output-error')
+  })
+  test('keeps settled tool parts untouched and returns identity when nothing changed', () => {
+    const done = toolMessage('a', { type: 'tool-read', toolCallId: 't1', state: 'output-available', output: 'ok' })
+    const text = textMessage('b', 'user', 'hi')
+    const input = [done, text] as UIMessage[]
+    expect(settleAbortedToolParts(input)).toBe(input)
+  })
+})
 describe('prompt history with tmp file', () => {
   let dir = ''
   beforeEach(async () => {
@@ -237,33 +260,6 @@ describe('prompt history with tmp file', () => {
   })
 })
 describe('session compaction pure helpers', () => {
-  test('shouldCompact respects eighty percent threshold', () => {
-    expect(shouldCompact(80, 100)).toBe(true)
-    expect(shouldCompact(79, 100)).toBe(false)
-    expect(shouldCompact(10, 0)).toBe(false)
-  })
-  test('projectedContext measures last-call context, not run-summed input', () => {
-    const finishUsage = {
-      inputTokens: 43_392,
-      outputTokens: 740,
-      totalTokens: 43_392 + 740,
-      computed: {
-        accNoCacheInputTokens: 1_389_678,
-        accOutputTokens: 15_261,
-        accCacheReadTokens: 0,
-        accCacheWriteTokens: 0,
-        accReasoningTokens: 0,
-        accTextTokens: 0,
-      },
-    }
-    expect(projectedContext(finishUsage)).toBe(43_392 + 740)
-    expect(shouldCompact(projectedContext(finishUsage), 1_048_576)).toBe(false)
-    expect(shouldCompact(1_389_678 + 740, 1_048_576)).toBe(true)
-  })
-  test('projectedContext falls back to input plus output', () => {
-    expect(projectedContext({ inputTokens: 100, outputTokens: 50 })).toBe(150)
-    expect(projectedContext(undefined)).toBe(0)
-  })
   test('compactedMessageText starts with header and keeps summary', () => {
     const text = compactedMessageText('my summary')
     expect(text.startsWith(COMPACTION_HEADER)).toBe(true)

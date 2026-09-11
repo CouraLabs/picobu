@@ -62,13 +62,10 @@ export const ModelSelect = (props: ModelSelectProps) => {
     return models().filter((m) => `${m.provider} ${m.model} ${m.key}`.toLowerCase().includes(q))
   })
 
-  createEffect(() => {
-    const count = filtered().length
-    if (highlight() >= count) setHighlight(Math.max(0, count - 1))
-  })
+  const clampedHighlight = createMemo(() => Math.min(highlight(), Math.max(0, filtered().length - 1)))
 
   createEffect(() => {
-    listRef?.scrollTo(Math.max(0, highlight() - 3))
+    listRef?.scrollTo(Math.max(0, clampedHighlight() - 3))
   })
 
   const select = (index: number) => {
@@ -81,15 +78,15 @@ export const ModelSelect = (props: ModelSelectProps) => {
     if (key.name === 'up') {
       key.preventDefault()
       key.stopPropagation()
-      setHighlight((h) => Math.max(0, h - 1))
+      setHighlight(Math.max(0, clampedHighlight() - 1))
     } else if (key.name === 'down') {
       key.preventDefault()
       key.stopPropagation()
-      setHighlight((h) => Math.min(filtered().length - 1, h + 1))
+      setHighlight(Math.min(filtered().length - 1, clampedHighlight() + 1))
     } else if (key.name === 'return') {
       key.preventDefault()
       key.stopPropagation()
-      select(highlight())
+      select(clampedHighlight())
     } else if (key.name === 'tab') {
       key.preventDefault()
       key.stopPropagation()
@@ -126,7 +123,7 @@ export const ModelSelect = (props: ModelSelectProps) => {
               flexShrink={0}
               paddingLeft={1}
               paddingRight={1}
-              backgroundColor={highlight() === index() ? theme().textMuted : undefined}
+              backgroundColor={clampedHighlight() === index() ? theme().textMuted : undefined}
               onMouseOver={() => setHighlight(index())}
               onMouseUp={() => select(index())}
               onMouseScroll={(e) => {

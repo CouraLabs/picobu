@@ -55,6 +55,12 @@ const DRAFT_DEBOUNCE_MS = 450
 const MAX_FILES = 5
 const MAX_FILE_BYTES = 10 * 1024 * 1024
 
+export const HISTORY_DOUBLE_PRESS_MS = 100
+
+export type HistoryKeyPress = { name: 'up' | 'down'; time: number }
+
+export const isDoublePress = (prev: HistoryKeyPress | null, name: HistoryKeyPress['name'], now: number): boolean => prev !== null && prev.name === name && now - prev.time <= HISTORY_DOUBLE_PRESS_MS
+
 const fmtSize = (bytes: number): string => {
   if (bytes < 1024) return `${bytes}B`
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}KB`
@@ -289,7 +295,14 @@ export const SessionPrompt = (props: SessionPromptProps) => {
 
   const cycleForward = () => {
     const items = history()
-    if (navIndex() === -1) return
+    if (navIndex() === -1) {
+      if (draftStash.length > 0) {
+        textareaRef?.setText(draftStash)
+        setText(draftStash)
+        draftStash = ''
+      }
+      return
+    }
     if (navIndex() >= items.length - 1) {
       setNavIndex(-1)
       textareaRef?.setText(draftStash)
@@ -303,24 +316,23 @@ export const SessionPrompt = (props: SessionPromptProps) => {
     textareaRef?.gotoBufferEnd()
   }
 
+  let lastHistoryKey: HistoryKeyPress | null = null
+
   useKeyboard((key) => {
     if (key.name !== 'up' && key.name !== 'down') return
     if (key.ctrl || key.meta || key.super) return
     if (!textareaRef?.focused) return
     if (isFlyoutOpen()) return
-    const row = textareaRef.logicalCursor?.row ?? 0
-    const total = textareaRef.lineCount ?? 1
-    if (key.name === 'up' && row === 0) {
-      key.preventDefault()
-      key.stopPropagation()
-      cycleBack()
-    } else if (key.name === 'down' && row >= total - 1) {
-      key.preventDefault()
-      key.stopPropagation()
-      cycleForward()
-    } else if (navIndex() !== -1) {
-      setNavIndex(-1)
+    const now = Date.now()
+    if (!isDoublePress(lastHistoryKey, key.name, now)) {
+      lastHistoryKey = { name: key.name, time: now }
+      return
     }
+    lastHistoryKey = null
+    key.preventDefault()
+    key.stopPropagation()
+    if (key.name === 'up') cycleBack()
+    else cycleForward()
   })
 
   const mod = (key: { ctrl: boolean; meta: boolean; super?: boolean }): boolean => key.ctrl || key.meta || (key.super ?? false)

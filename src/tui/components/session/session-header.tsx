@@ -12,7 +12,7 @@ export const SessionHeader = (props: SessionStatusProps) => {
   return (
     <box flexDirection="row" columnGap={1} marginY={1} justifyContent="space-between" alignItems="center" flexShrink={0} flexWrap="wrap">
       <box flexDirection="row" columnGap={1} flexShrink={0} flexWrap="wrap">
-        <StatusSegment icon={icons.folderOpen} value={data.folderLabel()} valueColor={theme().accent} />
+        <StatusSegment icon={icons.folderOpen} value={`/${data.folderLabel()}`} valueColor={theme().accent} />
         <Show when={props.git}>
           <StatusSeparator sep={icons.middleDot} />
           <StatusSegment icon={icons.gitBranch} value={data.gitLabel()} valueColor={theme().secondary} />

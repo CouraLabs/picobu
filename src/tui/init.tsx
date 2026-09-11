@@ -31,7 +31,7 @@ export async function runTui(options: TuiAppOptions = {}): Promise<void> {
   process.on('unhandledRejection', onUnhandledRejection)
   setConsoleTitle(undefined)
 
-  const debug = options.debug === true
+  const debug = true
   const renderer = await createCliRenderer({
     exitOnCtrlC: false,
     useMouse: true,
@@ -47,13 +47,12 @@ export async function runTui(options: TuiAppOptions = {}): Promise<void> {
       resetConsoleTitle()
       const active = getActiveSessionClose()
       if (active?.hasMessages) {
-        const totals = active.totals
         console.log(
           closeMessage(active.id, theme(), {
             messageCount: active.messageCount ?? 0,
-            inputTokens: totals?.inputTokens,
-            outputTokens: totals?.outputTokens,
-            cost: totals?.computed.cost?.total,
+            inputTokens: 0,
+            outputTokens: 0,
+            cost: 0,
           }),
         )
       }

@@ -353,7 +353,7 @@ describe('toolset registry', () => {
   test('full context adds todo ask plan and spawn', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'picobu-tools-'))
     try {
-      const fake = { spawnSubSession: async () => ({ summary: 's', usage: { inputTokens: 0, outputTokens: 0, cacheRead: 0, cacheWrite: 0 } }) }
+      const fake = { spawnSubSession: async () => ({ summary: 's' }) }
       const names = buildToolSet({ todoFilePath: join(dir, 'todos.json'), sessionId: 's1', spawn: { manager: fake as never, parentId: 'p', depth: 0 } })
         .getTools()
         .map((t) => t.name)
@@ -365,7 +365,7 @@ describe('toolset registry', () => {
     }
   })
   test('interactive false omits ask and plan tools but keeps spawn', () => {
-    const fake = { spawnSubSession: async () => ({ summary: 's', usage: { inputTokens: 0, outputTokens: 0, cacheRead: 0, cacheWrite: 0 } }) }
+    const fake = { spawnSubSession: async () => ({ summary: 's' }) }
     const names = buildToolSet({ sessionId: 's1', interactive: false, spawn: { manager: fake as never, parentId: 'p', depth: 0 } })
       .getTools()
       .map((t) => t.name)

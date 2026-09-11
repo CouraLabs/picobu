@@ -10,7 +10,6 @@ import { buildCommandPrompt, loadCommandCatalog, loadCommandCatalogSync } from '
 import type { Command } from '../../src/agent/commands/types.ts'
 import { hyper } from '../../src/agent/model/catalog-hyper.ts'
 import { fetchModelsDevProvider, modelsFromModelsDev } from '../../src/agent/model/catalog-models-dev.ts'
-import { computeCostSplit, costLoggingMiddleware, withCostLogging } from '../../src/agent/model/cost.ts'
 import { parseModelsResponse } from '../../src/agent/model/fetch-models.ts'
 import { LLM_PROVIDERS, upsertProvider } from '../../src/agent/model/registry.ts'
 import { createModelInstance, listModels, resolveApiKey, resolveAuth } from '../../src/agent/model/resolver.ts'
@@ -44,20 +43,6 @@ const putFile = async (root: string, rel: string, text: string): Promise<string>
   await mkdir(dirname(full), { recursive: true })
   await writeFile(full, text)
   return full
-}
-
-const captureConsoleError = async (fn: () => Promise<void>): Promise<string[]> => {
-  const lines: string[] = []
-  const orig = console.error
-  console.error = (...args: unknown[]): void => {
-    lines.push(args.map((part) => String(part)).join(' '))
-  }
-  try {
-    await fn()
-  } finally {
-    console.error = orig
-  }
-  return lines
 }
 
 describe('createAgent', () => {
@@ -304,146 +289,6 @@ describe('model resolver helpers', () => {
   })
 })
 
-describe('computeCostSplit', () => {
-  test('returns undefined without billing', () => {
-    expect(computeCostSplit({ inputTokens: 10, outputTokens: 5 })).toBeUndefined()
-  })
-  test('splits input output and cache math', () => {
-    const split = computeCostSplit({ inputTokens: 1000, outputTokens: 500, cacheReadTokens: 100, cacheWriteTokens: 200 }, { input: 3, output: 6, cacheRead: 1, cacheWrite: 2 })
-    expect(split?.inputCost).toBeCloseTo(0.0021, 10)
-    expect(split?.outputCost).toBeCloseTo(0.003, 10)
-    expect(split?.cacheReadCost).toBeCloseTo(0.0001, 10)
-    expect(split?.cacheWriteCost).toBeCloseTo(0.0004, 10)
-    expect(split?.cacheCost).toBeCloseTo(0.0005, 10)
-    expect(split?.total).toBeCloseTo(0.0056, 10)
-  })
-  test('reads accumulators from computed', () => {
-    const split = computeCostSplit(
-      {
-        inputTokens: 100,
-        outputTokens: 10,
-        totalTokens: 110,
-        computed: {
-          accNoCacheInputTokens: 700,
-          accOutputTokens: 500,
-          accCacheReadTokens: 100,
-          accCacheWriteTokens: 200,
-          accReasoningTokens: 0,
-          accTextTokens: 0,
-        },
-      },
-      { input: 3, output: 6, cacheRead: 1, cacheWrite: 2 },
-    )
-    expect(split?.inputCost).toBeCloseTo(0.0021, 10)
-    expect(split?.total).toBeCloseTo(0.0056, 10)
-  })
-  test('applies multiplier', () => {
-    const split = computeCostSplit({ inputTokens: 1000 }, { input: 3, multiplier: 2 })
-    expect(split?.inputCost).toBeCloseTo(0.006, 10)
-    expect(split?.outputCost).toBe(0)
-    expect(split?.cacheCost).toBe(0)
-    expect(split?.total).toBeCloseTo(0.006, 10)
-  })
-  test('clamps negatives and cache overcount', () => {
-    const split = computeCostSplit({ inputTokens: -5, outputTokens: -2, cacheReadTokens: -1, cacheWriteTokens: -1 }, { input: 3, output: 6, cacheRead: 1, cacheWrite: 2 })
-    expect(split).toEqual({ inputCost: 0, outputCost: 0, cacheReadCost: 0, cacheWriteCost: 0, cacheCost: 0, total: 0 })
-    const over = computeCostSplit({ inputTokens: 10, cacheReadTokens: 8, cacheWriteTokens: 5 }, { input: 3 })
-    expect(over?.inputCost).toBe(0)
-  })
-})
-
-describe('cost logging middleware', () => {
-  test('wrapGenerate tolerates null usage', async () => {
-    const mw = costLoggingMiddleware('unit-key', { input: 1, output: 1 })
-    let result: { usage: unknown } | undefined
-    const lines = await captureConsoleError(async () => {
-      result = await (mw.wrapGenerate as unknown as (opts: unknown) => Promise<{ usage: unknown }>)({
-        doGenerate: async () => ({ usage: null }),
-      })
-    })
-    expect(result?.usage).toBeNull()
-    expect(lines.some((line) => line.includes('unit-key'))).toBe(true)
-  })
-  test('wrapGenerate logs and rethrows failures', async () => {
-    const mw = costLoggingMiddleware('fail-key', undefined)
-    const lines = await captureConsoleError(async () => {
-      await expect(
-        (mw.wrapGenerate as unknown as (opts: unknown) => Promise<unknown>)({
-          doGenerate: async (): Promise<unknown> => {
-            throw new Error('boom')
-          },
-        }),
-      ).rejects.toThrow('boom')
-    })
-    expect(lines.some((line) => line.includes('failed'))).toBe(true)
-  })
-  test('wrapStream passes chunks through with null usage', async () => {
-    const mw = costLoggingMiddleware('stream-key', undefined)
-    const seen: unknown[] = []
-    const lines = await captureConsoleError(async () => {
-      const source = new ReadableStream<unknown>({
-        start(controller) {
-          controller.enqueue({ type: 'text' })
-          controller.enqueue({ type: 'finish', usage: null })
-          controller.close()
-        },
-      })
-      const out = await (mw.wrapStream as unknown as (opts: unknown) => Promise<{ stream: ReadableStream<unknown> }>)({
-        doStream: async () => ({ stream: source }),
-      })
-      await out.stream.pipeTo(
-        new WritableStream<unknown>({
-          write(chunk) {
-            seen.push(chunk)
-          },
-        }),
-      )
-    })
-    expect(seen.length).toBe(2)
-    expect(lines.some((line) => line.includes('stream-key'))).toBe(true)
-    expect(lines.some((line) => line.includes('cost=n/a'))).toBe(true)
-  })
-  test('wrapStream flush without finish still logs', async () => {
-    const mw = costLoggingMiddleware('flush-key', undefined)
-    const lines = await captureConsoleError(async () => {
-      const source = new ReadableStream<unknown>({
-        start(controller) {
-          controller.close()
-        },
-      })
-      const out = await (mw.wrapStream as unknown as (opts: unknown) => Promise<{ stream: ReadableStream<unknown> }>)({
-        doStream: async () => ({ stream: source }),
-      })
-      await out.stream.pipeTo(new WritableStream<unknown>({ write() {} }))
-    })
-    expect(lines.some((line) => line.includes('flush-key'))).toBe(true)
-  })
-  test('withCostLogging wraps a fake model without network', async () => {
-    const fakeModel = {
-      specificationVersion: 'v4',
-      provider: 'unit',
-      modelId: 'fake',
-      doGenerate: async (): Promise<unknown> => ({
-        content: [{ type: 'text', text: 'hello' }],
-        finishReason: { unified: 'stop' },
-        usage: {
-          inputTokens: { total: 10, noCache: 7, cacheRead: 2, cacheWrite: 1 },
-          outputTokens: { total: 5, text: 5, reasoning: 0 },
-        },
-        warnings: [],
-      }),
-    }
-    const wrapped = withCostLogging(fakeModel as never, 'wrapped-key', { input: 2, output: 4 })
-    expect(wrapped.specificationVersion).toBe('v4')
-    let generated: { content: { type: string; text?: string }[] } | undefined
-    const lines = await captureConsoleError(async () => {
-      generated = (await wrapped.doGenerate({} as never)) as { content: { type: string; text?: string }[] }
-    })
-    expect(generated?.content[0]?.text).toBe('hello')
-    expect(lines.some((line) => line.includes('wrapped-key'))).toBe(true)
-  })
-})
-
 describe('rules discovery', () => {
   const setupRules = async (): Promise<string> => {
     const root = await makeTempRoot()
@@ -536,12 +381,19 @@ describe('agent prompt texts', () => {
   test('role markdowns are non-empty with key markers', () => {
     expect(askMarkdown).toContain('Picobu')
     expect(askMarkdown).toContain('ask')
+    expect(askMarkdown).toContain('discrete options')
     expect(coderMarkdown).toContain('Prime Directives')
     expect(coderMarkdown).toContain('Correctness first')
     expect(coderMarkdown).toContain('Decision Checklist')
+    expect(coderMarkdown).toContain('Task Control')
+    expect(coderMarkdown).toContain('"todo" flow tool')
+    expect(coderMarkdown).toContain('structured "ask" questions')
+    expect(coderMarkdown).toContain('"spawn"')
     expect(planMarkdown).toContain('architect')
     expect(planMarkdown).toContain('plan-write')
     expect(planMarkdown).toContain('plan-exit')
+    expect(planMarkdown).toContain('Raise "ask" early')
+    expect(planMarkdown).toContain('do not also write the plan out in your reply')
     expect(persistentMarkdown).toContain('persistent mode')
     expect(persistentMarkdown).toContain('WhatsApp')
     expect(persistentMarkdown).toContain('wwp-msg')

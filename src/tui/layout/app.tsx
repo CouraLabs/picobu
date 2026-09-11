@@ -1,12 +1,13 @@
 import { TextAttributes } from '@opentui/core'
 import { useKeyboard } from '@opentui/solid'
 import { dialogStatus } from '@states/dialog.state.ts'
-import { indexOfTheme, setTheme, theme, themeInfo, themes, toggleThemeVariant } from '@states/theme-state.ts'
+import { indexOfTheme, setTheme, theme, themeInfo, themeOptions, themes, toggleThemeVariant } from '@states/theme-state.ts'
 import { Button } from '@tui/components/button.tsx'
 import { Dialog } from '@tui/components/dialog.tsx'
 import { Dropdown, DropdownLayer } from '@tui/components/dropdown.tsx'
 import { openHelpDialog } from '@tui/components/session/help-dialog.tsx'
 import { StatusSeparator } from '@tui/components/shared/status-separator.tsx'
+import { TooltipLayer } from '@tui/components/tooltip.tsx'
 import { SessionPage } from '@tui/pages/session-page.tsx'
 import { icons } from '@tui/themes/icons.ts'
 import { createMemo, createSignal } from 'solid-js'
@@ -47,12 +48,7 @@ export const App = (props: { sessionId?: string } = {}) => {
         marginX={2}>
         <box id="app-footer-left" flexDirection="row" flexWrap="wrap-reverse" columnGap={1}>
           <box flexDirection="row" columnGap={1} flexShrink={0}>
-            <Dropdown
-              options={themes.map((name) => ({ name, value: name }))}
-              onSelect={(option) => setTheme(String(option.value), themeInfo().variant)}
-              selected={indexOfTheme(themes)}
-              placeholder="Select theme…"
-            />
+            <Dropdown options={themeOptions} onSelect={(option) => setTheme(String(option.value), themeInfo().variant)} selected={indexOfTheme(themes)} placeholder="Select theme…" />
             <Button label={themeInfo().variant} onClick={() => toggleThemeVariant()} />
             <StatusSeparator sep={icons.middleDot} />
             <text fg={theme().text} attributes={TextAttributes.DIM}>
@@ -84,6 +80,7 @@ export const App = (props: { sessionId?: string } = {}) => {
       </box>
       <Dialog />
       <DropdownLayer />
+      <TooltipLayer />
     </box>
   )
 }

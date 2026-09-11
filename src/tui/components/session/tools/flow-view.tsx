@@ -40,9 +40,11 @@ export const FlowStaticView = (props: FlowViewProps) => {
   return (
     <box flexDirection="column" paddingLeft={1} border={['left']} bottomTitle={` ${name()} `} bottomTitleAlignment="right" borderStyle={'heavy'} borderColor={color()}>
       <box flexDirection="row" gap={1} flexWrap="wrap">
-        <text fg={color()} selectable={false}>
-          {view().icon}
-        </text>
+        <box flexShrink={0}>
+          <text fg={color()} selectable={false}>
+            {view().icon}
+          </text>
+        </box>
         <text fg={color()} flexShrink={0}>
           {name()}
         </text>

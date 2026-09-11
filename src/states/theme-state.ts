@@ -39,6 +39,7 @@ function resolveEntryName(name: string): string {
   return 'picobu'
 }
 export const themes = listEntries()
+export const themeOptions = themes.map((name) => ({ name, value: name }))
 const defaultName = resolveEntryName(options?.tui?.theme?.key ?? 'picobu')
 const defaultVariant = options?.tui?.theme?.variant ?? 'dark'
 const defaultTheme = resolveEntry(defaultName, defaultVariant)

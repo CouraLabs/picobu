@@ -1,18 +1,22 @@
 import { describe, expect, test } from 'bun:test'
 import { RGBA, type TerminalColors } from '@opentui/core'
 import { EXTENSION_LANGUAGE, filetypeFromPath } from '../../src/tui/components/diff.tsx'
+import { HISTORY_DOUBLE_PRESS_MS, isDoublePress } from '../../src/tui/components/session/session-prompt.tsx'
 import {
   asToolPart,
   diffStats,
   flowOutputMessage,
   flowOutputStatus,
+  isTodoTool,
   isToolPart,
+  latestTodoItems,
   planText,
   previewToolInput,
   rawToolName,
   summarizeToolInput,
   summarizeToolOutput,
   type ToolPartLike,
+  todoItems,
   toolAskQuestions,
   toolDiff,
   toolDisplayName,
@@ -112,10 +116,8 @@ describe('summarizeToolInput', () => {
     expect(summarizeToolInput('plan-write', { plan: '' })).toBe('0 lines')
     expect(summarizeToolInput('plan-write', {})).toBe('?')
   })
-  test('todo summarizes mutations', () => {
-    expect(summarizeToolInput('todo', { actionType: 'ins', action: { ins: [1, 2] } })).toBe('+2')
-    expect(summarizeToolInput('todo', { actionType: 'del' })).toBe('remove')
-    expect(summarizeToolInput('todo', { actionType: 'upd' })).toBe('update')
+  test('todo summarizes the written list', () => {
+    expect(summarizeToolInput('todo', { items: [1, 2] })).toBe('2 item(s)')
     expect(summarizeToolInput('todo', {})).toBe('?')
   })
   test('names are case-insensitive with ? fallback', () => {
@@ -202,13 +204,19 @@ describe('toolAskQuestions/flow/planText', () => {
   test('parses questions with typed options', () => {
     const out = toolAskQuestions({
       questions: [
-        { title: 'T', question: 'Q?', type: 'multiple', options: [{ answer: 'A', answerDescription: 'desc' }, { answer: '' }] },
+        { title: 'T', question: 'Q?', answerMode: 'multiple', options: [{ answer: 'A', answerDescription: 'desc' }, { answer: '' }] },
         { title: '', question: 'skip', options: [{ answer: 'A' }] },
         { title: 'NoOpts', options: [] },
         'junk',
       ],
     })
     expect(out).toEqual([{ title: 'T', question: 'Q?', type: 'multiple', options: [{ answer: 'A', answerDescription: 'desc' }] }])
+  })
+  test('legacy type field from old sessions falls back to answerMode', () => {
+    const out = toolAskQuestions({
+      questions: [{ title: 'T', question: 'Q?', type: 'multiple', options: [{ answer: 'A' }] }],
+    })
+    expect(out).toEqual([{ title: 'T', question: 'Q?', type: 'multiple', options: [{ answer: 'A', answerDescription: undefined }] }])
   })
   test('defaults question text and single type', () => {
     expect(toolAskQuestions({ questions: [{ title: 'T', options: [{ answer: 'A' }] }] })).toEqual([
@@ -263,6 +271,18 @@ describe('filetypeFromPath', () => {
   test('language map is non-empty with plaintext fallback', () => {
     expect(Object.keys(EXTENSION_LANGUAGE).length).toBeGreaterThan(10)
     expect(EXTENSION_LANGUAGE['']).toBe('plaintext')
+  })
+})
+
+describe('prompt history double-press', () => {
+  test('accepts same key within the 100ms window', () => {
+    expect(isDoublePress({ name: 'up', time: 1000 }, 'up', 1000 + HISTORY_DOUBLE_PRESS_MS)).toBe(true)
+    expect(isDoublePress({ name: 'down', time: 500 }, 'down', 500 + HISTORY_DOUBLE_PRESS_MS - 1)).toBe(true)
+  })
+  test('rejects different keys, gaps, and empty history', () => {
+    expect(isDoublePress({ name: 'up', time: 1000 }, 'down', 1050)).toBe(false)
+    expect(isDoublePress({ name: 'up', time: 1000 }, 'up', 1000 + HISTORY_DOUBLE_PRESS_MS + 1)).toBe(false)
+    expect(isDoublePress(null, 'up', 1000)).toBe(false)
   })
 })
 
@@ -378,5 +398,35 @@ describe('theme color helpers', () => {
     const resolved = resolveTheme(system, 'dark')
     expect(resolved.thinkingOpacity).toBe(0.6)
     expect(typeof resolved.primary.r).toBe('number')
+  })
+})
+
+describe('todo helpers', () => {
+  const todoPart = (items: unknown, overrides: Partial<ToolPartLike> = {}) => part({ type: 'tool-todo', output: { items }, ...overrides })
+  const msg = (parts: unknown[]) => ({ parts }) as Parameters<typeof latestTodoItems>[0][number]
+  const items = [
+    { phase: 'a', title: 'one', prompt: 'p1', done: true },
+    { phase: 'a', title: 'two', prompt: 'p2', done: false },
+  ]
+
+  test('isTodoTool matches tool-todo and dynamic-tool named todo', () => {
+    expect(isTodoTool(part({ type: 'tool-todo' }))).toBe(true)
+    expect(isTodoTool(part({ type: 'dynamic-tool', toolName: 'todo' }))).toBe(true)
+    expect(isTodoTool(part({ type: 'dynamic-tool', toolName: 'ask' }))).toBe(false)
+    expect(isTodoTool(part({ type: 'tool-ask' }))).toBe(false)
+  })
+
+  test('todoItems prefers output and falls back to input', () => {
+    expect(todoItems(todoPart(items))).toEqual(items)
+    expect(todoItems(part({ type: 'tool-todo', input: { items } }))).toEqual(items)
+    expect(todoItems(part({ type: 'tool-todo', input: { items: [{}] } }))).toBeUndefined()
+    expect(todoItems(part({ type: 'tool-read' }))).toBeUndefined()
+  })
+
+  test('latestTodoItems returns the most recent todo part items', () => {
+    const older = [{ phase: 'a', title: 'old', prompt: 'p', done: false }]
+    expect(latestTodoItems([msg([todoPart(older)]), msg([{ type: 'text', text: 'hi' }]), msg([todoPart(items)])])).toEqual(items)
+    expect(latestTodoItems([msg([{ type: 'text', text: 'hi' }])])).toBeUndefined()
+    expect(latestTodoItems([])).toBeUndefined()
   })
 })

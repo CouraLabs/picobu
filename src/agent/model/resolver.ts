@@ -1,4 +1,3 @@
-import { withCostLogging } from '@agent/model/cost.ts'
 import { createAnthropic } from '@ai-sdk/anthropic'
 import { createOpenResponses } from '@ai-sdk/open-responses'
 import { createOpenAI } from '@ai-sdk/openai'
@@ -39,17 +38,15 @@ export const createModelInstance = (provider: ProviderOptions, modelId: string) 
   const auth = resolveAuth(provider)
   const apiKey = auth.apiKey
   const baseUrl = auth.baseUrl ?? provider.baseUrl
-  const billing = provider.models.find((m) => m.id === modelId)?.billing
-  const finish = (model: Parameters<typeof withCostLogging>[0]) => withCostLogging(model, `${provider.id}/${modelId}`, billing)
   switch (provider.type) {
     case 'openai':
-      return finish(createOpenAI({ baseURL: baseUrl, apiKey, headers: provider.headers })(modelId))
+      return createOpenAI({ baseURL: baseUrl, apiKey, headers: provider.headers })(modelId)
     case 'anthropic':
-      return finish(createAnthropic({ baseURL: baseUrl, apiKey, headers: provider.headers })(modelId))
+      return createAnthropic({ baseURL: baseUrl, apiKey, headers: provider.headers })(modelId)
     case 'openai-compatible':
-      return finish(createOpenAICompatible({ baseURL: baseUrl, name: provider.name, apiKey, headers: provider.headers })(modelId))
+      return createOpenAICompatible({ baseURL: baseUrl, name: provider.name, apiKey, headers: provider.headers })(modelId)
     case 'openai-responses':
-      return finish(createOpenResponses({ url: baseUrl, name: provider.name, apiKey, headers: provider.headers })(modelId))
+      return createOpenResponses({ url: baseUrl, name: provider.name, apiKey, headers: provider.headers })(modelId)
     default:
       throw new Error(`Unsupported provider type: ${provider.type}. Available provider types: openai, anthropic, openai-compatible, openai-responses`)
   }

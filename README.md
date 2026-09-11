@@ -238,7 +238,7 @@ Sandbox: each session runs inside a local sandbox rooted at its cwd (AI SDK `exp
 
 Compaction: the full conversation is summarized by the running model and appended as a cut message; everything before the cut stays saved (undoable, forkable) but never reaches the LLM again. Auto-compacts at 80% of context (opt-in via `autoCompact`; sub sessions never auto-compact); `forkOnCompact` forks the full history first, then hard-resets to the summary. `session.compact({ fork: true })` does this on demand; `manager.forkSession(id)` clones under a new id (`(forked)` suffix), optionally from the last cut.
 
-Prompt history: last 10 prompts persist to `~/.picobu/prompt-history.json`. Session titles come from a one-shot `tiny`-role call (≤50 chars).
+Prompt history: last 20 prompts persist per project to a SQLite store at `~/.picobu/prompts.db` (drafts too); in the TUI, double-press Arrow Up/Down within 200 ms to cycle through them (single presses move the cursor normally). Session titles come from a one-shot `tiny`-role call (≤50 chars).
 
 ### MCP (Model Context Protocol)
 
@@ -284,7 +284,7 @@ Aliases: `copilot` → `github-copilot`, `claude` → `anthropic`, `chatgpt` →
 
 ### Host frontends
 
-Reference TUI (`bun dev:tui`, `src/tui/` over OpenTUI + Solid): session page with streamed text/reasoning/tool parts (`ask` renders its form inline, plans render for review), session header/status, message actions, diff viewer, dialogs/dropdowns, splash screen, 35 bundled themes (`picobu` default, `resolveTheme`/`generateSyntax`), icon set, and Solid state primitives for dialogs, dropdowns, theme, and toasts (`src/states/`). Clipboard goes through an OpenTUI service adapter.
+Reference TUI (`bun dev:tui`, `src/tui/` over OpenTUI + Solid): session page with streamed text/reasoning/tool parts (`ask` renders its form inline, plans render for review), session header/status, message actions, diff viewer, dialogs/dropdowns, hover tooltips (`Tooltip` wrapper + `TooltipLayer` with dropdown-style flip/clamp positioning), splash screen, 35 bundled themes (`picobu` default, `resolveTheme`/`generateSyntax`), icon set, and Solid state primitives for dialogs, dropdowns, tooltips, theme, and toasts (`src/states/`). Clipboard goes through an OpenTUI service adapter.
 
 Library kit: `createHeadlessChatState()` implements the AI SDK `ChatState` contract over the loop (reuse `useChat` against any session); `src/wrappers/` bundles tree-sitter parser WASMs + highlight queries for 39 languages (`createTreeSitterClient()`, data under `~/.picobu/tree-sitter`); prompt history and session-title helpers round out host needs. No UI logic lives in the agent loop.
 

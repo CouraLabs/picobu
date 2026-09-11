@@ -1,5 +1,4 @@
-import type { InputRenderable } from '@opentui/core'
-import { useTerminalDimensions } from '@opentui/solid'
+import type { InputRenderable, TextareaRenderable } from '@opentui/core'
 import { clip } from '@shared/format.ts'
 import { theme } from '@states/theme-state.ts'
 import { Button } from '@tui/components/button.tsx'
@@ -18,17 +17,16 @@ export type PlanReviewProps = {
 }
 
 export const PlanReview = (props: PlanReviewProps) => {
-  const dims = useTerminalDimensions()
   const lines = () => props.plan.split('\n').filter((l) => l.trim().length > 0)
   const [lineComments, setLineComments] = createSignal<string[]>(lines().map(() => ''))
   const [openLine, setOpenLine] = createSignal<number | undefined>(undefined)
   const [overall, setOverall] = createSignal('')
-  const [compact, setCompact] = createSignal(true)
+  const [compact, setCompact] = createSignal(false)
   const [responded, setResponded] = createSignal(false)
   const [dismissed, setDismissed] = createSignal(false)
   const [sending, setSending] = createSignal(false)
   const lineRefs: (InputRenderable | null)[] = []
-  let overallRef: InputRenderable | null = null
+  let overallRef: TextareaRenderable | null = null
 
   const readonly = () => !props.interactive || sending() || responded() || (props.status !== undefined && props.status !== 'pending')
   const wasDismissed = () => props.status === 'cancelled' || (responded() && dismissed() && props.status !== 'approved' && props.status !== 'rejected')
@@ -84,10 +82,8 @@ export const PlanReview = (props: PlanReviewProps) => {
     }
   }
 
-  const maxWidth = () => Math.max(16, dims().width - 10)
-
   return (
-    <box flexDirection="column">
+    <box flexDirection="column" paddingLeft={1} border={['right']} borderStyle={'heavy'} borderColor={theme().borderSubtle}>
       <Show
         when={!readonly()}
         fallback={
@@ -119,18 +115,21 @@ export const PlanReview = (props: PlanReviewProps) => {
             </Show>
           </box>
         }>
+        <text fg={theme().textMuted} selectable={false}>
+          {`${icons.pencil} Click the pencil icon next to a line to comment on it`}
+        </text>
         <For each={lines()}>
           {(line, index) => {
             const commented = () => (lineComments()[index()] ?? '').trim().length > 0
             return (
               <box flexDirection="column">
                 <box flexDirection="row" gap={1} onMouseUp={() => setOpenLine(openLine() === index() ? undefined : index())}>
-                  <box flexDirection="row" gap={1} flexShrink={0}>
+                  <box flexDirection="row" gap={1} flexShrink={0} border={commented() ? ['left'] : false} borderStyle={'heavy'} borderColor={commented() ? theme().accent : undefined}>
                     <text fg={commented() ? theme().accent : theme().primary} selectable={false}>
                       {commented() ? icons.flag : icons.pencil}
                     </text>
                   </box>
-                  <box border={commented() ? ['left'] : false} borderStyle={'heavy'} borderColor={commented() ? theme().accent : undefined} flexShrink={1} minWidth={0}>
+                  <box flexShrink={1} minWidth={0}>
                     <markdown syntaxStyle={theme().syntax} conceal content={line.trim()} />
                   </box>
                 </box>
@@ -149,7 +148,6 @@ export const PlanReview = (props: PlanReviewProps) => {
                       textColor={theme().text}
                       cursorColor={theme().accent}
                       backgroundColor={theme().backgroundElement}
-                      width={Math.min(72, maxWidth())}
                       onInput={(value) => setLineComment(index(), value)}
                     />
                   </box>
@@ -158,26 +156,25 @@ export const PlanReview = (props: PlanReviewProps) => {
             )
           }}
         </For>
-        <box marginTop={1} onMouseUp={() => overallRef?.focus()}>
-          <input
+        <box marginTop={1} flexGrow={1} onMouseUp={() => overallRef?.focus()}>
+          <textarea
             ref={(r) => {
               overallRef = r
             }}
-            value={overall()}
             placeholder="Overall comment (optional, required to request changes)"
             placeholderColor={theme().textMuted}
             textColor={theme().text}
             cursorColor={theme().accent}
             backgroundColor={theme().backgroundElement}
-            width={Math.min(72, maxWidth())}
-            onInput={(value) => {
-              if (!readonly()) setOverall(value)
+            maxHeight={4}
+            onContentChange={() => {
+              if (!readonly()) setOverall(overallRef?.plainText ?? '')
             }}
           />
         </box>
         <box flexDirection="row" gap={1} marginTop={1} flexWrap="wrap" onMouseUp={() => setCompact(!compact())}>
           <text flexShrink={0} fg={compact() ? theme().success : theme().textMuted} selectable={false}>
-            {compact() ? icons.checkSquare : icons.uncheckedSquare}
+            {compact() ? `[${icons.cross}]` : '[ ]'}
           </text>
           <text fg={theme().textMuted} selectable={false}>
             Compact context before handoff

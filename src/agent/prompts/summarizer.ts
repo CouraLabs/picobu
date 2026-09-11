@@ -1,8 +1,7 @@
 import type { AgentReasoning } from '@agent/loop/create-loop.ts'
-import { deriveNoCacheInputTokens, type LoopUsage, nextUsage } from '@agent/model/cost.ts'
-import { resolveModel, resolveModelRef } from '@agent/model/resolver.ts'
+import { resolveModel } from '@agent/model/resolver.ts'
 import { serializeForCompaction } from '@agent/sessions/session-compaction.ts'
-import type { ProviderModelBilling, ProviderModelReasoningEffort } from '@config/options.ts'
+import type { ProviderModelReasoningEffort } from '@config/options.ts'
 import type { UIMessage } from 'ai'
 import { generateText } from 'ai'
 
@@ -19,15 +18,13 @@ export type SummarizeParams = {
 }
 export type SummarizeResult = {
   summary: string
-  usage: LoopUsage
-  cost: number | undefined
 }
 
 export async function summarizeSession({ messages, modelKey, thinking }: SummarizeParams): Promise<SummarizeResult> {
   const transcript = serializeForCompaction(messages)
   if (!transcript) throw new Error('Nothing to summarize: the session has no content')
   const { model } = resolveModel(modelKey)
-  const { text, usage } = await generateText({
+  const { text } = await generateText({
     model,
     system: summarizerPrompt,
     prompt: transcript,
@@ -35,29 +32,5 @@ export async function summarizeSession({ messages, modelKey, thinking }: Summari
   })
   const summary = text.trim()
   if (!summary) throw new Error('The model returned an empty summary')
-  const inputTokens = usage.inputTokens ?? 0
-  const outputTokens = usage.outputTokens ?? 0
-  const cacheReadTokens = usage.inputTokenDetails?.cacheReadTokens ?? 0
-  const cacheWriteTokens = usage.inputTokenDetails?.cacheWriteTokens ?? 0
-  const outputDetails = usage.outputTokenDetails as { reasoningTokens?: number; reasoning?: number; textTokens?: number; text?: number } | undefined
-  const reasoningTokens = outputDetails?.reasoningTokens ?? outputDetails?.reasoning ?? 0
-  const textTokens = outputDetails?.textTokens ?? outputDetails?.text ?? 0
-  const step: LoopUsage = {
-    inputTokens,
-    noCacheInputTokens: deriveNoCacheInputTokens(inputTokens, cacheReadTokens, cacheWriteTokens),
-    outputTokens,
-    cacheReadTokens,
-    cacheWriteTokens,
-    reasoningTokens,
-    textTokens,
-    totalTokens: inputTokens + outputTokens,
-  }
-  let billing: ProviderModelBilling | undefined
-  try {
-    billing = resolveModelRef(modelKey).modelMeta.billing
-  } catch {
-    billing = undefined
-  }
-  const loopUsage = nextUsage(undefined, step, billing)
-  return { summary, usage: loopUsage, cost: loopUsage.computed?.cost?.total }
+  return { summary }
 }

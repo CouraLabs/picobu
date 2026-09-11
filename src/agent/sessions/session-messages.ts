@@ -70,6 +70,26 @@ export function dropUnansweredPrompt<M extends UIMessage>(messages: M[]): M[] {
   return messages
 }
 
+const RUNNING_TOOL_STATES = new Set(['input-streaming', 'input-available'])
+
+export function settleAbortedToolParts<M extends UIMessage>(messages: M[]): M[] {
+  let changed = false
+  const out = messages.map((m) => {
+    let messageChanged = false
+    const parts = m.parts.map((part) => {
+      const loose = part as { type?: unknown; state?: unknown }
+      const isTool = loose.type === 'dynamic-tool' || (typeof loose.type === 'string' && loose.type.startsWith('tool-'))
+      if (!isTool || !RUNNING_TOOL_STATES.has(loose.state as string)) return part
+      messageChanged = true
+      return { ...part, state: 'output-error', errorText: 'Aborted' } as M['parts'][number]
+    })
+    if (!messageChanged) return m
+    changed = true
+    return { ...m, parts } as M
+  })
+  return changed ? out : messages
+}
+
 export function stripAnalysedImages<M extends UIMessage>(messages: M[]): M[] {
   let changed = false
   const out = messages.map((m) => {

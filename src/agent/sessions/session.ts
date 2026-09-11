@@ -2,35 +2,21 @@ import { randomUUID } from 'node:crypto'
 import { AGENTS, listAgents } from '@agent/agents/registry.ts'
 import { type Command, listCommands, listSkills } from '@agent/commands/index.ts'
 import { createLoop, type LoopConfig, type LoopMessage, type LoopMessageMetadata } from '@agent/loop/create-loop.ts'
-import { computeCost, computeCostSplit, type LoopUsage, projectedContext } from '@agent/model/cost.ts'
 import { resolveModelRef } from '@agent/model/resolver.ts'
 import { type SummarizeResult, summarizeSession } from '@agent/prompts/summarizer.ts'
 import { listRules, type Rule } from '@agent/rules/rules.ts'
 import { CheckpointStore, checkpointsPath, type UndoResult } from '@agent/sessions/checkpoints.ts'
-import { buildPlanHandoffCut, type CompactResult, compactedMessageText, compactSession, isCompactionCut, messagesForLlm, shouldCompact } from '@agent/sessions/session-compaction.ts'
+import { buildPlanHandoffCut, type CompactResult, compactedMessageText, compactSession, isCompactionCut, messagesForLlm } from '@agent/sessions/session-compaction.ts'
 import { Chat, type ChatChangeHandler, createHeadlessChatState } from '@agent/sessions/session-headless-chat.ts'
-import { dropUnansweredPrompt, stripAnalysedImages, stripUnreplayableReasoning } from '@agent/sessions/session-messages.ts'
-import {
-  addToTotals,
-  type CostDetail,
-  emptyTotals,
-  isWaiting,
-  liveTotals,
-  readSessionMeta,
-  type SessionMeta,
-  type SessionState,
-  type SessionTotals,
-  updateSessionMeta,
-  writeSessionMeta,
-} from '@agent/sessions/session-meta.ts'
+import { dropUnansweredPrompt, settleAbortedToolParts, stripAnalysedImages, stripUnreplayableReasoning } from '@agent/sessions/session-messages.ts'
+import { isWaiting, readSessionMeta, type SessionMeta, type SessionState, updateSessionMeta, writeSessionMeta } from '@agent/sessions/session-meta.ts'
 import { folderKeyFor, generateSessionId, sessionFilePath } from '@agent/sessions/session-paths.ts'
 import { loadSession, SessionSaver } from '@agent/sessions/session-store.ts'
-import { options, type ProviderModelBilling, type ProviderModelReasoningEffort } from '@config/options.ts'
+import { options, type ProviderModelReasoningEffort } from '@config/options.ts'
 import type { ChatState } from 'ai'
 import { type AsyncIterableStream, type ChatInit, type ChatStatus, type ChatTransport, type CreateUIMessage, generateId, readUIMessageStream, type UIMessageChunk } from 'ai'
 
-export type SessionUsage = LoopUsage & {
-  cost?: number
+export type SessionUsage = {
   finishReason?: string
 }
 
@@ -141,14 +127,12 @@ export type Session = {
     reload: () => Promise<void>
   }
   readonly usage: SessionUsage | undefined
-  readonly totals: SessionTotals
   readonly state: SessionState
   summarize: () => Promise<SummarizeResult>
   setTitle: (title: string) => void
   undo: () => Promise<UndoResult>
   redo: () => Promise<UndoResult>
   revertToMessage: (messageId: string) => void
-  addUsage: (detail: CostDetail) => void
   sendMessage: Chat['sendMessage']
   regenerate: Chat['regenerate']
   stop: Chat['stop']
@@ -192,7 +176,7 @@ const deriveState = (chat: { status: ChatStatus; error: Error | undefined; messa
   chat.status === 'submitted' || chat.status === 'streaming' ? 'running' : chat.error ? 'error' : isWaiting(chat.messages) ? 'waiting' : 'finished'
 
 export async function createSession(init: CreateSessionInit): Promise<Session> {
-  const { config: configInit, onChange, messages, onFinish, id: sessionId, meta: metaInit, autoCompact, forkOnCompact, ...chatInit } = init
+  const { config: configInit, onChange, messages, onFinish, id: sessionId, meta: metaInit, autoCompact: _autoCompact, forkOnCompact: _forkOnCompact, ...chatInit } = init
   const forkHost = metaInit?.forkHost
   const getConfig = typeof configInit === 'function' ? configInit : () => configInit
   const id = sessionId ?? generateSessionId()
@@ -223,7 +207,6 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
       console.error('picobu: session meta persist failed:', error)
     })
   }
-  let totals: SessionTotals = meta.totals ?? emptyTotals()
   let title: string | undefined = meta.title
   let lastUsage: SessionUsage | undefined
 
@@ -323,7 +306,7 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
   const latestUsageMeta = (msgs: LoopMessage[]): LoopMessageMetadata | undefined => {
     for (let i = msgs.length - 1; i >= 0; i--) {
       const meta = msgs[i]?.metadata as LoopMessageMetadata | undefined
-      if (meta?.usage) return meta
+      if (meta?.finishReason) return meta
     }
     return undefined
   }
@@ -336,9 +319,7 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
     if (state.status === 'streaming') {
       const liveMeta = latestUsageMeta(chat.messages)
       lastUsage = {
-        ...(liveMeta?.usage ?? {}),
         finishReason: liveMeta?.finishReason,
-        cost: liveMeta?.cost,
       }
     }
     if (resuming && state.status !== 'ready') resuming = false
@@ -375,6 +356,7 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
         aborting = false
         const kept = dropUnansweredPrompt(chat.messages)
         if (kept.length !== chat.messages.length) chat.messages = kept
+        chat.messages = settleAbortedToolParts(chat.messages)
       }
       const finished = options.message as LoopMessage
       const freshExits = (finished.parts ?? [])
@@ -417,38 +399,8 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
         planHandoffOnce = true
       }
       const meta = options.message.metadata as LoopMessageMetadata | undefined
-      const usage = meta?.usage
-      let billing: ProviderModelBilling | undefined
-      try {
-        billing = resolveModelRef(effectiveConfig().modelKey).modelMeta.billing
-      } catch {
-        billing = undefined
-      }
       lastUsage = {
-        ...(usage ?? {}),
         finishReason: meta?.finishReason,
-        cost: usage ? computeCost(usage, billing) : undefined,
-      }
-      if (usage) {
-        const split = computeCostSplit(usage, billing)
-        const acc = usage.computed
-        const inputTokens = acc ? acc.accNoCacheInputTokens + acc.accCacheReadTokens + acc.accCacheWriteTokens : (usage.inputTokens ?? 0)
-        totals = addToTotals(totals, {
-          source: 'run',
-          modelKey: effectiveConfig().modelKey,
-          inputTokens,
-          outputTokens: acc ? acc.accOutputTokens : (usage.outputTokens ?? 0),
-          cacheReadTokens: acc ? acc.accCacheReadTokens : (usage.cacheReadTokens ?? 0),
-          cacheWriteTokens: acc ? acc.accCacheWriteTokens : (usage.cacheWriteTokens ?? 0),
-          reasoningTokens: acc ? acc.accReasoningTokens : (usage.reasoningTokens ?? 0),
-          textTokens: acc ? acc.accTextTokens : (usage.textTokens ?? 0),
-          totalTokens: inputTokens + (acc ? acc.accOutputTokens : (usage.outputTokens ?? 0)),
-          noCacheInputTokens: acc ? acc.accNoCacheInputTokens : (usage.noCacheInputTokens ?? 0),
-          ...(split ? { cost: split } : {}),
-        })
-        persistMeta({
-          totals,
-        })
       }
       if (!wasAborting && !chat.error && !isWaiting(chat.messages)) {
         const stripped = stripAnalysedImages(chat.messages)
@@ -457,11 +409,7 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
       handleStateChange(chatState)
       onFinish?.(options)
       for (const listener of runEndListeners) listener()
-      if (autoCompact && !wasAborting && !chat.error && shouldAutoCompact(usage)) {
-        void runAutoCompact()
-      } else {
-        void drain()
-      }
+      void drain()
     },
     loop,
   })
@@ -532,30 +480,6 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
       if (compaction === settled) compaction = undefined
     })
     return run
-  }
-
-  const shouldAutoCompact = (usage: LoopUsage | undefined): boolean => {
-    if (!usage) return false
-    if (effectiveConfig().subagent) return false
-    if (isCompactionCut(chat.messages[chat.messages.length - 1])) return false
-    if (isWaiting(chat.messages)) return false
-    let contextWindow = 0
-    try {
-      contextWindow = resolveModelRef(effectiveConfig().modelKey).modelMeta.context
-    } catch {
-      return false
-    }
-    return shouldCompact(projectedContext(usage), contextWindow)
-  }
-
-  const runAutoCompact = async (): Promise<void> => {
-    try {
-      await compactInternal({ fork: forkOnCompact })
-    } catch (error) {
-      console.error('picobu: auto-compaction failed:', error)
-    } finally {
-      void drain()
-    }
   }
 
   const streamChunks = (): AsyncGenerator<UIMessageChunk> =>
@@ -640,26 +564,6 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
     get usage() {
       return lastUsage
     },
-    get totals() {
-      if ((chat.status === 'streaming' || chat.status === 'submitted') && lastUsage) {
-        const acc = lastUsage.computed
-        const inputTokens = acc ? acc.accNoCacheInputTokens + acc.accCacheReadTokens + acc.accCacheWriteTokens : (lastUsage.inputTokens ?? 0)
-        const outputTokens = acc ? acc.accOutputTokens : (lastUsage.outputTokens ?? 0)
-        return liveTotals(totals, {
-          source: 'run',
-          inputTokens,
-          outputTokens,
-          cacheReadTokens: acc ? acc.accCacheReadTokens : (lastUsage.cacheReadTokens ?? 0),
-          cacheWriteTokens: acc ? acc.accCacheWriteTokens : (lastUsage.cacheWriteTokens ?? 0),
-          reasoningTokens: acc ? acc.accReasoningTokens : (lastUsage.reasoningTokens ?? 0),
-          textTokens: acc ? acc.accTextTokens : (lastUsage.textTokens ?? 0),
-          totalTokens: inputTokens + outputTokens,
-          noCacheInputTokens: acc ? acc.accNoCacheInputTokens : (lastUsage.noCacheInputTokens ?? 0),
-          ...(acc?.cost ? { cost: acc.cost } : {}),
-        })
-      }
-      return totals
-    },
     get state(): SessionState {
       return deriveState(chat)
     },
@@ -684,10 +588,6 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
       const index = chat.messages.findIndex((m) => m.id === messageId)
       if (index < 0) throw new Error(`Unknown message "${messageId}"`)
       chat.messages = chat.messages.slice(0, index + 1)
-    },
-    addUsage: (detail: CostDetail) => {
-      totals = addToTotals(totals, detail)
-      persistMeta({ totals })
     },
     sendMessage: ((message, requestOptions) => {
       if (message !== undefined && (resuming || isWaiting(chat.messages))) {

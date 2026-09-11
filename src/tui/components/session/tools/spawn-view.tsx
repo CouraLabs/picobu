@@ -1,12 +1,12 @@
 import { useTerminalDimensions } from '@opentui/solid'
-import { clip, fmtCostPreciseBare, fmtTokens } from '@shared/format.ts'
+import { clip } from '@shared/format.ts'
 import { dialogJustClosed } from '@states/dialog.state.ts'
 import { theme } from '@states/theme-state.ts'
 import { toneColor } from '@tui/components/shared/tool-tone.ts'
 import { icons } from '@tui/themes/icons.ts'
 import { createMemo, createSignal, onCleanup, onMount, Show } from 'solid-js'
 import 'opentui-spinner/solid'
-import { spawnSessionId, spawnSubagentName, spawnUsage, type ToolPartLike, toolStateView } from './tool-summary.ts'
+import { spawnSessionId, spawnSubagentName, type ToolPartLike, toolStateView } from './tool-summary.ts'
 
 export const SpawnView = (props: { part: ToolPartLike; onOpen?: (sessionId: string, label: string) => void }) => {
   const [hovered, setHovered] = createSignal(false)
@@ -14,7 +14,6 @@ export const SpawnView = (props: { part: ToolPartLike; onOpen?: (sessionId: stri
   const color = createMemo(() => toneColor(view().tone))
   const subagent = createMemo(() => spawnSubagentName(props.part.input) ?? 'Spawn')
   const sessionId = createMemo(() => spawnSessionId(props.part.output))
-  const usage = createMemo(() => spawnUsage(props.part.output))
   const running = createMemo(() => props.part.state !== 'output-available' && props.part.state !== 'output-error')
   const failed = createMemo(() => props.part.state === 'output-error')
   const startAt = Date.now()
@@ -35,37 +34,17 @@ export const SpawnView = (props: { part: ToolPartLike; onOpen?: (sessionId: stri
     if (seconds < 60) return `${seconds}s`
     return `${Math.floor(seconds / 60)}m ${String(seconds % 60).padStart(2, '0')}s`
   })
-  const inputLabel = createMemo(() => {
-    const current = usage()
-    return current ? fmtTokens(current.inputTokens) : '–'
-  })
-  const outputLabel = createMemo(() => {
-    const current = usage()
-    return current ? fmtTokens(current.outputTokens) : '–'
-  })
-  const cacheLabel = createMemo(() => {
-    const current = usage()
-    if (!current) return '–'
-    const total = current.cacheRead + current.cacheWrite
-    const hit = current.inputTokens > 0 ? Math.round((current.cacheRead / current.inputTokens) * 100) : 0
-    return `${fmtTokens(total)} (${hit}%)`
-  })
-  const costLabel = createMemo(() => {
-    const cost = usage()?.cost
-    if (cost === undefined) return '–'
-    return fmtCostPreciseBare(cost)
-  })
+  const inputLabel = () => '0'
+  const outputLabel = () => '0'
+  const cacheLabel = () => '0 (0%)'
+  const costLabel = () => '0'
   const open = () => {
     if (dialogJustClosed()) return
     const id = sessionId()
     if (id) props.onOpen?.(id, subagent())
   }
   const dims = useTerminalDimensions()
-  const usageLine = createMemo(() => {
-    const current = usage()
-    if (!current) return ''
-    return `${icons.arrowUp} ${inputLabel()} · ${icons.arrowDown} ${outputLabel()} · ${icons.cache} ${cacheLabel()} · ${icons.cost} ${costLabel()}`
-  })
+  const usageLine = () => `${icons.arrowUp} ${inputLabel()} · ${icons.arrowDown} ${outputLabel()} · ${icons.cache} ${cacheLabel()} · ${icons.cost} ${costLabel()}`
   const clipRest = (line: string): string => {
     const max = Math.max(8, dims().width - 12 - subagent().length)
     return clip(line, max)
@@ -86,9 +65,11 @@ export const SpawnView = (props: { part: ToolPartLike; onOpen?: (sessionId: stri
         open()
       }}>
       <box flexDirection="row" gap={1} flexWrap="no-wrap" alignItems="center">
-        <text fg={color()} selectable={false}>
-          {view().icon}
-        </text>
+        <box flexShrink={0}>
+          <text fg={color()} selectable={false}>
+            {view().icon}
+          </text>
+        </box>
         <text fg={color()} flexShrink={0}>
           {subagent()}
         </text>
@@ -103,7 +84,7 @@ export const SpawnView = (props: { part: ToolPartLike; onOpen?: (sessionId: stri
             · failed
           </text>
         </Show>
-        <Show when={!running() && !failed() && usage()}>
+        <Show when={!running() && !failed()}>
           <text fg={theme().textMuted} flexShrink={1}>
             {clipRest(`· ${usageLine()}`)}
           </text>

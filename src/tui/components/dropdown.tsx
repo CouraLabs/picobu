@@ -3,7 +3,7 @@ import { useKeyboard, useRenderer } from '@opentui/solid'
 import { closeDropdown, dropdownState, openDropdown } from '@states/dropdown.state.ts'
 import { theme } from '@states/theme-state.ts'
 import { Marquee } from '@tui/components/marquee.tsx'
-import { createEffect, createMemo, createSignal, For } from 'solid-js'
+import { createComputed, createMemo, createSignal, For, on } from 'solid-js'
 export type DropdownOption = {
   name: string
   value?: unknown
@@ -22,9 +22,12 @@ export const Dropdown = (props: DropdownProps) => {
   const maxWidth = () => props.maxWidth ?? 20
   const [hovered, setHovered] = createSignal(false)
   const [selectedIndex, setSelectedIndex] = createSignal(props.selected ?? 0)
-  createEffect(() => {
-    setSelectedIndex(props.selected ?? 0)
-  })
+  createComputed(
+    on(
+      () => props.selected,
+      (v) => setSelectedIndex(v ?? 0),
+    ),
+  )
   let buttonRef: BoxRenderable | null = null
   const labelText = () => props.options[selectedIndex()]?.name ?? props.placeholder ?? 'Select…'
   const background = () => (hovered() ? theme().accent : theme().backgroundElement)
@@ -99,12 +102,13 @@ export const DropdownLayer = () => {
     const x = Math.min(Math.max(0, s.placement.x), Math.max(0, renderer.width - popupWidth()))
     return { x, y }
   }
-  createEffect(() => {
-    const s = state()
-    if (!s) return
-    setHighlighted(Math.min(s.selected, Math.max(0, s.options.length - 1)))
-    setScrollOffset(Math.min(Math.max(0, s.selected - visibleRows() + 1), Math.max(0, s.options.length - visibleRows())))
-  })
+  createComputed(
+    on(state, (s) => {
+      if (!s) return
+      setHighlighted(Math.min(s.selected, Math.max(0, s.options.length - 1)))
+      setScrollOffset(Math.min(Math.max(0, s.selected - visibleRows() + 1), Math.max(0, s.options.length - visibleRows())))
+    }),
+  )
   const move = (delta: number) => {
     const next = Math.min(Math.max(0, highlighted() + delta), options().length - 1)
     if (next === highlighted()) return

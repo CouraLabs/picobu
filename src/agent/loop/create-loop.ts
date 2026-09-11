@@ -2,8 +2,7 @@ import { getAgent } from '@agent/agents/registry.ts'
 import { listSubagents } from '@agent/agents/subagents.ts'
 import type { AgentType } from '@agent/agents/types.ts'
 import { listSkills } from '@agent/commands/index.ts'
-import { computeCost, deriveNoCacheInputTokens, type LoopUsage, nextUsage, toLoopPerformance } from '@agent/model/cost.ts'
-import { resolveModel, resolveModelRef } from '@agent/model/resolver.ts'
+import { resolveModel } from '@agent/model/resolver.ts'
 import { loadAgentsMarkdown } from '@agent/prompts/agents-md.ts'
 import { buildRulesSection, buildSkillsSection, buildSubagentsSection, generateSystemMessage } from '@agent/prompts/system.ts'
 import { listRules } from '@agent/rules/rules.ts'
@@ -13,7 +12,7 @@ import type { SpawnToolContext } from '@agent/tools/flow/spawn.ts'
 import { createLocalSandboxSession } from '@agent/tools/sandbox.ts'
 import { buildToolSet, toolsInfo } from '@agent/tools/toolset.ts'
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
-import { options, type ProviderModelBilling, type ProviderModelReasoningEffort } from '@config/options.ts'
+import { options, type ProviderModelReasoningEffort } from '@config/options.ts'
 import { createMcpManager, type McpManager } from '@integrations/mcp/client.ts'
 import { renderMcpServerToolsInfo } from '@integrations/mcp/tools-info.ts'
 import { describeError } from '@shared/error-report.ts'
@@ -38,9 +37,7 @@ type LoopCallOptions = { sessionMode?: 'chat' | 'persistent' }
 export type LoopMessage = UIMessage<unknown, never, InferUITools<ToolSet>>
 
 export type LoopMessageMetadata = {
-  usage?: LoopUsage
   finishReason?: string
-  cost?: number
   compaction?: CompactionMetadata
 }
 
@@ -196,14 +193,7 @@ export function createLoop(getConfig: () => LoopConfig): Loop {
         generate: (callOptions: Parameters<typeof loopAgent.generate>[0]) => loopAgent.generate({ ...callOptions, experimental_sandbox: sandboxSession }),
       } as ToolLoopAgent<LoopCallOptions, ToolSet, Record<string, unknown>, never>)
     : loopAgent
-  const resolveBilling = (): ProviderModelBilling | undefined => {
-    try {
-      return resolveModelRef(getConfig().modelKey).modelMeta.billing
-    } catch {
-      return undefined
-    }
-  }
-  let runUsage: LoopUsage | undefined
+
   const transport = new DirectChatTransport({
     agent,
     options: { sessionMode: isPersistent ? 'persistent' : 'chat' },
@@ -215,49 +205,18 @@ export function createLoop(getConfig: () => LoopConfig): Loop {
     onError: formatStreamError,
 
     messageMetadata: (opts) => {
-      const build = (usage: LoopUsage, extra?: Omit<LoopMessageMetadata, 'usage' | 'cost'>): LoopMessageMetadata => ({ usage, cost: computeCost(usage, resolveBilling()), ...extra })
       if (opts.part.type === 'start') {
-        runUsage = undefined
         return undefined
       }
+
       if (opts.part.type === 'finish-step') {
-        const inputTokens = opts.part.usage.inputTokens ?? 0
-        const outputTokens = opts.part.usage.outputTokens ?? 0
-        const cacheReadTokens = opts.part.usage.inputTokenDetails?.cacheReadTokens ?? 0
-        const cacheWriteTokens = opts.part.usage.inputTokenDetails?.cacheWriteTokens ?? 0
-        const stepUsage: LoopUsage = {
-          inputTokens,
-          noCacheInputTokens: deriveNoCacheInputTokens(inputTokens, cacheReadTokens, cacheWriteTokens),
-          outputTokens,
-          cacheReadTokens,
-          cacheWriteTokens,
-          reasoningTokens: opts.part.usage.outputTokenDetails?.reasoningTokens ?? 0,
-          textTokens: opts.part.usage.outputTokenDetails?.textTokens ?? 0,
-          totalTokens: opts.part.usage.totalTokens ?? inputTokens + outputTokens,
-          performance: toLoopPerformance(opts.part.performance),
-        }
-        runUsage = nextUsage(runUsage, stepUsage, resolveBilling())
-        return build(runUsage)
+        console.log('finish-step', opts.part.usage)
       }
+
       if (opts.part.type === 'finish') {
-        if (runUsage) return { ...build(runUsage), finishReason: opts.part.finishReason }
-        const total = opts.part.totalUsage
-        const inputTokens = total.inputTokens ?? 0
-        const outputTokens = total.outputTokens ?? 0
-        const cacheReadTokens = total.inputTokenDetails?.cacheReadTokens ?? 0
-        const cacheWriteTokens = total.inputTokenDetails?.cacheWriteTokens ?? 0
-        const fallback: LoopUsage = {
-          inputTokens,
-          noCacheInputTokens: deriveNoCacheInputTokens(inputTokens, cacheReadTokens, cacheWriteTokens),
-          outputTokens,
-          cacheReadTokens,
-          cacheWriteTokens,
-          reasoningTokens: total.outputTokenDetails?.reasoningTokens ?? 0,
-          textTokens: total.outputTokenDetails?.textTokens ?? 0,
-          totalTokens: total.totalTokens ?? inputTokens + outputTokens,
-        }
-        return { ...build(nextUsage(undefined, fallback, resolveBilling())), finishReason: opts.part.finishReason }
+        console.log('finish', opts.part.totalUsage)
       }
+
       return undefined
     },
   })

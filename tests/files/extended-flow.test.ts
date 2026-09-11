@@ -10,13 +10,14 @@ import { createSkillTool, SkillToolArgsSchema } from '../../src/agent/tools/flow
 import { createSpawnTool, SpawnToolArgsSchema } from '../../src/agent/tools/flow/spawn.ts'
 import { initLockDir } from '../../src/shared/lock.ts'
 
-const question = (title = 't') => ({ title, question: 'pick?', type: 'single' as const, options: [{ answer: 'a', answerDescription: 'desc' }] })
+const question = (title = 't') => ({ title, question: 'pick?', answerMode: 'single' as const, options: [{ answer: 'a', answerDescription: 'desc' }] })
 describe('ask tool', () => {
   test('schema accepts one question and rejects empty or too many', () => {
     expect(AskToolArgsSchema.safeParse({ questions: [question()] }).success).toBe(true)
+    expect(AskToolArgsSchema.safeParse({ questions: [{ title: 't', question: 'pick?', options: [{ answer: 'a' }] }] }).success).toBe(true)
     expect(AskToolArgsSchema.safeParse({ questions: [] }).success).toBe(false)
     expect(AskToolArgsSchema.safeParse({ questions: [question('1'), question('2'), question('3'), question('4'), question('5'), question('6')] }).success).toBe(false)
-    expect(AskToolArgsSchema.safeParse({ questions: [{ title: '', question: '', type: 'single', options: [] }] }).success).toBe(false)
+    expect(AskToolArgsSchema.safeParse({ questions: [{ title: '', question: '', answerMode: 'single', options: [] }] }).success).toBe(false)
   })
   test('handler returns pending with count', () => {
     const out = createAskTool().handler({ questions: [question(), question('u')] })
@@ -102,12 +103,10 @@ describe('spawn tool', () => {
     const fake = {
       spawnSubSession: async (input: { prompt: string }) => ({
         summary: `done:${input.prompt}`,
-        usage: { inputTokens: 1, outputTokens: 2, cacheRead: 0, cacheWrite: 0 },
       }),
     }
     const tool = createSpawnTool({ manager: fake as never, parentId: 'p', depth: 0 })
     const got = await tool.handler({ subagent: 'coder', prompt: 'hi' })
     expect(got.summary).toBe('done:hi')
-    expect(got.usage.inputTokens).toBe(1)
   })
 })

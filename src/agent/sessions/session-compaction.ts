@@ -5,9 +5,6 @@ import type { ProviderModelReasoningEffort } from '@config/options.ts'
 import { generateText, Output, type UIMessage } from 'ai'
 import { z } from 'zod'
 
-export const COMPACT_THRESHOLD = 0.8
-export const shouldCompact = (contextUsed: number, contextWindow: number): boolean => contextWindow > 0 && contextUsed / contextWindow >= COMPACT_THRESHOLD
-
 const MAX_TOOL_CHARS = 200
 const MAX_INTENT_CHARS = 2000
 const abbreviate = (value: unknown): string => {

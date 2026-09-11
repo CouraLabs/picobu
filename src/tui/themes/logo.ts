@@ -1,5 +1,4 @@
 import type { RGBA } from '@opentui/core'
-import { fmtCost, fmtTokens } from '@shared/format.ts'
 import type { Theme } from '@tui/themes/index.ts'
 
 export const PICOBU_LOGO_LINES = ['┌╦═══╦┐┌═╤╦╤═┐┌╦═══╦┐┌╦═══╦┐┌╦══╦┐ ┌╦   ╦┐', '│╠═══╩┘  │║│  │║     │║   ║││╠══╩╗┐│║   ║│', '└╩     └═╧╩╧═┘└╩═══╩┘└╩═══╩┘└╩═══╩┘└╩═══╩┘']
@@ -50,12 +49,8 @@ const statusSummary = (status: CloseMessageStatus | undefined, theme?: CloseMess
   if (status.messageCount !== undefined && status.messageCount > 0) {
     segments.push(paint(`${status.messageCount} msgs`, theme?.text))
   }
-  if (status.inputTokens !== undefined || status.outputTokens !== undefined) {
-    segments.push(paint(`↑ ${fmtTokens(status.inputTokens ?? 0)} ↓ ${fmtTokens(status.outputTokens ?? 0)}`, theme?.info))
-  }
-  if (status.cost !== undefined) {
-    segments.push(paint(fmtCost(status.cost), theme?.warning))
-  }
+  segments.push(paint('↑ 0 ↓ 0', theme?.info))
+  segments.push(paint('$0', theme?.warning))
   if (segments.length === 0) return undefined
   return segments.join(paint(' · ', theme?.textMuted))
 }

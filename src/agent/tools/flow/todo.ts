@@ -3,25 +3,19 @@ import { dirname } from 'node:path'
 import { withLock } from '@shared/lock.ts'
 import z from 'zod'
 export const TodoItemSchema = z.object({
-  phase: z.string(),
-  title: z.string(),
-  prompt: z.string(),
-  done: z.boolean(),
+  phase: z.string().describe('Grouping label shown as a header above the item (e.g. "verify", "tests")'),
+  title: z.string().describe('Short imperative summary of the step, shown in the UI'),
+  prompt: z.string().describe('One-line instruction describing exactly what to do in this step'),
+  done: z.boolean().default(false).describe('true = step completed, false = step still open'),
 })
 export type TodoItem = z.infer<typeof TodoItemSchema>
 const todoFileSchema = z.object({ items: z.array(TodoItemSchema) })
 export const TodoToolArgsSchema = z.object({
-  actionType: z.enum(['ins', 'upd', 'del']),
-  action: z.object({
-    del: z.object({ index: z.number().int().min(0) }).optional(),
-    ins: z.array(TodoItemSchema).optional(),
-    upd: z
-      .object({
-        index: z.number().int().min(0),
-        item: TodoItemSchema,
-      })
-      .optional(),
-  }),
+  items: z
+    .array(TodoItemSchema)
+    .describe(
+      'The complete desired todo list, replacing the previous one in full: include every step (open and done), adding, updating, or removing steps just by rewriting the list. Pass [] to clear the list.',
+    ),
 })
 export const TodoToolOutputSchema = z.object({
   items: z.array(TodoItemSchema),
@@ -31,12 +25,12 @@ export const TodoToolOutputSchema = z.object({
 export const createTodoTool = (todoFilePath: string) => ({
   name: 'todo',
   kind: 'flow' as const,
-  description: "Maintain the session todo list: 'ins' appends action.ins, 'upd' replaces action.upd.index, 'del' removes action.del.index.",
+  description:
+    'Write the session todo list. Pass the complete desired list in items — it replaces the previous list in full: add steps, mark steps done, or remove steps just by rewriting the list (include unfinished and finished steps alike). Pass an empty array to clear the list. Work through the items one by one: execute the next open item fully, then rewrite the list marking it done before starting the next — never mark an item done before its work is finished, and never leave the list stale between items.',
   parameters: TodoToolArgsSchema,
   output: TodoToolOutputSchema,
   handler: async (args: z.infer<typeof TodoToolArgsSchema>): Promise<z.infer<typeof TodoToolOutputSchema>> =>
     withLock(todoFilePath, async () => {
-      let items: TodoItem[] = []
       const file = Bun.file(todoFilePath)
       if (await file.exists()) {
         let raw: unknown
@@ -49,32 +43,10 @@ export const createTodoTool = (todoFilePath: string) => ({
         if (!parsed.success) {
           throw new Error(`Corrupt todo file at ${todoFilePath}: ${parsed.error.message}`)
         }
-        items = parsed.data.items
       }
-      const { actionType, action } = args
-      let message: string
-      if (actionType === 'ins') {
-        const added = action.ins ?? []
-        if (!added.length) throw new Error("todo 'ins' requires action.ins to list at least one item")
-        items = [...items, ...added]
-        message = `${added.length} todo item(s) added`
-      } else if (actionType === 'upd') {
-        const upd = action.upd
-        if (!upd) throw new Error("todo 'upd' requires action.upd { index, item }")
-        if (upd.index >= items.length) {
-          throw new Error(`todo index ${upd.index} out of range (${items.length} item(s))`)
-        }
-        items = items.map((it, i) => (i === upd.index ? upd.item : it))
-        message = `todo #${upd.index} updated`
-      } else {
-        const del = action.del
-        if (!del) throw new Error("todo 'del' requires action.del { index }")
-        if (del.index >= items.length) {
-          throw new Error(`todo index ${del.index} out of range (${items.length} item(s))`)
-        }
-        items = items.filter((_, i) => i !== del.index)
-        message = `todo #${del.index} removed`
-      }
+      const items: TodoItem[] = args.items.map((it) => ({ phase: it.phase, title: it.title, prompt: it.prompt, done: it.done ?? false }))
+      const doneCount = items.filter((it) => it.done).length
+      const message = items.length === 0 ? 'todo list cleared' : `${doneCount} of ${items.length} done`
       await mkdir(dirname(todoFilePath), { recursive: true })
       await Bun.write(todoFilePath, `${JSON.stringify({ items }, null, 2)}\n`)
       return { items, message }

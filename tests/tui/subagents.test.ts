@@ -18,16 +18,14 @@ describe('spawn tool view helpers', () => {
     expect(spawnSummary({ summary: 'done' })).toBe('done')
     expect(spawnSummary({})).toBeUndefined()
   })
-  test('spawn output accepts legacy payloads without sessionId', () => {
+  test('spawn output accepts payloads without sessionId', () => {
     const legacy = SpawnToolOutputSchema.parse({
       summary: 'done',
-      usage: { inputTokens: 1, outputTokens: 2, cacheRead: 0, cacheWrite: 0 },
     })
     expect(legacy.sessionId).toBeUndefined()
     const current = SpawnToolOutputSchema.parse({
       sessionId: 'abc123',
       summary: 'done',
-      usage: { inputTokens: 1, outputTokens: 2, cacheRead: 0, cacheWrite: 0 },
     })
     expect(current.sessionId).toBe('abc123')
   })

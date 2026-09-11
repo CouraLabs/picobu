@@ -5,7 +5,7 @@ import { theme } from '@states/theme-state.ts'
 import { Button } from '@tui/components/button.tsx'
 import { ModelSelect } from '@tui/components/session/model-select.tsx'
 import { THINKING_LEVELS } from '@tui/components/session/session-status.tsx'
-import { createSignal, For } from 'solid-js'
+import { createSignal, For, Show } from 'solid-js'
 
 const EFFORTS: string[] = [...THINKING_LEVELS]
 
@@ -106,7 +106,9 @@ const RolesDialogView = (props: { reopen: () => void }) => {
           </box>
         )}
       </For>
-      {error() ? <text fg={theme().error}>{error()}</text> : null}
+      <Show when={error()}>
+        <text fg={theme().error}>{error()}</text>
+      </Show>
       <box flexDirection="row" gap={1} justifyContent="flex-end" flexShrink={0}>
         <Button label="Cancel" onClick={closeDialog} />
         <Button label={saving() ? 'Saving…' : 'Save'} onClick={() => void save()} />

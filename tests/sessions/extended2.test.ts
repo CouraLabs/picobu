@@ -11,18 +11,7 @@ import { forkSession, sliceMessagesUpTo } from '../../src/agent/sessions/session
 import { createHeadlessChatState } from '../../src/agent/sessions/session-headless-chat.ts'
 import { JobTracker } from '../../src/agent/sessions/session-jobs.ts'
 import { SessionManager } from '../../src/agent/sessions/session-manager.ts'
-import {
-  addToTotals,
-  deleteSessionMeta,
-  emptyTotals,
-  folderKeyForSession,
-  isWaiting,
-  readSessionMeta,
-  recoverSessionMeta,
-  sessionMetaPath,
-  updateSessionMeta,
-  writeSessionMeta,
-} from '../../src/agent/sessions/session-meta.ts'
+import { deleteSessionMeta, folderKeyForSession, isWaiting, readSessionMeta, recoverSessionMeta, sessionMetaPath, updateSessionMeta, writeSessionMeta } from '../../src/agent/sessions/session-meta.ts'
 import { folderKeyFor } from '../../src/agent/sessions/session-paths.ts'
 import { deleteSessionCascade, listSessionsFor, listSessionTree } from '../../src/agent/sessions/session-queries.ts'
 import { spawnSubSession } from '../../src/agent/sessions/session-spawn.ts'
@@ -77,31 +66,6 @@ describe('session meta pure helpers', () => {
     ]
     expect(isWaiting(pending)).toBe(true)
   })
-  test('totals accumulate tokens and cost splits', () => {
-    const base = emptyTotals()
-    const next = addToTotals(base, {
-      source: 'run',
-      inputTokens: 10,
-      outputTokens: 5,
-      cacheReadTokens: 2,
-      cacheWriteTokens: 1,
-      noCacheInputTokens: 7,
-      cost: { inputCost: 0.2, outputCost: 0.2, cacheReadCost: 0.05, cacheWriteCost: 0.05, cacheCost: 0.1, total: 0.5 },
-    })
-    expect(next.inputTokens).toBe(10)
-    expect(next.outputTokens).toBe(5)
-    expect(next.noCacheInputTokens).toBe(7)
-    expect(next.computed.accNoCacheInputTokens).toBe(7)
-    expect(next.computed.accOutputTokens).toBe(5)
-    expect(next.computed.cost?.total).toBe(0.5)
-    expect(next.costDetails.details).toHaveLength(1)
-    expect(next.costDetails.inputCost).toBe(0.2)
-    expect(next.costDetails.cacheReadCost).toBe(0.05)
-    const again = addToTotals(next, { source: 'run', inputTokens: 1, outputTokens: 1, cacheReadTokens: 0, cacheWriteTokens: 0, noCacheInputTokens: 1 })
-    expect(again.inputTokens).toBe(11)
-    expect(again.computed.accOutputTokens).toBe(6)
-    expect(again.computed.cost?.total).toBe(0.5)
-  })
 })
 describe('session meta persistence', () => {
   let dir = ''
@@ -118,13 +82,6 @@ describe('session meta persistence', () => {
     const meta = await readSessionMeta('fk', 's1')
     expect(meta?.state).toBe('finished')
     expect(sessionMetaPath('fk', 's1')).toBe(join(dir, 'sessions', 'fk', 's1.meta.json'))
-  })
-  test('totals round trip through meta file', async () => {
-    const { emptyTotals } = await import('../../src/agent/sessions/session-meta.ts')
-    await writeSessionMeta('fk', 's2', { id: 's2', state: 'finished', cwd: '/tmp', createdAt: 1, updatedAt: 1, totals: emptyTotals() })
-    const meta = await readSessionMeta('fk', 's2')
-    expect(meta?.totals?.inputTokens).toBe(0)
-    expect(meta?.totals?.computed.accOutputTokens).toBe(0)
   })
   test('read returns null for missing or corrupt file', async () => {
     expect(await readSessionMeta('fk', 'absent')).toBeNull()

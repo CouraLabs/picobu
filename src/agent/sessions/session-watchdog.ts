@@ -5,7 +5,7 @@ export const DEFAULT_STALE_TIMEOUT_MS = 5 * 60 * 1000
 type WatchdogMessage = {
   role: string
   parts: unknown[]
-  metadata?: { finishReason?: unknown; usage?: unknown } | null
+  metadata?: { finishReason?: unknown } | null
 }
 
 type LooseTextPart = {
@@ -18,7 +18,6 @@ export const hasFinishStep = (messages: WatchdogMessage[]): boolean => {
     const meta = messages[i]?.metadata
     if (!meta) continue
     if (typeof meta.finishReason === 'string' && meta.finishReason.length > 0) return true
-    if (typeof meta.usage === 'object' && meta.usage !== null) return true
   }
   return false
 }

@@ -186,7 +186,6 @@ export class SessionManager {
 
   async spawnSubSession(params: SpawnSubSessionParams): Promise<{
     summary: string
-    usage: { inputTokens: number; outputTokens: number; cacheRead: number; cacheWrite: number; cost?: number }
   }> {
     return spawnSubSession(
       {

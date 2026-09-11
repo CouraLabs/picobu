@@ -1,3 +1,5 @@
+import type { LoopMessage } from '@agent/loop/create-loop.ts'
+import type { TodoItem } from '@agent/tools/flow/todo.ts'
 import { icons } from '@tui/themes/icons.ts'
 
 export type ToolPartLike = {
@@ -32,6 +34,42 @@ export const rawToolName = (part: ToolPartLike): string => (part.type === DYNAMI
 
 export const isSpawnTool = (part: ToolPartLike): boolean => rawToolName(part).toLowerCase() === 'spawn'
 
+export const isTodoTool = (part: ToolPartLike): boolean => part.type === 'tool-todo' || (part.type === DYNAMIC_TOOL_TYPE && part.toolName === 'todo')
+
+const isTodoItemValue = (value: unknown): value is TodoItem =>
+  typeof value === 'object' && value !== null && typeof (value as { title?: unknown }).title === 'string' && typeof (value as { done?: unknown }).done === 'boolean'
+
+export const todoItems = (part: ToolPartLike): TodoItem[] | undefined => {
+  const output = part.output
+  if (typeof output === 'object' && output !== null && Array.isArray((output as { items?: unknown }).items)) {
+    const items = (output as { items: unknown[] }).items.filter(isTodoItemValue)
+    if (items.length > 0) return items
+  }
+  const input = part.input
+  if (typeof input === 'object' && input !== null) {
+    const list = (input as { items?: unknown }).items
+    if (Array.isArray(list)) {
+      const items = list.filter(isTodoItemValue)
+      if (items.length > 0) return items
+    }
+  }
+  return undefined
+}
+
+export const latestTodoItems = (messages: LoopMessage[]): TodoItem[] | undefined => {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const parts = messages[i]?.parts
+    if (!Array.isArray(parts)) continue
+    for (let j = parts.length - 1; j >= 0; j--) {
+      const part = parts[j]
+      if (!isToolPart(part) || !isTodoTool(part)) continue
+      const items = todoItems(part)
+      if (items !== undefined) return items
+    }
+  }
+  return undefined
+}
+
 export const spawnSubagentName = (input: unknown): string | undefined => {
   const name = (input as { subagent?: unknown } | undefined)?.subagent
   return typeof name === 'string' && name.length > 0 ? name : undefined
@@ -45,27 +83,6 @@ export const spawnSessionId = (output: unknown): string | undefined => {
 export const spawnSummary = (output: unknown): string | undefined => {
   const summary = (output as { summary?: unknown } | undefined)?.summary
   return typeof summary === 'string' && summary.length > 0 ? summary : undefined
-}
-
-export type SpawnUsage = {
-  inputTokens: number
-  outputTokens: number
-  cacheRead: number
-  cacheWrite: number
-  cost?: number
-}
-
-export const spawnUsage = (output: unknown): SpawnUsage | undefined => {
-  const usage = (output as { usage?: unknown } | undefined)?.usage
-  if (typeof usage !== 'object' || usage === null) return undefined
-  const record = usage as Record<string, unknown>
-  const inputTokens = typeof record.inputTokens === 'number' ? record.inputTokens : undefined
-  const outputTokens = typeof record.outputTokens === 'number' ? record.outputTokens : undefined
-  if (inputTokens === undefined || outputTokens === undefined) return undefined
-  const cacheRead = typeof record.cacheRead === 'number' ? record.cacheRead : typeof record.cacheReadTokens === 'number' ? record.cacheReadTokens : 0
-  const cacheWrite = typeof record.cacheWrite === 'number' ? record.cacheWrite : typeof record.cacheWriteTokens === 'number' ? record.cacheWriteTokens : 0
-  const cost = typeof record.cost === 'number' ? record.cost : undefined
-  return { inputTokens, outputTokens, cacheRead, cacheWrite, ...(cost !== undefined ? { cost } : {}) }
 }
 
 export const spawnPrompt = (input: unknown): string | undefined => {
@@ -178,15 +195,8 @@ export const summarizeToolInput = (name: string, input: unknown): string => {
       return lines <= 1 ? first : `${first} · ${lines} lines`
     }
     case 'todo': {
-      const actionType = typeof args.actionType === 'string' ? args.actionType : ''
-      const action = (args.action ?? {}) as Record<string, unknown>
-      if (actionType === 'ins') {
-        const added = Array.isArray(action.ins) ? action.ins : undefined
-        return added ? `+${added.length}` : '?'
-      }
-      if (actionType === 'del') return 'remove'
-      if (actionType === 'upd') return 'update'
-      return '?'
+      const items = Array.isArray(args.items) ? args.items : undefined
+      return items ? `${items.length} item(s)` : '?'
     }
     default:
       return '?'
@@ -352,9 +362,9 @@ export const toolAskQuestions = (input: unknown): AskQuestionView[] => {
   if (!Array.isArray(questions)) return []
   return questions.flatMap((q): AskQuestionView[] => {
     if (typeof q !== 'object' || q === null) return []
-    const { title, question, type, options } = q as Record<string, unknown>
+    const { title, question, type, answerMode, options } = q as Record<string, unknown>
     if (typeof title !== 'string' || title.length === 0) return []
-    const parsedType = type === 'multiple' ? 'multiple' : 'single'
+    const parsedType = answerMode === 'multiple' || (answerMode === undefined && type === 'multiple') ? 'multiple' : 'single'
     const parsedOptions = (Array.isArray(options) ? options : []).flatMap((o): AskOptionView[] => {
       if (typeof o !== 'object' || o === null) return []
       const { answer, answerDescription } = o as Record<string, unknown>

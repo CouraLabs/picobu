@@ -28,11 +28,11 @@ const shortcuts: { keys: string; what: string }[] = [
 ]
 
 const footerLines: string[] = [
-  'The footer under the prompt shows the session at a glance. Token and timing segments reflect the latest step; `$` cost is the session lifetime total.',
+  'The footer under the prompt shows the session at a glance. Token and cost segments always show `0`.',
   '',
   '- **Agent row**: agent, model, thinking level, finish reason or live activity (`Prompting`, `Reasoning`, `Tooling`, `Delegating`, `Answering`), session title.',
-  '- **Metrics row**: `⧖` time to first output, `↯` output tokens/sec, `⌛` step time, `↻` LLM response time, `⯿` tool execution time, `↑` input tokens, `↓` output tokens, `⛁` cache total (hit %), `$` session cost, cost split (`in` / `out` / `read` / `write`).',
-  '- **Session row**: message count (`u`ser / `a`ssistant), tool calls, run count with subagent cost, `compacted` flag, MCP connections, queue state.',
+  '- **Metrics row**: `⧖` time to first output, `↯` output tokens/sec, `⯿` tool execution time, `↑` input `0`, `↓` output `0`, `⛁` cache `0 (0%)`, `$` cost `0`.',
+  '- **Session row**: message count (`u`ser / `a`ssistant), tool calls, `compacted` flag, MCP connections, queue state.',
 ]
 
 export const HelpDialog = () => {

@@ -4,7 +4,7 @@ import { clip } from '@shared/format.ts'
 import { theme } from '@states/theme-state.ts'
 import { Button } from '@tui/components/button.tsx'
 import { icons } from '@tui/themes/icons.ts'
-import { createEffect, createSignal, For, Show } from 'solid-js'
+import { createComputed, createSignal, For, on, Show } from 'solid-js'
 import type { AskQuestionView } from './tool-summary.ts'
 
 export type AskFormProps = {
@@ -29,15 +29,18 @@ export const AskForm = (props: AskFormProps) => {
   const [sending, setSending] = createSignal(false)
   const inputRefs: (InputRenderable | null)[] = []
 
-  let prevQuestionsKey = JSON.stringify(props.questions)
-  createEffect(() => {
-    const key = JSON.stringify(props.questions)
-    if (key === prevQuestionsKey) return
-    prevQuestionsKey = key
-    setAnswers(props.questions.map(() => []))
-    setComments(props.questions.map(() => ''))
-    setActive(0)
-  })
+  createComputed(
+    on(
+      () => JSON.stringify(props.questions),
+      (key, prevKey) => {
+        if (key === prevKey) return
+        setAnswers(props.questions.map(() => []))
+        setComments(props.questions.map(() => ''))
+        setActive(0)
+      },
+      { defer: true },
+    ),
+  )
 
   const summaryIndex = () => props.questions.length
   const isLastTab = () => active() >= summaryIndex()

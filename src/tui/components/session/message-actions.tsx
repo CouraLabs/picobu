@@ -20,7 +20,7 @@ export const messageText = (message: LoopMessage): string =>
 
 const selectWidth = 48
 
-const MessageActionsDialog = ({ message, onRevert, onFork }: MessageActionsProps) => {
+const MessageActionsDialog = (props: MessageActionsProps) => {
   let selectRef: SelectRenderable | null = null
   onMount(() => selectRef?.focus())
 
@@ -39,7 +39,7 @@ const MessageActionsDialog = ({ message, onRevert, onFork }: MessageActionsProps
         void copy()
         break
       case 'fork':
-        onFork?.(message.id)
+        props.onFork?.(props.message.id)
         closeDialog()
         break
     }
@@ -58,7 +58,7 @@ const MessageActionsDialog = ({ message, onRevert, onFork }: MessageActionsProps
       return
     }
     try {
-      await service.writeText(messageText(message), { destination: 'best-available' })
+      await service.writeText(messageText(props.message), { destination: 'best-available' })
       closeDialog()
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error)
@@ -84,7 +84,7 @@ const MessageActionsDialog = ({ message, onRevert, onFork }: MessageActionsProps
           <Button
             label="Revert"
             onClick={() => {
-              onRevert?.(message.id)
+              props.onRevert?.(props.message.id)
               closeDialog()
             }}
           />
@@ -97,7 +97,7 @@ const MessageActionsDialog = ({ message, onRevert, onFork }: MessageActionsProps
   return (
     <box flexDirection="column" paddingX={2} paddingY={1}>
       <box border={['bottom']} borderColor={theme().border}>
-        <text fg={theme().text}>{message.role === 'user' ? 'Prompt' : 'Assistant Message'}</text>
+        <text fg={theme().text}>{props.message.role === 'user' ? 'Prompt' : 'Assistant Message'}</text>
       </box>
       <select
         ref={(r: SelectRenderable) => (selectRef = r)}

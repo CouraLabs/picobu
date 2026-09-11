@@ -1,5 +1,9 @@
+import type { TodoItem } from '@agent/tools/flow/todo.ts'
 import { theme } from '@states/theme-state.ts'
+import { TOOLTIP_DEFAULT_MAX_WIDTH } from '@states/tooltip.state.ts'
+import { TodoList } from '@tui/components/session/tools/todo-list.tsx'
 import { StatusSeparator } from '@tui/components/shared/status-separator.tsx'
+import { Tooltip } from '@tui/components/tooltip.tsx'
 import { icons } from '@tui/themes/icons.ts'
 import { Show } from 'solid-js'
 import type { ActivityKind, SessionStatusData, SessionStatusProps } from './session-status-data.ts'
@@ -53,6 +57,18 @@ export const StatusHeader = (props: { status: SessionStatusProps; data: SessionS
             {props.status.title}
           </text>
         </Show>
+      </Show>
+      <Show when={props.data.todoItems()} keyed>
+        {(items: TodoItem[]) => (
+          <box flexDirection="row" flexShrink={0} columnGap={1}>
+            <StatusSeparator sep={icons.middleDot} />
+            <Tooltip content={<TodoList items={items} />} maxWidth={TOOLTIP_DEFAULT_MAX_WIDTH} position="top">
+              <text fg={theme().accent} flexShrink={0}>
+                {`Todo: ${items.filter((item) => item.done).length}/${items.length}`}
+              </text>
+            </Tooltip>
+          </box>
+        )}
       </Show>
     </box>
   </box>

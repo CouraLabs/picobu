@@ -18,6 +18,7 @@ import {
   flowOutputMessage,
   flowOutputStatus,
   isSpawnTool,
+  isTodoTool,
   type KnowledgeDetail,
   knowledgeDetail,
   planText,
@@ -25,6 +26,7 @@ import {
   summarizeToolInput,
   summarizeToolOutput,
   type ToolPartLike,
+  todoItems,
   toolAskQuestions,
   toolDiff,
   toolDisplayName,
@@ -50,29 +52,6 @@ const [collapsedKeys, setCollapsedKeys] = createSignal<ReadonlySet<string>>(new 
 const isAskTool = (part: ToolPartLike): boolean => part.type === 'tool-ask' || (part.type === 'dynamic-tool' && part.toolName === 'ask')
 
 const isPlanWriteTool = (part: ToolPartLike): boolean => part.type === 'tool-plan-write' || (part.type === 'dynamic-tool' && part.toolName === 'plan-write')
-
-const isTodoTool = (part: ToolPartLike): boolean => part.type === 'tool-todo' || (part.type === 'dynamic-tool' && part.toolName === 'todo')
-
-const isTodoItem = (value: unknown): value is TodoItem =>
-  typeof value === 'object' && value !== null && typeof (value as { title?: unknown }).title === 'string' && typeof (value as { done?: unknown }).done === 'boolean'
-
-const todoItems = (part: ToolPartLike): TodoItem[] | undefined => {
-  const output = part.output
-  if (typeof output === 'object' && output !== null && Array.isArray((output as { items?: unknown }).items)) {
-    const items = (output as { items: unknown[] }).items.filter(isTodoItem)
-    if (items.length > 0) return items
-  }
-  const input = part.input
-  if (typeof input === 'object' && input !== null) {
-    const actionType = (input as { actionType?: unknown }).actionType
-    const action = (input as { action?: unknown }).action
-    if (actionType === 'ins' && typeof action === 'object' && action !== null && Array.isArray((action as { ins?: unknown }).ins)) {
-      const items = (action as { ins: unknown[] }).ins.filter(isTodoItem)
-      if (items.length > 0) return items
-    }
-  }
-  return undefined
-}
 
 const CODE_PREVIEW_MAX_LINES = 20
 
@@ -138,7 +117,7 @@ export const ToolPart = (props: ToolPartProps) => {
   const todos = createMemo(() => (isTodoTool(props.part) ? todoItems(props.part) : undefined))
 
   const dims = useTerminalDimensions()
-  const isAutoExpanded = () => todos() !== undefined || pendingFlow()
+  const isAutoExpanded = () => pendingFlow()
   const expanded = (): boolean => (isAutoExpanded() ? !collapsedKeys().has(props.partKey) : expandedKeys().has(props.partKey))
   const toggle = () => {
     const key = props.partKey
@@ -173,12 +152,12 @@ export const ToolPart = (props: ToolPartProps) => {
     })
   }
 
-  const collapsedLine = createMemo(() => {
+  const collapsedDetail = createMemo(() => {
     const detail = [summary(), runningProgress() ?? outputPreview()].filter((part) => typeof part === 'string' && part.length > 0).join(' · ')
-    return `${name()} ${detail}`
+    return detail
   })
   const clipToWidth = (line: string): string => {
-    const max = Math.max(8, dims().width - 6 - view().icon.length)
+    const max = Math.max(8, dims().width - 6 - (running() ? 2 : view().icon.length) - name().length)
     return clip(line, max)
   }
 
@@ -198,15 +177,27 @@ export const ToolPart = (props: ToolPartProps) => {
               event.stopPropagation()
               toggle()
             }}>
-            <text fg={color()} selectable={false}>
-              {view().icon}
-            </text>
-            <Show when={running()}>
-              <spinner name="toggle3" color={color()} />
+            <Show
+              when={running()}
+              fallback={
+                <box flexShrink={0}>
+                  <text fg={color()} selectable={false}>
+                    {view().icon}
+                  </text>
+                </box>
+              }>
+              <box flexShrink={0}>
+                <spinner name="toggle3" color={color()} />
+              </box>
             </Show>
-            <text fg={hovered() ? theme().accent : theme().textMuted} attributes={hovered() ? TextAttributes.BOLD : undefined} selectable={false}>
-              {clipToWidth(collapsedLine())}
+            <text fg={color()} flexShrink={0} attributes={hovered() ? TextAttributes.BOLD : undefined} selectable={false}>
+              {name()}
             </text>
+            <Show when={collapsedDetail().length > 0}>
+              <text fg={hovered() ? theme().accent : theme().textMuted} flexShrink={1} attributes={hovered() ? TextAttributes.BOLD : undefined} selectable={false}>
+                {clipToWidth(collapsedDetail())}
+              </text>
+            </Show>
           </box>
         }>
         <box
@@ -219,11 +210,18 @@ export const ToolPart = (props: ToolPartProps) => {
             event.stopPropagation()
             toggle()
           }}>
-          <text fg={color()} selectable={false}>
-            {view().icon}
-          </text>
-          <Show when={running()}>
-            <spinner name="toggle3" color={color()} />
+          <Show
+            when={running()}
+            fallback={
+              <box flexShrink={0}>
+                <text fg={color()} selectable={false}>
+                  {view().icon}
+                </text>
+              </box>
+            }>
+            <box flexShrink={0}>
+              <spinner name="toggle3" color={color()} />
+            </box>
           </Show>
           <text fg={color()} flexShrink={0} attributes={hovered() ? TextAttributes.BOLD : undefined}>
             {name()}

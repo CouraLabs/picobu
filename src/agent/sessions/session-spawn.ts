@@ -31,7 +31,6 @@ export async function spawnSubSession(
 ): Promise<{
   sessionId: string
   summary: string
-  usage: { inputTokens: number; outputTokens: number; cacheRead: number; cacheWrite: number; cost?: number }
 }> {
   if (ctx.maxAgents <= 0) throw new Error('Spawning is disabled (maxAgents is 0)')
   if (depth >= SUBAGENT_DEPTH_CAP) {
@@ -42,7 +41,7 @@ export async function spawnSubSession(
     const known = (await listSubagents(ctx.cwd)).map((s) => s.name).join(', ')
     throw new Error(`Unknown subagent "${subagent}". Known subagents: ${known}`)
   }
-  const parent = ctx.live.get(parentId)
+  const parentModelKey = ctx.live.get(parentId)?.config.modelKey ?? ctx.baseConfig().modelKey
 
   const nested = depth > 0
   if (nested && ctx.jobs.activeSlots >= ctx.maxAgents) {
@@ -65,7 +64,7 @@ export async function spawnSubSession(
     }
     ctx.jobs.patch(sessionId, { queued: false })
     const prepared = prepareSubagent(def)
-    let modelKey = parent?.config.modelKey ?? ctx.baseConfig().modelKey
+    let modelKey = parentModelKey
     if (def.model) {
       const ref = resolveModelRef(def.model)
       if (`${ref.provider.id}/${ref.modelId}` === def.model) modelKey = def.model
@@ -100,54 +99,12 @@ export async function spawnSubSession(
       let summary = report
       if (!summary) {
         const result = await child.summarize().catch(() => undefined)
-        if (result) {
-          const acc = result.usage.computed
-          const inputTokens = acc ? acc.accNoCacheInputTokens + acc.accCacheReadTokens + acc.accCacheWriteTokens : (result.usage.inputTokens ?? 0)
-          const outputTokens = acc ? acc.accOutputTokens : (result.usage.outputTokens ?? 0)
-          child.addUsage({
-            source: 'run',
-            modelKey,
-            inputTokens,
-            outputTokens,
-            cacheReadTokens: acc ? acc.accCacheReadTokens : (result.usage.cacheReadTokens ?? 0),
-            cacheWriteTokens: acc ? acc.accCacheWriteTokens : (result.usage.cacheWriteTokens ?? 0),
-            reasoningTokens: acc ? acc.accReasoningTokens : (result.usage.reasoningTokens ?? 0),
-            textTokens: acc ? acc.accTextTokens : (result.usage.textTokens ?? 0),
-            totalTokens: inputTokens + outputTokens,
-            noCacheInputTokens: acc ? acc.accNoCacheInputTokens : (result.usage.noCacheInputTokens ?? 0),
-            ...((acc?.cost ?? result.cost !== undefined) ? { cost: acc?.cost ?? { inputCost: 0, outputCost: 0, cacheReadCost: 0, cacheWriteCost: 0, cacheCost: 0, total: result.cost ?? 0 } } : {}),
-          })
-        }
         summary = result?.summary ?? '(sub agent produced no output)'
       }
-      const childTotals = child.totals
-      parent?.addUsage({
-        source: 'subagent',
-        sessionId,
-        subagent,
-        modelKey,
-        inputTokens: childTotals.inputTokens,
-        outputTokens: childTotals.outputTokens,
-        cacheReadTokens: childTotals.cacheReadTokens,
-        cacheWriteTokens: childTotals.cacheWriteTokens,
-        reasoningTokens: childTotals.reasoningTokens,
-        textTokens: childTotals.textTokens,
-        totalTokens: childTotals.totalTokens,
-        noCacheInputTokens: childTotals.noCacheInputTokens,
-        ...(childTotals.computed.cost ? { cost: childTotals.computed.cost } : {}),
-      })
       ctx.jobs.patch(sessionId, { state: 'finished' })
-      const childTotal = childTotals.computed.cost?.total ?? childTotals.costDetails.total
       return {
         sessionId,
         summary,
-        usage: {
-          inputTokens: childTotals.inputTokens,
-          outputTokens: childTotals.outputTokens,
-          cacheRead: childTotals.cacheReadTokens,
-          cacheWrite: childTotals.cacheWriteTokens,
-          ...(childTotal !== undefined && childTotal !== 0 ? { cost: childTotal } : {}),
-        },
       }
     } finally {
       ctx.live.delete(sessionId)

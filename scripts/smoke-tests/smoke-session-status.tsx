@@ -5,6 +5,7 @@
  */
 import { testRender } from "@opentui/solid"
 import { createSignal } from "solid-js"
+import { emptyTotals } from "@agent/sessions/session-meta.ts"
 import { SessionStatus } from "@tui/components/session/session-status.tsx"
 import type { LoopMessage } from "@agent/loop/create-loop.ts"
 
@@ -18,6 +19,12 @@ const usageMessage = {
   parts: [{ type: "text", text: "done" }],
 } as unknown as LoopMessage
 
+const baseTotals = emptyTotals()
+const totals = {
+  ...baseTotals,
+  computed: { ...baseTotals.computed, accNoCacheInputTokens: 12_000, accOutputTokens: 4_500 },
+}
+
 const [streaming, setStreaming] = createSignal(false)
 
 const testSetup = await testRender(
@@ -27,6 +34,7 @@ const testSetup = await testRender(
       modelKey="anthropic/claude-sonnet-4-5"
       thinking="medium"
       messages={[usageMessage]}
+      totals={totals}
       streaming={streaming()}
     />
   ),
