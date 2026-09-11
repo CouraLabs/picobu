@@ -31,12 +31,12 @@ export async function runTui(options: TuiAppOptions = {}): Promise<void> {
   process.on('unhandledRejection', onUnhandledRejection)
   setConsoleTitle(undefined)
 
-  const debug = true
+  const debug = options.debug === true
   const renderer = await createCliRenderer({
     exitOnCtrlC: false,
     useMouse: true,
     enableMouseMovement: true,
-    maxFps: 60,
+    maxFps: 30,
     useKittyKeyboard: { disambiguate: true, alternateKeys: true },
     targetFps: 30,
     gatherStats: debug,
