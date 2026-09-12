@@ -101,7 +101,11 @@ export async function spawnSubSession(
         const result = await child.summarize().catch(() => undefined)
         summary = result?.summary ?? '(sub agent produced no output)'
       }
-      ctx.jobs.patch(sessionId, { state: 'finished' })
+      const childStats = child.stats
+      ctx.jobs.patch(sessionId, {
+        state: 'finished',
+        ...(childStats ? { stats: { usage: childStats.total.usage, cost: childStats.total.cost, stepCount: childStats.steps.length } } : {}),
+      })
       return {
         sessionId,
         summary,
@@ -111,7 +115,12 @@ export async function spawnSubSession(
       await child.close().catch(() => {})
     }
   } catch (error) {
-    ctx.jobs.patch(sessionId, { state: 'error' })
+    const liveChild = ctx.live.get(sessionId)
+    const childStats = liveChild?.stats
+    ctx.jobs.patch(sessionId, {
+      state: 'error',
+      ...(childStats ? { stats: { usage: childStats.total.usage, cost: childStats.total.cost, stepCount: childStats.steps.length } } : {}),
+    })
     throw error
   } finally {
     if (slotAcquired) ctx.jobs.releaseSlot()

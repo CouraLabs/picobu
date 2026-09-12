@@ -7,6 +7,7 @@ import { toneColor } from '@tui/components/shared/tool-tone.ts'
 import { getSharedTreeSitterClientSync } from '@wrappers/treesitter-wrapper.ts'
 import { createMemo, createSignal, Show } from 'solid-js'
 import 'opentui-spinner/solid'
+import type { SessionManager } from '@agent/sessions/session-manager.ts'
 import type { TodoItem } from '@agent/tools/flow/todo.ts'
 import { AskForm } from './ask-form.tsx'
 import { FlowStaticView, type ToolFlowResponse } from './flow-view.tsx'
@@ -44,6 +45,7 @@ export interface ToolPartProps {
   isLastMessage?: boolean
   onFlowResponse?: (response: ToolFlowResponse) => void | Promise<void>
   onOpenSubSession?: (sessionId: string, label: string) => void
+  manager?: SessionManager
 }
 
 const [expandedKeys, setExpandedKeys] = createSignal<ReadonlySet<string>>(new Set())
@@ -74,7 +76,7 @@ const writePath = (part: ToolPartLike): string => {
 
 export const ToolPart = (props: ToolPartProps) => {
   if (isSpawnTool(props.part)) {
-    return <SpawnView part={props.part} onOpen={props.onOpenSubSession} />
+    return <SpawnView part={props.part} onOpen={props.onOpenSubSession} manager={props.manager} />
   }
   if (isAskTool(props.part)) {
     return <FlowStaticView part={props.part} isLastMessage={props.isLastMessage} flowKind="ask" onFlowResponse={props.onFlowResponse} />

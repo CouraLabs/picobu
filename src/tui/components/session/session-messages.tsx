@@ -1,4 +1,5 @@
 import type { LoopMessage } from '@agent/loop/create-loop.ts'
+import type { SessionManager } from '@agent/sessions/session-manager.ts'
 import { theme } from '@states/theme-state.ts'
 import { MessagePartView } from '@tui/components/session/message-part.tsx'
 import { type ToolFlowResponse, ToolPart } from '@tui/components/session/tools/tool-part.tsx'
@@ -11,6 +12,7 @@ export interface SessionMessagesProps {
   onFlowResponse?: (response: ToolFlowResponse) => void | Promise<void>
   onMessageOpen?: (message: LoopMessage) => void
   onOpenSubSession?: (sessionId: string, label: string) => void
+  manager?: SessionManager
 }
 
 type MessagePart = LoopMessage['parts'][number]
@@ -72,7 +74,14 @@ export const SessionMessages = (props: SessionMessagesProps) => {
 
               return (
                 <box marginTop={afterUserOrReasoning ? 1 : 0}>
-                  <ToolPart part={toolPart()} partKey={entry().key} isLastMessage={entry().isLastMessage} onFlowResponse={props.onFlowResponse} onOpenSubSession={props.onOpenSubSession} />
+                  <ToolPart
+                    part={toolPart()}
+                    partKey={entry().key}
+                    isLastMessage={entry().isLastMessage}
+                    onFlowResponse={props.onFlowResponse}
+                    onOpenSubSession={props.onOpenSubSession}
+                    manager={props.manager}
+                  />
                 </box>
               )
             }}

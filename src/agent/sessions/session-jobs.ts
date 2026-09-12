@@ -1,4 +1,12 @@
+import type { StepCost } from '@agent/loop/loop-cost.ts'
 import type { SessionState } from '@agent/sessions/session-meta.ts'
+import type { LanguageModelUsage } from 'ai'
+
+export interface SpawnJobStats {
+  usage: LanguageModelUsage
+  cost: StepCost
+  stepCount: number
+}
 
 export interface JobRow {
   sessionId: string
@@ -7,6 +15,7 @@ export interface JobRow {
   state: SessionState
   queued: boolean
   startedAt: number
+  stats?: SpawnJobStats
 }
 
 export class JobTracker {

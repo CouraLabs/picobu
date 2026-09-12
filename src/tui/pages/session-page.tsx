@@ -4,7 +4,7 @@ import { listSubagents } from '@agent/agents/subagents.ts'
 import { buildCommandPrompt } from '@agent/commands/discovery.ts'
 import { listCommands } from '@agent/commands/index.ts'
 import { type ParsedCommandLine, parseCommandLine } from '@agent/commands/parse-command-line.ts'
-import type { LoopMessage } from '@agent/loop/create-loop.ts'
+import type { LoopMessage, LoopStats } from '@agent/loop/create-loop.ts'
 import { generateSessionTitle } from '@agent/prompts/session-title.ts'
 import { closePromptHistory, projectKeyFor } from '@agent/sessions/prompt-history.ts'
 import type { QueuedPrompt, Session } from '@agent/sessions/session.ts'
@@ -125,6 +125,10 @@ export const SessionPage = (props: SessionPageProps) => {
   const [projectKey, setProjectKey] = createSignal<string>(projectKeyFor())
   const [commandOpen, setCommandOpen] = createSignal(false)
   const [commandExitNonce, setCommandExitNonce] = createSignal(0)
+  const [statsStatus, setStatsStatus] = createSignal<Pick<LoopStats, 'finishReason' | 'rawFinishReason' | 'warnings' | 'headers'> | undefined>(undefined)
+  const [statsPerformance, setStatsPerformance] = createSignal<LoopStats['performance']>(undefined)
+  const [statsContext, setStatsContext] = createSignal<number | undefined>(undefined)
+  const [statsMetrics, setStatsMetrics] = createSignal<(Pick<LoopStats, 'total' | 'currentTotal'> & { stepCount: number }) | undefined>(undefined)
   const sessionMgr = new SessionManager()
   const renderer = useRenderer()
   const watchdog = createSessionWatchdog({ staleTimeoutMs: options.watchdog.staleTimeoutMs })
@@ -161,6 +165,43 @@ export const SessionPage = (props: SessionPageProps) => {
 
   let detachQueue: (() => void) | undefined
   let editNonce = 0
+  let pendingStats: LoopStats | undefined
+
+  const resetStats = () => {
+    pendingStats = undefined
+    batch(() => {
+      setStatsStatus(undefined)
+      setStatsPerformance(undefined)
+      setStatsContext(undefined)
+      setStatsMetrics(undefined)
+    })
+  }
+
+  const syncStats = (stats: LoopStats | undefined, ownerId?: string) => {
+    const live = session()
+    if (ownerId !== undefined && live !== undefined && live.id !== ownerId && activeId() !== ownerId) return
+    const nextTokens = stats === undefined ? undefined : (stats.total.usage.totalTokens ?? stats.currentTotal.usage.totalTokens ?? 0)
+    const nextSteps = stats?.steps.length ?? 0
+    const prevStatus = statsStatus()
+    const prevMetrics = statsMetrics()
+    const prevTokens = statsContext()
+    if (
+      prevStatus?.finishReason === stats?.finishReason &&
+      prevStatus?.rawFinishReason === stats?.rawFinishReason &&
+      prevMetrics?.stepCount === nextSteps &&
+      prevTokens === nextTokens &&
+      prevMetrics?.total.cost.total === stats?.total.cost.total &&
+      prevMetrics?.total.usage.inputTokens === stats?.total.usage.inputTokens &&
+      prevMetrics?.total.usage.outputTokens === stats?.total.usage.outputTokens
+    )
+      return
+    batch(() => {
+      setStatsStatus(stats ? { finishReason: stats.finishReason, rawFinishReason: stats.rawFinishReason, warnings: stats.warnings, headers: stats.headers } : undefined)
+      setStatsPerformance(stats?.performance)
+      setStatsContext(nextTokens)
+      setStatsMetrics(stats ? { total: stats.total, currentTotal: stats.currentTotal, stepCount: nextSteps } : undefined)
+    })
+  }
 
   const bytesFromDataUrl = (url: string): Uint8Array => {
     const match = /^data:[^;]+;base64,(.*)$/s.exec(url)
@@ -233,6 +274,8 @@ export const SessionPage = (props: SessionPageProps) => {
         setQueueDepth(changedDepth)
       })
     })
+    pendingStats = undefined
+    syncStats(next.stats, next.id)
     prevStreaming = streaming
     prevWaiting = w
     prevErrorMessage = next.error?.message
@@ -490,6 +533,14 @@ export const SessionPage = (props: SessionPageProps) => {
           prevStreaming = streaming
           prevWaiting = w
           prevErrorMessage = state.error?.message
+          const statsSource = session()?.id === next.id ? session() : next
+          if (streaming) {
+            pendingStats = statsSource?.stats
+          } else {
+            const stats = pendingStats ?? statsSource?.stats
+            pendingStats = undefined
+            syncStats(stats, next.id)
+          }
         },
       })
       attachSession(next)
@@ -586,6 +637,18 @@ export const SessionPage = (props: SessionPageProps) => {
       try {
         await target.flush()
       } catch {}
+      detachQueue?.()
+      await target.close().catch(() => {})
+      batch(() => {
+        setSession(undefined)
+        setMessages([])
+        setIsStreaming(false)
+        setWaiting(false)
+        setAnswering(false)
+        setQueued([])
+        setQueueDepth(0)
+      })
+      resetStats()
       const fresh = await sessionMgr.changeDirectory(next)
       if (!fresh) return
       bumpCatalog()
@@ -596,6 +659,10 @@ export const SessionPage = (props: SessionPageProps) => {
   }
 
   const handleNewSession = async (target: Session) => {
+    if (target.status === 'submitted' || target.status === 'streaming' || isWaiting(target.messages) || answering()) {
+      showError(new Error('Cannot start a new session while a run is in progress'))
+      return
+    }
     try {
       try {
         await target.flush()
@@ -611,6 +678,7 @@ export const SessionPage = (props: SessionPageProps) => {
         setQueued([])
         setQueueDepth(0)
       })
+      resetStats()
       await openSession(undefined)
     } catch (error) {
       showError(error)
@@ -852,6 +920,10 @@ export const SessionPage = (props: SessionPageProps) => {
       showError(new Error('Session is not ready yet, please try again'))
       return
     }
+    if (target.status === 'submitted' || target.status === 'streaming' || isWaiting(target.messages) || answering()) {
+      showError(new Error('Cannot fork while a run is in progress'))
+      return
+    }
     try {
       const { sessionId: forkId } = await sessionMgr.forkSession(target.id, { upToMessageId: messageId })
       closeDialog()
@@ -863,6 +935,7 @@ export const SessionPage = (props: SessionPageProps) => {
         setWaiting(false)
         setAnswering(false)
       })
+      resetStats()
       await openSession(forkId)
     } catch (error) {
       showError(error)
@@ -885,6 +958,10 @@ export const SessionPage = (props: SessionPageProps) => {
           mode={mode()}
           waiting={waiting() || answering()}
           mcp={mcp()}
+          statsStatus={statsStatus()}
+          statsPerformance={statsPerformance()}
+          statsContext={statsContext()}
+          statsMetrics={statsMetrics()}
         />
         <SessionMessages
           messages={messages()}
@@ -892,6 +969,7 @@ export const SessionPage = (props: SessionPageProps) => {
           onFlowResponse={handleFlowResponse}
           onMessageOpen={(message) => openMessageActions({ message, onRevert: handleRevert, onFork: (id) => void handleFork(id) })}
           onOpenSubSession={(id, label) => openSubagentMessages({ manager: sessionMgr, sessionId: id, label })}
+          manager={sessionMgr}
         />
         <SessionQueue items={queued()} onRemove={handleRemoveQueued} />
         <SessionPrompt
@@ -918,6 +996,10 @@ export const SessionPage = (props: SessionPageProps) => {
           mode={mode()}
           waiting={waiting() || answering()}
           mcp={mcp()}
+          statsStatus={statsStatus()}
+          statsPerformance={statsPerformance()}
+          statsContext={statsContext()}
+          statsMetrics={statsMetrics()}
         />
       </box>
     </box>
