@@ -16,10 +16,6 @@ import { clearStreamBackup, recoverStreamBackup, writeStreamBackup } from '@agen
 import { options, type ProviderModelReasoningEffort } from '@config/options.ts'
 import { type AsyncIterableStream, type ChatInit, type ChatState, type ChatStatus, type ChatTransport, type CreateUIMessage, generateId, readUIMessageStream, type UIMessageChunk } from 'ai'
 
-export interface SessionUsage {
-  finishReason?: string
-}
-
 export type SessionPrompt = string | CreateUIMessage<LoopMessage>
 export interface QueuedFile {
   mediaType: string
@@ -129,7 +125,6 @@ export interface Session {
     refresh: () => Promise<void>
     reload: () => Promise<void>
   }
-  readonly usage: SessionUsage | undefined
   readonly stats: LoopStats | undefined
   readonly state: SessionState
   summarize: () => Promise<SummarizeResult>
@@ -221,7 +216,6 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
     })
   }
   let title: string | undefined = meta.title
-  let lastUsage: SessionUsage | undefined
   let lastStats: LoopStats | undefined = loop.stats()
   let pendingStatsWrite: Promise<void> = Promise.resolve()
   const statsListeners = new Set<(stats: LoopStats) => void>()
@@ -379,10 +373,6 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
         resuming = true
         planExitOnce = true
       }
-      const meta = options.message.metadata as { finishReason?: string } | undefined
-      lastUsage = {
-        finishReason: meta?.finishReason ?? lastUsage?.finishReason,
-      }
       if (!wasAborting && !chat.error && !isWaiting(chat.messages)) {
         const stripped = stripAnalysedImages(chat.messages)
         if (stripped !== chat.messages) chat.messages = stripped
@@ -397,7 +387,6 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
 
   const unsubscribeLoopStats = loop.onStats((stats) => {
     lastStats = stats
-    lastUsage = { finishReason: stats.finishReason ?? lastUsage?.finishReason }
     for (const listener of statsListeners) listener(stats)
     onChange?.(chatState)
     pendingStatsWrite = writeLoopStats(folderKey, id, stats).catch((error) => {
@@ -483,9 +472,6 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
           await loop.mcp.connectAll()
         },
       }
-    },
-    get usage() {
-      return lastUsage
     },
     get stats() {
       return lastStats

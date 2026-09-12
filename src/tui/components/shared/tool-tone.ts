@@ -4,7 +4,7 @@ import type { ToolTone } from '@tui/components/session/tools/tool-summary.ts'
 export const toneColor = (tone: ToolTone) => {
   switch (tone) {
     case 'running':
-      return theme().primary
+      return theme().warning
     case 'success':
       return theme().success
     case 'error':

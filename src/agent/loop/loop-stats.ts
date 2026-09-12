@@ -5,7 +5,7 @@ import type { CallWarning, FinishReason, LanguageModelUsage, StepResultPerforman
 export type LoopStepCost = StepCost
 
 export interface LoopStepStats {
-  usage: LanguageModelUsage
+  usage: Omit<LanguageModelUsage, 'raw'>
   cost: LoopStepCost
   performance: StepResultPerformance
   warnings: Array<CallWarning> | undefined
@@ -97,7 +97,10 @@ export const createLoopStatsStore = (getBilling: () => ProviderModelBilling | un
       stats.performance = step.performance
       stats.warnings = step.warnings
       stats.headers = step.headers
-      stats.currentTotal = { usage: sumUsage(stats.currentTotal.usage, step.usage), cost: addCosts(stats.currentTotal.cost, step.cost) }
+      stats.currentTotal = { 
+        usage: sumUsage(stats.currentTotal.usage, step.usage), 
+        cost: addCosts(stats.currentTotal.cost, step.cost) 
+      }
       notify()
     },
     handleEnd: (event) => {

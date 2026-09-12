@@ -1,17 +1,13 @@
 import { getAgent } from '@agent/agents/registry.ts'
 import type { LoopMessage, LoopStats } from '@agent/loop/create-loop.ts'
 import { resolveModelRef } from '@agent/model/resolver.ts'
-import type { SessionUsage } from '@agent/sessions/session.ts'
 import type { TodoItem } from '@agent/tools/flow/todo.ts'
 import type { ProviderModelReasoningEffort } from '@config/options.ts'
 import { RGBA } from '@opentui/core'
 import { fmtCostPrecise, fmtMs, fmtTokens, fmtTps } from '@shared/format.ts'
 import { theme } from '@states/theme-state.ts'
 import { isToolPart, latestTodoItems } from '@tui/components/session/tools/tool-summary.ts'
-import { type ActivityKind, getActivity, getFinishColor, getFinishReason, getResponseTimeLabel, getStepTimeLabel, getToolExecLabel, getTpsLabel, getTtftLabel } from './status-activity.ts'
-import { getContextColor, getContextPercent, getContextValue } from './status-context.ts'
-import { getCostSplit, getCostValue, getRunAttribution } from './status-cost.ts'
-import { getCacheSummary, getInputLabel, getOutputLabel, lastTokensFromMessages, type UsageWithCost } from './status-tokens.ts'
+import { type ActivityKind, getActivity, getFinishColor, getFinishReason } from './status-activity.ts'
 import { thinkingColor } from './thinking.ts'
 
 export interface SessionStatusProps {
@@ -22,8 +18,6 @@ export interface SessionStatusProps {
   cwd: string | undefined
   git: { branch: string; additions: number; deletions: number } | null | undefined
   messages: Array<LoopMessage>
-  totals?: unknown
-  usage?: SessionUsage
   streaming: boolean
   queueDepth?: number
   mode?: string
@@ -41,16 +35,6 @@ export interface MessageStats {
   user: number
   assistant: number
 }
-
-export const latestMeta = (messages: Array<LoopMessage>): { finishReason?: string } | undefined => {
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const meta = messages[i]?.metadata as { finishReason?: string } | undefined
-    if (meta?.finishReason) return meta
-  }
-  return undefined
-}
-
-export const latestUsage = (_messages: Array<LoopMessage>): UsageWithCost | undefined => undefined
 
 export const getAgentName = (agentId: string | undefined): string => {
   try {
@@ -77,6 +61,16 @@ export const getModelLabel = (modelKey: string | undefined): string => {
     return `${ref.provider.name ?? ref.provider.id} ${ref.modelMeta?.name ?? ref.modelId}`
   } catch {
     return modelKey
+  }
+}
+
+export const getModelContextSize = (modelKey: string | undefined): number => {
+  if (!modelKey) return 200000
+  try {
+    const ref = resolveModelRef(modelKey)
+    return ref.modelMeta.context
+  } catch {
+    return 200000
   }
 }
 
@@ -120,8 +114,6 @@ export const getQueueLabel = (mode: string | undefined, queueDepth: number | und
 }
 
 export interface SessionStatusData {
-  msgUsage: () => UsageWithCost | undefined
-  meta: () => { finishReason?: string } | undefined
   activity: () => ActivityKind | undefined
   agentName: () => string
   agentColor: () => string | RGBA
@@ -133,7 +125,6 @@ export interface SessionStatusData {
   inputLabel: () => string
   cacheSummary: () => string
   costValue: () => string
-  costSplit: () => string | undefined
   finishReason: () => string | undefined
   finishColor: () => string | RGBA
   tpsLabel: () => string
@@ -142,7 +133,6 @@ export interface SessionStatusData {
   responseTimeLabel: () => string
   toolExecLabel: () => string
   outputLabel: () => string
-  runAttribution: () => string | undefined
   stats: () => MessageStats
   thinkingLabel: () => string
   thinkingColor: () => string | RGBA
@@ -154,20 +144,21 @@ export interface SessionStatusData {
 }
 
 export const createSessionStatusData = (props: SessionStatusProps): SessionStatusData => {
-  const msgUsage = () => latestUsage(props.messages)
-  const meta = () =>
-    props.statsStatus?.finishReason !== undefined || props.statsStatus?.rawFinishReason !== undefined
-      ? { finishReason: props.statsStatus.finishReason ?? props.statsStatus.rawFinishReason }
-      : latestMeta(props.messages)
   const activity = () => getActivity(props.messages, props.streaming)
-  const tokens = () => lastTokensFromMessages(props.messages)
-  const contextValue = () => props.statsContext ?? getContextValue(tokens())
-  const contextPercent = () => getContextPercent(props.modelKey, contextValue())
-  const metricsTotal = () => props.statsMetrics?.total
+  const metricsTotal = () => props.statsMetrics?.currentTotal ?? props.statsMetrics?.total
   const performance = () => props.statsPerformance
+  const modelContextSize = () => getModelContextSize(props.modelKey)
+  const contextValue = () => metricsTotal()?.usage?.totalTokens ?? 0
+  const contextPercent = () => Math.round((contextValue() / modelContextSize()) * 100)
+  const contextColor = () => {
+    const p = contextPercent()
+    if(p > 10 && p < 40) return theme().success
+    if(p > 40 && p < 70) return theme().warning
+    if(p > 70) return theme().error
+    return theme().text
+  }
+
   return {
-    msgUsage,
-    meta,
     activity,
     agentName: () => getAgentName(props.agentId),
     agentColor: () => getAgentColor(props.agentId),
@@ -175,31 +166,29 @@ export const createSessionStatusData = (props: SessionStatusProps): SessionStatu
     contextValue,
     contextPercent,
     contextLabel: () => fmtTokens(contextValue()),
-    contextColor: () => getContextColor(contextPercent()),
-    inputLabel: () => (metricsTotal() ? fmtTokens(metricsTotal()?.usage.inputTokens ?? 0) : getInputLabel(tokens(), props.totals)),
+    contextColor,
+    inputLabel: () => (metricsTotal() ? fmtTokens(metricsTotal()?.usage.inputTokenDetails?.noCacheTokens ?? 0) : '0'),
     cacheSummary: () => {
       const usage = metricsTotal()?.usage
-      if (!usage) return getCacheSummary(tokens())
-      const read = usage.inputTokenDetails?.cacheReadTokens ?? 0
+      if (!usage) return `0 (0%)`
+      const cache = (usage.inputTokenDetails?.cacheReadTokens ?? 0) + (usage.inputTokenDetails?.cacheWriteTokens ?? 0)
       const total = usage.inputTokens ?? 0
-      const percent = total > 0 ? Math.round((read / total) * 100) : 0
-      return `${fmtTokens(read)} (${percent}%)`
+      const percent = total > 0 ? Math.round((cache / total) * 100) : 0
+      return `${fmtTokens(cache)} (${percent}%)`
     },
-    costValue: () => (metricsTotal() ? fmtCostPrecise(metricsTotal()?.cost.total) || '0' : getCostValue(props.totals, msgUsage(), props.usage)),
-    costSplit: () => getCostSplit(props.totals, msgUsage()),
-    finishReason: () => getFinishReason(meta(), props.usage, props.messages, props.streaming),
-    finishColor: () => getFinishColor(getFinishReason(meta(), props.usage, props.messages, props.streaming)),
-    tpsLabel: () => (performance() ? fmtTps(performance()?.effectiveOutputTokensPerSecond ?? performance()?.outputTokensPerSecond ?? undefined) : getTpsLabel(props.usage, meta())),
-    ttftLabel: () => (performance()?.timeToFirstOutputMs !== undefined ? fmtMs(performance()?.timeToFirstOutputMs) : getTtftLabel(props.usage, meta())),
-    stepTimeLabel: () => (performance() ? fmtMs(performance()?.stepTimeMs) : getStepTimeLabel(msgUsage())),
-    responseTimeLabel: () => (performance() ? fmtMs(performance()?.responseTimeMs) : getResponseTimeLabel(msgUsage())),
+    costValue: () => fmtCostPrecise(metricsTotal()?.cost?.total ?? 0),
+    finishReason: () => getFinishReason(props.statsStatus?.finishReason, props.messages, props.streaming),
+    finishColor: () => getFinishColor(getFinishReason(props.statsStatus?.finishReason, props.messages, props.streaming)),
+    tpsLabel: () => fmtTps(performance()?.effectiveOutputTokensPerSecond ?? performance()?.outputTokensPerSecond ?? undefined),
+    ttftLabel: () => fmtMs(performance()?.timeToFirstOutputMs ?? 0),
+    stepTimeLabel: () => fmtMs(performance()?.stepTimeMs ?? 0),
+    responseTimeLabel: () => fmtMs(performance()?.responseTimeMs ?? 0),
     toolExecLabel: () => {
       const entries = performance() ? Object.values(performance()?.toolExecutionMs ?? {}) : []
-      if (entries.length === 0) return getToolExecLabel(msgUsage())
+      if (entries.length === 0) return "0ms"
       return fmtMs(entries.reduce((sum, value) => sum + (typeof value === 'number' ? value : 0), 0))
     },
-    outputLabel: () => (metricsTotal() ? fmtTokens(metricsTotal()?.usage.outputTokens ?? 0) : getOutputLabel(tokens(), props.totals)),
-    runAttribution: () => getRunAttribution(props.totals),
+    outputLabel: () => fmtTokens(metricsTotal()?.usage.outputTokens ?? 0),
     stats: () => getMessageStats(props.messages),
     thinkingLabel: () => getThinkingLabel(props.thinking),
     thinkingColor: () => getThinkingColor(props.thinking),

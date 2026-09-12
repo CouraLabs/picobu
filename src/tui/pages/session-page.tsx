@@ -193,8 +193,8 @@ export const SessionPage = (props: SessionPageProps) => {
       prevMetrics?.total.cost.total === stats?.total.cost.total &&
       prevMetrics?.total.usage.inputTokens === stats?.total.usage.inputTokens &&
       prevMetrics?.total.usage.outputTokens === stats?.total.usage.outputTokens
-    )
-      return
+    ) return
+
     batch(() => {
       setStatsStatus(stats ? { finishReason: stats.finishReason, rawFinishReason: stats.rawFinishReason, warnings: stats.warnings, headers: stats.headers } : undefined)
       setStatsPerformance(stats?.performance)

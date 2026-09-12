@@ -59,5 +59,5 @@ if (streaming) {
 console.log(`\n--- messages (${session.messages.length}, ${chunkCount} chunks streamed) ---`)
 console.log(`\n${JSON.stringify(session.messages, undefined, 2)}`)
 console.log(`\n----`)
-console.log(`\nusage: ${JSON.stringify(session.usage)}`)
+console.log(`\nusage: ${JSON.stringify(session.stats?.total.usage ?? null)}`)
 process.exit(0)

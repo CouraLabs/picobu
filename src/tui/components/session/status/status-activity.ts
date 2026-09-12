@@ -1,9 +1,7 @@
 import type { LoopMessage } from '@agent/loop/create-loop.ts'
-import type { SessionUsage } from '@agent/sessions/session.ts'
 import type { RGBA } from '@opentui/core'
 import { theme } from '@states/theme-state.ts'
 import { isSpawnTool, isToolPart } from '@tui/components/session/tools/tool-summary.ts'
-import type { UsageWithCost } from './status-tokens.ts'
 
 export type ActivityKind = 'prompting' | 'reasoning' | 'tooling' | 'delegating' | 'answering'
 
@@ -56,10 +54,10 @@ export const getActivity = (messages: Array<LoopMessage>, streaming: boolean | u
   return 'prompting'
 }
 
-export const getFinishReason = (meta: { finishReason?: string } | undefined, usage: SessionUsage | undefined, messages?: Array<LoopMessage>, streaming?: boolean): string | undefined => {
+export const getFinishReason = (finishReason?: string, messages?: Array<LoopMessage>, streaming?: boolean): string | undefined => {
   const activity = getActivity(messages ?? [], streaming)
   if (activity) return ACTIVITY_LABELS[activity]
-  return meta?.finishReason ?? usage?.finishReason
+  return finishReason
 }
 
 export const getFinishColor = (reason: string | undefined): string | RGBA => {
@@ -87,13 +85,3 @@ export const getFinishColor = (reason: string | undefined): string | RGBA => {
       return theme().textMuted
   }
 }
-
-export const getTpsLabel = (_usage?: unknown, _meta?: unknown): string => '–'
-
-export const getTtftLabel = (_usage?: unknown, _meta?: unknown): string => '–'
-
-export const getStepTimeLabel = (_latest?: UsageWithCost | undefined): string => '–'
-
-export const getResponseTimeLabel = (_latest?: UsageWithCost | undefined): string => '–'
-
-export const getToolExecLabel = (_latest?: UsageWithCost | undefined): string => '–'

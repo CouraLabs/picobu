@@ -9,10 +9,6 @@ export const StatusFooter = (props: { status: SessionStatusProps; data: SessionS
   <box flexDirection="row" columnGap={2} flexShrink={0} flexWrap="wrap">
     <StatusSegment icon={icons.fileText} value={`${props.data.stats().total} msgs`} />
     <StatusSegment icon={icons.tool} value={`${props.data.stats().tools} tools`} />
-    <Show when={props.data.runAttribution()}>
-      <StatusSeparator sep={icons.middleDot} />
-      <StatusSegment icon={icons.star} value={props.data.runAttribution() as string} />
-    </Show>
     <Show when={props.status.mcp && props.status.mcp.total > 0}>
       <StatusSeparator sep={icons.middleDot} />
       <StatusSegment icon={icons.plug} value={`${props.status.mcp?.connected}/${props.status.mcp?.total} mcp · ${props.status.mcp?.tools} tools`} />
