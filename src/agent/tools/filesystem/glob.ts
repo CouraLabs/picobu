@@ -7,6 +7,7 @@ import z from 'zod'
 export const GlobToolArgsSchema = z.object({
   pattern: z.string(),
   cwd: z.string().optional(),
+  limit: z.number().int().min(1).max(5000).optional(),
 })
 async function runArgv(argv: Array<string>, cwd: string, toolOptions?: ToolExecuteOptions) {
   const sandbox = toolOptions?.experimental_sandbox as LocalSandboxSession | undefined
@@ -35,10 +36,11 @@ async function runArgv(argv: Array<string>, cwd: string, toolOptions?: ToolExecu
 }
 export const globTool = {
   name: 'glob',
-  description: 'Find files by glob pattern; respects .gitignore.',
+  description: 'Find files by glob pattern; respects .gitignore (max 500 by default, capped at 5000).',
   parameters: GlobToolArgsSchema,
   output: z.string(),
   handler: async (args: z.infer<typeof GlobToolArgsSchema>, toolOptions?: ToolExecuteOptions): Promise<string> => {
+    const limit = args.limit ?? 500
     const cwd = resolve(sandboxRoot(toolOptions?.experimental_sandbox) ?? process.cwd(), args.cwd ?? '.')
     const listing = await runArgv([rgPath, '--files', '--color', 'never'], cwd, toolOptions)
     if (listing.exitCode !== 0 && listing.exitCode !== 1) throw new Error(`rg failed (exit ${listing.exitCode}): ${listing.stderr.trim()}`)
@@ -55,6 +57,7 @@ export const globTool = {
       if (allowed.has(match)) matches.push(match)
     }
     matches.sort()
-    return matches.join('\n')
+    if (matches.length <= limit) return matches.join('\n')
+    return [...matches.slice(0, limit), `(Results truncated to ${limit} of ${matches.length}. Narrow pattern/cwd or raise limit.)`].join('\n')
   },
 }

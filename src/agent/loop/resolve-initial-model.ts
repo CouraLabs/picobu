@@ -6,7 +6,7 @@ export const resolveInitialModel = (modelKey: string): LanguageModel => {
   try {
     return resolveModel(modelKey).model
   } catch (error) {
-    console.error('picobu: initial model resolution failed:', error)
+    console.error(`picobu: initial model resolution failed: ${error instanceof Error ? error.message : String(error)}`)
     return createOpenAICompatible({ name: 'unconfigured', apiKey: 'pending', baseURL: 'https://api.openai.com/v1' })('no-model')
   }
 }

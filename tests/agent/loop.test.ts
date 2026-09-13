@@ -1,10 +1,29 @@
-import { describe, expect, test } from 'bun:test'
+import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createLoop } from '../../src/agent/loop/create-loop.ts'
 import { createTodoTool } from '../../src/agent/tools/flow/todo.ts'
+import { options, type ProviderOptions } from '../../src/config/options.ts'
 import { initLockDir } from '../../src/shared/lock.ts'
+
+const fakeProvider: ProviderOptions = {
+  id: 'test',
+  name: 'Test',
+  type: 'openai-compatible',
+  baseUrl: 'https://example.test/v1',
+  apiKey: 'fake-key',
+  models: [{ id: 'test', name: 'Test', context: 128000, output: 64000 }],
+}
+
+beforeAll(() => {
+  if (!options.providers.some((p) => p.id === fakeProvider.id)) options.providers.push(fakeProvider)
+})
+
+afterAll(() => {
+  const index = options.providers.findIndex((p) => p.id === fakeProvider.id)
+  if (index >= 0) options.providers.splice(index, 1)
+})
 
 describe('createLoop', () => {
   test('builds agent transport and manager without calling model', () => {

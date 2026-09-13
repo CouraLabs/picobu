@@ -1,6 +1,6 @@
 import type { Command } from '@agent/commands/types.ts'
 
-export type SystemCommandName = 'q' | 'models' | 'fork' | 'summarize' | 'roles' | 'cd' | 'new' | 'reload'
+export type SystemCommandName = 'q' | 'models' | 'fork' | 'summarize' | 'compact' | 'roles' | 'cd' | 'new' | 'reload' | 'export'
 
 export interface SystemCommandDef {
   name: SystemCommandName
@@ -14,10 +14,12 @@ export const SYSTEM_COMMANDS: Array<SystemCommandDef> = [
   { name: 'models', aliases: [], description: 'Switch model', usage: '/models' },
   { name: 'fork', aliases: [], description: 'Fork the session at the last message', usage: '/fork' },
   { name: 'summarize', aliases: [], description: 'Summarize the session', usage: '/summarize' },
+  { name: 'compact', aliases: [], description: 'Compact session context via summary', usage: '/compact' },
   { name: 'roles', aliases: [], description: 'Assign models and thinking levels to roles', usage: '/roles' },
   { name: 'cd', aliases: [], description: 'Change project folder (starts a new session)', usage: '/cd <path>' },
   { name: 'new', aliases: ['clear', 'cls'], description: 'Start a new session', usage: '/new' },
   { name: 'reload', aliases: [], description: 'Reload skills, workflows, rules, agents, prompts and MCP from disk', usage: '/reload' },
+  { name: 'export', aliases: [], description: 'Export current session to HTML', usage: '/export [out.html]' },
 ]
 
 export const toKebab = (value: string): string =>

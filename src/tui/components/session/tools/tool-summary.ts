@@ -126,6 +126,8 @@ export const toolDisplayName = (part: ToolPartLike): string => {
 
 export const isPreliminaryToolResult = (part: ToolPartLike): boolean => (part as { preliminary?: unknown }).preliminary === true
 
+export const isToolRunning = (part: ToolPartLike): boolean => part.state !== 'output-available' && part.state !== 'output-error'
+
 export const toolStateView = (part: ToolPartLike): ToolStateView => {
   switch (part.state) {
     case 'input-streaming':
@@ -161,7 +163,9 @@ export const summarizeToolInput = (name: string, input: unknown): string => {
   }
   switch (name.toLowerCase()) {
     case 'read': {
-      const range = typeof args.fromLine === 'number' && typeof args.toLine === 'number' ? `:${args.fromLine}-${args.toLine}` : ''
+      const skip = typeof args.skip === 'number' ? args.skip : undefined
+      const limit = typeof args.limit === 'number' ? args.limit : undefined
+      const range = skip !== undefined || limit !== undefined ? `:${skip ?? 0}+${limit ?? 'all'}` : ''
       return `${field('path') ?? '?'}${range}`
     }
     case 'write':

@@ -90,8 +90,8 @@ describe('toolStateView/toolProgress', () => {
 })
 
 describe('summarizeToolInput', () => {
-  test('read carries optional line range', () => {
-    expect(summarizeToolInput('read', { path: 'a.ts', fromLine: 2, toLine: 9 })).toBe('a.ts:2-9')
+  test('read carries optional skip/limit', () => {
+    expect(summarizeToolInput('read', { path: 'a.ts', skip: 1, limit: 8 })).toBe('a.ts:1+8')
     expect(summarizeToolInput('read', { path: 'a.ts' })).toBe('a.ts')
     expect(summarizeToolInput('read', {})).toBe('?')
   })

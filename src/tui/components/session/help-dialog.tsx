@@ -3,11 +3,11 @@ import type { AgentType } from '@agent/agents/types.ts'
 import { listCommands, listSkills } from '@agent/commands/index.ts'
 import { SYSTEM_COMMANDS, toKebab } from '@agent/commands/parse-command-line.ts'
 import { listRules } from '@agent/rules/rules.ts'
-import { useTerminalDimensions } from '@opentui/solid'
 import { catalogVersion } from '@states/catalog-state.ts'
 import { closeDialog, openDialog } from '@states/dialog.state.ts'
 import { theme } from '@states/theme-state.ts'
 import { Button } from '@tui/components/button.tsx'
+import { useTerminalDims } from '@tui/hooks/terminal-dims.tsx'
 import { getSharedTreeSitterClientSync } from '@wrappers/treesitter-wrapper.ts'
 import { createMemo, createSignal, onMount } from 'solid-js'
 
@@ -36,7 +36,7 @@ const footerLines: Array<string> = [
 ]
 
 export const HelpDialog = () => {
-  const dims = useTerminalDimensions()
+  const dims = useTerminalDims()
   const dialogWidth = () => Math.max(20, Math.min(Math.floor(dims().width * 0.7), dims().width - 2))
   const dialogHeight = () => Math.max(10, Math.min(Math.floor(dims().height * 0.9), dims().height - 2))
   const workflows = createMemo(() => {

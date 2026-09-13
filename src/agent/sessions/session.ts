@@ -6,6 +6,7 @@ import { resolveModelRef } from '@agent/model/resolver.ts'
 import { type SummarizeResult, summarizeSession } from '@agent/prompts/summarizer.ts'
 import { listRules, type Rule } from '@agent/rules/rules.ts'
 import { CheckpointStore, checkpointsPath, type UndoResult } from '@agent/sessions/checkpoints.ts'
+import { buildMarker, type CompactionResult, cutForSend, planCompaction } from '@agent/sessions/session-compact.ts'
 import { Chat, type ChatChangeHandler, createHeadlessChatState } from '@agent/sessions/session-headless-chat.ts'
 import { dropUnansweredPrompt, settleAbortedToolParts, stripAnalysedImages, stripUnreplayableReasoning } from '@agent/sessions/session-messages.ts'
 import { isWaiting, readSessionMeta, type SessionMeta, type SessionState, updateSessionMeta, writeSessionMeta } from '@agent/sessions/session-meta.ts'
@@ -14,7 +15,18 @@ import { readLoopStats, writeLoopStats } from '@agent/sessions/session-stats-io.
 import { loadSession, SessionSaver } from '@agent/sessions/session-store.ts'
 import { clearStreamBackup, recoverStreamBackup, writeStreamBackup } from '@agent/sessions/session-stream-backup.ts'
 import { options, type ProviderModelReasoningEffort } from '@config/options.ts'
-import { type AsyncIterableStream, type ChatInit, type ChatState, type ChatStatus, type ChatTransport, type CreateUIMessage, generateId, readUIMessageStream, type UIMessageChunk } from 'ai'
+import {
+  type AsyncIterableStream,
+  type ChatInit,
+  type ChatState,
+  type ChatStatus,
+  type ChatTransport,
+  type CreateUIMessage,
+  generateId,
+  type LanguageModelUsage,
+  readUIMessageStream,
+  type UIMessageChunk,
+} from 'ai'
 
 export type SessionPrompt = string | CreateUIMessage<LoopMessage>
 export interface QueuedFile {
@@ -128,6 +140,7 @@ export interface Session {
   readonly stats: LoopStats | undefined
   readonly state: SessionState
   summarize: () => Promise<SummarizeResult>
+  compact: (opts?: { force?: boolean }) => Promise<CompactionResult>
   setTitle: (title: string) => void
   undo: () => Promise<UndoResult>
   redo: () => Promise<UndoResult>
@@ -222,11 +235,46 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
 
   const streamListeners = new Set<(chunk: UIMessageChunk) => void>()
   const runEndListeners = new Set<() => void>()
+  let compacting = false
+  let autoCompactedThisTurn = false
+  const contextWindowFor = (): number => {
+    try {
+      const window = resolveModelRef(effectiveConfig().modelKey).modelMeta.context
+      return typeof window === 'number' && window > 0 ? window : 0
+    } catch {
+      return 0
+    }
+  }
+  const lastStepUsage = (): LanguageModelUsage | undefined => {
+    const steps = loop.stats().steps
+    return steps.length > 0 ? steps[steps.length - 1]?.usage : undefined
+  }
+  const runCompact = async (force: boolean): Promise<CompactionResult> => {
+    if (compacting) throw new Error('Compaction already in progress')
+    compacting = true
+    try {
+      const plan = planCompaction(chat.messages, lastStepUsage(), contextWindowFor(), force)
+      if (!plan) return { compacted: false }
+      const config = effectiveConfig()
+      const { summary } = await summarizeSession({ messages: chat.messages.slice(plan.start, plan.cut), modelKey: config.modelKey, thinking: config.thinking })
+      const marker = buildMarker(generateId(), summary, { tokensBefore: plan.tokens, compactedAt: Date.now(), summarizedCount: plan.cut - plan.start, keptFromId: chat.messages[plan.cut]?.id })
+      chat.messages = [...chat.messages.slice(0, plan.cut), marker, ...chat.messages.slice(plan.cut)]
+      return { compacted: true, summary, markerId: marker.id, tokensBefore: plan.tokens, summarizedCount: plan.cut - plan.start }
+    } finally {
+      compacting = false
+    }
+  }
   const transport: ChatTransport<LoopMessage> = {
     sendMessages: async (options) => {
+      let outgoing = cutForSend(stripUnreplayableReasoning(options.messages))
+      if (!compacting && !autoCompactedThisTurn && planCompaction(chat.messages, lastStepUsage(), contextWindowFor(), false)) {
+        autoCompactedThisTurn = true
+        const done = await runCompact(false).catch(() => undefined)
+        if (done?.compacted) outgoing = cutForSend(stripUnreplayableReasoning(chat.messages))
+      }
       const upstream = await loop.transport.sendMessages({
         ...options,
-        messages: stripUnreplayableReasoning(options.messages),
+        messages: outgoing,
       })
       return upstream.pipeThrough(
         new TransformStream<UIMessageChunk, UIMessageChunk>({
@@ -354,6 +402,7 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
     transport,
     state: chatState,
     onFinish: (options) => {
+      autoCompactedThisTurn = false
       const wasAborting = aborting
       if (aborting) {
         aborting = false
@@ -487,6 +536,7 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
         thinking: config.thinking,
       })
     },
+    compact: (opts) => runCompact(opts?.force ?? false),
     undo: () => {
       assertEditable('undo')
       return new CheckpointStore(checkpointsPath(folderKey, id)).undo()

@@ -138,7 +138,8 @@ const runStreaming = async function* (label: string, child: Child, toolOptions: 
 export function createShellTool() {
   return {
     name: 'shell',
-    description: 'Run a shell command; streams output live, kills on timeout. Prefer read/write/edit/glob/grep when they fit.',
+    description:
+      'Run a shell command; streams output live, kills on timeout. Prefer read/write/edit/glob/grep when they fit. Run expensive commands once and filter the output file instead of re-running to re-filter.',
     parameters: ShellToolArgsSchema,
     output: ShellToolOutputSchema,
     isTerminal: true,

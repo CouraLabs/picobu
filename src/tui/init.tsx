@@ -1,8 +1,12 @@
+import { stat } from 'node:fs/promises'
+import { resolve } from 'node:path'
 import { autoloadLlmProviders } from '@agent/model/registry.ts'
 import { ensureOAuthTokens } from '@auth/index.ts'
+import { options as appOptions } from '@config/options.ts'
 import { CliRenderEvents, ConsolePosition, createClipboard, createCliRenderer, createHostClipboard, createRendererClipboardAdapter, DebugOverlayCorner, engine } from '@opentui/core'
 import { render } from '@opentui/solid'
 import { resetConsoleTitle, setConsoleTitle } from '@shared/console-title.ts'
+import { initLogger, logError } from '@shared/logger.ts'
 import { theme } from '@states/theme-state.ts'
 import { Splash } from '@tui/components/splash.tsx'
 import { App } from '@tui/layout/app.tsx'
@@ -15,37 +19,37 @@ import { takeExitStatus } from './hooks/exit-status.ts'
 export interface TuiAppOptions {
   debug?: boolean
   sessionId?: string
-}
-
-const HARMLESS_REJECTION = 'Controller is already closed'
-const onUnhandledRejection = (reason: unknown): void => {
-  const message = reason instanceof Error ? reason.message : String(reason)
-  if (message.includes(HARMLESS_REJECTION)) return
-  process.off('unhandledRejection', onUnhandledRejection)
-  process.nextTick(() => {
-    throw reason
-  })
+  cwd?: string
 }
 
 export async function runTui(options: TuiAppOptions = {}): Promise<void> {
-  process.on('unhandledRejection', onUnhandledRejection)
+  initLogger({ runId: options.sessionId ?? `pid-${process.pid}`, systemDir: appOptions.app.systemDir })
+  if (options.cwd !== undefined) {
+    const next = resolve(options.cwd)
+    const info = await stat(next).catch(() => undefined)
+    if (!info?.isDirectory()) throw new Error(`Not a directory: ${options.cwd}`)
+    process.chdir(next)
+    appOptions.app.cwd = next
+  }
   setConsoleTitle(undefined)
 
-  const debug = true
+  const debug = options.debug ?? false
   const renderer = await createCliRenderer({
     exitOnCtrlC: false,
     useMouse: true,
     enableMouseMovement: true,
-    maxFps: 30,
     useKittyKeyboard: { disambiguate: true, alternateKeys: true },
-    targetFps: 30,
+    targetFps: 60,
     gatherStats: debug,
+    openConsoleOnError: debug,
+    externalOutputMode: 'passthrough',
     consoleOptions: {
       onCopySelection(text) {
         clipboardService.writeText(text, { destination: 'all-available' })
       },
       sizePercent: 50,
       position: ConsolePosition.RIGHT,
+      keyBindings: [{ name: 'y', ctrl: true, action: 'copy-selection' }],
     },
     memorySnapshotInterval: debug ? 3000 : 0,
     backgroundColor: theme().background,
@@ -86,29 +90,39 @@ export async function runTui(options: TuiAppOptions = {}): Promise<void> {
 
   engine.attach(renderer)
   const [ready, setReady] = createSignal(false)
-  await render(
-    () => (
-      <Show when={ready()} fallback={<Splash />}>
-        <ClipboardProvider clipboardService={clipboardService}>
-          <App sessionId={options.sessionId} />
-        </ClipboardProvider>
-      </Show>
-    ),
-    renderer,
-  )
+  try {
+    await render(
+      () => (
+        <Show when={ready()} fallback={<Splash />}>
+          <ClipboardProvider clipboardService={clipboardService}>
+            <App sessionId={options.sessionId} />
+          </ClipboardProvider>
+        </Show>
+      ),
+      renderer,
+    )
+  } catch (error) {
+    logError(error, { scope: 'tui-render' })
+    throw error
+  }
   await registerParsers().catch((error) => {
+    logError(error, { scope: 'parser-registration' })
     console.error('picobu: parser registration failed, code blocks will render unstyled:', error)
   })
   await getSharedTreeSitterClient().catch((error) => {
+    logError(error, { scope: 'tree-sitter-init' })
     console.error('picobu: tree-sitter init failed, code blocks will render unstyled:', error)
   })
   setReady(true)
 }
 if (import.meta.main) {
-  const flag = process.argv.indexOf('--session')
-  const raw = flag >= 0 ? process.argv[flag + 1] : undefined
+  const sessionFlag = process.argv.indexOf('--session')
+  const sessionRaw = sessionFlag >= 0 ? process.argv[sessionFlag + 1] : undefined
+  const cdFlag = process.argv.indexOf('--cd')
+  const cdRaw = cdFlag >= 0 ? process.argv[cdFlag + 1] : undefined
   await runTui({
     debug: process.argv.includes('--debug'),
-    ...(flag >= 0 && raw && !raw.startsWith('-') ? { sessionId: raw } : {}),
+    ...(sessionFlag >= 0 && sessionRaw && !sessionRaw.startsWith('-') ? { sessionId: sessionRaw } : {}),
+    ...(cdFlag >= 0 && cdRaw && !cdRaw.startsWith('-') ? { cwd: cdRaw } : {}),
   })
 }

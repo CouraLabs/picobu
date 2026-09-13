@@ -82,17 +82,18 @@ Smoke (`needs a real model in ~/.picobu/options.json`): `bun src/dev/smoke.ts`. 
 Run the bootstrap (autoloads providers, refreshes OAuth tokens, connects WhatsApp when enabled):
 
 ```sh
-bun dev
-picobu --session            # open the TUI
-picobu --session <id>       # open the TUI resuming a session
-picobu sessions             # list saved sessions for the current folder
+picobu                    # open the TUI
+picobu --session <id>     # open the TUI resuming a session
+picobu --cd <folder>      # open the TUI with <folder> as cwd/workspace
+picobu --server           # start the headless server (no UI)
+picobu sessions           # list saved sessions for the current folder
 ```
 
-Headless with no flags, Picobu bootstraps and prints `picobu headless core ready (no UI attached).`
+`picobu --server` bootstraps (autoloads providers, refreshes OAuth tokens, connects WhatsApp when enabled) and prints `picobu headless server ready (no UI attached).`
 
 ### CLI
 
-Global flags: `--session [id]` opens the TUI (optionally resuming), `--clear-prompts-history` clears prompt history/drafts and exits.
+Global flags: `--server` starts the headless server (no UI), `--session [id]` opens the TUI resuming a session, `--cd <folder>` opens the TUI with `<folder>` as cwd/workspace, `--clear-prompts-history` clears prompt history/drafts and exits.
 
 ```sh
 picobu sessions                 # list sessions (id, timestamp, state, title/first prompt)
@@ -110,7 +111,7 @@ picobu login <provider> [opts]  # start login (opts = enterprise domain for Copi
 picobu logout <provider>        # logout and repoint harness selectors
 ```
 
-Direct TUI entry: `bun run src/tui/init.tsx [--session <id>] [--debug]` (mouse + Kitty keyboard, 30–60fps).
+Direct TUI entry: `bun run src/tui/init.tsx [--session <id>] [--cd <folder>] [--debug]` (mouse + Kitty keyboard, 30–60fps).
 
 ### Configuration
 

@@ -61,6 +61,8 @@ export interface SummarizeResult {
   summary: string
 }
 
+const SUMMARY_MAX_OUTPUT_TOKENS = 8000
+
 export async function summarizeSession({ messages, modelKey, thinking }: SummarizeParams): Promise<SummarizeResult> {
   const transcript = serializeForSummary(messages)
   if (!transcript) throw new Error('Nothing to summarize: the session has no content')
@@ -69,6 +71,7 @@ export async function summarizeSession({ messages, modelKey, thinking }: Summari
     model,
     system: summarizerPrompt,
     prompt: transcript,
+    maxOutputTokens: SUMMARY_MAX_OUTPUT_TOKENS,
     ...(thinking !== undefined ? { reasoning: thinking as AgentReasoning } : {}),
   })
   const summary = text.trim()

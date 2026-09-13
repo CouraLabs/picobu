@@ -14,6 +14,7 @@ import {
   type TooltipPosition,
   tooltipState,
 } from '@states/tooltip.state.ts'
+import { useTerminalDims } from '@tui/hooks/terminal-dims.tsx'
 import { createEffect, createSignal, on, onCleanup, onMount, Show } from 'solid-js'
 
 export interface TooltipProps {
@@ -34,12 +35,10 @@ export const Tooltip = (props: TooltipProps) => {
       width={'auto'}
       flexDirection={'row'}
       flexShrink={0}
-      onMouseOver={() => {
-        const anchor = anchorRef
-        if (!anchor) return
+      onMouseOver={(e) => {
         openTooltip({
           content: () => props.content,
-          placement: { x: anchor.screenX, y: anchor.screenY, width: anchor.width, height: anchor.height },
+          placement: { x: e.x, y: e.y, width: e.currentTarget?.width ?? 0, height: e.currentTarget?.height ?? 0 },
           maxWidth: props.maxWidth ?? TOOLTIP_DEFAULT_MAX_WIDTH,
           position: props.position,
         })
@@ -52,6 +51,7 @@ export const Tooltip = (props: TooltipProps) => {
 
 export const TooltipLayer = () => {
   const renderer = useRenderer()
+  const dims = useTerminalDims()
   const [size, setSize] = createSignal<{ width: number; height: number } | undefined>(undefined)
   let boxRef: BoxRenderable | null = null
 
@@ -82,7 +82,7 @@ export const TooltipLayer = () => {
     return computeTooltipPosition(
       s.placement,
       { width: measuredSize?.width ?? s.maxWidth, height: measuredSize?.height ?? TOOLTIP_FALLBACK_HEIGHT },
-      { width: renderer.width, height: renderer.height },
+      { width: dims().width, height: dims().height },
       s.position,
     )
   }

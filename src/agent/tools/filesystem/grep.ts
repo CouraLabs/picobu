@@ -13,6 +13,7 @@ const GrepToolOutputSchema = z.object({
 export const GrepToolArgsSchema = z.object({
   pattern: z.string().min(1),
   path: z.string().optional(),
+  limit: z.number().int().min(1).max(1000).optional(),
 })
 async function runArgv(argv: Array<string>, cwd: string, toolOptions?: ToolExecuteOptions) {
   const sandbox = toolOptions?.experimental_sandbox as LocalSandboxSession | undefined
@@ -30,7 +31,7 @@ async function runArgv(argv: Array<string>, cwd: string, toolOptions?: ToolExecu
 }
 export const grepTool = {
   name: 'grep',
-  description: 'Search files with ripgrep regex; returns matching lines.',
+  description: 'Search files with ripgrep regex; returns matching lines as path:line: content (max 100 by default, capped at 1000). Respects .gitignore except inside .agents dirs.',
   parameters: GrepToolArgsSchema,
   output: GrepToolOutputSchema,
   isTerminal: false,
@@ -38,6 +39,7 @@ export const grepTool = {
   skipPermission: true,
   defer: 'auto',
   handler: async (args: z.infer<typeof GrepToolArgsSchema>, toolOptions?: ToolExecuteOptions): Promise<z.infer<typeof GrepToolOutputSchema>> => {
+    const limit = args.limit ?? 100
     const sandbox = sandboxRoot(toolOptions?.experimental_sandbox)
     const root = sandbox ?? process.cwd()
     const searchPath = args.path ? resolve(root, args.path) : root
@@ -50,17 +52,25 @@ export const grepTool = {
     const base = resolve(searchPath)
     const bypassFilters = insideAgentDir(base)
     const flags = bypassFilters ? ['--hidden', '--no-ignore-vcs'] : []
-    const proc = await runArgv([rgPath, '-n', '--no-heading', '--color', 'never', ...flags, '-e', args.pattern, '--', searchPath], root, toolOptions)
+    const proc = await runArgv([rgPath, '-n', '--with-filename', '--no-heading', '--color', 'never', ...flags, '-e', args.pattern, '--', searchPath], root, toolOptions)
     if (proc.exitCode !== 0 && proc.exitCode !== 1) throw new Error(`rg failed (exit ${proc.exitCode}): ${proc.stderr.trim()}`)
     const lines = new Set(proc.stdout.trim().split('\n').filter(Boolean))
     if (!bypassFilters) {
       for (const dir of await agentDirsUnder(base)) {
-        const pass = await runArgv([rgPath, '-n', '--no-heading', '--color', 'never', '--hidden', '--no-ignore-vcs', '-e', args.pattern, '--', dir], root, toolOptions)
+        const pass = await runArgv([rgPath, '-n', '--with-filename', '--no-heading', '--color', 'never', '--hidden', '--no-ignore-vcs', '-e', args.pattern, '--', dir], root, toolOptions)
         if (pass.exitCode !== 0 && pass.exitCode !== 1) throw new Error(`rg failed (exit ${pass.exitCode}): ${pass.stderr.trim()}`)
         for (const line of pass.stdout.trim().split('\n').filter(Boolean)) lines.add(line)
       }
     }
     if (lines.size === 0) return { filetype: 'text', content: `No matches for /${args.pattern}/ in ${searchPath}` }
-    return { filetype: detectFiletype(searchPath), content: [...lines].join('\n') }
+    const sorted = [...lines].sort()
+    const truncated = sorted.length > limit
+    const prefix = `${root}/`
+    const shown = sorted
+      .slice(0, limit)
+      .map((line) => (line.startsWith(prefix) ? line.slice(prefix.length) : line))
+      .map((line) => line.replace(/^(.+):(\d+):(\S)/, '$1:$2: $3'))
+    const content = truncated ? [...shown, `(Results truncated to ${limit} of ${sorted.length}. Narrow path/pattern or raise limit.)`].join('\n') : shown.join('\n')
+    return { filetype: detectFiletype(searchPath), content }
   },
 }

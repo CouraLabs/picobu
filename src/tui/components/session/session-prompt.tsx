@@ -3,11 +3,12 @@ import { SYSTEM_COMMANDS, toKebab, tokenizeCommandLine } from '@agent/commands/p
 import type { CommandKind } from '@agent/commands/types.ts'
 import { addPrompt, clearDraft, loadDraft, loadPromptHistory, saveDraft } from '@agent/sessions/prompt-history.ts'
 import type { MouseEvent, ScrollBoxRenderable, TextareaRenderable } from '@opentui/core'
-import { useKeyboard, useTerminalDimensions } from '@opentui/solid'
+import { useKeyboard } from '@opentui/solid'
 import { catalogVersion } from '@states/catalog-state.ts'
 import { theme } from '@states/theme-state.ts'
 import { pushToast } from '@states/toast.state.ts'
 import { getClipboardService } from '@tui/hooks/clipboard.state.ts'
+import { useTerminalDims } from '@tui/hooks/terminal-dims.tsx'
 import { icons } from '@tui/themes/icons.ts'
 import { batch, createEffect, createMemo, createSignal, For, mergeProps, on, onCleanup, onMount, Show } from 'solid-js'
 
@@ -243,7 +244,7 @@ export const SessionPrompt = (props: SessionPromptProps) => {
 
   const isFlyoutOpen = () => commandOpen() && filteredItems().length > 0
 
-  const dims = useTerminalDimensions()
+  const dims = useTerminalDims()
   let flyoutListRef: ScrollBoxRenderable | null = null
   const flyoutHeight = createMemo(() => {
     const items = filteredItems().length

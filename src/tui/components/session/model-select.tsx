@@ -1,8 +1,9 @@
 import { options } from '@config/options.ts'
 import type { InputRenderable, ScrollBoxRenderable } from '@opentui/core'
-import { useKeyboard, useTerminalDimensions } from '@opentui/solid'
+import { useKeyboard } from '@opentui/solid'
 import { fmtRate, fmtTokens, tableCell } from '@shared/format.ts'
 import { theme } from '@states/theme-state.ts'
+import { useTerminalDims } from '@tui/hooks/terminal-dims.tsx'
 import { icons } from '@tui/themes/icons.ts'
 import { createEffect, createMemo, createSignal, For, onMount, Show } from 'solid-js'
 
@@ -28,7 +29,7 @@ export const ModelSelect = (props: ModelSelectProps) => {
   let listRef: ScrollBoxRenderable | null = null
   const [query, setQuery] = createSignal('')
   const [highlight, setHighlight] = createSignal(0)
-  const dims = useTerminalDimensions()
+  const dims = useTerminalDims()
   const containerWidth = () => Math.max(32, Math.min(84, dims().width - 4))
   const showProvider = () => containerWidth() >= 58
   const showContext = () => containerWidth() >= 68

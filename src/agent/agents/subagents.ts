@@ -10,6 +10,14 @@ import { options } from '@config/options.ts'
 
 export const INTERACTIVE_FLOW_TOOLS: ReadonlyArray<string> = ['ask', 'plan-write', 'plan-exit']
 
+export const WRITE_CAPABLE_TOOLS: ReadonlyArray<string> = ['write', 'edit']
+
+export const canWriteFiles = (tools: Array<string>): boolean => {
+  if (tools.length === 0) return true
+  if (tools.includes(NO_TOOLS)) return false
+  return tools.some((t) => WRITE_CAPABLE_TOOLS.includes(t))
+}
+
 export const SUBAGENT_DEPTH_CAP = 3
 
 export const SUBAGENT_RULES = `## Subagent Rules

@@ -1,14 +1,14 @@
+import type { SessionManager } from '@agent/sessions/session-manager.ts'
+import type { TodoItem } from '@agent/tools/flow/todo.ts'
 import { TextAttributes } from '@opentui/core'
-import { useTerminalDimensions } from '@opentui/solid'
 import { clip } from '@shared/format.ts'
 import { theme } from '@states/theme-state.ts'
 import { Diff, filetypeFromPath } from '@tui/components/diff.tsx'
+import { ToolStatusIcon } from '@tui/components/shared/tool-status-icon.tsx'
 import { toneColor } from '@tui/components/shared/tool-tone.ts'
+import { useTerminalDims } from '@tui/hooks/terminal-dims.tsx'
 import { getSharedTreeSitterClientSync } from '@wrappers/treesitter-wrapper.ts'
 import { createMemo, createSignal, Show } from 'solid-js'
-import 'opentui-spinner/solid'
-import type { SessionManager } from '@agent/sessions/session-manager.ts'
-import type { TodoItem } from '@agent/tools/flow/todo.ts'
 import { AskForm } from './ask-form.tsx'
 import { FlowStaticView, type ToolFlowResponse } from './flow-view.tsx'
 import { PlanReview, type PlanVerdict } from './plan-review.tsx'
@@ -20,6 +20,7 @@ import {
   flowOutputStatus,
   isSpawnTool,
   isTodoTool,
+  isToolRunning,
   type KnowledgeDetail,
   knowledgeDetail,
   planText,
@@ -107,7 +108,7 @@ export const ToolPart = (props: ToolPartProps) => {
   })
   const questions = createMemo(() => (isAskTool(props.part) ? toolAskQuestions(props.part.input) : []))
   const plan = createMemo(() => (isPlanWriteTool(props.part) ? planText(props.part.input) : undefined))
-  const running = createMemo(() => props.part.state !== 'output-available' && props.part.state !== 'output-error')
+  const running = createMemo(() => isToolRunning(props.part))
   const flowStatus = createMemo(() => (isAskTool(props.part) || isPlanWriteTool(props.part) ? flowOutputStatus(props.part) : undefined))
   const flowMessage = createMemo(() => (isAskTool(props.part) || isPlanWriteTool(props.part) ? flowOutputMessage(props.part) : ''))
   const flowInteractive = () => props.isLastMessage === true && flowStatus() === 'pending'
@@ -118,7 +119,7 @@ export const ToolPart = (props: ToolPartProps) => {
   const pendingFlow = () => flowInteractive() && (questions().length > 0 || plan() !== undefined)
   const todos = createMemo(() => (isTodoTool(props.part) ? todoItems(props.part) : undefined))
 
-  const dims = useTerminalDimensions()
+  const dims = useTerminalDims()
   const isAutoExpanded = () => pendingFlow()
   const expanded = (): boolean => (isAutoExpanded() ? !collapsedKeys().has(props.partKey) : expandedKeys().has(props.partKey))
   const toggle = () => {
@@ -179,19 +180,7 @@ export const ToolPart = (props: ToolPartProps) => {
               event.stopPropagation()
               toggle()
             }}>
-            <Show
-              when={running()}
-              fallback={
-                <box flexShrink={0}>
-                  <text fg={color()} selectable={false}>
-                    {view().icon}
-                  </text>
-                </box>
-              }>
-              <box flexShrink={0}>
-                <spinner name="toggle3" color={color()} />
-              </box>
-            </Show>
+            <ToolStatusIcon running={running()} color={color()} icon={view().icon} />
             <text fg={color()} flexShrink={0} attributes={hovered() ? TextAttributes.BOLD : undefined} selectable={false}>
               {name()}
             </text>
@@ -212,19 +201,7 @@ export const ToolPart = (props: ToolPartProps) => {
             event.stopPropagation()
             toggle()
           }}>
-          <Show
-            when={running()}
-            fallback={
-              <box flexShrink={0}>
-                <text fg={color()} selectable={false}>
-                  {view().icon}
-                </text>
-              </box>
-            }>
-            <box flexShrink={0}>
-              <spinner name="toggle3" color={color()} />
-            </box>
-          </Show>
+          <ToolStatusIcon running={running()} color={color()} icon={view().icon} />
           <text fg={color()} flexShrink={0} attributes={hovered() ? TextAttributes.BOLD : undefined}>
             {name()}
           </text>

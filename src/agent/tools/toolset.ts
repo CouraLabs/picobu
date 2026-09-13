@@ -11,6 +11,7 @@ import { createRuleTool } from '@agent/tools/flow/rule.ts'
 import { createSkillTool } from '@agent/tools/flow/skill.ts'
 import { createSpawnTool, type SpawnToolContext } from '@agent/tools/flow/spawn.ts'
 import { createTodoTool } from '@agent/tools/flow/todo.ts'
+import { truncateToolOutput } from '@agent/tools/truncate-output.ts'
 import { webfetchTool } from '@agent/tools/web/webfetch.ts'
 import { websearchTool } from '@agent/tools/web/websearch.ts'
 import { wwpTools } from '@integrations/whatsapp/wwp-tools.ts'
@@ -85,11 +86,19 @@ function wrapTool<TSchema extends z.ZodType, TOutput extends z.ZodType>(def: {
       inputSchema: def.parameters,
       outputSchema: def.output,
 
-      execute: (args, executeOptions) =>
-        def.handler(args as z.infer<TSchema>, {
-          abortSignal: executeOptions?.abortSignal,
-          experimental_sandbox: executeOptions?.experimental_sandbox,
-        }),
+      execute: (args, executeOptions) => {
+        let result: unknown
+        try {
+          result = def.handler(args as z.infer<TSchema>, {
+            abortSignal: executeOptions?.abortSignal,
+            experimental_sandbox: executeOptions?.experimental_sandbox,
+          }) as unknown
+        } catch (error) {
+          return Promise.reject(error) as z.infer<TOutput>
+        }
+        if (typeof (result as AsyncIterable<unknown>)?.[Symbol.asyncIterator] === 'function') return result as z.infer<TOutput>
+        return (async () => truncateToolOutput(await result))() as z.infer<TOutput>
+      },
     }),
     info: renderToolInfo(def.name, def.description),
   }

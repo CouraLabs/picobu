@@ -301,6 +301,36 @@ describe('spawn validation without launching', () => {
       jobs.releaseSlot()
     }
   })
+  test('read-only parent cannot spawn executor', async () => {
+    const live = new Map([['p', { config: { agentOverride: { tools: ['read'] } } }]]) as never
+    await expect(
+      spawnSubSession(
+        { manager: {} as never, cwd: '/tmp', maxAgents: 4, live, jobs: new JobTracker(), baseConfig: () => ({}) as never },
+        { parentId: 'p', subagent: 'executor', prompt: 'hi', depth: 0 },
+      ),
+    ).rejects.toThrow('Read-only agents cannot spawn write-capable subagents')
+  })
+  test('read-only parent spawning reviewer passes the guard and hits the depth cap', async () => {
+    const live = new Map([['p', { config: { agentOverride: { tools: ['read'] } } }]]) as never
+    await expect(
+      spawnSubSession(
+        { manager: {} as never, cwd: '/tmp', maxAgents: 4, live, jobs: new JobTracker(), baseConfig: () => ({}) as never },
+        { parentId: 'p', subagent: 'reviewer', prompt: 'hi', depth: SUBAGENT_DEPTH_CAP },
+      ),
+    ).rejects.toThrow('depth cap')
+  })
+  test('unrestricted parent is not blocked by the write guard', async () => {
+    const live = new Map([['p', { config: { agentOverride: { tools: [] } } }]]) as never
+    const jobs = new JobTracker()
+    await jobs.acquireSlot(1)
+    try {
+      await expect(
+        spawnSubSession({ manager: {} as never, cwd: '/tmp', maxAgents: 1, live, jobs, baseConfig: () => ({}) as never }, { parentId: 'p', subagent: 'executor', prompt: 'hi', depth: 1 }),
+      ).rejects.toThrow('concurrency limit')
+    } finally {
+      jobs.releaseSlot()
+    }
+  })
 })
 describe('session manager construction', () => {
   let dir = ''

@@ -19,6 +19,7 @@ import { resetMcpAuthCache } from '@integrations/mcp/auth.ts'
 import { useKeyboard, useRenderer } from '@opentui/solid'
 import { setConsoleTitle } from '@shared/console-title.ts'
 import { getGitInfo } from '@shared/git-info.ts'
+import { logError, setLogRunId } from '@shared/logger.ts'
 import { notifyBlocking, notifyCompletion, notifyFailure, notifyStale } from '@shared/notify.ts'
 import { bumpCatalog } from '@states/catalog-state.ts'
 import { closeDialog, dialogStatus, openDialog } from '@states/dialog.state.ts'
@@ -33,6 +34,7 @@ import { SessionMessages } from '@tui/components/session/session-messages.tsx'
 import { type AttachedFile, type EditRequest, type PromptMode, type PromptPayload, SessionPrompt } from '@tui/components/session/session-prompt.tsx'
 import { SessionQueue } from '@tui/components/session/session-queue.tsx'
 import { SessionStatus, THINKING_LEVELS } from '@tui/components/session/session-status.tsx'
+import { getModelContextSize } from '@tui/components/session/status/status-meta.ts'
 import { openSubagentMessages } from '@tui/components/session/subagent-dialog.tsx'
 import type { ToolFlowResponse } from '@tui/components/session/tools/tool-part.tsx'
 import { setExitStatus } from '@tui/hooks/exit-status.ts'
@@ -49,7 +51,8 @@ const AGENT_CYCLE = ['ask', 'coder', 'plan-code']
 const ESC_WINDOW_MS = 600
 const EXIT_WINDOW_MS = 2000
 
-const showError = (error: unknown) => {
+const showError = (error: unknown, sessionId?: string) => {
+  logError(error, { scope: 'session-page', ...(sessionId ? { sessionId } : {}) })
   const message = error instanceof Error ? error.message : String(error)
   openDialog(() => (
     <box flexDirection="column" gap={1} padding={1}>
@@ -127,8 +130,7 @@ export const SessionPage = (props: SessionPageProps) => {
   const [commandExitNonce, setCommandExitNonce] = createSignal(0)
   const [statsStatus, setStatsStatus] = createSignal<Pick<LoopStats, 'finishReason' | 'rawFinishReason' | 'warnings' | 'headers'> | undefined>(undefined)
   const [statsPerformance, setStatsPerformance] = createSignal<LoopStats['performance']>(undefined)
-  const [statsContext, setStatsContext] = createSignal<number | undefined>(undefined)
-  const [statsMetrics, setStatsMetrics] = createSignal<(Pick<LoopStats, 'total' | 'currentTotal'> & { stepCount: number }) | undefined>(undefined)
+  const [statsMetrics, setStatsMetrics] = createSignal<(Pick<LoopStats, 'total'> & { stepCount: number }) | undefined>(undefined)
   const sessionMgr = new SessionManager()
   const renderer = useRenderer()
   const watchdog = createSessionWatchdog({ staleTimeoutMs: options.watchdog.staleTimeoutMs })
@@ -172,7 +174,6 @@ export const SessionPage = (props: SessionPageProps) => {
     batch(() => {
       setStatsStatus(undefined)
       setStatsPerformance(undefined)
-      setStatsContext(undefined)
       setStatsMetrics(undefined)
     })
   }
@@ -180,26 +181,12 @@ export const SessionPage = (props: SessionPageProps) => {
   const syncStats = (stats: LoopStats | undefined, ownerId?: string) => {
     const live = session()
     if (ownerId !== undefined && live !== undefined && live.id !== ownerId && activeId() !== ownerId) return
-    const nextTokens = stats === undefined ? undefined : (stats.total.usage.totalTokens ?? stats.currentTotal.usage.totalTokens ?? 0)
     const nextSteps = stats?.steps.length ?? 0
-    const prevStatus = statsStatus()
-    const prevMetrics = statsMetrics()
-    const prevTokens = statsContext()
-    if (
-      prevStatus?.finishReason === stats?.finishReason &&
-      prevStatus?.rawFinishReason === stats?.rawFinishReason &&
-      prevMetrics?.stepCount === nextSteps &&
-      prevTokens === nextTokens &&
-      prevMetrics?.total.cost.total === stats?.total.cost.total &&
-      prevMetrics?.total.usage.inputTokens === stats?.total.usage.inputTokens &&
-      prevMetrics?.total.usage.outputTokens === stats?.total.usage.outputTokens
-    ) return
 
     batch(() => {
       setStatsStatus(stats ? { finishReason: stats.finishReason, rawFinishReason: stats.rawFinishReason, warnings: stats.warnings, headers: stats.headers } : undefined)
       setStatsPerformance(stats?.performance)
-      setStatsContext(nextTokens)
-      setStatsMetrics(stats ? { total: stats.total, currentTotal: stats.currentTotal, stepCount: nextSteps } : undefined)
+      setStatsMetrics(stats ? { total: stats.total, stepCount: nextSteps } : undefined)
     })
   }
 
@@ -246,6 +233,9 @@ export const SessionPage = (props: SessionPageProps) => {
 
   const attachSession = (next: Session) => {
     detachQueue?.()
+    try {
+      setLogRunId(next.id)
+    } catch {}
     const streaming = next.status === 'submitted' || next.status === 'streaming'
     const w = isWaiting(next.messages)
     const nextProjectKey = projectKeyFor(next.config.cwd ?? sessionMgr.currentCwd)
@@ -545,7 +535,8 @@ export const SessionPage = (props: SessionPageProps) => {
       })
       attachSession(next)
     } catch (error) {
-      showError(error)
+      logError(error, { scope: 'open-session', ...(id ? { sessionId: id } : {}) })
+      showError(error, id)
     }
   }
 
@@ -601,8 +592,10 @@ export const SessionPage = (props: SessionPageProps) => {
         ? {
             sessionId: target.id,
             messageCount: target.messages.length,
-            inputTokens: target.stats?.total.usage.inputTokens,
+            inputTokens: target.stats?.total.usage?.inputTokenDetails.noCacheTokens,
             outputTokens: target.stats?.total.usage.outputTokens,
+            contextUsage: target.stats?.total.usage.totalTokens,
+            contextSize: getModelContextSize(modelKey()),
             cost: target.stats?.total.cost.total,
           }
         : undefined,
@@ -786,6 +779,20 @@ export const SessionPage = (props: SessionPageProps) => {
         }
         break
       }
+      case 'compact': {
+        if (target.status === 'submitted' || target.status === 'streaming' || isWaiting(target.messages)) {
+          showError(new Error('Cannot compact while a run is in progress'))
+          break
+        }
+        try {
+          const result = await target.compact({ force: true })
+          if (result.compacted) pushToast(`Compacted ${result.summarizedCount ?? 0} messages into a summary`, 'info')
+          else pushToast('Nothing to compact yet', 'info')
+        } catch (error) {
+          showError(error)
+        }
+        break
+      }
       case 'roles':
         openRolesDialog()
         break
@@ -819,6 +826,20 @@ export const SessionPage = (props: SessionPageProps) => {
         const tools = servers.reduce((n, s) => n + s.tools.length, 0)
         pushToast(`Reloaded ${skills.length} skills, ${workflows.length} workflows, ${rules.length} rules, ${subagents.length} subagents, MCP ${connected}/${servers.length} (${tools} tools)`, 'info')
         refreshMcp(target)
+        break
+      }
+      case 'export': {
+        if (target.status === 'submitted' || target.status === 'streaming') {
+          showError(new Error('Cannot export while a run is in progress'))
+          break
+        }
+        try {
+          const { exportSessionHtml } = await import('@agent/sessions/session-export.ts')
+          const out = await exportSessionHtml({ sessionId: target.id, cwd: target.config.cwd, messages: target.messages as never, stats: target.stats, out: parsed.args.trim() || undefined })
+          showInfo('Exported', out)
+        } catch (error) {
+          showError(error)
+        }
         break
       }
     }
@@ -960,7 +981,6 @@ export const SessionPage = (props: SessionPageProps) => {
           mcp={mcp()}
           statsStatus={statsStatus()}
           statsPerformance={statsPerformance()}
-          statsContext={statsContext()}
           statsMetrics={statsMetrics()}
         />
         <SessionMessages
@@ -998,7 +1018,6 @@ export const SessionPage = (props: SessionPageProps) => {
           mcp={mcp()}
           statsStatus={statsStatus()}
           statsPerformance={statsPerformance()}
-          statsContext={statsContext()}
           statsMetrics={statsMetrics()}
         />
       </box>

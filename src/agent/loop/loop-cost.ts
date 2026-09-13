@@ -32,21 +32,6 @@ export const calcStepCost = (usage: LanguageModelUsage, billing?: ProviderModelB
   return { input, output, cache, total: input + cache + output }
 }
 
-export const sumUsage = (a: LanguageModelUsage, b: LanguageModelUsage): LanguageModelUsage => ({
-  inputTokens: num(a.inputTokens) + num(b.inputTokens),
-  inputTokenDetails: {
-    noCacheTokens: num(a.inputTokenDetails?.noCacheTokens) + num(b.inputTokenDetails?.noCacheTokens),
-    cacheReadTokens: num(a.inputTokenDetails?.cacheReadTokens) + num(b.inputTokenDetails?.cacheReadTokens),
-    cacheWriteTokens: num(a.inputTokenDetails?.cacheWriteTokens) + num(b.inputTokenDetails?.cacheWriteTokens),
-  },
-  outputTokens: num(a.outputTokens) + num(b.outputTokens),
-  outputTokenDetails: {
-    textTokens: num(a.outputTokenDetails?.textTokens) + num(b.outputTokenDetails?.textTokens),
-    reasoningTokens: num(a.outputTokenDetails?.reasoningTokens) + num(b.outputTokenDetails?.reasoningTokens),
-  },
-  totalTokens: num(a.totalTokens) + num(b.totalTokens),
-})
-
 export const addCosts = (a: StepCost, b: StepCost): StepCost => ({
   input: a.input + b.input,
   output: a.output + b.output,

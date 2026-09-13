@@ -65,6 +65,6 @@ export async function writeLoopStats(folderKey: string, sessionId: string, stats
   const path = sessionStatsPath(folderKey, sessionId)
   await withLock(path, async () => {
     mkdirSync(join(sessionsRoot(), folderKey), { recursive: true })
-    await writeFile(path, `${JSON.stringify(stats)}\n`)
+    await writeFile(path, `${JSON.stringify(stats, undefined, 2)}\n`)
   })
 }

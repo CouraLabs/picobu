@@ -1,14 +1,14 @@
 import type { SpawnJobStats } from '@agent/sessions/session-jobs.ts'
 import type { SessionManager } from '@agent/sessions/session-manager.ts'
-import { useTerminalDimensions } from '@opentui/solid'
 import { clip, fmtCostPrecise, fmtTokens } from '@shared/format.ts'
 import { dialogJustClosed } from '@states/dialog.state.ts'
 import { theme } from '@states/theme-state.ts'
+import { ToolStatusIcon } from '@tui/components/shared/tool-status-icon.tsx'
 import { toneColor } from '@tui/components/shared/tool-tone.ts'
+import { useTerminalDims } from '@tui/hooks/terminal-dims.tsx'
 import { icons } from '@tui/themes/icons.ts'
 import { createMemo, createSignal, onCleanup, onMount, Show } from 'solid-js'
-import 'opentui-spinner/solid'
-import { spawnSessionId, spawnSubagentName, type ToolPartLike, toolStateView } from './tool-summary.ts'
+import { isToolRunning, spawnSessionId, spawnSubagentName, type ToolPartLike, toolStateView } from './tool-summary.ts'
 
 export const SpawnView = (props: { part: ToolPartLike; onOpen?: (sessionId: string, label: string) => void; manager?: SessionManager }) => {
   const [hovered, setHovered] = createSignal(false)
@@ -17,7 +17,7 @@ export const SpawnView = (props: { part: ToolPartLike; onOpen?: (sessionId: stri
   const subagent = createMemo(() => spawnSubagentName(props.part.input) ?? 'Spawn')
   const sessionId = createMemo(() => spawnSessionId(props.part.output))
   const [jobStats, setJobStats] = createSignal<SpawnJobStats | undefined>(undefined)
-  const running = createMemo(() => props.part.state !== 'output-available' && props.part.state !== 'output-error')
+  const running = createMemo(() => isToolRunning(props.part))
   const failed = createMemo(() => props.part.state === 'output-error')
   const startAt = Date.now()
   const [tick, setTick] = createSignal(Date.now())
@@ -61,7 +61,7 @@ export const SpawnView = (props: { part: ToolPartLike; onOpen?: (sessionId: stri
     const id = sessionId()
     if (id) props.onOpen?.(id, subagent())
   }
-  const dims = useTerminalDimensions()
+  const dims = useTerminalDims()
   const usageLine = () => `${icons.arrowUp} ${inputLabel()} · ${icons.arrowDown} ${outputLabel()} · ${icons.cache} ${cacheLabel()} · ${icons.cost} ${costLabel()}`
   const clipRest = (line: string): string => {
     const max = Math.max(8, dims().width - 12 - subagent().length)
@@ -83,16 +83,11 @@ export const SpawnView = (props: { part: ToolPartLike; onOpen?: (sessionId: stri
         open()
       }}>
       <box flexDirection="row" gap={1} flexWrap="no-wrap" alignItems="center">
-        <box flexShrink={0}>
-          <text fg={color()} selectable={false}>
-            {view().icon}
-          </text>
-        </box>
+        <ToolStatusIcon running={running()} color={color()} icon={view().icon} />
         <text fg={color()} flexShrink={0}>
           {subagent()}
         </text>
         <Show when={running()}>
-          <spinner name="dots8Bit" color={theme().accent} />
           <text fg={color()} flexShrink={0}>
             · running… {elapsed()}
           </text>

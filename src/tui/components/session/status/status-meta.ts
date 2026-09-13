@@ -25,8 +25,7 @@ export interface SessionStatusProps {
   mcp?: { connected: number; total: number; tools: number }
   statsStatus?: Pick<LoopStats, 'finishReason' | 'rawFinishReason' | 'warnings' | 'headers'>
   statsPerformance?: LoopStats['performance']
-  statsContext?: number
-  statsMetrics?: Pick<LoopStats, 'total' | 'currentTotal'> & { stepCount: number }
+  statsMetrics?: Pick<LoopStats, 'total'> & { stepCount: number }
 }
 
 export interface MessageStats {
@@ -145,16 +144,17 @@ export interface SessionStatusData {
 
 export const createSessionStatusData = (props: SessionStatusProps): SessionStatusData => {
   const activity = () => getActivity(props.messages, props.streaming)
-  const metricsTotal = () => props.statsMetrics?.currentTotal ?? props.statsMetrics?.total
+  const metricsTotal = () => props.statsMetrics?.total
+  const costTotal = () => metricsTotal()?.cost
   const performance = () => props.statsPerformance
   const modelContextSize = () => getModelContextSize(props.modelKey)
-  const contextValue = () => metricsTotal()?.usage?.totalTokens ?? 0
+  const contextValue = () => props.statsMetrics?.total.usage.totalTokens ?? 0
   const contextPercent = () => Math.round((contextValue() / modelContextSize()) * 100)
   const contextColor = () => {
     const p = contextPercent()
-    if(p > 10 && p < 40) return theme().success
-    if(p > 40 && p < 70) return theme().warning
-    if(p > 70) return theme().error
+    if (p > 10 && p < 40) return theme().success
+    if (p > 40 && p < 70) return theme().warning
+    if (p > 70) return theme().error
     return theme().text
   }
 
@@ -163,20 +163,21 @@ export const createSessionStatusData = (props: SessionStatusProps): SessionStatu
     agentName: () => getAgentName(props.agentId),
     agentColor: () => getAgentColor(props.agentId),
     modelLabel: () => getModelLabel(props.modelKey),
+    inputLabel: () => fmtTokens(metricsTotal()?.usage?.inputTokenDetails?.noCacheTokens ?? 0),
+    outputLabel: () => fmtTokens(metricsTotal()?.usage.outputTokens ?? 0),
     contextValue,
     contextPercent,
     contextLabel: () => fmtTokens(contextValue()),
     contextColor,
-    inputLabel: () => (metricsTotal() ? fmtTokens(metricsTotal()?.usage.inputTokenDetails?.noCacheTokens ?? 0) : '0'),
     cacheSummary: () => {
       const usage = metricsTotal()?.usage
       if (!usage) return `0 (0%)`
-      const cache = (usage.inputTokenDetails?.cacheReadTokens ?? 0) + (usage.inputTokenDetails?.cacheWriteTokens ?? 0)
+      const cache = usage.inputTokenDetails?.cacheReadTokens ?? 0
       const total = usage.inputTokens ?? 0
       const percent = total > 0 ? Math.round((cache / total) * 100) : 0
       return `${fmtTokens(cache)} (${percent}%)`
     },
-    costValue: () => fmtCostPrecise(metricsTotal()?.cost?.total ?? 0),
+    costValue: () => fmtCostPrecise(costTotal()?.total ?? 0),
     finishReason: () => getFinishReason(props.statsStatus?.finishReason, props.messages, props.streaming),
     finishColor: () => getFinishColor(getFinishReason(props.statsStatus?.finishReason, props.messages, props.streaming)),
     tpsLabel: () => fmtTps(performance()?.effectiveOutputTokensPerSecond ?? performance()?.outputTokensPerSecond ?? undefined),
@@ -184,11 +185,10 @@ export const createSessionStatusData = (props: SessionStatusProps): SessionStatu
     stepTimeLabel: () => fmtMs(performance()?.stepTimeMs ?? 0),
     responseTimeLabel: () => fmtMs(performance()?.responseTimeMs ?? 0),
     toolExecLabel: () => {
-      const entries = performance() ? Object.values(performance()?.toolExecutionMs ?? {}) : []
-      if (entries.length === 0) return "0ms"
+      const entries = Object.values(performance()?.toolExecutionMs ?? {})
+      if (entries.length === 0) return '0ms'
       return fmtMs(entries.reduce((sum, value) => sum + (typeof value === 'number' ? value : 0), 0))
     },
-    outputLabel: () => fmtTokens(metricsTotal()?.usage.outputTokens ?? 0),
     stats: () => getMessageStats(props.messages),
     thinkingLabel: () => getThinkingLabel(props.thinking),
     thinkingColor: () => getThinkingColor(props.thinking),

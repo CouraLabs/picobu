@@ -128,11 +128,12 @@ export type Options = GlobalOptions & {
   mcp: McpOptions
   watchdog: WatchdogOptions
 }
+const systemDirFromEnv = process.env.PICOBU_SYSTEM_DIR?.trim()
 const globals: GlobalOptions = {
   app: {
     name: 'picobu',
     dir: '.picobu',
-    systemDir: `${homedir()}/.picobu`,
+    systemDir: systemDirFromEnv && systemDirFromEnv.length > 0 ? systemDirFromEnv : `${homedir()}/.picobu`,
     homeDir: homedir(),
     cwd: process.cwd(),
     os: process.platform,

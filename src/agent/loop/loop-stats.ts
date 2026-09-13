@@ -1,4 +1,4 @@
-import { addCosts, calcStepCost, emptyUsage, type StepCost, sumUsage, zeroCost } from '@agent/loop/loop-cost.ts'
+import { addCosts, calcStepCost, emptyUsage, type StepCost, zeroCost } from '@agent/loop/loop-cost.ts'
 import type { ProviderModelBilling } from '@config/options.ts'
 import type { CallWarning, FinishReason, LanguageModelUsage, StepResultPerformance } from 'ai'
 
@@ -6,7 +6,6 @@ export type LoopStepCost = StepCost
 
 export interface LoopStepStats {
   usage: Omit<LanguageModelUsage, 'raw'>
-  cost: LoopStepCost
   performance: StepResultPerformance
   warnings: Array<CallWarning> | undefined
   headers: Record<string, string> | undefined
@@ -21,8 +20,10 @@ export interface LoopStats {
   finishReason: FinishReason | undefined
   rawFinishReason: string | undefined
   steps: Array<LoopStepStats>
-  total: { usage: LanguageModelUsage; cost: LoopStepCost }
-  currentTotal: { usage: LanguageModelUsage; cost: LoopStepCost }
+  total: { 
+    usage: LanguageModelUsage, 
+    cost: LoopStepCost 
+  }
 }
 
 export interface StepEndInput {
@@ -65,8 +66,7 @@ export const createLoopStatsStore = (getBilling: () => ProviderModelBilling | un
     finishReason: undefined,
     rawFinishReason: undefined,
     steps: [],
-    total: { usage: emptyUsage(), cost: zeroCost() },
-    currentTotal: { usage: emptyUsage(), cost: zeroCost() },
+    total: { usage: emptyUsage(), cost: zeroCost() }
   }
   const listeners = new Set<(stats: LoopStats) => void>()
   const snapshot = (): LoopStats => cloneValue(stats)
@@ -86,7 +86,6 @@ export const createLoopStatsStore = (getBilling: () => ProviderModelBilling | un
       const cost = calcStepCost(event.usage, getBilling())
       const step: LoopStepStats = cloneValue({
         usage: event.usage,
-        cost,
         performance: event.performance,
         warnings: event.warnings,
         headers: event.response?.headers,
@@ -94,18 +93,15 @@ export const createLoopStatsStore = (getBilling: () => ProviderModelBilling | un
         rawFinishReason: event.rawFinishReason,
       })
       stats.steps.push(step)
+      stats.finishReason = step.finishReason
+      stats.rawFinishReason = step.rawFinishReason
       stats.performance = step.performance
       stats.warnings = step.warnings
       stats.headers = step.headers
-      stats.currentTotal = { 
-        usage: sumUsage(stats.currentTotal.usage, step.usage), 
-        cost: addCosts(stats.currentTotal.cost, step.cost) 
-      }
+      stats.total = { usage: event.usage, cost: addCosts(stats.total.cost, cost) }
       notify()
     },
     handleEnd: (event) => {
-      const cost = calcStepCost(event.usage, getBilling())
-      stats.total = { usage: sumUsage(stats.total.usage, event.usage), cost: addCosts(stats.total.cost, cost) }
       stats.finishReason = event.finishReason
       stats.rawFinishReason = event.rawFinishReason
       notify()
@@ -118,8 +114,8 @@ export const createLoopStatsStore = (getBilling: () => ProviderModelBilling | un
       stats.finishReason = cloned.finishReason
       stats.rawFinishReason = cloned.rawFinishReason
       stats.steps = cloned.steps
+      stats.finishReason = cloned.finishReason
       stats.total = cloned.total
-      stats.currentTotal = cloned.currentTotal
       notify()
     },
   }

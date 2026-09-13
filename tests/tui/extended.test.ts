@@ -36,7 +36,7 @@ const runIsolated = (script: string[], extraArgs: string[] = []): { code: number
     cwd: root,
     stdout: 'pipe',
     stderr: 'pipe',
-    env: { ...process.env, HOME: home },
+    env: { ...process.env, HOME: home, PICOBU_REAL_OPTIONS: '1' },
   })
   return { code: proc.exitCode, out: proc.stdout.toString().trim() }
 }

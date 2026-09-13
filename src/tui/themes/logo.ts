@@ -14,6 +14,8 @@ export interface CloseMessageStatus {
   messageCount?: number
   inputTokens?: number
   outputTokens?: number
+  contextUsage?: number
+  contextSize?: number
   cost?: number
 }
 
@@ -50,8 +52,9 @@ const statusSummary = (status: CloseMessageStatus | undefined, theme?: CloseMess
   if (status.messageCount !== undefined && status.messageCount > 0) {
     segments.push(paint(`${status.messageCount} msgs`, theme?.text))
   }
-  segments.push(paint(`↑ ${fmtTokens(status.inputTokens ?? 0)} ↓ ${fmtTokens(status.outputTokens ?? 0)}`, theme?.info))
+  segments.push(paint(`↑${fmtTokens(status.inputTokens ?? 0)} ↓${fmtTokens(status.outputTokens ?? 0)}`, theme?.info))
   segments.push(paint(fmtCost(status.cost ?? 0), theme?.warning))
+  segments.push(paint(`${fmtTokens(status.contextUsage ?? 0)}/${fmtTokens(status.contextSize ?? 0)}`, theme?.info))
   if (segments.length === 0) return undefined
   return segments.join(paint(' · ', theme?.textMuted))
 }

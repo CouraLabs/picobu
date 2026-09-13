@@ -32,27 +32,29 @@ describe('write/read roundtrip via tools', () => {
     const out = await write.handler({ path: 'sub/note.txt', contents: 'hello\nworld' }, { experimental_sandbox: sb as never })
     expect(out.message).toBe('Wrote sub/note.txt (2 lines)')
     expect(out.content).toBe('hello\nworld')
-    const got = await readTool.handler({ path: 'sub/note.txt', fromLine: null, toLine: null }, { experimental_sandbox: sb as never })
+    const got = await readTool.handler({ path: 'sub/note.txt' }, { experimental_sandbox: sb as never })
     expect(got.content).toBe('hello\nworld')
     expect(got.filetype).toBe('text')
   })
-  test('read slices lines and rejects inverted range', async () => {
+  test('read slices lines with skip/limit', async () => {
     const sb = { root: dir }
     await createWriteTool().handler({ path: 'a.txt', contents: 'one\ntwo\nthree' }, { experimental_sandbox: sb as never })
-    const sliced = await readTool.handler({ path: 'a.txt', fromLine: 2, toLine: 2 }, { experimental_sandbox: sb as never })
+    const sliced = await readTool.handler({ path: 'a.txt', skip: 1, limit: 1 }, { experimental_sandbox: sb as never })
     expect(sliced.content).toBe('two')
-    await expect(readTool.handler({ path: 'a.txt', fromLine: 3, toLine: 2 }, { experimental_sandbox: sb as never })).rejects.toThrow('cannot be greater')
+    const all = await readTool.handler({ path: 'a.txt' }, { experimental_sandbox: sb as never })
+    expect(all.content).toBe('one\ntwo\nthree')
   })
   test('sandbox containment blocks escape for write and read', async () => {
     const sb = { root: dir }
     await expect(createWriteTool().handler({ path: '../evil.txt', contents: 'x' }, { experimental_sandbox: sb as never })).rejects.toThrow('escapes')
-    await expect(readTool.handler({ path: '../evil.txt', fromLine: null, toLine: null }, { experimental_sandbox: sb as never })).rejects.toThrow('escapes')
-    await expect(readTool.handler({ path: '/etc/passwd', fromLine: null, toLine: null }, { experimental_sandbox: sb as never })).rejects.toThrow('escapes')
+    await expect(readTool.handler({ path: '../evil.txt' }, { experimental_sandbox: sb as never })).rejects.toThrow('escapes')
+    await expect(readTool.handler({ path: '/etc/passwd' }, { experimental_sandbox: sb as never })).rejects.toThrow('escapes')
   })
   test('arg schemas reject empty paths', () => {
     expect(WriteToolArgsSchema.safeParse({ path: '', contents: 'x' }).success).toBe(false)
-    expect(ReadToolArgsSchema.safeParse({ path: '', fromLine: null, toLine: null }).success).toBe(false)
-    expect(ReadToolArgsSchema.safeParse({ path: 'a.txt', fromLine: 0, toLine: null }).success).toBe(false)
+    expect(ReadToolArgsSchema.safeParse({ path: '' }).success).toBe(false)
+    expect(ReadToolArgsSchema.safeParse({ path: 'a.txt', skip: -1 }).success).toBe(false)
+    expect(ReadToolArgsSchema.safeParse({ path: 'a.txt' }).success).toBe(true)
   })
 })
 describe('edit handler', () => {
@@ -72,7 +74,7 @@ describe('edit handler', () => {
     expect(res.message).toContain('Replaced single occurrence')
     expect(res.diff).toContain('-hello foo world')
     expect(res.diff).toContain('+hello bar world')
-    const back = await readTool.handler({ path: 'f.txt', fromLine: null, toLine: null }, { experimental_sandbox: sb as never })
+    const back = await readTool.handler({ path: 'f.txt' }, { experimental_sandbox: sb as never })
     expect(back.content).toBe('hello bar world')
   })
   test('ambiguous match errors', async () => {
@@ -125,6 +127,31 @@ describe('glob and grep', () => {
   test('grep reports no matches', async () => {
     const res = await grepTool.handler({ pattern: 'zzz-no-such-token-zzz' }, { experimental_sandbox: { root: dir } as never })
     expect(res.content).toContain('No matches')
+  })
+  test('grep caps output at limit with footer', async () => {
+    for (let i = 0; i < 10; i++) await Bun.write(join(dir, `m${i}.txt`), 'hello match')
+    const res = await grepTool.handler({ pattern: 'hello', limit: 2 }, { experimental_sandbox: { root: dir } as never })
+    expect(res.content).toContain('Results truncated to 2')
+  })
+  test('glob caps output at limit with footer', async () => {
+    for (let i = 0; i < 10; i++) await Bun.write(join(dir, `g${i}.txt`), 'x')
+    const out = await globTool.handler({ pattern: '**/*.txt', limit: 3 }, { experimental_sandbox: { root: dir } as never })
+    const lines = out.split('\n').filter(Boolean)
+    expect(lines.length).toBe(4)
+    expect(out).toContain('Results truncated to 3')
+  })
+  test('grep and glob respect gitignore', async () => {
+    await Bun.write(join(dir, '.gitignore'), 'ignored.txt\nignored-dir/\n')
+    await Bun.write(join(dir, 'ignored.txt'), 'hello ignored')
+    await mkdir(join(dir, 'ignored-dir'), { recursive: true })
+    await Bun.write(join(dir, 'ignored-dir', 'inner.txt'), 'hello inner')
+    await Bun.$`git init -q`.cwd(dir).quiet()
+    const res = await grepTool.handler({ pattern: 'hello' }, { experimental_sandbox: { root: dir } as never })
+    expect(res.content).not.toContain('ignored.txt')
+    expect(res.content).not.toContain('inner.txt')
+    const out = await globTool.handler({ pattern: '**/*.txt' }, { experimental_sandbox: { root: dir } as never })
+    expect(out).not.toContain('ignored.txt')
+    expect(out).not.toContain('inner.txt')
   })
 })
 describe('shell tool', () => {

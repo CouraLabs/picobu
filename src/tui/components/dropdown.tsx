@@ -1,8 +1,9 @@
 import { type BoxRenderable, RGBA } from '@opentui/core'
-import { useKeyboard, useRenderer } from '@opentui/solid'
+import { useKeyboard } from '@opentui/solid'
 import { closeDropdown, dropdownState, openDropdown } from '@states/dropdown.state.ts'
 import { theme } from '@states/theme-state.ts'
 import { Marquee } from '@tui/components/marquee.tsx'
+import { useTerminalDims } from '@tui/hooks/terminal-dims.tsx'
 import { createComputed, createMemo, createSignal, For, mergeProps, on } from 'solid-js'
 export interface DropdownOption {
   name: string
@@ -72,7 +73,7 @@ export const Dropdown = (props: DropdownProps) => {
   )
 }
 export const DropdownLayer = () => {
-  const renderer = useRenderer()
+  const dims = useTerminalDims()
   const [highlighted, setHighlighted] = createSignal(0)
   const [scrollOffset, setScrollOffset] = createSignal(0)
   let popupRef: BoxRenderable | null = null
@@ -96,11 +97,11 @@ export const DropdownLayer = () => {
     const s = state()
     if (!s) return { x: 0, y: 0 }
     let y = s.placement.y + s.placement.height
-    if (y + popupHeight() > renderer.height) {
+    if (y + popupHeight() > dims().height) {
       const above = s.placement.y - popupHeight()
-      y = above >= 0 ? above : Math.max(0, renderer.height - popupHeight())
+      y = above >= 0 ? above : Math.max(0, dims().height - popupHeight())
     }
-    const x = Math.min(Math.max(0, s.placement.x), Math.max(0, renderer.width - popupWidth()))
+    const x = Math.min(Math.max(0, s.placement.x), Math.max(0, dims().width - popupWidth()))
     return { x, y }
   }
   createComputed(
@@ -157,8 +158,8 @@ export const DropdownLayer = () => {
         position={'absolute'}
         left={0}
         top={0}
-        width={renderer.width}
-        height={renderer.height}
+        width={dims().width}
+        height={dims().height}
         zIndex={CATCHER_Z}
         visible={open()}
         backgroundColor={RGBA.fromValues(0, 0, 0, 0)}

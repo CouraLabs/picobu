@@ -15,4 +15,4 @@ const loadBuiltin = (file: string): Command | undefined => {
   }
 }
 
-export const BUILTIN_WORKFLOWS: Array<Command> = [loadBuiltin('init.md')].filter((c): c is Command => c !== undefined)
+export const BUILTIN_WORKFLOWS: Array<Command> = [loadBuiltin('init.md'), loadBuiltin('review.md')].filter((c): c is Command => c !== undefined)

@@ -25,7 +25,6 @@ import { ClipboardProvider } from '../../src/tui/hooks/clipboard-provider.tsx'
 import { runTui } from '../../src/tui/init.tsx'
 import { App } from '../../src/tui/layout/app.tsx'
 import { Tab } from '../../src/tui/layout/tab.tsx'
-import { DevPage } from '../../src/tui/pages/dev.page.tsx'
 import { SessionPage } from '../../src/tui/pages/session-page.tsx'
 
 describe('tui module surface', () => {
@@ -73,7 +72,6 @@ describe('tui module surface', () => {
       Tab,
       App,
       SessionPage,
-      DevPage,
       ClipboardProvider,
     ]) {
       expect(typeof component).toBe('function')

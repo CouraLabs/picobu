@@ -1,5 +1,6 @@
 ## Commands
 - Verify order: `bun run lint` -> `bun run tsc` -> `bun test tests/<dir>/<file>.test.ts`.
+- Agent test output: `bun run test:agent` (junit + bail); never re-run a suite just to re-filter — redirect once (`bun run test > .tmp/test.out 2>&1`) then grep the file.
 - Smoke needs real model in `~/.picobu/options.json`; unit tests use fake keys, tmp dirs.
 
 ## Imports & style

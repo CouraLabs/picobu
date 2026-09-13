@@ -1,5 +1,5 @@
 import { getAgent } from '@agent/agents/registry.ts'
-import { listSubagents } from '@agent/agents/subagents.ts'
+import { canWriteFiles, listSubagents } from '@agent/agents/subagents.ts'
 import { listSkills } from '@agent/commands/index.ts'
 import type { LoopConfig } from '@agent/loop/types.ts'
 import { loadAgentsMarkdown } from '@agent/prompts/agents-md.ts'
@@ -45,9 +45,10 @@ export const createSystemBuilder = (deps: SystemBuilderDeps): { buildSystem: (ag
     const skills = listSkills()
     const rules = listRules()
     const subagents = config.spawn ? await listSubagents(cwd) : []
+    const visibleSubagents = canWriteFiles(agent.tools) ? subagents : subagents.filter((s) => !canWriteFiles(s.tools))
     const agentsAppendix = await loadAgentsMarkdown(cwd)
     const maxAgents = options.harness.maxAgents ?? 4
-    const cacheKey = `${agentId}:${cwd}:${mcp.generation}:${JSON.stringify(skills)}:${JSON.stringify(rules)}:${JSON.stringify(subagents)}:${agentsAppendix ?? ''}:${maxAgents}`
+    const cacheKey = `${agentId}:${cwd}:${mcp.generation}:${JSON.stringify(skills)}:${JSON.stringify(rules)}:${JSON.stringify(visibleSubagents)}:${agentsAppendix ?? ''}:${maxAgents}`
     const cached = systemCache.get(cacheKey)
     if (cached !== undefined) return cached
     const hasSkillTool = agent.tools.length === 0 || agent.tools.includes('skill')
@@ -63,7 +64,7 @@ export const createSystemBuilder = (deps: SystemBuilderDeps): { buildSystem: (ag
       toolsInfo: [toolsInfo(toolSet.getTools(agent.tools)), mcpDocs].filter(Boolean).join('\n'),
       ...(skills.length && hasSkillTool ? { skillsInfo: buildSkillsSection(skills) } : {}),
       ...(rules.length && hasRuleTool ? { rulesInfo: buildRulesSection(rules) } : {}),
-      ...(subagents.length && hasSpawnTool ? { subagentsInfo: buildSubagentsSection(subagents, options.harness.maxAgents ?? 4) } : {}),
+      ...(subagents.length && hasSpawnTool ? { subagentsInfo: buildSubagentsSection(visibleSubagents, options.harness.maxAgents ?? 4) } : {}),
       ...(agentsAppendix ? { agentsAppendix } : {}),
     })
       .map((s) => `<${s.key}>${s.content}</${s.key}>`)

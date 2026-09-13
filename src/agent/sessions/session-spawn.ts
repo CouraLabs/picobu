@@ -1,4 +1,5 @@
-import { getSubagent, listSubagents, prepareSubagent, SUBAGENT_DEPTH_CAP } from '@agent/agents/subagents.ts'
+import { getAgent } from '@agent/agents/registry.ts'
+import { canWriteFiles, getSubagent, listSubagents, prepareSubagent, SUBAGENT_DEPTH_CAP } from '@agent/agents/subagents.ts'
 import type { LoopConfig } from '@agent/loop/create-loop.ts'
 import { resolveModelRef } from '@agent/model/resolver.ts'
 import { generateSessionTitle } from '@agent/prompts/session-title.ts'
@@ -40,6 +41,14 @@ export async function spawnSubSession(
   if (!def) {
     const known = (await listSubagents(ctx.cwd)).map((s) => s.name).join(', ')
     throw new Error(`Unknown subagent "${subagent}". Known subagents: ${known}`)
+  }
+  const parentSession = ctx.live.get(parentId)
+  if (parentSession) {
+    const parentConfig = parentSession.config
+    const parentAgent = parentConfig.agentOverride ?? getAgent(parentConfig.agentId)
+    if (!canWriteFiles(parentAgent.tools) && canWriteFiles(def.tools)) {
+      throw new Error(`Read-only agents cannot spawn write-capable subagents ("${def.name}")`)
+    }
   }
   const parentModelKey = ctx.live.get(parentId)?.config.modelKey ?? ctx.baseConfig().modelKey
 

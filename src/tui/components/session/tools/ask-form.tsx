@@ -1,8 +1,8 @@
 import type { InputRenderable } from '@opentui/core'
-import { useTerminalDimensions } from '@opentui/solid'
 import { clip } from '@shared/format.ts'
 import { theme } from '@states/theme-state.ts'
 import { Button } from '@tui/components/button.tsx'
+import { useTerminalDims } from '@tui/hooks/terminal-dims.tsx'
 import { icons } from '@tui/themes/icons.ts'
 import { createComputed, createSignal, For, on, Show } from 'solid-js'
 import type { AskQuestionView } from './tool-summary.ts'
@@ -118,7 +118,7 @@ export const AskForm = (props: AskFormProps) => {
 
   const tabBackground = (tabIndex: number) => (active() === tabIndex ? theme().primary : theme().backgroundElement)
   const tabColor = (tabIndex: number) => (active() === tabIndex ? theme().selected(tabBackground(tabIndex)) : theme().textMuted)
-  const dims = useTerminalDimensions()
+  const dims = useTerminalDims()
   const commentWidth = () => Math.max(16, Math.min(COMMENT_MAX_WIDTH + 2, dims().width - 10))
 
   return (

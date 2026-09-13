@@ -1,9 +1,21 @@
 import { theme } from '@states/theme-state.ts'
+import { ToolStatusIcon } from '@tui/components/shared/tool-status-icon.tsx'
 import { toneColor } from '@tui/components/shared/tool-tone.ts'
 import { createMemo, Show } from 'solid-js'
 import { AskForm } from './ask-form.tsx'
 import { PlanReview, type PlanVerdict } from './plan-review.tsx'
-import { flowOutputMessage, flowOutputStatus, planText, previewToolInput, summarizeToolInput, type ToolPartLike, toolAskQuestions, toolDisplayName, toolStateView } from './tool-summary.ts'
+import {
+  flowOutputMessage,
+  flowOutputStatus,
+  isToolRunning,
+  planText,
+  previewToolInput,
+  summarizeToolInput,
+  type ToolPartLike,
+  toolAskQuestions,
+  toolDisplayName,
+  toolStateView,
+} from './tool-summary.ts'
 
 export interface FlowViewProps {
   part: ToolPartLike
@@ -30,6 +42,7 @@ export const FlowStaticView = (props: FlowViewProps) => {
   const message = createMemo(() => flowOutputMessage(props.part))
   const questions = createMemo(() => (props.flowKind === 'ask' ? toolAskQuestions(props.part.input) : []))
   const plan = createMemo(() => (props.flowKind === 'plan-write' ? planText(props.part.input) : undefined))
+  const running = createMemo(() => isToolRunning(props.part))
   const interactive = () => props.isLastMessage === true && status() === 'pending'
   const toolCallId = () => props.part.toolCallId ?? ''
   const hasToolCallId = () => toolCallId().length > 0
@@ -39,11 +52,7 @@ export const FlowStaticView = (props: FlowViewProps) => {
   return (
     <box flexDirection="column" paddingLeft={1} border={['left']} bottomTitle={` ${name()} `} bottomTitleAlignment="right" borderStyle={'heavy'} borderColor={color()}>
       <box flexDirection="row" gap={1} flexWrap="wrap">
-        <box flexShrink={0}>
-          <text fg={color()} selectable={false}>
-            {view().icon}
-          </text>
-        </box>
+        <ToolStatusIcon running={running()} color={color()} icon={view().icon} />
         <text fg={color()} flexShrink={0}>
           {name()}
         </text>

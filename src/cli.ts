@@ -1,4 +1,6 @@
 #!/usr/bin/env bun
+import { stat } from 'node:fs/promises'
+import { resolve } from 'node:path'
 import { autoloadLlmProviders } from '@agent/model/registry.ts'
 import { SessionManager } from '@agent/sessions/session-manager.ts'
 import { folderKeyFor } from '@agent/sessions/session-paths.ts'
@@ -8,17 +10,20 @@ import { options } from '@config/options.ts'
 import { removeMcpCredential, startMcpLogin } from '@integrations/mcp/auth.ts'
 import { getMcpServer } from '@integrations/mcp/discover.ts'
 import { listMcpServers } from '@integrations/mcp/status.ts'
-import { connectToWhatsApp } from '@integrations/whatsapp/connection.ts'
+import { connectToWhatsApp, disconnectFromWhatsApp } from '@integrations/whatsapp/connection.ts'
 import { setConsoleTitle } from '@shared/console-title.ts'
+import { initLogger, logError } from '@shared/logger.ts'
 import { getVersion } from '@shared/version.ts'
 import { Command } from 'commander'
 
 const program = new Command()
 program
   .name('picobu')
-  .description('Headless autonomous coding agent core')
+  .description('Picobu coding agent (TUI by default, --server for the headless daemon)')
   .version(getVersion())
-  .option('--session [id]', 'open the TUI, optionally resuming a session')
+  .option('--server', 'start the headless server (no UI)')
+  .option('--session [id]', 'open the TUI resuming a session')
+  .option('--cd <folder>', 'open the TUI with <folder> as cwd/workspace')
   .option('--clear-prompts-history', 'clear all prompt history and drafts, then exit')
 const sessions = program
   .command('sessions')
@@ -204,24 +209,76 @@ program
       process.exit(0)
     })()
   })
-program.action((opts: { session?: string | boolean; clearPromptsHistory?: boolean }) => {
+interface CliActionOptions {
+  server?: boolean
+  session?: string | boolean
+  cd?: string
+  clearPromptsHistory?: boolean
+}
+const resolveWorkspace = async (folder: string): Promise<string> => {
+  const next = resolve(folder)
+  const info = await stat(next).catch(() => undefined)
+  if (!info?.isDirectory()) throw new Error(`Not a directory: ${folder}`)
+  return next
+}
+const openWorkspace = async (folder: string): Promise<void> => {
+  const next = await resolveWorkspace(folder)
+  process.chdir(next)
+  options.app.cwd = next
+}
+program.action((opts: CliActionOptions) => {
   void (async () => {
+    initLogger({ runId: typeof opts.session === 'string' && opts.session ? opts.session : `pid-${process.pid}`, systemDir: options.app.systemDir })
     if (opts.clearPromptsHistory) {
       const { clearPromptHistory } = await import('@agent/sessions/prompt-history.ts')
       const cleared = clearPromptHistory()
       console.log(`Cleared prompt history (${cleared.history} prompt(s), ${cleared.drafts} draft(s)).`)
       process.exit(0)
     }
-    if (opts.session !== undefined) {
-      await bootstrap()
-      const { runTui } = await import('@tui/init.tsx')
-      await runTui({ sessionId: typeof opts.session === 'string' ? opts.session : undefined })
+    if (opts.server) {
+      if (opts.session !== undefined || opts.cd !== undefined) {
+        console.error('Cannot combine --server with --session or --cd.')
+        process.exit(1)
+      }
+      try {
+        await bootstrap()
+      } catch (error) {
+        logError(error, { scope: 'bootstrap-server' })
+        console.error(`Bootstrap failed: ${error instanceof Error ? error.message : String(error)}`)
+        process.exit(1)
+      }
+      setConsoleTitle(undefined)
+      if (!options.whatsapp.enabled) {
+        console.log('picobu headless server ready (no UI attached). WhatsApp disabled — run without flags to open the TUI.')
+        return
+      }
+      console.log('picobu headless server ready (no UI attached). WhatsApp daemon running — run without flags to open the TUI.')
+      const shutdown = (): void => {
+        disconnectFromWhatsApp()
+        process.exit(0)
+      }
+      process.once('SIGINT', shutdown)
+      process.once('SIGTERM', shutdown)
       return
     }
-    await bootstrap().then(() => {
-      setConsoleTitle(undefined)
-      console.log('picobu headless core ready (no UI attached).')
-    })
+    if (opts.cd !== undefined) {
+      try {
+        await openWorkspace(opts.cd)
+      } catch (error) {
+        logError(error, { scope: 'open-workspace' })
+        console.error(`Invalid --cd: ${error instanceof Error ? error.message : String(error)}`)
+        process.exit(1)
+      }
+    }
+    try {
+      await bootstrap()
+    } catch (error) {
+      logError(error, { scope: 'bootstrap-tui' })
+      console.error(`Bootstrap failed: ${error instanceof Error ? error.message : String(error)}`)
+      process.exit(1)
+    }
+    const { runTui } = await import('@tui/init.tsx')
+    await runTui({ sessionId: typeof opts.session === 'string' ? opts.session : undefined })
   })()
 })
 program.parse(process.argv)

@@ -397,6 +397,14 @@ describe('agent prompt texts', () => {
     expect(persistentMarkdown).toContain('WhatsApp')
     expect(persistentMarkdown).toContain('wwp-msg')
   })
+  test('coder advertises reviewer spawn and parallel subagents', () => {
+    expect(coderMarkdown).toContain('reviewer')
+    expect(coderMarkdown).toContain('in parallel')
+  })
+  test('plan and ask tool lists include spawn', () => {
+    expect(planMarkdown).toContain('tools: read, grep, glob, skill, rule, ask, plan-write, plan-exit, spawn')
+    expect(askMarkdown).toContain('tools: read, grep, glob, skill, rule, websearch, webfetch, ask, spawn')
+  })
   test('summarizer prompt carries markers', () => {
     expect(summarizerPrompt).toContain('Summarize')
     expect(summarizerPrompt).toContain('coding-agent')

@@ -11,8 +11,8 @@ const ReadToolOutputSchema = z.object({
 })
 export const ReadToolArgsSchema = z.object({
   path: z.string().min(1),
-  fromLine: z.number().min(1).nullable(),
-  toLine: z.number().min(1).nullable(),
+  skip: z.number().int().min(0).optional(),
+  limit: z.number().int().min(1).optional(),
 })
 const MAX_READ_BYTES = 2_000_000
 const resolveInsideBase = (base: string | undefined, userPath: string): string => {
@@ -25,18 +25,15 @@ const resolveInsideBase = (base: string | undefined, userPath: string): string =
   }
   return resolved
 }
-const sliceLines = (text: string, fromLine: number | null, toLine: number | null): string => {
+const sliceLines = (text: string, skip?: number, limit?: number): string => {
   const lines = text.split(/\r?\n/)
-  if (fromLine != null && toLine != null && fromLine > toLine) {
-    throw new Error(`fromLine (${fromLine}) cannot be greater than toLine (${toLine})`)
-  }
-  const begin = fromLine ?? 1
-  const end = toLine ?? lines.length
+  const begin = (skip ?? 0) + 1
+  const end = limit == null ? lines.length : begin + limit - 1
   return lines.slice(Math.max(begin - 1, 0), Math.min(end, lines.length)).join('\n')
 }
 export const readTool = {
   name: 'read',
-  description: 'Read a file, optionally sliced by fromLine/toLine.',
+  description: 'Read a file, optionally sliced by skip (0-based lines to skip) and limit (max lines). Omit both to read the whole file.',
   parameters: ReadToolArgsSchema,
   output: ReadToolOutputSchema,
   defer: 'auto',
@@ -47,16 +44,15 @@ export const readTool = {
     return withLock(path, async () => {
       const file = Bun.file(path)
       if (!(await file.exists())) throw new Error(`File not found: ${path}`)
-      if (file.size > MAX_READ_BYTES && args.fromLine == null && args.toLine == null) {
-        throw new Error(`File is ${(file.size).toLocaleString()} bytes; pass fromLine and toLine to read it in parts`)
+      if (file.size > MAX_READ_BYTES && args.skip == null && args.limit == null) {
+        throw new Error(`File is ${(file.size).toLocaleString()} bytes; pass skip and limit to read it in parts`)
       }
       if (file.size <= MAX_READ_BYTES) {
         const text = await file.text()
-        return { filetype: detectFiletype(path), content: sliceLines(text, args.fromLine, args.toLine) }
+        return { filetype: detectFiletype(path), content: sliceLines(text, args.skip, args.limit) }
       }
-      const begin = args.fromLine ?? 1
-      const end = args.toLine ?? Number.MAX_SAFE_INTEGER
-      if (begin > end) throw new Error(`fromLine (${begin}) cannot be greater than toLine (${end})`)
+      const begin = (args.skip ?? 0) + 1
+      const end = args.limit == null ? Number.MAX_SAFE_INTEGER : begin + args.limit - 1
       const stream = file.stream()
       const reader = stream.getReader()
       const decoder = new TextDecoder()
