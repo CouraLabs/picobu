@@ -20,9 +20,9 @@ export interface LoopStats {
   finishReason: FinishReason | undefined
   rawFinishReason: string | undefined
   steps: Array<LoopStepStats>
-  total: { 
-    usage: LanguageModelUsage, 
-    cost: LoopStepCost 
+  total: {
+    usage: LanguageModelUsage
+    cost: LoopStepCost
   }
 }
 
@@ -66,7 +66,7 @@ export const createLoopStatsStore = (getBilling: () => ProviderModelBilling | un
     finishReason: undefined,
     rawFinishReason: undefined,
     steps: [],
-    total: { usage: emptyUsage(), cost: zeroCost() }
+    total: { usage: emptyUsage(), cost: zeroCost() },
   }
   const listeners = new Set<(stats: LoopStats) => void>()
   const snapshot = (): LoopStats => cloneValue(stats)
@@ -98,7 +98,7 @@ export const createLoopStatsStore = (getBilling: () => ProviderModelBilling | un
       stats.performance = step.performance
       stats.warnings = step.warnings
       stats.headers = step.headers
-      stats.total = { usage: event.usage, cost: addCosts(stats.total.cost, cost) }
+      stats.total = { usage: step.usage, cost: addCosts(stats.total.cost, cost) }
       notify()
     },
     handleEnd: (event) => {

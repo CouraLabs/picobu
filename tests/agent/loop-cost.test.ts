@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import type { LanguageModelUsage } from 'ai'
-import { addCosts, calcStepCost, emptyUsage, sumUsage, zeroCost } from '../../src/agent/loop/loop-cost.ts'
+import { addCosts, calcStepCost, emptyUsage, zeroCost } from '../../src/agent/loop/loop-cost.ts'
 
 const usage = (overrides: Partial<LanguageModelUsage> = {}): LanguageModelUsage => ({
   ...emptyUsage(),
@@ -56,18 +56,7 @@ describe('calcStepCost', () => {
   })
 })
 
-describe('sumUsage and addCosts', () => {
-  test('sumUsage adds every token bucket', () => {
-    const got = sumUsage(
-      usage({ inputTokens: 10, outputTokens: 4, totalTokens: 14, inputTokenDetails: { noCacheTokens: 10, cacheReadTokens: 0, cacheWriteTokens: 0 } }),
-      usage({ inputTokens: 5, outputTokens: 6, totalTokens: 11, inputTokenDetails: { noCacheTokens: 3, cacheReadTokens: 2, cacheWriteTokens: 0 } }),
-    )
-    expect(got.inputTokens).toBe(15)
-    expect(got.outputTokens).toBe(10)
-    expect(got.totalTokens).toBe(25)
-    expect(got.inputTokenDetails?.noCacheTokens).toBe(13)
-    expect(got.inputTokenDetails?.cacheReadTokens).toBe(2)
-  })
+describe('addCosts', () => {
   test('addCosts adds every cost bucket', () => {
     expect(addCosts({ input: 1, output: 2, cache: 3, total: 6 }, { input: 0.5, output: 0.5, cache: 0, total: 1 })).toEqual({ input: 1.5, output: 2.5, cache: 3, total: 7 })
   })

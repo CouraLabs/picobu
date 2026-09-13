@@ -32,20 +32,20 @@ describe('createLoopStatsStore', () => {
     expect(stats.steps).toEqual([])
     expect(stats.finishReason).toBeUndefined()
     expect(stats.total.cost).toEqual({ input: 0, output: 0, cache: 0, total: 0 })
-    expect(stats.currentTotal.usage.inputTokens).toBe(0)
+    expect(stats.total.usage.inputTokens).toBe(0)
   })
-  test('step ends append and refresh currentTotal with latest root fields', () => {
+  test('step ends append and refresh total with latest root fields', () => {
     const store = createLoopStatsStore(() => ({ input: 1_000_000, output: 0 }))
     store.handleStepEnd(stepEnd(10, { 'x-first': '1' }))
     store.handleStepEnd(stepEnd(20, { 'x-second': '2' }))
     const stats = store.get()
     expect(stats.steps).toHaveLength(2)
-    expect(stats.currentTotal.usage.inputTokens).toBe(30)
-    expect(stats.currentTotal.cost.input).toBeCloseTo(30, 9)
+    expect(stats.total.usage.inputTokens).toBe(20)
+    expect(stats.total.cost.input).toBeCloseTo(30, 9)
     expect(stats.headers).toEqual({ 'x-second': '2' })
     expect(stats.performance?.stepTimeMs).toBe(20)
   })
-  test('ends accumulate total usage and cost across generations', () => {
+  test('ends keep last step usage while cost stays accumulated', () => {
     const store = createLoopStatsStore(() => ({ input: 1_000_000, output: 0 }))
     store.handleStepEnd(stepEnd(10))
     store.handleEnd(end(10))
@@ -53,7 +53,7 @@ describe('createLoopStatsStore', () => {
     store.handleEnd(end(20))
     const stats = store.get()
     expect(stats.steps).toHaveLength(2)
-    expect(stats.total.usage.inputTokens).toBe(30)
+    expect(stats.total.usage.inputTokens).toBe(20)
     expect(stats.total.cost.input).toBeCloseTo(30, 9)
     expect(stats.finishReason).toBe('stop')
     expect(stats.rawFinishReason).toBe('stop')
@@ -88,9 +88,8 @@ describe('createLoopStatsStore', () => {
     second.handleEnd(end(20))
     const stats = second.get()
     expect(stats.steps).toHaveLength(2)
-    expect(stats.total.usage.inputTokens).toBe(30)
+    expect(stats.total.usage.inputTokens).toBe(20)
     expect(stats.total.cost.input).toBeCloseTo(30, 9)
-    expect(stats.currentTotal.usage.inputTokens).toBe(30)
   })
   test('snapshots isolate usage objects from later mutation', () => {
     const store = createLoopStatsStore(() => undefined)
@@ -102,6 +101,6 @@ describe('createLoopStatsStore', () => {
     if (step) step.usage.inputTokens = 888
     const fresh = store.get()
     expect(fresh.steps[0]?.usage.inputTokens).toBe(5)
-    expect(fresh.currentTotal.usage.inputTokens).toBe(5)
+    expect(fresh.total.usage.inputTokens).toBe(5)
   })
 })

@@ -37,7 +37,7 @@ describe('session stats io', () => {
     const resumed = createLoopStatsStore(() => ({ input: 1_000_000, output: 2_000_000 }))
     if (loaded) resumed.restore(loaded)
     resumed.handleEnd({ usage: { ...emptyUsage(), inputTokens: 5, totalTokens: 5 }, finishReason: 'stop', rawFinishReason: 'stop' })
-    expect(resumed.get().total.usage.inputTokens).toBe(15)
+    expect(resumed.get().total.usage.inputTokens).toBe(10)
   })
   test('corrupt file reads as undefined', async () => {
     const path = sessionStatsPath('folder', 'broken')

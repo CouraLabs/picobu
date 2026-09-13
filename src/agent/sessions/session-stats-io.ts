@@ -31,7 +31,7 @@ const isUsageAndCost = (value: unknown): boolean => {
 
 const isStep = (value: unknown): boolean => {
   if (!isRecord(value)) return false
-  if (!isUsage(value.usage) || !isCost(value.cost)) return false
+  if (!isUsage(value.usage)) return false
   if (typeof value.finishReason !== 'string') return false
   if (value.rawFinishReason !== undefined && typeof value.rawFinishReason !== 'string') return false
   return true
@@ -40,7 +40,7 @@ const isStep = (value: unknown): boolean => {
 export const isLoopStats = (value: unknown): value is LoopStats => {
   if (!isRecord(value)) return false
   if (!Array.isArray(value.steps) || !value.steps.every(isStep)) return false
-  if (!isUsageAndCost(value.total) || !isUsageAndCost(value.currentTotal)) return false
+  if (!isUsageAndCost(value.total)) return false
   if (value.finishReason !== undefined && typeof value.finishReason !== 'string') return false
   if (value.rawFinishReason !== undefined && typeof value.rawFinishReason !== 'string') return false
   return true
