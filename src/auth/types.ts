@@ -26,6 +26,11 @@ export interface AuthInteraction {
 
 export interface AuthLoginOptions {
   enterpriseDomain?: string
+  account?: string
+  role?: string
+  resourceName?: string
+  gatewayId?: string
+  extra?: Record<string, string>
 }
 
 export interface OAuthAuth {

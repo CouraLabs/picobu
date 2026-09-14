@@ -4,8 +4,10 @@ import { resolve } from 'node:path'
 import { autoloadLlmProviders } from '@agent/model/registry.ts'
 import { SessionManager } from '@agent/sessions/session-manager.ts'
 import { folderKeyFor } from '@agent/sessions/session-paths.ts'
-import { ensureOAuthTokens, listOAuthProviders, startLogin } from '@auth/index.ts'
-import { logoutOAuthProvider } from '@auth/register.ts'
+import { ensureOAuthTokens, listOAuthProviders, oauthAuthById, startLogin } from '@auth/index.ts'
+import { logoutOAuthProvider, registerOAuthProvider } from '@auth/register.ts'
+import { getCredential, initAuth } from '@auth/store.ts'
+import { confirmReLogin, verifyOAuthCredential } from '@auth/verify.ts'
 import { options } from '@config/options.ts'
 import { removeMcpCredential, startMcpLogin } from '@integrations/mcp/auth.ts'
 import { getMcpServer } from '@integrations/mcp/discover.ts'
@@ -25,6 +27,20 @@ program
   .option('--session [id]', 'open the TUI resuming a session')
   .option('--cd <folder>', 'open the TUI with <folder> as cwd/workspace')
   .option('--clear-prompts-history', 'clear all prompt history and drafts, then exit')
+program.addHelpText(
+  'after',
+  () => `
+
+Supported providers:
+  OAuth login (\`picobu login <provider-id>\`, details in \`picobu login --help\`):
+    openai, anthropic, github-copilot, xai, openrouter, kimi-coding, digitalocean, snowflake-cortex, azure
+  API-key autoload (from the @opencode-ai/models catalog when env vars are set):
+    HYPER_API_KEY, ANTHROPIC_API_KEY, OPENAI_API_KEY, GITHUB_TOKEN, plus every
+    models.dev provider with \`env\` (e.g. GOOGLE/GEMINI, XAI, MISTRAL, GROQ,
+    DEEPSEEK, OPENROUTER, CEREBRAS, COHERE, TOGETHER, PERPLEXITY, AZURE,
+    AWS/Bedrock, Vertex, Cloudflare, DigitalOcean, Snowflake, Modal, GitLab).
+    The provider \`npm\` field selects the @ai-sdk factory used at runtime.`,
+)
 const sessions = program
   .command('sessions')
   .description('list saved sessions for a folder (title + lifecycle state)')
@@ -170,28 +186,71 @@ const bootstrap = async (): Promise<void> => {
     })
   }
 }
-program
+const loginCommand = program
   .command('login')
-  .description('log in to an OAuth provider (openai, anthropic, github-copilot) — no args lists status')
-  .argument('[provider]', 'OAuth provider id')
-  .argument('[opts]', 'provider options (e.g. enterprise domain for Copilot)')
-  .action((provider?: string, opts?: string) => {
-    void (async () => {
-      try {
-        if (!provider) {
-          for (const row of listOAuthProviders()) {
-            console.log(`${row.id}  ${row.name}  ${row.loggedIn ? 'logged in' : 'logged out'}`)
-          }
-          process.exit(0)
+  .description('log in to an OAuth provider — no args lists status')
+  .argument('[provider]', 'OAuth provider id (see `picobu login --help` for the list)')
+  .argument('[opts]', 'provider options (e.g. enterprise domain for Copilot, `headless` for OpenAI device flow, `<account> [role]` for Snowflake, `<resource-name>` for Azure)')
+  .option('-f, --force', 'skip the already-logged-in check and log in again')
+loginCommand.addHelpText(
+  'after',
+  () => `
+
+Supported providers (use with \`picobu login <provider-id>\`):
+  openai            OpenAI (browser OAuth, or \`picobu login openai headless\` for device flow)
+  anthropic         Anthropic (browser OAuth, Claude Pro/Max)
+  github-copilot    GitHub Copilot (device-code flow, opts = enterprise domain)
+  xai               xAI (device-code flow, SuperGrok subscription)
+  openrouter        OpenRouter (browser OAuth, exchanges code for API key)
+  kimi-coding       Kimi Coding (device-code flow, subscription)
+  digitalocean      DigitalOcean (browser OAuth, inference routers)
+  snowflake-cortex  Snowflake Cortex (browser OAuth, \`picobu login snowflake-cortex <account> [role]\`)
+  azure             Azure (Microsoft Entra ID via \`az login\`, \`picobu login azure <resource-name>\`)
+
+Aliases: copilot → github-copilot, claude → anthropic, chatgpt/codex → openai, kimi → kimi-coding, snowflake → snowflake-cortex, do → digitalocean.
+
+API-key providers (no login needed) autoload from the @opencode-ai/models catalog when their env vars are set. See \`picobu --help\` for the full list.`,
+)
+loginCommand.action((provider?: string, loginOpts?: string, cmdOpts?: { force?: boolean }) => {
+  void (async () => {
+    try {
+      if (!provider) {
+        for (const row of listOAuthProviders()) {
+          console.log(`${row.id}  ${row.name}  ${row.loggedIn ? 'logged in' : 'logged out'}`)
         }
-        await startLogin(provider, opts)
-      } catch (error) {
-        console.error(`Login failed: ${error instanceof Error ? error.message : String(error)}`)
-        process.exit(1)
+        process.exit(0)
       }
-      process.exit(0)
-    })()
-  })
+      if (!cmdOpts?.force) {
+        await initAuth()
+        const auth = oauthAuthById(provider)
+        const existing = auth ? getCredential(auth.id) : undefined
+        if (auth && existing) {
+          const result = await verifyOAuthCredential(auth, existing)
+          if (result.ok) {
+            console.log(`${auth.name} is already logged in and working (models catalog: ${result.modelCount} models).`)
+            try {
+              await registerOAuthProvider(auth, result.credential)
+            } catch (error) {
+              console.warn(`Could not sync ${auth.name} models into options (${error instanceof Error ? error.message : String(error)}) — the model list may be stale…`)
+            }
+            const again = await confirmReLogin(auth.name)
+            if (!again) {
+              console.log(`Keeping the existing ${auth.name} login.`)
+              process.exit(0)
+            }
+          } else {
+            console.warn(`Stored login for ${auth.name} seems invalid (${result.error}) — starting a fresh login…`)
+          }
+        }
+      }
+      await startLogin(provider, loginOpts)
+    } catch (error) {
+      console.error(`Login failed: ${error instanceof Error ? error.message : String(error)}`)
+      process.exit(1)
+    }
+    process.exit(0)
+  })()
+})
 program
   .command('logout')
   .description('log out of an OAuth provider and repoint harness selectors')

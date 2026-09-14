@@ -1,14 +1,28 @@
 import { anthropicOAuth } from '@auth/anthropic.ts'
+import { azureOAuth } from '@auth/azure.ts'
+import { digitaloceanOAuth } from '@auth/digitalocean.ts'
 import { githubCopilotOAuth } from '@auth/github-copilot.ts'
 import { createInteraction } from '@auth/interaction.ts'
+import { kimiCodingOAuth } from '@auth/kimi-coding.ts'
 import { openaiOAuth } from '@auth/openai.ts'
+import { openrouterOAuth } from '@auth/openrouter.ts'
 import { registerOAuthProvider } from '@auth/register.ts'
+import { snowflakeCortexOAuth } from '@auth/snowflake-cortex.ts'
 import { getCredential, initAuth, listCredentials, setCredential } from '@auth/store.ts'
-import type { OAuthAuth } from '@auth/types.ts'
+import type { AuthLoginOptions, OAuthAuth } from '@auth/types.ts'
+import { xaiOAuth } from '@auth/xai.ts'
 
 const REFRESH_GRACE_MS = 5 * 60 * 1000
-export const OAUTH_AUTHS: Array<OAuthAuth> = [openaiOAuth, anthropicOAuth, githubCopilotOAuth]
-const PROVIDER_ALIASES: Record<string, string> = { copilot: 'github-copilot', claude: 'anthropic', chatgpt: 'openai' }
+export const OAUTH_AUTHS: Array<OAuthAuth> = [openaiOAuth, anthropicOAuth, githubCopilotOAuth, xaiOAuth, openrouterOAuth, kimiCodingOAuth, digitaloceanOAuth, snowflakeCortexOAuth, azureOAuth]
+const PROVIDER_ALIASES: Record<string, string> = {
+  copilot: 'github-copilot',
+  claude: 'anthropic',
+  chatgpt: 'openai',
+  codex: 'openai',
+  kimi: 'kimi-coding',
+  snowflake: 'snowflake-cortex',
+  do: 'digitalocean',
+}
 export const oauthAuthById = (raw: string): OAuthAuth | undefined => {
   const normalized = raw.trim().toLowerCase()
   const id = PROVIDER_ALIASES[normalized] ?? normalized
@@ -27,6 +41,28 @@ export const listOAuthProviders = (): Array<OAuthProviderInfo> =>
   }))
 let activeLoginAbort: AbortController | null = null
 let activeLoginTask: Promise<void> | null = null
+export const parseLoginOptions = (authId: string, opts?: string): AuthLoginOptions | undefined => {
+  const trimmed = opts?.trim()
+  if (!trimmed) return undefined
+  const extra: Record<string, string> = {}
+  for (const part of trimmed.split(/\s+/)) {
+    const eq = part.indexOf('=')
+    if (eq > 0) extra[part.slice(0, eq).toLowerCase()] = part.slice(eq + 1)
+  }
+  if (authId === 'github-copilot') return { enterpriseDomain: extra.domain ?? extra.enterprise ?? trimmed }
+  if (authId === 'openai') {
+    const method = extra.method ?? (['headless', 'device', 'device_code', 'browser'].includes(trimmed.toLowerCase()) ? trimmed.toLowerCase() : undefined)
+    return method ? { extra: { method } } : undefined
+  }
+  if (authId === 'snowflake-cortex') {
+    const [account, role] = trimmed.split(/\s+/)
+    return { account: extra.account ?? account, role: extra.role ?? role, enterpriseDomain: extra.account ?? account }
+  }
+  if (authId === 'azure') {
+    return { resourceName: extra.resource ?? extra.resourcename ?? trimmed, enterpriseDomain: extra.resource ?? trimmed }
+  }
+  return { enterpriseDomain: trimmed, extra }
+}
 export const cancelLogin = (): void => activeLoginAbort?.abort()
 export const startLogin = async (id: string, opts?: string): Promise<void> => {
   activeLoginAbort?.abort()
@@ -46,7 +82,7 @@ export const startLogin = async (id: string, opts?: string): Promise<void> => {
   const task = (async (): Promise<void> => {
     try {
       const interaction = createInteraction(auth.id, auth.name, controller.signal)
-      const options = opts?.trim() ? { enterpriseDomain: opts.trim() } : undefined
+      const options = parseLoginOptions(auth.id, opts)
       const credential = await auth.login(interaction, options)
       controller.signal.throwIfAborted()
       await registerOAuthProvider(auth, credential)

@@ -3,6 +3,7 @@ import { createSessionStatusData, type SessionStatusProps } from './status/sessi
 import { StatusFooter } from './status/status-footer.tsx'
 import { StatusHeader } from './status/status-header.tsx'
 import { StatusMetrics } from './status/status-metrics.tsx'
+import { SessionProviderStatus } from './status/status-provider.tsx'
 import { THINKING_LEVELS } from './status/thinking.ts'
 
 export type { SessionStatusProps }
@@ -15,6 +16,7 @@ export const SessionStatus = (props: SessionStatusProps) => {
       <StatusHeader status={props} data={data} />
       <StatusMetrics data={data} />
       <StatusFooter status={props} data={data} />
+      <SessionProviderStatus status={props} data={data} />
     </box>
   )
 }

@@ -23,6 +23,7 @@ export interface SessionStatusProps {
   mode?: string
   waiting?: boolean
   mcp?: { connected: number; total: number; tools: number }
+  provider?: { id: string; name?: string; detail?: string }
   statsStatus?: Pick<LoopStats, 'finishReason' | 'rawFinishReason' | 'warnings' | 'headers'>
   statsPerformance?: LoopStats['performance']
   statsMetrics?: Pick<LoopStats, 'total'> & { stepCount: number }

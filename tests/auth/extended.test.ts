@@ -6,7 +6,7 @@ import type { Provider as ModelsDevProvider } from '@opencode-ai/models'
 import { modelsFromModelsDev } from '../../src/agent/model/catalog-models-dev.ts'
 import { anthropicOAuth } from '../../src/auth/anthropic.ts'
 import { abortableSleep, CANCEL_MESSAGE, pollOAuthDeviceCodeFlow } from '../../src/auth/device-code.ts'
-import { getGitHubCopilotBaseUrl, githubCopilotOAuth } from '../../src/auth/github-copilot.ts'
+import { getGitHubCopilotBaseUrl, githubCopilotOAuth, parseGitHubCopilotModelCatalog } from '../../src/auth/github-copilot.ts'
 import { OAUTH_AUTHS, oauthAuthById, startLogin } from '../../src/auth/index.ts'
 import { createInteraction } from '../../src/auth/interaction.ts'
 import { oauthErrorHtml, oauthSuccessHtml } from '../../src/auth/oauth-pages.ts'
@@ -377,6 +377,48 @@ describe('selectCopilotModels', () => {
   })
 })
 
+describe('parseGitHubCopilotModelCatalog', () => {
+  const item = (id: string, overrides?: Record<string, unknown>): unknown => ({
+    id,
+    model_picker_enabled: false,
+    policy: { state: 'enabled' },
+    capabilities: { limits: { max_output_tokens: 100, max_prompt_tokens: 1000 }, supports: { tool_calls: true } },
+    ...overrides,
+  })
+  test('prefers picker-enabled models when present', () => {
+    const raw = { data: [item('a', { model_picker_enabled: true }), item('b')] }
+    expect(parseGitHubCopilotModelCatalog(raw, true)).toEqual(['a'])
+    expect(parseGitHubCopilotModelCatalog(raw, false)).toEqual(['a'])
+  })
+  test('falls back to every non-disabled model when picker is empty', () => {
+    const raw = {
+      data: [
+        item('a'),
+        item('b', { policy: { state: 'disabled' } }),
+        item('c', { policy: undefined }),
+        item('d', { capabilities: { limits: { max_output_tokens: 1, max_prompt_tokens: 1 }, supports: { tool_calls: false } } }),
+      ],
+    }
+    expect(parseGitHubCopilotModelCatalog(raw, true)).toEqual(['a', 'c'])
+  })
+  test('returns empty without fallback when picker is empty', () => {
+    const raw = { data: [item('a'), item('b', { policy: undefined })] }
+    expect(parseGitHubCopilotModelCatalog(raw, false)).toEqual([])
+  })
+  test('keeps classic policy-enabled fallback without picker flags', () => {
+    const raw = {
+      data: [
+        { id: 'a', policy: { state: 'enabled' }, capabilities: { limits: { max_output_tokens: 1, max_prompt_tokens: 1 }, supports: { tool_calls: true } } },
+        { id: 'b', policy: { state: 'disabled' }, capabilities: { limits: { max_output_tokens: 1, max_prompt_tokens: 1 }, supports: { tool_calls: true } } },
+      ],
+    }
+    expect(parseGitHubCopilotModelCatalog(raw, true)).toEqual(['a'])
+  })
+  test('throws on invalid catalog shape', () => {
+    expect(() => parseGitHubCopilotModelCatalog({ data: 'nope' }, true)).toThrow('Invalid Copilot models response')
+  })
+})
+
 describe('fixHarnessAfterLogout', () => {
   test('repoints logged-out selectors to fallback and keeps others', () => {
     const next = fixHarnessAfterLogout({ defaultModel: 'github-copilot/x', modelRoles: { tiny: 'github-copilot/x', flash: 'other/y' } }, 'github-copilot', [
@@ -402,8 +444,8 @@ describe('oauthAuthById', () => {
   test('returns undefined for unknown provider', () => {
     expect(oauthAuthById('no-such-provider')).toBeUndefined()
   })
-  test('exposes three registered providers', () => {
-    expect(OAUTH_AUTHS.map((auth) => auth.id).sort()).toEqual(['anthropic', 'github-copilot', 'openai'])
+  test('exposes nine registered providers', () => {
+    expect(OAUTH_AUTHS.map((auth) => auth.id).sort()).toEqual(['anthropic', 'azure', 'digitalocean', 'github-copilot', 'kimi-coding', 'openai', 'openrouter', 'snowflake-cortex', 'xai'])
   })
   test('logs error for unknown provider login without throwing', async () => {
     const messages: string[] = []

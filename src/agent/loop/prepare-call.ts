@@ -21,7 +21,7 @@ export const createPrepareCall = (deps: PrepareCallDeps): ToolLoopAgentSettings<
     const persistent = options?.sessionMode === 'persistent'
     const config = getConfig()
     const agentDef = config.agentOverride ?? getAgent(persistent ? 'persistent' : config.agentId)
-    const resolved = resolveModel(config.modelKey)
+    const resolved = resolveModel(config.modelKey, config.sessionId ? { sessionId: config.sessionId } : undefined)
     const mcpTools = await mcp.tools()
     const tools = { ...toolSet.getToolSet(), ...mcpTools }
     const base = {

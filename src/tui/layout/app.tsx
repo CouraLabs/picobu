@@ -8,6 +8,7 @@ import { Dropdown, DropdownLayer } from '@tui/components/dropdown.tsx'
 import { openHelpDialog } from '@tui/components/session/help-dialog.tsx'
 import { StatusSeparator } from '@tui/components/shared/status-separator.tsx'
 import { TooltipLayer } from '@tui/components/tooltip.tsx'
+import { getLastSessionId } from '@tui/hooks/reload-bus.ts'
 import { TerminalDimsProvider } from '@tui/hooks/terminal-dims.tsx'
 import { SessionPage } from '@tui/pages/session-page.tsx'
 import { icons } from '@tui/themes/icons.ts'
@@ -35,7 +36,7 @@ export const App = (props: { sessionId?: string } = {}) => {
     <TerminalDimsProvider dims={dims}>
       <box id="app" width={'100%'} height={'100%'} backgroundColor={theme().background}>
         <box id="app-content" flexDirection="column" flexGrow={1} flexShrink={1} marginX={2}>
-          <SessionPage sessionId={props.sessionId} visible={isSession()} />
+          <SessionPage sessionId={getLastSessionId() ?? props.sessionId} visible={isSession()} />
         </box>
         <box
           id="app-footer"

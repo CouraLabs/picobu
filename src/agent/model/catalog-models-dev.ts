@@ -6,10 +6,37 @@ export const fetchModelsDevProvider = async (apiKeyEnv: string): Promise<ModelsD
     const client = Models.make()
     const providers = await client.providers()
     const match = Object.values(providers).find((provider) => provider.env?.includes(apiKeyEnv) ?? false)
+    if (match) return match as ModelsDevProvider
+  } catch {}
+  const snapshot = await import('@opencode-ai/models/snapshot')
+  return Object.values(snapshot.providers).find((provider) => (provider as ModelsDevProvider).env?.includes(apiKeyEnv) ?? false) as ModelsDevProvider | undefined
+}
+
+export const fetchModelsDevProviderById = async (providerId: string): Promise<ModelsDevProvider | undefined> => {
+  try {
+    const client = Models.make()
+    const providers = await client.providers()
+    const match = (providers as Record<string, ModelsDevProvider>)[providerId]
     if (match) return match
   } catch {}
   const snapshot = await import('@opencode-ai/models/snapshot')
-  return Object.values(snapshot.providers).find((provider) => provider.env?.includes(apiKeyEnv) ?? false)
+  return (snapshot.providers as Record<string, ModelsDevProvider>)[providerId]
+}
+
+export const listAllModelsDevProviders = async (): Promise<Array<ModelsDevProvider>> => {
+  try {
+    const client = Models.make()
+    const providers = await client.providers()
+    const values = Object.values(providers)
+    if (values.length > 0) return values as Array<ModelsDevProvider>
+  } catch {}
+  const snapshot = await import('@opencode-ai/models/snapshot')
+  return Object.values(snapshot.providers) as Array<ModelsDevProvider>
+}
+
+export const listApiKeyModelsDevProviders = async (): Promise<Array<ModelsDevProvider>> => {
+  const all = await listAllModelsDevProviders()
+  return all.filter((provider) => Array.isArray(provider.env) && provider.env.length > 0)
 }
 
 const modelsDevEfforts = (model: ModelsDevModel): Array<ProviderModelReasoningEffort> | undefined => {
@@ -22,6 +49,7 @@ export const modelsFromModelsDev = (provider: ModelsDevProvider): Array<Provider
   Object.values(provider.models ?? {}).map((model) => {
     const supports = ['text']
     if (model.modalities?.input?.includes('image') ?? false) supports.push('vision')
+    const npm = typeof model.provider?.npm === 'string' && model.provider.npm.length > 0 ? model.provider.npm : undefined
     return {
       id: model.id,
       name: model.name || model.id,
@@ -39,5 +67,6 @@ export const modelsFromModelsDev = (provider: ModelsDevProvider): Array<Provider
             cacheWrite: model.cost.cache_write,
           }
         : undefined,
+      ...(npm ? { npm } : {}),
     } satisfies ProviderModelOptions
   })

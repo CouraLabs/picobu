@@ -56,6 +56,7 @@ export interface SummarizeParams {
   messages: Array<UIMessage>
   modelKey: string
   thinking?: ProviderModelReasoningEffort
+  sessionId?: string
 }
 export interface SummarizeResult {
   summary: string
@@ -63,10 +64,10 @@ export interface SummarizeResult {
 
 const SUMMARY_MAX_OUTPUT_TOKENS = 8000
 
-export async function summarizeSession({ messages, modelKey, thinking }: SummarizeParams): Promise<SummarizeResult> {
+export async function summarizeSession({ messages, modelKey, thinking, sessionId }: SummarizeParams): Promise<SummarizeResult> {
   const transcript = serializeForSummary(messages)
   if (!transcript) throw new Error('Nothing to summarize: the session has no content')
-  const { model } = resolveModel(modelKey)
+  const { model } = resolveModel(modelKey, sessionId ? { sessionId } : undefined)
   const { text } = await generateText({
     model,
     system: summarizerPrompt,

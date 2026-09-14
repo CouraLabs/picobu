@@ -3,7 +3,7 @@ import type { AuthInteraction, AuthLoginOptions, OAuthAuth, OAuthCredential } fr
 
 const decode = (s: string): string => atob(s)
 const CLIENT_ID = decode('SXYxLmI1MDdhMDhjODdlY2ZlOTg=')
-const COPILOT_HEADERS = {
+export const COPILOT_HEADERS = {
   'User-Agent': 'GitHubCopilotChat/0.35.0',
   'Editor-Version': 'vscode/1.107.0',
   'Editor-Plugin-Version': 'copilot-chat/0.35.0',
@@ -68,8 +68,11 @@ export const parseGitHubCopilotModelCatalog = (raw: unknown, allowPolicyFallback
     const item = asRecord(rawItem)
     const id = item?.id
     if (!item || typeof id !== 'string') return []
-    const supports = asRecord(asRecord(item.capabilities)?.supports)
-    if (supports?.tool_calls === false) return []
+    const capabilities = asRecord(item.capabilities)
+    const supports = asRecord(capabilities?.supports)
+    const limits = asRecord(capabilities?.limits)
+    if (supports?.tool_calls === false || supports?.tool_calls === undefined) return []
+    if (typeof limits?.max_output_tokens !== 'number' || typeof limits?.max_prompt_tokens !== 'number') return []
     return [
       {
         id,
@@ -78,15 +81,14 @@ export const parseGitHubCopilotModelCatalog = (raw: unknown, allowPolicyFallback
       },
     ]
   })
-  const hasExplicitPickerSetting = data.some((rawItem) => typeof asRecord(rawItem)?.model_picker_enabled === 'boolean')
   const pickerModelIds = accountModels.filter((m) => m.pickerEnabled && m.policyState !== 'disabled').map((m) => m.id)
   if (pickerModelIds.length > 0) {
     return pickerModelIds
   }
-  if (!allowPolicyFallback || hasExplicitPickerSetting) {
+  if (!allowPolicyFallback) {
     return pickerModelIds
   }
-  return accountModels.filter((m) => m.policyState === 'enabled').map((m) => m.id)
+  return accountModels.filter((m) => m.policyState !== 'disabled').map((m) => m.id)
 }
 async function fetchJson(url: string, init: RequestInit): Promise<unknown> {
   const response = await fetch(url, init)
@@ -223,6 +225,8 @@ const copilotEnterpriseDomain = (credential: OAuthCredential): string | undefine
   if (typeof enterpriseUrl !== 'string' || !enterpriseUrl) return undefined
   return normalizeDomain(enterpriseUrl) ?? undefined
 }
+export const fetchCopilotModelsWithCredential = (credential: OAuthCredential, signal: AbortSignal): Promise<unknown> =>
+  fetchGitHubCopilotModels(credential.access, copilotEnterpriseDomain(credential), signal)
 async function loginGitHubCopilot(interaction: AuthInteraction, options?: AuthLoginOptions): Promise<OAuthCredential> {
   const input = options?.enterpriseDomain?.trim() ?? ''
   const enterpriseDomain = input ? (normalizeDomain(input) ?? undefined) : undefined

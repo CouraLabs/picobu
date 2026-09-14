@@ -131,7 +131,7 @@ const validateAnthropicToken = (json: unknown, url: string, body: string): Anthr
   }
   return { access_token: record.access_token, refresh_token: record.refresh_token, expires_in: record.expires_in }
 }
-async function exchangeAuthorizationCode(code: string, verifier: string, redirectUri: string, signal: AbortSignal): Promise<OAuthCredential> {
+async function exchangeAuthorizationCode(code: string, state: string, verifier: string, redirectUri: string, signal: AbortSignal): Promise<OAuthCredential> {
   let responseBody: string
   try {
     responseBody = await postJson(
@@ -140,6 +140,7 @@ async function exchangeAuthorizationCode(code: string, verifier: string, redirec
         grant_type: 'authorization_code',
         client_id: CLIENT_ID,
         code,
+        state,
         redirect_uri: redirectUri,
         code_verifier: verifier,
       },
@@ -196,7 +197,7 @@ async function loginAnthropic(interaction: AuthInteraction): Promise<OAuthCreden
     const result = await withTimeout(server.waitForCode(), LOGIN_TIMEOUT_MS, 'Login timed out — please try again')
     if (!result?.code) throw new Error('Login cancelled')
     interaction.notify({ type: 'progress', message: 'Exchanging authorization code for tokens…' })
-    return exchangeAuthorizationCode(result.code, verifier, REDIRECT_URI, interaction.signal)
+    return exchangeAuthorizationCode(result.code, oauthState, verifier, REDIRECT_URI, interaction.signal)
   } finally {
     interaction.signal.removeEventListener('abort', onAbort)
     server.server.close()

@@ -277,9 +277,9 @@ describe('model resolver helpers', () => {
     const locked: ProviderOptions = { ...provider, apiKey: 'auth:missing-cred-xyz' }
     expect(() => resolveAuth(locked)).toThrow('No saved login')
   })
-  test('createModelInstance rejects unknown provider types', () => {
+  test('createModelInstance falls back to openai-compatible for unknown provider types', () => {
     const bad: ProviderOptions = { id: 'bad', name: 'Bad', type: 'bogus', baseUrl: 'https://bad', models: [] }
-    expect(() => createModelInstance(bad, 'm')).toThrow('Unsupported provider type')
+    expect(() => createModelInstance(bad, 'm')).not.toThrow()
   })
   test('listModels keys combine provider and model ids', () => {
     const entries = listModels()

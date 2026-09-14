@@ -1,11 +1,30 @@
+import { headersForProviderId } from '@agent/model/providers/index.ts'
+import { createAmazonBedrock } from '@ai-sdk/amazon-bedrock'
 import { createAnthropic } from '@ai-sdk/anthropic'
+import { createAzure } from '@ai-sdk/azure'
+import { createCerebras } from '@ai-sdk/cerebras'
+import { createCohere } from '@ai-sdk/cohere'
+import { createDeepInfra } from '@ai-sdk/deepinfra'
+import { createGateway } from '@ai-sdk/gateway'
+import { createGoogleGenerativeAI } from '@ai-sdk/google'
+import { createVertex } from '@ai-sdk/google-vertex'
+import { createGroq } from '@ai-sdk/groq'
+import { createMistral } from '@ai-sdk/mistral'
 import { createOpenResponses } from '@ai-sdk/open-responses'
 import { createOpenAI } from '@ai-sdk/openai'
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
+import { createPerplexity } from '@ai-sdk/perplexity'
+import { createTogetherAI } from '@ai-sdk/togetherai'
+import { createVercel } from '@ai-sdk/vercel'
+import { createXai } from '@ai-sdk/xai'
+import { COPILOT_HEADERS } from '@auth/github-copilot.ts'
 import { oauthAuthById } from '@auth/index.ts'
+import { listProviders } from '@auth/oauth-providers.ts'
 import { getCredential } from '@auth/store.ts'
 import { options, type ProviderModelBilling, type ProviderModelCapability, type ProviderModelOptions, type ProviderOptions } from '@config/options.ts'
+import { createOpenRouter } from '@openrouter/ai-sdk-provider'
 import { initLockDir } from '@shared/lock.ts'
+import { getVersion } from '@shared/version.ts'
 import type { LanguageModel } from 'ai'
 
 initLockDir(options.app.systemDir)
@@ -34,28 +53,123 @@ export const resolveAuth = (provider: ProviderOptions): { apiKey?: string; baseU
   return auth ? auth.toAuth(credential) : { apiKey: credential.access }
 }
 
-export const createModelInstance = (provider: ProviderOptions, modelId: string) => {
-  const auth = resolveAuth(provider)
-  const apiKey = auth.apiKey
-  const baseUrl = auth.baseUrl ?? provider.baseUrl
-  switch (provider.type) {
+export const npmForProviderType = (type: ProviderOptions['type']): string => {
+  switch (type) {
     case 'openai':
-      return createOpenAI({ baseURL: baseUrl, apiKey, headers: provider.headers })(modelId)
+      return '@ai-sdk/openai'
     case 'anthropic':
-      return createAnthropic({ baseURL: baseUrl, apiKey, headers: provider.headers })(modelId)
-    case 'openai-compatible':
-      return createOpenAICompatible({ baseURL: baseUrl, name: provider.name, apiKey, headers: provider.headers })(modelId)
+      return '@ai-sdk/anthropic'
     case 'openai-responses':
-      return createOpenResponses({ url: baseUrl, name: provider.name, apiKey, headers: provider.headers })(modelId)
+      return '@ai-sdk/openai'
     default:
-      throw new Error(`Unsupported provider type: ${provider.type}. Available provider types: openai, anthropic, openai-compatible, openai-responses`)
+      return '@ai-sdk/openai-compatible'
   }
 }
 
+export const typeForNpm = (npm?: string): ProviderOptions['type'] => {
+  switch (npm) {
+    case '@ai-sdk/openai':
+      return 'openai'
+    case '@ai-sdk/anthropic':
+      return 'anthropic'
+    default:
+      return 'openai-compatible'
+  }
+}
+
+export interface ModelInstanceOptions {
+  modelNpm?: string
+  sessionId?: string
+}
+
+const OPENCODE_GO_BASE_MARKER = '/zen/go/'
+const OPENCODE_GO_FALLBACK_SESSION = 'picobu-shared'
+const OPENCODE_GO_RESPONSES_MODELS: ReadonlySet<string> = new Set(['gpt-5.6-luna', 'grok-4.5', 'grok-4.6', 'muse-spark-1.2-contributor', 'muse-spark-1.3-contributor'])
+
+export const isOpencodeGoProvider = (provider: ProviderOptions): boolean => provider.id === 'opencode-go' || provider.baseUrl.includes(OPENCODE_GO_BASE_MARKER)
+
+export const npmForModel = (provider: ProviderOptions, modelMeta?: Pick<ProviderModelOptions, 'id' | 'npm'>): string => {
+  if (modelMeta?.npm && modelMeta.npm.length > 0) return modelMeta.npm
+  if (isOpencodeGoProvider(provider) && modelMeta && OPENCODE_GO_RESPONSES_MODELS.has(modelMeta.id)) return '@ai-sdk/openai'
+  return provider.npm ?? npmForProviderType(provider.type)
+}
+
+export const createModelInstance = (provider: ProviderOptions, modelId: string, opts?: ModelInstanceOptions) => {
+  const auth = resolveAuth(provider)
+  const apiKey = auth.apiKey
+  const baseUrl = auth.baseUrl ?? (provider.baseUrl || undefined)
+  const npm = npmForModel(provider, { id: modelId, ...(opts?.modelNpm ? { npm: opts.modelNpm } : {}) })
+  const headers = headersForProvider(provider, opts?.sessionId ? { sessionId: opts.sessionId } : undefined)
+  switch (npm) {
+    case '@ai-sdk/anthropic':
+      return createAnthropic({ baseURL: baseUrl, apiKey, headers })(modelId)
+    case '@ai-sdk/openai':
+      if (provider.type === 'openai-responses') return createOpenResponses({ url: baseUrl ?? '', name: provider.name, apiKey, headers })(modelId)
+      return createOpenAI({ baseURL: baseUrl, apiKey, headers })(modelId)
+    case '@ai-sdk/google':
+      return createGoogleGenerativeAI({ baseURL: baseUrl, apiKey, headers })(modelId)
+    case '@ai-sdk/google-vertex':
+      return createVertex({ baseURL: baseUrl, headers } as never)(modelId)
+    case '@ai-sdk/azure':
+      return createAzure({ baseURL: baseUrl, apiKey, headers } as never)(modelId)
+    case '@ai-sdk/amazon-bedrock':
+      return createAmazonBedrock({ baseURL: baseUrl, headers } as never)(modelId)
+    case '@ai-sdk/mistral':
+      return createMistral({ baseURL: baseUrl, apiKey, headers })(modelId)
+    case '@ai-sdk/groq':
+      return createGroq({ baseURL: baseUrl, apiKey, headers })(modelId)
+    case '@ai-sdk/deepinfra':
+      return createDeepInfra({ baseURL: baseUrl, apiKey, headers })(modelId)
+    case '@ai-sdk/cerebras':
+      return createCerebras({ baseURL: baseUrl, apiKey, headers })(modelId)
+    case '@ai-sdk/cohere':
+      return createCohere({ baseURL: baseUrl, apiKey, headers })(modelId)
+    case '@ai-sdk/gateway':
+      return createGateway({ baseURL: baseUrl, apiKey, headers } as never)(modelId)
+    case '@ai-sdk/togetherai':
+      return createTogetherAI({ baseURL: baseUrl, apiKey, headers })(modelId)
+    case '@ai-sdk/perplexity':
+      return createPerplexity({ baseURL: baseUrl, apiKey, headers })(modelId)
+    case '@ai-sdk/vercel':
+      return createVercel({ baseURL: baseUrl, apiKey, headers } as never)(modelId)
+    case '@ai-sdk/xai':
+      return createXai({ baseURL: baseUrl, apiKey, headers })(modelId)
+    case '@openrouter/ai-sdk-provider':
+      return createOpenRouter({ baseURL: baseUrl, apiKey, headers })(modelId)
+    default:
+      break
+  }
+  switch (provider.type) {
+    case 'openai':
+      return createOpenAI({ baseURL: baseUrl, apiKey, headers })(modelId)
+    case 'anthropic':
+      return createAnthropic({ baseURL: baseUrl, apiKey, headers })(modelId)
+    case 'openai-compatible':
+      return createOpenAICompatible({ baseURL: baseUrl ?? '', name: provider.name, apiKey, headers })(modelId)
+    case 'openai-responses':
+      return createOpenResponses({ url: baseUrl ?? '', name: provider.name, apiKey, headers })(modelId)
+    default:
+      return createOpenAICompatible({ baseURL: baseUrl ?? '', name: provider.name, apiKey, headers })(modelId)
+  }
+}
+
+export const headersForProvider = (provider: ProviderOptions, opts?: { sessionId?: string }): Record<string, string> | undefined => {
+  const base = headersForProviderId(provider.id, provider.headers)
+  const headers: Record<string, string> = { ...(base ?? {}) }
+  if (provider.id === 'github-copilot') return { ...COPILOT_HEADERS, ...headers }
+  if (isOpencodeGoProvider(provider)) {
+    if (!headers['User-Agent']) headers['User-Agent'] = `picobu/${getVersion()}`
+    const sessionId = opts?.sessionId?.trim() || headers['x-opencode-session']?.trim() || OPENCODE_GO_FALLBACK_SESSION
+    headers['x-opencode-session'] = sessionId
+  }
+  return Object.keys(headers).length > 0 ? headers : undefined
+}
+
 export const resolveModelRef = (modelKey?: string): Omit<ResolvedModel, 'model'> => {
+  const providers = listProviders()
   const target = modelKey ?? options.harness?.defaultModel
   if (!target) {
-    const selectedProvider = options.providers[0]
+    const selectedProvider = providers[0]
     if (!selectedProvider) {
       throw new Error('No AI provider configured in options (see ~/.picobu/options.json)')
     }
@@ -71,9 +185,9 @@ export const resolveModelRef = (modelKey?: string): Omit<ResolvedModel, 'model'>
   }
   const slash = target.indexOf('/')
   if (slash <= 0) {
-    const provider = options.providers.find((p) => p.id === target)
+    const provider = providers.find((p) => p.id === target)
     if (!provider) {
-      throw new Error(`Unknown provider "${target}". Known providers: ${options.providers.map((p) => p.id).join(', ') || 'none'}`)
+      throw new Error(`Unknown provider "${target}". Known providers: ${providers.map((p) => p.id).join(', ') || 'none'}`)
     }
     const modelId = provider.models[0]?.id
     if (!modelId) {
@@ -87,9 +201,9 @@ export const resolveModelRef = (modelKey?: string): Omit<ResolvedModel, 'model'>
   }
   const targetProviderId = target.slice(0, slash)
   const targetModelId = target.slice(slash + 1)
-  const provider = options.providers.find((p) => p.id === targetProviderId)
+  const provider = providers.find((p) => p.id === targetProviderId)
   if (!provider) {
-    throw new Error(`Unknown provider "${targetProviderId}". Known providers: ${options.providers.map((p) => p.id).join(', ') || 'none'}`)
+    throw new Error(`Unknown provider "${targetProviderId}". Known providers: ${providers.map((p) => p.id).join(', ') || 'none'}`)
   }
   if (!targetModelId) {
     throw new Error(`Unknown model "${target}". Expected "<providerId>/<modelId>"`)
@@ -101,9 +215,9 @@ export const resolveModelRef = (modelKey?: string): Omit<ResolvedModel, 'model'>
   return { provider, modelId: targetModelId, modelMeta }
 }
 
-export const resolveModel = (modelKey?: string): ResolvedModel => {
+export const resolveModel = (modelKey?: string, opts?: { sessionId?: string }): ResolvedModel => {
   const ref = resolveModelRef(modelKey)
-  return { ...ref, model: createModelInstance(ref.provider, ref.modelId) }
+  return { ...ref, model: createModelInstance(ref.provider, ref.modelId, { modelNpm: ref.modelMeta.npm, ...(opts?.sessionId ? { sessionId: opts.sessionId } : {}) }) }
 }
 
 export const resolveDefaultModel = (): ResolvedModel => resolveModel(options.harness?.defaultModel)
@@ -126,7 +240,7 @@ export interface ModelEntry {
 }
 
 export function listModels(): Array<ModelEntry> {
-  return options.providers.flatMap((p) =>
+  return listProviders().flatMap((p) =>
     p.models.map((m) => ({
       key: `${p.id}/${m.id}`,
       providerId: p.id,

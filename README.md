@@ -48,7 +48,7 @@ Requirements:
 
 - [Bun](https://bun.sh) ≥ 1.x
 - A terminal font with current programmer-glyph coverage (e.g. an up-to-date Source Code Pro, JetBrains Mono, or equivalent Nerd Fonts coverage) — the TUI status icons assume it
-- A model: API key (`HYPER_API_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GITHUB_TOKEN`) or an OAuth login (see [Login & OAuth](#login--oauth))
+- A model: API key (any `@opencode-ai/models` provider `env` var, e.g. `HYPER_API_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GITHUB_TOKEN`, `GOOGLE_API_KEY`, `XAI_API_KEY`, `OPENROUTER_API_KEY`) or an OAuth login (see [Login & OAuth](#login--oauth))
 
 From source:
 
@@ -106,8 +106,9 @@ picobu mcp                      # list servers: id type target [source] connecte
 picobu mcp login <serverId>     # OAuth login for an auth:true server (PKCE, localhost:19888)
 picobu mcp logout <serverId>    # drop stored tokens
 
-picobu login                    # list OAuth provider status (openai, anthropic, github-copilot)
-picobu login <provider> [opts]  # start login (opts = enterprise domain for Copilot)
+picobu login                    # list OAuth provider status (openai, anthropic, github-copilot, xai, openrouter, kimi-coding, digitalocean, snowflake-cortex, azure)
+picobu login --help             # show provider ids to use with login <provider-id>
+picobu login <provider> [opts]  # start login (opts = enterprise domain for Copilot, `headless` for OpenAI device flow, `<account> [role]` for Snowflake, `<resource-name>` for Azure)
 picobu logout <provider>        # logout and repoint harness selectors
 ```
 
@@ -128,6 +129,8 @@ Everything lives in `~/.picobu/options.json` (auto-created, auto-seeded, lock-gu
 | `watchdog` | Stale-run handling (`staleTimeoutMs` default 300000, stale notification/continue prompts) |
 
 Supported provider `type` values: `openai`, `anthropic`, `openai-compatible`, `openai-responses`. API keys may reference the environment (`"env:VAR_NAME"`) or OAuth credentials (`"auth:<id>"`); MCP `headers`/`env` also accept `"env:VAR"` refs.
+
+Providers preload from the [`@opencode-ai/models`](https://models.dev) catalog by API key: at startup picobu loads every models.dev provider whose `env` vars are set (live list first, snapshot fallback), using each provider's `npm` field to select the `@ai-sdk/*` factory and each provider folder in `src/agent/model/providers/` for special headers. Charm Hyper additionally tries a live `/v1/models` fetch before the catalog fallback.
 
 ```json
 {
@@ -229,11 +232,12 @@ Sub sessions & spawn: `spawn` is blocking and waits for every call to settle; ne
 
 Cost accounting: `session.usage` is last-run (status bar); `session.stats` is the lifetime `LoopStats` view — per-step usage and cost, `total` accumulated across runs, `currentTotal` as the live sum of all recorded steps — persisted to the session stats file on every step and settle.
 
-Session footer: three rows under the prompt. Token and timing segments reflect the latest step; `$` cost is the session lifetime total.
+Session footer: four rows under the prompt. Token and timing segments reflect the latest step; `$` cost is the session lifetime total.
 
 - Agent row: agent, model, thinking level, finish reason or live activity (`Prompting`, `Reasoning`, `Tooling`, `Delegating`, `Answering`), session title.
 - Metrics row: `⧖` time to first output, `↯` output tokens/sec, `⌛` step time, `↻` LLM response time, `⯿` tool execution time, `↑` input tokens, `↓` output tokens, `⛁` cache total (hit %), `$` session cost, cost split (`in` / `out` / `read` / `write`).
 - Session row: message count (`u`ser / `a`ssistant), tool calls, run count with subagent cost, MCP connections, queue state.
+- Provider row (`SessionProviderStatus`, shell for now): provider id/name for the active model; per-provider special data lands here later.
 
 Sandbox: each session runs inside a local sandbox rooted at its cwd (AI SDK `experimental_sandbox` over Bun); `shell` uses your detected shell, abort kills running commands; relative paths resolve against the cwd (absolute paths pass through — no jail in v1); `setSandbox(false)` is a runtime kill switch for subsequently created sessions.
 
@@ -275,11 +279,17 @@ Baileys integration (unofficial WhatsApp Web API) in `src/integrations/whatsapp/
 
 | Provider | `type` | Notes |
 | --- | --- | --- |
-| `openai` | `openai` | ChatGPT browser OAuth (PKCE, local callback); models from the models.dev `openai` catalog |
-| `anthropic` | `anthropic` | Claude browser OAuth (PKCE, local callback); models from the models.dev `anthropic` catalog |
-| `github-copilot` | `openai-compatible` | Device-code flow; base URL and usable models depend on the account/token (`/models`) |
+| `openai` | `openai` | ChatGPT browser OAuth (PKCE, local callback) or `picobu login openai headless` device flow; live `/v1/models` intersected with the models.dev `openai` catalog so only accessible models register |
+| `anthropic` | `anthropic` | Claude browser OAuth (PKCE, local callback, `state` in token exchange like Pi); live `/v1/models` intersected with the models.dev `anthropic` catalog |
+| `github-copilot` | `openai-compatible` | Device-code flow; base URL from the token `proxy-ep` and usable models from live `/models` (opencode-style `usable` filtering: policy, limits, `tool_calls`) intersected with the models.dev catalog |
+| `xai` | `openai-compatible` | xAI device-code flow (SuperGrok subscription, copied from opencode); `@ai-sdk/xai` factory |
+| `openrouter` | `openai-compatible` | OpenRouter PKCE loopback → permanent API key (copied from Pi, untested); `@openrouter/ai-sdk-provider` factory |
+| `kimi-coding` | `openai-compatible` | Kimi Code subscription device flow (copied from Pi, untested); base `https://api.kimi.com/coding` |
+| `digitalocean` | `openai-compatible` | DigitalOcean browser OAuth implicit flow (copied from opencode, untested); inference base `https://inference.do-ai.run/v1` |
+| `snowflake-cortex` | `openai-compatible` | Snowflake PKCE (`picobu login snowflake-cortex <account> [role]`, copied from opencode, untested); base derived from account |
+| `azure` | `openai-compatible` | Microsoft Entra ID via `az login` (`picobu login azure <resource-name>`, copied from opencode, untested); `@ai-sdk/azure` factory |
 
-Aliases: `copilot` → `github-copilot`, `claude` → `anthropic`, `chatgpt` → `openai`. Tokens auto-refresh at bootstrap and before every run. First-time login also becomes `harness.defaultModel`. Logout removes the credential and provider and repoints harness selectors. API-key-only providers autoload too: Charm Hyper via `HYPER_API_KEY`, plus models.dev fallbacks keyed on `ANTHROPIC_API_KEY`/`OPENAI_API_KEY`/`GITHUB_TOKEN`.
+Aliases: `copilot` → `github-copilot`, `claude` → `anthropic`, `chatgpt`/`codex` → `openai`, `kimi` → `kimi-coding`, `snowflake` → `snowflake-cortex`, `do` → `digitalocean`. Tokens auto-refresh at bootstrap and before every run. First-time login also becomes `harness.defaultModel`. Logout removes the credential and provider and repoints harness selectors. API-key-only providers autoload too: Charm Hyper via `HYPER_API_KEY`, plus every models.dev provider with `env` (e.g. `ANTHROPIC_API_KEY`/`OPENAI_API_KEY`/`GITHUB_TOKEN`/`GOOGLE_API_KEY`/`XAI_API_KEY`/`OPENROUTER_API_KEY`) preloaded at startup with the `npm`-selected factory.
 
 ### Host frontends
 

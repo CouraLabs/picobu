@@ -61,6 +61,19 @@ describe('logger file output', () => {
     expect(body).toContain('boom-failure')
     expect(body).toContain('test')
   })
+  test('logError keeps provider status and body for api errors', async () => {
+    const path = initLogger({ runId: 'sess123', systemDir: dir })
+    const failure = new Error('AI_RetryError · Failed after 3 attempts') as Error & { lastError?: unknown }
+    const cause = new Error('Internal server error') as Error & { statusCode?: unknown; url?: unknown; responseBody?: unknown }
+    cause.statusCode = 500
+    cause.url = 'https://opencode.ai/zen/go/v1/chat/completions'
+    cause.responseBody = '{"type":"error"}'
+    failure.lastError = cause
+    logError(failure, { scope: 'test' })
+    const body = await readLogBody(path, 'AI_RetryError')
+    expect(body).toContain('500')
+    expect(body).toContain('opencode.ai')
+  })
   test('setLogRunId switches to session file', () => {
     const first = initLogger({ systemDir: dir })
     const second = setLogRunId('newsession', dir)

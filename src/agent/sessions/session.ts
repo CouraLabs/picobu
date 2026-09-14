@@ -256,7 +256,7 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
       const plan = planCompaction(chat.messages, lastStepUsage(), contextWindowFor(), force)
       if (!plan) return { compacted: false }
       const config = effectiveConfig()
-      const { summary } = await summarizeSession({ messages: chat.messages.slice(plan.start, plan.cut), modelKey: config.modelKey, thinking: config.thinking })
+      const { summary } = await summarizeSession({ messages: chat.messages.slice(plan.start, plan.cut), modelKey: config.modelKey, thinking: config.thinking, sessionId: id })
       const marker = buildMarker(generateId(), summary, { tokensBefore: plan.tokens, compactedAt: Date.now(), summarizedCount: plan.cut - plan.start, keptFromId: chat.messages[plan.cut]?.id })
       chat.messages = [...chat.messages.slice(0, plan.cut), marker, ...chat.messages.slice(plan.cut)]
       return { compacted: true, summary, markerId: marker.id, tokensBefore: plan.tokens, summarizedCount: plan.cut - plan.start }
@@ -534,6 +534,7 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
         messages: chat.messages,
         modelKey: config.modelKey,
         thinking: config.thinking,
+        sessionId: id,
       })
     },
     compact: (opts) => runCompact(opts?.force ?? false),

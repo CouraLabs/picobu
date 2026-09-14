@@ -1,4 +1,4 @@
-import { options } from '@config/options.ts'
+import { listProviders } from '@auth/oauth-providers.ts'
 import type { InputRenderable, ScrollBoxRenderable } from '@opentui/core'
 import { useKeyboard } from '@opentui/solid'
 import { fmtRate, fmtTokens, tableCell } from '@shared/format.ts'
@@ -45,7 +45,7 @@ export const ModelSelect = (props: ModelSelectProps) => {
   onMount(() => inputRef?.focus())
 
   const models = createMemo<Array<ModelRow>>(() =>
-    options.providers.flatMap((provider) =>
+    listProviders().flatMap((provider) =>
       provider.models.map((model) => ({
         key: `${provider.id}/${model.id}`,
         provider: provider.name,

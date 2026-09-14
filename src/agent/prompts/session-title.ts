@@ -27,13 +27,13 @@ export const buildTitlePrompt = (prompt: string, assistantReply?: string): strin
   return sections.join('\n')
 }
 
-export async function generateSessionTitle(prompt: string, assistantReply?: string): Promise<string> {
+export async function generateSessionTitle(prompt: string, assistantReply?: string, opts?: { sessionId?: string }): Promise<string> {
   const trimmed = prompt.trim()
   const fallback = truncate(trimmed)
   if (!trimmed) return fallback
   try {
     const { modelKey } = resolveModelRole(options.harness, 'tiny')
-    const { model } = resolveModel(modelKey)
+    const { model } = resolveModel(modelKey, opts?.sessionId ? { sessionId: opts.sessionId } : undefined)
     const { text } = await generateText({
       model,
       reasoning: 'none' satisfies AgentReasoning,

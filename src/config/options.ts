@@ -24,6 +24,7 @@ export interface ProviderModelOptions {
   efforts?: Array<ProviderModelReasoningEffort>
   defaultEffort?: ProviderModelReasoningEffort
   billing?: ProviderModelBilling
+  npm?: string
 }
 export interface ProviderOptions {
   id: string
@@ -32,6 +33,7 @@ export interface ProviderOptions {
   baseUrl: string
   apiKey?: string
   headers?: Record<string, string>
+  npm?: string
   models: Array<ProviderModelOptions>
 }
 export type ModelRoleId = 'tiny' | 'flash' | 'flashThinking' | 'heavy' | 'heavyThinkingLevel'

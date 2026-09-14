@@ -1,6 +1,5 @@
 import { stat } from 'node:fs/promises'
 import { resolve } from 'node:path'
-import { listSubagents } from '@agent/agents/subagents.ts'
 import { buildCommandPrompt } from '@agent/commands/discovery.ts'
 import { listCommands } from '@agent/commands/index.ts'
 import { type ParsedCommandLine, parseCommandLine } from '@agent/commands/parse-command-line.ts'
@@ -38,6 +37,7 @@ import { getModelContextSize } from '@tui/components/session/status/status-meta.
 import { openSubagentMessages } from '@tui/components/session/subagent-dialog.tsx'
 import type { ToolFlowResponse } from '@tui/components/session/tools/tool-part.tsx'
 import { setExitStatus } from '@tui/hooks/exit-status.ts'
+import { requestAppReload, setLastSessionId } from '@tui/hooks/reload-bus.ts'
 import type { CreateUIMessage } from 'ai'
 import { batch, createEffect, createSignal, onCleanup, onMount } from 'solid-js'
 
@@ -233,6 +233,7 @@ export const SessionPage = (props: SessionPageProps) => {
 
   const attachSession = (next: Session) => {
     detachQueue?.()
+    setLastSessionId(next.id)
     try {
       setLogRunId(next.id)
     } catch {}
@@ -545,7 +546,7 @@ export const SessionPage = (props: SessionPageProps) => {
     if (!promptText.trim()) return
     if (titleGenerationPending.has(target.id)) return
     titleGenerationPending.add(target.id)
-    generateSessionTitle(promptText)
+    generateSessionTitle(promptText, undefined, { sessionId: target.id })
       .then((generated) => {
         titleGenerationPending.delete(target.id)
         if (!generated) return
@@ -570,7 +571,7 @@ export const SessionPage = (props: SessionPageProps) => {
     const assistantReply = lastAssistantText(target.messages)
     if (!assistantReply?.trim()) return
     titleGenerationPending.add(target.id)
-    generateSessionTitle(promptText, assistantReply)
+    generateSessionTitle(promptText, assistantReply, { sessionId: target.id })
       .then((generated) => {
         titleGenerationPending.delete(target.id)
         if (!generated) return
@@ -807,25 +808,18 @@ export const SessionPage = (props: SessionPageProps) => {
           showError(new Error('Cannot reload while a run is in progress'))
           break
         }
+        try {
+          await target.flush()
+        } catch {}
         resetAuthCache()
         resetMcpAuthCache()
         try {
-          await target.mcp.reload()
+          await requestAppReload()
         } catch (error) {
           showError(error)
+          break
         }
-        bumpCatalog()
-        const [skills, workflows, rules, subagents, servers] = await Promise.all([
-          Promise.resolve(target.skills).catch(() => []),
-          Promise.resolve(target.workflows).catch(() => []),
-          Promise.resolve(target.rules).catch(() => []),
-          listSubagents(target.config.cwd ?? options.app.cwd).catch(() => []),
-          target.mcp.servers().catch(() => []),
-        ])
-        const connected = servers.filter((s) => s.connected).length
-        const tools = servers.reduce((n, s) => n + s.tools.length, 0)
-        pushToast(`Reloaded ${skills.length} skills, ${workflows.length} workflows, ${rules.length} rules, ${subagents.length} subagents, MCP ${connected}/${servers.length} (${tools} tools)`, 'info')
-        refreshMcp(target)
+        pushToast('Reloaded providers, tokens and catalog', 'info')
         break
       }
       case 'export': {
@@ -1016,6 +1010,7 @@ export const SessionPage = (props: SessionPageProps) => {
           mode={mode()}
           waiting={waiting() || answering()}
           mcp={mcp()}
+          provider={modelKey() ? { id: modelKey()?.split('/')[0] ?? '' } : undefined}
           statsStatus={statsStatus()}
           statsPerformance={statsPerformance()}
           statsMetrics={statsMetrics()}

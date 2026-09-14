@@ -42,7 +42,7 @@ export function createLoop(getConfig: () => LoopConfig): Loop {
   const localTools = toolSet.getTools()
   const kindByName = new Map(localTools.map((t) => [t.name, t.kind]))
   const loopAgent = new ToolLoopAgent<LoopCallOptions, ToolSet, Record<string, unknown>, never>({
-    model: resolveInitialModel(initialConfig.modelKey),
+    model: resolveInitialModel(initialConfig.modelKey, initialConfig.sessionId ? { sessionId: initialConfig.sessionId } : undefined),
     tools: toolSet.getToolSet(),
     toolOrder: buildToolOrder(
       localTools.map((t) => t.name),

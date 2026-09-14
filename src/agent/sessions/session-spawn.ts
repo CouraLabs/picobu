@@ -95,7 +95,7 @@ export async function spawnSubSession(
     })
     ctx.live.set(sessionId, child)
     if (promptText.trim()) {
-      generateSessionTitle(promptText)
+      generateSessionTitle(promptText, undefined, { sessionId })
         .then((generated) => {
           child.setTitle(generated)
         })

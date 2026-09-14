@@ -7,6 +7,7 @@ import { CliRenderEvents, ConsolePosition, createClipboard, createCliRenderer, c
 import { render } from '@opentui/solid'
 import { resetConsoleTitle, setConsoleTitle } from '@shared/console-title.ts'
 import { initLogger, logError } from '@shared/logger.ts'
+import { bumpCatalog } from '@states/catalog-state.ts'
 import { theme } from '@states/theme-state.ts'
 import { Splash } from '@tui/components/splash.tsx'
 import { App } from '@tui/layout/app.tsx'
@@ -16,6 +17,7 @@ import { createSignal, Show } from 'solid-js'
 import { setClipboardService } from './hooks/clipboard.state.ts'
 import { ClipboardProvider } from './hooks/clipboard-provider.tsx'
 import { takeExitStatus } from './hooks/exit-status.ts'
+import { onAppReload } from './hooks/reload-bus.ts'
 export interface TuiAppOptions {
   debug?: boolean
   sessionId?: string
@@ -69,7 +71,10 @@ export async function runTui(options: TuiAppOptions = {}): Promise<void> {
     },
   })
 
-  await Promise.all([autoloadLlmProviders(), ensureOAuthTokens()]).catch(() => {})
+  const bootstrapProviders = async (): Promise<void> => {
+    await Promise.all([autoloadLlmProviders(), ensureOAuthTokens()]).catch(() => {})
+  }
+  await bootstrapProviders()
 
   const clipboardService = createClipboard({ host: createHostClipboard(), terminal: createRendererClipboardAdapter(renderer) })
   setClipboardService(clipboardService)
@@ -90,6 +95,15 @@ export async function runTui(options: TuiAppOptions = {}): Promise<void> {
 
   engine.attach(renderer)
   const [ready, setReady] = createSignal(false)
+  onAppReload(async () => {
+    setReady(false)
+    try {
+      await bootstrapProviders()
+      bumpCatalog()
+    } finally {
+      setReady(true)
+    }
+  })
   try {
     await render(
       () => (

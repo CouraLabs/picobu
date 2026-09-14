@@ -16,6 +16,7 @@ interface ErrorShape {
   message: string
   stack?: string
   cause?: ErrorShape
+  details?: Record<string, unknown>
 }
 
 const MAX_LOG_FILES = 20
@@ -84,15 +85,40 @@ const pruneOldLogs = (dir: string, keepPath?: string): void => {
   }
 }
 
+const MAX_ERROR_DETAIL_CHARS = 2000
+
+const truncDetail = (value: unknown): unknown => {
+  if (typeof value === 'string') return value.length > MAX_ERROR_DETAIL_CHARS ? `${value.slice(0, MAX_ERROR_DETAIL_CHARS)}…` : value
+  try {
+    const text = JSON.stringify(value)
+    if (text && text.length > MAX_ERROR_DETAIL_CHARS) return `${text.slice(0, MAX_ERROR_DETAIL_CHARS)}…`
+  } catch {}
+  return value
+}
+
+const errorCallDetails = (error: Error): Record<string, unknown> | undefined => {
+  const record = error as Error & { statusCode?: unknown; url?: unknown; responseBody?: unknown; data?: unknown; lastError?: unknown }
+  const source = (record.statusCode !== undefined || record.url !== undefined || record.responseBody !== undefined ? record : (record.lastError as typeof record | undefined)) ?? record
+  const details: Record<string, unknown> = {}
+  if (typeof source.statusCode === 'number') details.statusCode = source.statusCode
+  if (typeof source.url === 'string' && source.url.length > 0) details.url = source.url
+  if (source.responseBody !== undefined) details.responseBody = truncDetail(source.responseBody)
+  else if (source.data !== undefined) details.data = truncDetail(source.data)
+  return Object.keys(details).length > 0 ? details : undefined
+}
+
 const serializeError = (error: unknown, depth = 0): ErrorShape | string => {
   if (!(error instanceof Error) || depth > 2) return error instanceof Error ? { name: error.name, message: error.message, stack: error.stack } : String(error)
   const shape: ErrorShape = { name: error.name, message: error.message }
   if (error.stack) shape.stack = error.stack
-  if (error.cause instanceof Error) {
-    const nested = serializeError(error.cause, depth + 1)
+  const details = errorCallDetails(error)
+  if (details) shape.details = details
+  const nestedSource: unknown = error.cause ?? (error as Error & { lastError?: unknown }).lastError
+  if (nestedSource instanceof Error) {
+    const nested = serializeError(nestedSource, depth + 1)
     if (typeof nested !== 'string') shape.cause = nested
-  } else if (error.cause !== undefined) {
-    shape.cause = { name: 'Cause', message: String(error.cause) }
+  } else if (nestedSource !== undefined) {
+    shape.cause = { name: 'Cause', message: String(nestedSource) }
   }
   return shape
 }
