@@ -1,5 +1,6 @@
 import { mkdirSync } from 'node:fs'
 import { homedir } from 'node:os'
+import { normalizeStatusLines, type ProviderStatusEntry } from '@config/provider-status-line.ts'
 import { DEFAULT_MCP_OPTIONS, type McpOptions } from '@integrations/mcp/config.ts'
 import { acquireLock } from '@shared/lock.ts'
 import { detectShell } from '@shared/shell.ts'
@@ -13,6 +14,7 @@ export interface ProviderModelBilling {
 }
 export type ProviderModelCapability = 'text' | 'vision' | (string & {})
 export type ProviderModelReasoningEffort = 'none' | 'low' | 'medium' | 'high' | 'xhigh' | 'max' | (string & {})
+export type ProviderModelStatus = 'alpha' | 'beta' | 'deprecated' | 'active' | (string & {})
 export interface ProviderModelOptions {
   id: string
   name: string
@@ -25,7 +27,18 @@ export interface ProviderModelOptions {
   defaultEffort?: ProviderModelReasoningEffort
   billing?: ProviderModelBilling
   npm?: string
+  status?: ProviderModelStatus
 }
+export type {
+  ProviderStatusEntry,
+  ProviderStatusLine,
+  ProviderStatusLineEndpointItem,
+  ProviderStatusLineHeaderItem,
+  ProviderStatusLineItem,
+  ProviderStatusLineItemBase,
+  ProviderStatusLineStepRawItem,
+} from '@config/provider-status-line.ts'
+export { MAX_STATUS_LINE_ITEMS, normalizeStatusLine, normalizeStatusLineItems, normalizeStatusLines, selectStatusLineItems } from '@config/provider-status-line.ts'
 export interface ProviderOptions {
   id: string
   name: string
@@ -102,6 +115,7 @@ export const DEFAULT_WEB_OPTIONS: WebServerOptions = {
 }
 export interface OptionsExternal {
   providers?: Array<ProviderOptions>
+  statusLine?: Array<ProviderStatusEntry>
   harness?: HarnessOptionsInput
   theme?: ThemePrefs
   tui?: TuiOptionsInput
@@ -123,6 +137,7 @@ export interface GlobalOptions {
 }
 export type Options = GlobalOptions & {
   providers: Array<ProviderOptions>
+  statusLine: Array<ProviderStatusEntry>
   harness: HarnessOptions
   tui: TuiOptions
   web: WebServerOptions
@@ -190,6 +205,7 @@ export const loadOptions = async (): Promise<Options> => {
   return {
     ...globals,
     providers: externalOpts.providers ?? [],
+    statusLine: normalizeStatusLines(externalOpts.statusLine ?? []),
     harness: (externalOpts.harness ?? {}) as HarnessOptions,
     tui: resolveTui(externalOpts),
     web: { ...DEFAULT_WEB_OPTIONS, ...externalOpts.web },
@@ -269,7 +285,7 @@ async function readExternalOptions(): Promise<OptionsExternal> {
     lock.release()
   }
 }
-export const updateSettings = async (patch: Partial<Pick<OptionsExternal, 'providers' | 'harness' | 'tui' | 'web' | 'whatsapp' | 'mcp' | 'watchdog'>>): Promise<Options> => {
+export const updateSettings = async (patch: Partial<Pick<OptionsExternal, 'providers' | 'statusLine' | 'harness' | 'tui' | 'web' | 'whatsapp' | 'mcp' | 'watchdog'>>): Promise<Options> => {
   const systemDir = globals.app.systemDir
   mkdirSync(systemDir, { recursive: true })
   const externalOptsPath = `${systemDir}/options.json`

@@ -71,7 +71,7 @@ describe('skill and rule tools with tmp', () => {
     const got = await tool.handler({ name: '  MY-SKILL ' })
     expect(got.name).toBe('my-skill')
     expect(got.skillDir).toBe(skillDir)
-    expect(got.files).toEqual(['SKILL.md', 'extra.txt'])
+    expect(got.files).toEqual([join(skillDir, 'SKILL.md'), join(skillDir, 'extra.txt')])
     expect(got.content).toContain('Hello skill body')
   })
   test('skill handler reports unknown names', async () => {

@@ -103,4 +103,32 @@ describe('createLoopStatsStore', () => {
     expect(fresh.steps[0]?.usage.inputTokens).toBe(5)
     expect(fresh.total.usage.inputTokens).toBe(5)
   })
+  test('keeps usage raw payloads for step-raw status items', () => {
+    const store = createLoopStatsStore(() => undefined)
+    const input = stepEnd(5)
+    input.usage.raw = { cost: { hypercredits: 11 } }
+    store.handleStepEnd(input)
+    const stats = store.get()
+    expect((stats.steps[0]?.usage.raw as { cost?: { hypercredits?: number } })?.cost?.hypercredits).toBe(11)
+  })
+  test('endpoint values merge and notify listeners', () => {
+    const store = createLoopStatsStore(() => undefined)
+    const seen: Array<LoopStats> = []
+    const unsubscribe = store.onChange((stats) => {
+      seen.push(stats)
+    })
+    store.setEndpointValues({ HyperCredits: { balance: 100 } })
+    store.setEndpointValues({ Other: 1 })
+    const stats = store.get()
+    expect(stats.endpoints).toEqual({ HyperCredits: { balance: 100 }, Other: 1 })
+    expect(seen).toHaveLength(2)
+    unsubscribe()
+  })
+  test('restore carries endpoint values', () => {
+    const first = createLoopStatsStore(() => undefined)
+    first.setEndpointValues({ HyperCredits: { balance: 50 } })
+    const second = createLoopStatsStore(() => undefined)
+    second.restore(first.get())
+    expect(second.get().endpoints).toEqual({ HyperCredits: { balance: 50 } })
+  })
 })

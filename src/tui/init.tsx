@@ -9,6 +9,7 @@ import { resetConsoleTitle, setConsoleTitle } from '@shared/console-title.ts'
 import { initLogger, logError } from '@shared/logger.ts'
 import { bumpCatalog } from '@states/catalog-state.ts'
 import { theme } from '@states/theme-state.ts'
+import { pushToast } from '@states/toast.state.ts'
 import { Splash } from '@tui/components/splash.tsx'
 import { App } from '@tui/layout/app.tsx'
 import { closeMessage } from '@tui/themes/logo.ts'
@@ -47,7 +48,10 @@ export async function runTui(options: TuiAppOptions = {}): Promise<void> {
     externalOutputMode: 'passthrough',
     consoleOptions: {
       onCopySelection(text) {
-        clipboardService.writeText(text, { destination: 'all-available' })
+        clipboardService.writeText(text, { destination: 'all-available' }).then(
+          () => pushToast('Copied to clipboard', 'info'),
+          (error) => pushToast(`Copy failed: ${error instanceof Error ? error.message : String(error)}`, 'error'),
+        )
       },
       sizePercent: 50,
       position: ConsolePosition.RIGHT,

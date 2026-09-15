@@ -10,7 +10,7 @@ import { options } from '@config/options.ts'
 
 export const INTERACTIVE_FLOW_TOOLS: ReadonlyArray<string> = ['ask', 'plan-write', 'plan-exit']
 
-export const WRITE_CAPABLE_TOOLS: ReadonlyArray<string> = ['write', 'edit']
+export const WRITE_CAPABLE_TOOLS: ReadonlyArray<string> = ['write', 'edit', 'apply_patch']
 
 export const canWriteFiles = (tools: Array<string>): boolean => {
   if (tools.length === 0) return true

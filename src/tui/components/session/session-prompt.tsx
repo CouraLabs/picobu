@@ -56,7 +56,7 @@ const DRAFT_DEBOUNCE_MS = 450
 const MAX_FILES = 5
 const MAX_FILE_BYTES = 10 * 1024 * 1024
 
-export const HISTORY_DOUBLE_PRESS_MS = 100
+export const HISTORY_DOUBLE_PRESS_MS = 200
 
 export interface HistoryKeyPress {
   name: 'up' | 'down'
@@ -405,9 +405,10 @@ export const SessionPrompt = (props: SessionPromptProps) => {
     if (!textareaRef?.hasSelection()) return
     const selected = textareaRef.getSelectedText()
     if (!selected) return
-    service.writeText(selected, { destination: 'best-available' }).catch((error) => {
-      pushToast(`Copy failed: ${error instanceof Error ? error.message : String(error)}`, 'error')
-    })
+    service.writeText(selected, { destination: 'all-available' }).then(
+      () => pushToast('Copied to clipboard', 'info'),
+      (error) => pushToast(`Copy failed: ${error instanceof Error ? error.message : String(error)}`, 'error'),
+    )
   }
 
   const guessExt = (mediaType: string): string => {

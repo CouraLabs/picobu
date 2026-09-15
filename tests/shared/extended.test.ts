@@ -147,6 +147,33 @@ describe('error report', () => {
     err.url = 'example.com/api'
     expect(describeError(err).detail).toContain('example.com/api')
   })
+  test('zen billing errors promote the server message', () => {
+    const err = new Error('AI_APICallError · HTTP 401') as Error & { statusCode?: number; url?: string; responseBody?: string }
+    err.statusCode = 401
+    err.url = 'https://opencode.ai/zen/go/v1/chat/completions'
+    err.responseBody = JSON.stringify({ type: 'error', error: { type: 'CreditsError', message: 'Insufficient balance. Manage your billing here: https://opencode.ai/workspace/wrk_1/billing' } })
+    const report = describeError(err)
+    expect(report.message).toBe('OpenCode Zen · Insufficient balance. Manage your billing here: https://opencode.ai/workspace/wrk_1/billing')
+    expect(report.detail).toContain('https://opencode.ai/zen/go/v1/chat/completions')
+    expect(report.detail).not.toContain('Insufficient balance')
+  })
+  test('zen usage limit errors promote the server message', () => {
+    const err = new Error('failed') as Error & { responseBody?: string }
+    err.responseBody = JSON.stringify({
+      type: 'error',
+      error: { type: 'GoUsageLimitError', message: 'monthly usage limit reached. It will reset in 2 days - https://opencode.ai/workspace/wrk_1/go' },
+      metadata: { workspace: 'wrk_1', limitName: 'monthly' },
+    })
+    expect(describeError(err).message).toContain('OpenCode Zen · monthly usage limit reached')
+  })
+  test('non-billing zen errors keep the existing shape', () => {
+    const err = new Error('AI_APICallError · HTTP 401') as Error & { statusCode?: number; responseBody?: string }
+    err.statusCode = 401
+    err.responseBody = JSON.stringify({ type: 'error', error: { type: 'ModelError', message: 'Model ox-alpha-free is not supported' } })
+    const report = describeError(err)
+    expect(report.message).toContain('HTTP 401')
+    expect(report.detail).toBe('Model ox-alpha-free is not supported')
+  })
   test('cause chains only on differing messages', () => {
     expect(describeError(new Error('outer', { cause: new Error('inner') })).detail).toBe('cause: inner')
     expect(describeError(new Error('same', { cause: new Error('same') })).detail).toBeNull()

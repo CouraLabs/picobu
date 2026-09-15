@@ -1,14 +1,16 @@
 import { isAbsolute, relative, resolve } from 'node:path'
 import { CheckpointStore } from '@agent/sessions/checkpoints.ts'
+import { joinBom, splitBom } from '@agent/tools/filesystem/bom.ts'
+import { convertToLineEnding, detectLineEnding, diffForFile, normalizeLineEndings, replaceText } from '@agent/tools/filesystem/replacers.ts'
 import { sandboxRoot } from '@agent/tools/sandbox.ts'
 import type { ToolExecuteOptions } from '@agent/tools/toolset.ts'
 import { withLock } from '@shared/lock.ts'
-import { createTwoFilesPatch } from 'diff'
 import z from 'zod'
 export const EditToolArgsSchema = z.object({
   path: z.string().min(1),
-  oldString: z.string().min(1),
+  oldString: z.string(),
   newString: z.string(),
+  replaceAll: z.boolean().optional().describe('Replace all occurrences of oldString (default false).'),
 })
 export interface EditToolResult {
   message: string
@@ -32,29 +34,45 @@ export const createEditTool = (checkpointsPath?: string) => {
   const checkpoints = checkpointsPath ? new CheckpointStore(checkpointsPath) : undefined
   return {
     name: 'edit',
-    description: 'Replace one exact oldString with newString; fails on missing or ambiguous matches, returns diff.',
+    description: 'Replace oldString with newString using exact or whitespace-tolerant matching; fails on missing matches, refuses ambiguous single replaces unless replaceAll is true, returns diff.',
     parameters: EditToolArgsSchema,
     output: EditToolOutputSchema,
     handler: async (args: z.infer<typeof EditToolArgsSchema>, toolOptions?: ToolExecuteOptions): Promise<EditToolResult> => {
       if (!args.path) throw new Error('edit requires a non-empty path')
-      if (args.oldString === '') throw new Error('edit requires a non-empty oldString')
       const base = sandboxRoot(toolOptions?.experimental_sandbox)
       const path = resolveInsideBase(base, args.path)
       return withLock(path, async () => {
         const file = Bun.file(path)
-        if (!(await file.exists())) throw new Error(`File not found: ${path}`)
-        const text = await file.text()
-        const count = text.split(args.oldString).length - 1
-        if (count === 0) throw new Error(`oldString not found in ${path}`)
-        if (count > 1) throw new Error(`oldString appears ${count} times in ${path}; refusing ambiguous replace (supply more context)`)
-        const updated = text.replace(args.oldString, () => args.newString)
-        await Bun.write(path, updated)
-        if (checkpoints) {
-          await checkpoints.record({ tool: 'edit', path, before: text, after: updated })
+        const exists = await file.exists()
+        if (args.oldString === '') {
+          if (exists) throw new Error('oldString cannot be empty when editing an existing file. Provide the exact text to replace, or use write for an intentional full-file replacement.')
+          await Bun.write(path, args.newString)
+          if (checkpoints) {
+            await checkpoints.record({ tool: 'edit', path, before: null, after: args.newString })
+          }
+          return {
+            message: `Created ${path} via edit (empty oldString on missing file)`,
+            diff: diffForFile(path, '', splitBom(args.newString).text),
+          }
         }
+        if (!exists) throw new Error(`File not found: ${path}`)
+        const raw = await file.text()
+        const source = splitBom(raw)
+        const ending = detectLineEnding(source.text)
+        const content = normalizeLineEndings(source.text)
+        const oldNormalized = normalizeLineEndings(args.oldString)
+        const newNormalized = normalizeLineEndings(args.newString)
+        const updatedNormalized = replaceText(content, oldNormalized, newNormalized, args.replaceAll ?? false)
+        const updated = convertToLineEnding(updatedNormalized, ending)
+        const desiredBom = source.bom || splitBom(args.newString).bom
+        await Bun.write(path, joinBom(updated, desiredBom))
+        if (checkpoints) {
+          await checkpoints.record({ tool: 'edit', path, before: raw, after: joinBom(updated, desiredBom) })
+        }
+        const occurrences = (args.replaceAll ?? false) ? 'all occurrences' : 'single occurrence'
         return {
-          message: `Replaced single occurrence in ${path}`,
-          diff: createTwoFilesPatch(path, path, text, updated, '', ''),
+          message: `Replaced ${occurrences} in ${path}`,
+          diff: diffForFile(path, source.text, updated),
         }
       })
     },

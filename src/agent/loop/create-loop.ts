@@ -6,11 +6,13 @@ import { createSystemBuilder } from '@agent/loop/system-builder.ts'
 import { buildToolOrder } from '@agent/loop/tool-order.ts'
 import { createLoopTransport } from '@agent/loop/transport.ts'
 import type { Loop, LoopCallOptions, LoopConfig } from '@agent/loop/types.ts'
+import { fetchProviderEndpoint } from '@agent/model/provider-endpoints.ts'
 import { resolveModelRef } from '@agent/model/resolver.ts'
 import { checkpointsPath } from '@agent/sessions/checkpoints.ts'
 import { folderKeyFor, sessionTodoFilePath } from '@agent/sessions/session-paths.ts'
 import { buildToolSet } from '@agent/tools/toolset.ts'
 import { options } from '@config/options.ts'
+import { selectStatusLineItems } from '@config/provider-status-line.ts'
 import { createMcpManager } from '@integrations/mcp/client.ts'
 import { ToolLoopAgent, type ToolSet } from 'ai'
 
@@ -37,6 +39,35 @@ export function createLoop(getConfig: () => LoopConfig): Loop {
     }
   }
   const statsStore = createLoopStatsStore(getBilling)
+  const refreshEndpoints = (): void => {
+    let providerId: string | undefined
+    try {
+      const resolved = resolveModelRef(getConfig().modelKey)
+      providerId = resolved.provider.id
+      const items = selectStatusLineItems(options.statusLine, providerId)
+      const endpoints = items.filter((item) => item.type === 'endpoint')
+      if (endpoints.length === 0) return
+      const provider = resolved.provider
+      void (async () => {
+        const values: Record<string, unknown> = {}
+        for (const item of endpoints) {
+          if (item.type !== 'endpoint') continue
+          try {
+            values[item.label] = await fetchProviderEndpoint(provider, item.endpoint)
+          } catch {}
+        }
+        if (Object.keys(values).length === 0) return
+        try {
+          if (resolveModelRef(getConfig().modelKey).provider.id !== providerId) return
+        } catch {
+          return
+        }
+        statsStore.setEndpointValues(values)
+      })()
+    } catch {
+      return
+    }
+  }
   const { buildSystem } = createSystemBuilder({ getConfig, cwd, toolSet, mcp })
   const prepareCall = createPrepareCall({ getConfig, toolSet, mcp, buildSystem })
   const localTools = toolSet.getTools()
@@ -49,10 +80,14 @@ export function createLoop(getConfig: () => LoopConfig): Loop {
       (name) => kindByName.get(name),
     ),
     onStepEnd: (event) => statsStore.handleStepEnd(event),
-    onEnd: (event) => statsStore.handleEnd(event),
+    onStart: () => refreshEndpoints(),
+    onEnd: (event) => {
+      statsStore.handleEnd(event)
+      refreshEndpoints()
+    },
     prepareCall,
   })
   const agent = withSandbox(loopAgent, cwd, initialConfig.sandbox !== false)
   const transport = createLoopTransport(agent, isPersistent)
-  return { agent, transport, mcp, stats: statsStore.get, onStats: statsStore.onChange, restoreStats: statsStore.restore }
+  return { agent, transport, mcp, stats: statsStore.get, onStats: statsStore.onChange, restoreStats: statsStore.restore, refreshEndpoints }
 }

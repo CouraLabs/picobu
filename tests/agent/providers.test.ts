@@ -1,7 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { headersForProviderId, providerSpecFor } from '../../src/agent/model/providers/index.ts'
 import { npmForProviderType, typeForNpm } from '../../src/agent/model/resolver.ts'
-import { getProviderStatusLabel } from '../../src/tui/components/session/status/status-provider.tsx'
 
 describe('provider specs', () => {
   test('exposes anthropic beta headers', () => {
@@ -27,13 +26,5 @@ describe('npm mapping', () => {
     expect(npmForProviderType('openai')).toBe('@ai-sdk/openai')
     expect(npmForProviderType('anthropic')).toBe('@ai-sdk/anthropic')
     expect(npmForProviderType('openai-compatible')).toBe('@ai-sdk/openai-compatible')
-  })
-})
-
-describe('SessionProviderStatus', () => {
-  test('labels provider id and detail', () => {
-    expect(getProviderStatusLabel(undefined)).toBeUndefined()
-    expect(getProviderStatusLabel({ id: 'openai' })).toBe('openai')
-    expect(getProviderStatusLabel({ id: 'xai', name: 'xAI', detail: 'SuperGrok' })).toBe('xAI · SuperGrok')
   })
 })

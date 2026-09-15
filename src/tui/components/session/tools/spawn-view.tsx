@@ -1,6 +1,6 @@
 import type { SpawnJobStats } from '@agent/sessions/session-jobs.ts'
 import type { SessionManager } from '@agent/sessions/session-manager.ts'
-import { clip, fmtCostPrecise, fmtTokens } from '@shared/format.ts'
+import { clip, fmtCostPreciseBare, fmtTokens } from '@shared/format.ts'
 import { dialogJustClosed } from '@states/dialog.state.ts'
 import { theme } from '@states/theme-state.ts'
 import { ToolStatusIcon } from '@tui/components/shared/tool-status-icon.tsx'
@@ -55,7 +55,7 @@ export const SpawnView = (props: { part: ToolPartLike; onOpen?: (sessionId: stri
     const percent = total > 0 ? Math.round((read / total) * 100) : 0
     return `${fmtTokens(read)} (${percent}%)`
   }
-  const costLabel = () => fmtCostPrecise(jobStats()?.cost.total) || '0'
+  const costLabel = () => fmtCostPreciseBare(jobStats()?.cost.total) || '0'
   const open = () => {
     if (dialogJustClosed()) return
     const id = sessionId()

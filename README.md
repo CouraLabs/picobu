@@ -128,7 +128,7 @@ Everything lives in `~/.picobu/options.json` (auto-created, auto-seeded, lock-gu
 | `mcp` | MCP `servers` map (see [MCP](#mcp-model-context-protocol)) |
 | `watchdog` | Stale-run handling (`staleTimeoutMs` default 300000, stale notification/continue prompts) |
 
-Supported provider `type` values: `openai`, `anthropic`, `openai-compatible`, `openai-responses`. API keys may reference the environment (`"env:VAR_NAME"`) or OAuth credentials (`"auth:<id>"`); MCP `headers`/`env` also accept `"env:VAR"` refs.
+Supported provider `type` values: `openai`, `anthropic`, `openai-compatible`, `openai-responses`. API keys may reference the environment (`"env:VAR_NAME"`) or OAuth credentials (`"auth:<id>"`); MCP `headers`/`env` also accept `"env:VAR"` refs. A top-level `statusLine` block maps providers to chips on the session footer provider row without touching the provider entries themselves (see [Provider status line](#provider-status-line)).
 
 Providers preload from the [`@opencode-ai/models`](https://models.dev) catalog by API key: at startup picobu loads every models.dev provider whose `env` vars are set (live list first, snapshot fallback), using each provider's `npm` field to select the `@ai-sdk/*` factory and each provider folder in `src/agent/model/providers/` for special headers. Charm Hyper additionally tries a live `/v1/models` fetch before the catalog fallback.
 
@@ -237,7 +237,39 @@ Session footer: four rows under the prompt. Token and timing segments reflect th
 - Agent row: agent, model, thinking level, finish reason or live activity (`Prompting`, `Reasoning`, `Tooling`, `Delegating`, `Answering`), session title.
 - Metrics row: `⧖` time to first output, `↯` output tokens/sec, `⌛` step time, `↻` LLM response time, `⯿` tool execution time, `↑` input tokens, `↓` output tokens, `⛁` cache total (hit %), `$` session cost, cost split (`in` / `out` / `read` / `write`).
 - Session row: message count (`u`ser / `a`ssistant), tool calls, run count with subagent cost, MCP connections, queue state.
-- Provider row (`SessionProviderStatus`, shell for now): provider id/name for the active model; per-provider special data lands here later.
+- Provider row (`SessionProviderStatus`): provider id/name for the active model, plus up to 8 `statusLine` chips (`Label value`, sticky-last across runs, `Label -` when never resolved).
+
+### Provider status line
+
+A top-level `statusLine` array (sibling of `providers`) maps a provider id to status chips, so no provider entry needs editing:
+
+```json
+{
+  "statusLine": [
+    {
+      "provider": "hyper",
+      "items": [
+        { "label": "Rate Day", "type": "header", "value": "x-ratelimit-remaining-day" },
+        { "label": "Rate Hour", "type": "header", "value": "x-ratelimit-remaining-hour" },
+        { "label": "Run HyperCredits", "type": "step-raw", "value": "cost.hypercredits" },
+        { "label": "HyperCredits", "type": "endpoint", "endpoint": "/credits", "value": "balance" }
+      ]
+    }
+  ]
+}
+```
+
+Three item types:
+
+| `type` | `value` source | Fetched |
+| --- | --- | --- |
+| `header` | response header name (case-insensitive) from the last step | every step |
+| `step-raw` | dot-path (e.g. `cost.hypercredits`, `balances.0.total`) inside the last step's `usage.raw` provider payload | every step |
+| `endpoint` | dot-path into the JSON returned by `endpoint`, fetched with the provider's own auth (`env:` api key or `auth:<id>` oauth as `Bearer`) | session start, run start + run end |
+
+`endpoint` starting with `http://`/`https://` is used as-is; anything else is joined to the provider `baseUrl` (so `/credits` and `credits` are equivalent). Endpoint results persist in the session stats file, failures keep the last value, and fetching never blocks a run (10s timeout, fire-and-forget). Objects render as JSON, missing values render as `Label -`.
+
+The `hyper` (Charm Hyper) provider ships with the above defaults: per-response day/hour rate-limit headers, per-run HyperCredits from the step payload, and account balance polled on run start/end. Missing entries are backfilled automatically (your edits are never overwritten).
 
 Sandbox: each session runs inside a local sandbox rooted at its cwd (AI SDK `experimental_sandbox` over Bun); `shell` uses your detected shell, abort kills running commands; relative paths resolve against the cwd (absolute paths pass through — no jail in v1); `setSandbox(false)` is a runtime kill switch for subsequently created sessions.
 
@@ -294,6 +326,8 @@ Aliases: `copilot` → `github-copilot`, `claude` → `anthropic`, `chatgpt`/`co
 ### Host frontends
 
 Reference TUI (`bun dev:tui`, `src/tui/` over OpenTUI + Solid): session page with streamed text/reasoning/tool parts (`ask` renders its form inline, plans render for review), session header/status, message actions, diff viewer, dialogs/dropdowns, hover tooltips (`Tooltip` wrapper + `TooltipLayer` with dropdown-style flip/clamp positioning), splash screen, 35 bundled themes (`picobu` default, `resolveTheme`/`generateSyntax`), icon set, and Solid state primitives for dialogs, dropdowns, tooltips, theme, and toasts (`src/states/`). Clipboard goes through an OpenTUI service adapter.
+
+Mouse: click the status-bar model to switch models, hover the todo count to preview the list, click a tool header to collapse/expand its output (disabled when empty), double-click a message for Revert/Copy/Fork, click a subagent row to open its session, drag-select text then CTRL/CMD + C to copy (ESC clears the selection). The full list lives in the in-app help (`CTRL + H`).
 
 Library kit: `createHeadlessChatState()` implements the AI SDK `ChatState` contract over the loop (reuse `useChat` against any session); `src/wrappers/` bundles tree-sitter parser WASMs + highlight queries for 39 languages (`createTreeSitterClient()`, data under `~/.picobu/tree-sitter`); prompt history and session-title helpers round out host needs. No UI logic lives in the agent loop.
 

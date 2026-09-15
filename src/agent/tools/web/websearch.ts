@@ -5,6 +5,8 @@ import z from 'zod'
 export const WebsearchToolArgsSchema = z.object({
   query: z.string().min(1),
   deepness: z.number().min(1).max(5).default(1),
+  numResults: z.number().int().min(1).max(20).optional().describe('Max results to return (default 8).'),
+  fetchContent: z.boolean().optional().describe('Fetch each result page as Markdown (default true). Set false for snippets only.'),
 })
 export const WebsearchResultSchema = z.object({
   title: z.string(),
@@ -80,7 +82,8 @@ export function parseSearchPage(html: string): ParsedSearchPage {
 
 export const websearchTool = {
   name: 'websearch',
-  description: 'Web search via DuckDuckGo; deepness (1-5) sets pages scanned, each result fetched as Markdown.',
+  description:
+    'Web search via DuckDuckGo; deepness (1-5) sets pages scanned, numResults caps results (default 8), fetchContent controls per-result Markdown fetch (default true, false = snippets only).',
   parameters: WebsearchToolArgsSchema,
   output: WebsearchStreamChunkSchema,
   kind: 'external' as const,
@@ -88,6 +91,8 @@ export const websearchTool = {
     const seen = new Set<string>()
     const results: Array<z.infer<typeof WebsearchResultSchema>> = []
     const snapshot = () => results.map((r) => ({ ...r }))
+    const maxResults = args.numResults ?? 8
+    const fetchContent = args.fetchContent ?? true
     let offset: number | null = null
     let pages = 0
     yield { progress: `Searching "${args.query}"…` }
@@ -109,10 +114,18 @@ export const websearchTool = {
         if (seen.has(result.url)) continue
         seen.add(result.url)
         results.push({ ...result, content: null })
+        if (results.length >= maxResults) break
       }
       yield { progress: `Page ${pages}: ${results.length} result${results.length === 1 ? '' : 's'}`, results: snapshot() }
-      if (parsed.nextOffset === null) break
+      if (parsed.nextOffset === null || results.length >= maxResults) break
       offset = parsed.nextOffset
+    }
+    const capped = results.slice(0, maxResults)
+    results.length = 0
+    results.push(...capped)
+    if (!fetchContent) {
+      yield { query: args.query, results }
+      return
     }
     const total = results.length
     const FETCH_CONCURRENCY = 4

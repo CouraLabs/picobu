@@ -26,10 +26,12 @@ export interface MessagePartViewProps {
   onOpen?: (message: LoopMessage) => void
 }
 
+const DOUBLE_CLICK_MS = 200
+
 export const MessagePartView = (props: MessagePartViewProps) => {
   const [hovered, setHovered] = createSignal(false)
   const borderColor = () => (hovered() ? theme().accent : defaultBorderColor())
-
+  let lastClickAt = 0
   const defaultBorderColor = () => {
     if (props.role === 'user') return theme().text
     if (reasoningPart()) return theme().textMuted
@@ -47,7 +49,13 @@ export const MessagePartView = (props: MessagePartViewProps) => {
     onMouseOut: () => setHovered(false),
     onMouseUp: () => {
       if (dialogStatus().status === 'open') return
-      props.onOpen?.(props.message)
+      const now = Date.now()
+      if (now - lastClickAt <= DOUBLE_CLICK_MS) {
+        lastClickAt = 0
+        props.onOpen?.(props.message)
+      } else {
+        lastClickAt = now
+      }
     },
   }
 

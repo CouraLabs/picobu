@@ -15,6 +15,8 @@ export interface SpawnSubSessionParams {
   subagent: string
   prompt: SessionPrompt
   depth: number
+  description?: string
+  taskId?: string
 }
 
 export interface SpawnContext {
@@ -28,7 +30,7 @@ export interface SpawnContext {
 
 export async function spawnSubSession(
   ctx: SpawnContext,
-  { parentId, subagent, prompt, depth }: SpawnSubSessionParams,
+  { parentId, subagent, prompt, depth, description, taskId }: SpawnSubSessionParams,
 ): Promise<{
   sessionId: string
   summary: string
@@ -36,6 +38,10 @@ export async function spawnSubSession(
   if (ctx.maxAgents <= 0) throw new Error('Spawning is disabled (maxAgents is 0)')
   if (depth >= SUBAGENT_DEPTH_CAP) {
     throw new Error(`Sub agent depth cap of ${SUBAGENT_DEPTH_CAP} reached; report your findings instead of spawning deeper`)
+  }
+  if (taskId) {
+    const prior = ctx.jobs.get(taskId)
+    if (!prior) throw new Error(`Unknown taskId "${taskId}": no previous subagent session with that id`)
   }
   const def = await getSubagent(subagent, ctx.cwd)
   if (!def) {
@@ -87,11 +93,15 @@ export async function spawnSubSession(
               .map((entry) => entry.text as string)
               .join('\n')
           : ''
-    const fallbackTitle = promptText.trim() ? `${subagent}: ${truncate(promptText.replace(/\s+/g, ' ').trim())}` : `${subagent}: sub session`
+    const fallbackTitle = description?.trim()
+      ? `${description.trim()} (@${subagent} subagent)`
+      : promptText.trim()
+        ? `${subagent}: ${truncate(promptText.replace(/\s+/g, ' ').trim())}`
+        : `${subagent}: sub session`
     const child = await createSession({
       config: () => ctx.baseConfig({ modelKey, sessionId, agentOverride: prepared, subagent: true, spawn: { manager: ctx.manager, parentId: sessionId, depth: depth + 1 } }),
       id: sessionId,
-      meta: { cwd: ctx.cwd, parentSessionId: parentId, title: fallbackTitle },
+      meta: { cwd: ctx.cwd, parentSessionId: parentId, title: taskId ? `${fallbackTitle} (continues ${taskId.slice(0, 8)})` : fallbackTitle },
     })
     ctx.live.set(sessionId, child)
     if (promptText.trim()) {

@@ -1,6 +1,7 @@
 import { isAbsolute, relative, resolve } from 'node:path'
 import { killProcessTree, shellSpec } from '@agent/tools/sandbox.ts'
 import type { ToolExecuteOptions } from '@agent/tools/toolset.ts'
+import { MAX_TOOL_OUTPUT_BYTES, MAX_TOOL_OUTPUT_LINES, tailText, writeFullToolOutput } from '@agent/tools/truncate-output.ts'
 import { options } from '@config/options.ts'
 import z from 'zod'
 export const ShellToolArgsSchema = z.object({
@@ -15,7 +16,6 @@ const DEFAULT_TIMEOUT_SECONDS = 120
 const PROGRESS_INTERVAL_MS = 300
 const PROGRESS_TAIL_LINES = 10
 const PROGRESS_LINE_MAX = 160
-const OUTPUT_MAX_CHARS = 100_000
 const DRAIN_GRACE_MS = 500
 interface Child {
   stdout: ReadableStream<Uint8Array>
@@ -24,11 +24,6 @@ interface Child {
   kill: () => void
 }
 const truncateLine = (line: string): string => (line.length > PROGRESS_LINE_MAX ? `${line.slice(0, PROGRESS_LINE_MAX - 1)}…` : line)
-const capOutput = (text: string): string => {
-  if (text.length <= OUTPUT_MAX_CHARS) return text
-  const half = OUTPUT_MAX_CHARS / 2
-  return `${text.slice(0, half)}\n…[output truncated]…\n${text.slice(-half)}`
-}
 const drainStream = (stream: ReadableStream<Uint8Array>, sink: (text: string) => void, cancel: Promise<'cancel'>): Promise<void> => {
   const reader = stream.getReader()
   const decoder = new TextDecoder()
@@ -46,6 +41,11 @@ const drainStream = (stream: ReadableStream<Uint8Array>, sink: (text: string) =>
     } catch {}
   })()
 }
+const spillCombined = async (label: string, exit: number | null, stdout: string, stderr: string): Promise<string | undefined> => {
+  const combined = `$ ${label}\n(exit ${exit === null ? 'killed' : exit})\n--- stdout ---\n${stdout}\n--- stderr ---\n${stderr}`
+  if (Buffer.byteLength(combined, 'utf-8') <= MAX_TOOL_OUTPUT_BYTES) return undefined
+  return writeFullToolOutput(combined)
+}
 const runStreaming = async function* (label: string, child: Child, toolOptions: ToolExecuteOptions | undefined, timeoutSeconds: number): AsyncGenerator<ShellToolChunk> {
   let aborted = false
   let timedOut = false
@@ -58,8 +58,8 @@ const runStreaming = async function* (label: string, child: Child, toolOptions: 
     timedOut = true
     child.kill()
   }, timeoutSeconds * 1000)
-  let stdout = ''
-  let stderr = ''
+  const outParts: Array<string> = []
+  const errParts: Array<string> = []
   const tailLines: Array<string> = []
   let tailPending = ''
   let lastProgress = ''
@@ -73,8 +73,8 @@ const runStreaming = async function* (label: string, child: Child, toolOptions: 
     if (tailLines.length > PROGRESS_TAIL_LINES) tailLines.splice(0, tailLines.length - PROGRESS_TAIL_LINES)
   }
   const sink = (which: 'out' | 'err') => (text: string) => {
-    if (which === 'out' && stdout.length < OUTPUT_MAX_CHARS) stdout += text.slice(0, OUTPUT_MAX_CHARS - stdout.length)
-    if (which === 'err' && stderr.length < OUTPUT_MAX_CHARS) stderr += text.slice(0, OUTPUT_MAX_CHARS - stderr.length)
+    if (which === 'out') outParts.push(text)
+    else errParts.push(text)
     pushText(text)
   }
   const progressText = (): string => {
@@ -113,22 +113,38 @@ const runStreaming = async function* (label: string, child: Child, toolOptions: 
     await Promise.race([drained, Bun.sleep(DRAIN_GRACE_MS)])
     resolveCancel('cancel')
     await drained.catch(() => {})
+    const stdout = outParts.join('')
+    const stderr = errParts.join('')
     if (timedOut) {
+      const tail = tailText(stdout, MAX_TOOL_OUTPUT_LINES, MAX_TOOL_OUTPUT_BYTES)
+      const spilled = tail.cut || Buffer.byteLength(stdout, 'utf-8') > MAX_TOOL_OUTPUT_BYTES ? await spillCombined(label, null, stdout, stderr) : undefined
       throw new Error(
         `command \`${label}\` timed out after ${timeoutSeconds}s and was killed\n` +
-          (stderr.trim() ? `stderr:\n${stderr.trim()}\n` : '') +
-          (stdout.trim() ? `stdout:\n${capOutput(stdout).trim()}` : '(no output)'),
+          (stderr.trim() ? `stderr:\n${tailText(stderr, MAX_TOOL_OUTPUT_LINES, MAX_TOOL_OUTPUT_BYTES).text.trim()}\n` : '') +
+          (stdout.trim() ? `stdout:\n${tail.cut ? `...output truncated...${spilled ? `\n\nFull output saved to: ${spilled}` : ''}\n\n${tail.text}` : tail.text}`.trim() : '(no output)') +
+          `\n\n<shell_metadata>\nexit: timeout after ${timeoutSeconds}s\n</shell_metadata>`,
       )
     }
     if (aborted) {
-      throw new Error(`command \`${label}\` was aborted\n${stdout.trim() ? `stdout:\n${capOutput(stdout).trim()}` : ''}`)
+      const tail = tailText(stdout, MAX_TOOL_OUTPUT_LINES, MAX_TOOL_OUTPUT_BYTES)
+      throw new Error(`command \`${label}\` was aborted\n${stdout.trim() ? `stdout:\n${tail.text.trim()}` : ''}\n\n<shell_metadata>\nexit: aborted\n</shell_metadata>`)
     }
     if (exitCode !== 0) {
-      const stdoutTrim = capOutput(stdout).trim()
-      const stderrTrim = capOutput(stderr).trim()
-      throw new Error(`command \`${label}\` exited ${exitCode}\n${stderrTrim ? `stderr:\n${stderrTrim}\n` : ''}${stdoutTrim ? `stdout:\n${stdoutTrim}` : ''}`)
+      const outTail = tailText(stdout, MAX_TOOL_OUTPUT_LINES, MAX_TOOL_OUTPUT_BYTES)
+      const errTail = tailText(stderr, MAX_TOOL_OUTPUT_LINES, MAX_TOOL_OUTPUT_BYTES)
+      const spilled = outTail.cut || errTail.cut ? await spillCombined(label, exitCode ?? null, stdout, stderr) : undefined
+      const spillNote = spilled ? `...output truncated...\n\nFull output saved to: ${spilled}\n\n` : ''
+      throw new Error(
+        `command \`${label}\` exited ${exitCode}\n${errTail.text.trim() ? `stderr:\n${errTail.text.trim()}\n` : ''}${stdout.trim() ? `stdout:\n${spillNote}${outTail.text.trim()}` : ''}\n\n<shell_metadata>\nexit: ${exitCode}\n</shell_metadata>`,
+      )
     }
-    yield capOutput(stdout).trimEnd() || '(no output)'
+    const tail = tailText(stdout, MAX_TOOL_OUTPUT_LINES, MAX_TOOL_OUTPUT_BYTES)
+    if (!tail.cut) {
+      yield stdout.trimEnd() || '(no output)'
+      return
+    }
+    const spilled = await spillCombined(label, exitCode ?? 0, stdout, stderr)
+    yield `${spilled ? `...output truncated...\n\nFull output saved to: ${spilled}\n\n` : '...output truncated...\n\n'}${tail.text.trimEnd() || '(no output)'}`
   } finally {
     clearTimeout(timeoutTimer)
     toolOptions?.abortSignal?.removeEventListener('abort', onAbort)
@@ -139,7 +155,7 @@ export function createShellTool() {
   return {
     name: 'shell',
     description:
-      'Run a shell command; streams output live, kills on timeout. Prefer read/write/edit/glob/grep when they fit. Run expensive commands once and filter the output file instead of re-running to re-filter.',
+      'Run a shell command; streams output live, kills on timeout. Large output is tailed near 50KB/2000 lines with the full log spilled to a file. Prefer read/write/edit/glob/grep when they fit. Run expensive commands once and filter the output file instead of re-running to re-filter.',
     parameters: ShellToolArgsSchema,
     output: ShellToolOutputSchema,
     isTerminal: true,

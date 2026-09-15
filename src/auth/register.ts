@@ -1,4 +1,5 @@
 import { fetchModelsDevProvider, fetchModelsDevProviderById, modelsFromModelsDev } from '@agent/model/catalog-models-dev.ts'
+import { isModelStatusAvailable } from '@agent/model/model-availability.ts'
 import { getRuntimeApiKeyProviders } from '@agent/model/runtime-providers.ts'
 import { DIGITALOCEAN_INFERENCE_BASE_URL } from '@auth/digitalocean.ts'
 import { KIMI_CODING_BASE_URL } from '@auth/kimi-coding.ts'
@@ -82,8 +83,13 @@ export const selectModelsByIds = (catalog: ModelsDevProvider, availableModelIds:
   if (ids.length === 0) return []
   const wanted = new Set(ids)
   const fromCatalog = modelsFromModelsDev(catalog).filter((m) => wanted.has(m.id))
+  const blocked = new Set(
+    Object.values(catalog.models ?? {})
+      .filter((model) => !isModelStatusAvailable(model.status ?? undefined))
+      .map((model) => model.id),
+  )
   const extras = ids
-    .filter((id) => !fromCatalog.some((m) => m.id === id))
+    .filter((id) => !fromCatalog.some((m) => m.id === id) && !blocked.has(id))
     .map(
       (id): ProviderModelOptions => ({
         id,

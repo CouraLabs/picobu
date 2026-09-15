@@ -21,4 +21,4 @@ export {
   type SessionStatusData,
   type SessionStatusProps,
 } from './status-meta.ts'
-export { getProviderStatusLabel, SessionProviderStatus, type SessionProviderStatusInfo } from './status-provider.tsx'
+export { SessionProviderStatus, type SessionProviderStatusInfo } from './status-provider.tsx'

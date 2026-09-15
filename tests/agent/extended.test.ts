@@ -205,6 +205,14 @@ describe('provider catalog', () => {
     expect(hyper.baseUrl.length).toBeGreaterThan(0)
     expect(hyper.modelsUrl.length).toBeGreaterThan(0)
   })
+  test('hyper definition ships default status line', () => {
+    expect(hyper.statusLine?.items).toEqual([
+      { type: 'header', label: 'Rate Day', value: 'x-ratelimit-remaining-day' },
+      { type: 'header', label: 'Rate Hour', value: 'x-ratelimit-remaining-hour' },
+      { type: 'step-raw', label: 'Run HyperCredits', value: 'cost.hypercredits' },
+      { type: 'endpoint', label: 'HyperCredits', endpoint: '/credits', value: 'balance' },
+    ])
+  })
   test('LLM_PROVIDERS contains hyper', () => {
     expect(LLM_PROVIDERS).toContain(hyper)
   })

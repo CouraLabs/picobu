@@ -4,7 +4,7 @@ import { resolveModelRef } from '@agent/model/resolver.ts'
 import type { TodoItem } from '@agent/tools/flow/todo.ts'
 import type { ProviderModelReasoningEffort } from '@config/options.ts'
 import { RGBA } from '@opentui/core'
-import { fmtCostPrecise, fmtMs, fmtTokens, fmtTps } from '@shared/format.ts'
+import { fmtCostPreciseBare, fmtMs, fmtTokens, fmtTps } from '@shared/format.ts'
 import { theme } from '@states/theme-state.ts'
 import { isToolPart, latestTodoItems } from '@tui/components/session/tools/tool-summary.ts'
 import { type ActivityKind, getActivity, getFinishColor, getFinishReason } from './status-activity.ts'
@@ -24,7 +24,7 @@ export interface SessionStatusProps {
   waiting?: boolean
   mcp?: { connected: number; total: number; tools: number }
   provider?: { id: string; name?: string; detail?: string }
-  statsStatus?: Pick<LoopStats, 'finishReason' | 'rawFinishReason' | 'warnings' | 'headers'>
+  statsStatus?: Pick<LoopStats, 'finishReason' | 'rawFinishReason' | 'warnings' | 'headers' | 'endpoints' | 'steps'>
   statsPerformance?: LoopStats['performance']
   statsMetrics?: Pick<LoopStats, 'total'> & { stepCount: number }
 }
@@ -168,7 +168,7 @@ export const createSessionStatusData = (props: SessionStatusProps): SessionStatu
     outputLabel: () => fmtTokens(metricsTotal()?.usage.outputTokens ?? 0),
     contextValue,
     contextPercent,
-    contextLabel: () => fmtTokens(contextValue()),
+    contextLabel: () => `${fmtTokens(contextValue())}/${fmtTokens(modelContextSize())}`,
     contextColor,
     cacheSummary: () => {
       const usage = metricsTotal()?.usage
@@ -178,7 +178,7 @@ export const createSessionStatusData = (props: SessionStatusProps): SessionStatu
       const percent = total > 0 ? Math.round((cache / total) * 100) : 0
       return `${fmtTokens(cache)} (${percent}%)`
     },
-    costValue: () => fmtCostPrecise(costTotal()?.total ?? 0),
+    costValue: () => fmtCostPreciseBare(costTotal()?.total ?? 0),
     finishReason: () => getFinishReason(props.statsStatus?.finishReason, props.messages, props.streaming),
     finishColor: () => getFinishColor(getFinishReason(props.statsStatus?.finishReason, props.messages, props.streaming)),
     tpsLabel: () => fmtTps(performance()?.effectiveOutputTokensPerSecond ?? performance()?.outputTokensPerSecond ?? undefined),

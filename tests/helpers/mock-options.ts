@@ -2,6 +2,7 @@ import { mkdtempSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { HarnessOptions, ModelRoleId, Options, OptionsExternal, ProviderModelReasoningEffort } from '../../src/config/options.ts'
+import { MAX_STATUS_LINE_ITEMS, normalizeStatusLine, normalizeStatusLines, selectStatusLineItems } from '../../src/config/provider-status-line.ts'
 
 export const mockSystemDirBase = mkdtempSync(join(tmpdir(), 'picobu-test-options-'))
 
@@ -26,6 +27,7 @@ const baseOptions = (): Options => ({
     shell: process.env.SHELL ?? 'sh',
   },
   providers: [],
+  statusLine: [],
   harness: {},
   tui: { theme: { ...MOCK_THEME_PREFS }, maxMessages: MOCK_TUI_DEFAULTS.maxMessages },
   web: { ...MOCK_WEB_DEFAULTS },
@@ -40,6 +42,7 @@ export const resetMockOptions = (): Options => {
   const fresh = baseOptions()
   mockOptions.app = fresh.app
   mockOptions.providers = fresh.providers
+  mockOptions.statusLine = fresh.statusLine
   mockOptions.harness = fresh.harness
   mockOptions.tui = fresh.tui
   mockOptions.web = fresh.web
@@ -61,8 +64,9 @@ const normalizeMockStaleTimeout = (value: unknown): number => {
   return Math.max(5000, Math.floor(value))
 }
 
-export const mockUpdateSettings = async (patch: Partial<Pick<OptionsExternal, 'providers' | 'harness' | 'tui' | 'web' | 'whatsapp' | 'mcp' | 'watchdog'>>): Promise<Options> => {
+export const mockUpdateSettings = async (patch: Partial<Pick<OptionsExternal, 'providers' | 'statusLine' | 'harness' | 'tui' | 'web' | 'whatsapp' | 'mcp' | 'watchdog'>>): Promise<Options> => {
   if (patch.providers !== undefined) mockOptions.providers = patch.providers
+  if (patch.statusLine !== undefined) mockOptions.statusLine = patch.statusLine
   mockOptions.harness = {
     ...mockOptions.harness,
     ...patch.harness,
@@ -116,6 +120,10 @@ export const mockOptionsModule = () => ({
   loadOptions: mockLoadOptions,
   updateSettings: mockUpdateSettings,
   resolveModelRole: mockResolveModelRole,
+  normalizeStatusLine,
+  normalizeStatusLines,
+  selectStatusLineItems,
+  MAX_STATUS_LINE_ITEMS,
   DEFAULT_TUI_OPTIONS: { maxMessages: MOCK_TUI_DEFAULTS.maxMessages },
   DEFAULT_WATCHDOG_OPTIONS: { ...MOCK_WATCHDOG_DEFAULTS },
   DEFAULT_WHATSAPP_OPTIONS: { enabled: MOCK_WHATSAPP_DEFAULTS.enabled, allowedNumbers: [] as Array<string> },

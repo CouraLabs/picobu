@@ -6,6 +6,23 @@ const str = (value: unknown): string | null => (typeof value === 'string' && val
 
 const clip = (text: string): string => (text.length > MAX_BODY ? `${text.slice(0, MAX_BODY)}…` : text)
 
+const ZEN_BILLING_ERRORS: ReadonlySet<string> = new Set(['CreditsError', 'MonthlyLimitError', 'UserLimitError', 'RateLimitError', 'FreeUsageLimitError', 'GoUsageLimitError', 'BlackUsageLimitError'])
+
+const zenBillingMessage = (body: string): string | null => {
+  const text = body.trim()
+  if (!text) return null
+  try {
+    const json = asRecord(JSON.parse(text))
+    const nested = asRecord(json?.error)
+    const type = str(nested?.type)
+    const message = str(nested?.message)
+    if (!type || !message || !ZEN_BILLING_ERRORS.has(type)) return null
+    return message
+  } catch {
+    return null
+  }
+}
+
 const responseSummary = (body: string): string | null => {
   const text = body.trim()
   if (!text) return null
@@ -46,6 +63,8 @@ export const describeError = (error: unknown): ErrorReport => {
   if (url) detail.push(`url: ${url}`)
   const body = str(record.responseBody)
   if (body) {
+    const billing = zenBillingMessage(body)
+    if (billing) return { message: `OpenCode Zen · ${billing}`, detail: detail.length ? detail.join('\n') : null }
     const summary = responseSummary(body)
     if (summary) detail.push(summary)
   }

@@ -208,6 +208,7 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
   const loop = createLoop(effectiveConfig)
   const persistedStats = await readLoopStats(folderKey, id)
   if (persistedStats) loop.restoreStats(persistedStats)
+  loop.refreshEndpoints()
 
   let meta: SessionMeta | null = await readSessionMeta(folderKey, id)
   if (!meta) {

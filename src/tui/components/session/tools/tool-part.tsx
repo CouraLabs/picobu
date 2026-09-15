@@ -118,11 +118,17 @@ export const ToolPart = (props: ToolPartProps) => {
   const pendingWithoutId = () => !hasToolCallId() && (questions().length > 0 || plan() !== undefined) && flowStatus() !== undefined
   const pendingFlow = () => flowInteractive() && (questions().length > 0 || plan() !== undefined)
   const todos = createMemo(() => (isTodoTool(props.part) ? todoItems(props.part) : undefined))
+  const isTodo = createMemo(() => isTodoTool(props.part))
+  const hasExpandableContent = createMemo(() => {
+    if (isTodo()) return todos() !== undefined
+    return running() || runningProgress() !== undefined || written() !== undefined || knowledge() !== undefined || diff() !== undefined || expandedText() !== undefined || outputPreview() !== undefined
+  })
 
   const dims = useTerminalDims()
   const isAutoExpanded = () => pendingFlow()
   const expanded = (): boolean => (isAutoExpanded() ? !collapsedKeys().has(props.partKey) : expandedKeys().has(props.partKey))
   const toggle = () => {
+    if (!hasExpandableContent()) return
     const key = props.partKey
     if (isAutoExpanded()) {
       setCollapsedKeys((prev) => {
@@ -181,11 +187,15 @@ export const ToolPart = (props: ToolPartProps) => {
               toggle()
             }}>
             <ToolStatusIcon running={running()} color={color()} icon={view().icon} />
-            <text fg={color()} flexShrink={0} attributes={hovered() ? TextAttributes.BOLD : undefined} selectable={false}>
+            <text fg={color()} flexShrink={0} attributes={hovered() && hasExpandableContent() ? TextAttributes.BOLD : undefined} selectable={false}>
               {name()}
             </text>
             <Show when={collapsedDetail().length > 0}>
-              <text fg={hovered() ? theme().accent : theme().textMuted} flexShrink={1} attributes={hovered() ? TextAttributes.BOLD : undefined} selectable={false}>
+              <text
+                fg={hovered() && hasExpandableContent() ? theme().accent : theme().textMuted}
+                flexShrink={1}
+                attributes={hovered() && hasExpandableContent() ? TextAttributes.BOLD : undefined}
+                selectable={false}>
                 {clipToWidth(collapsedDetail())}
               </text>
             </Show>
@@ -202,10 +212,10 @@ export const ToolPart = (props: ToolPartProps) => {
             toggle()
           }}>
           <ToolStatusIcon running={running()} color={color()} icon={view().icon} />
-          <text fg={color()} flexShrink={0} attributes={hovered() ? TextAttributes.BOLD : undefined}>
+          <text fg={color()} flexShrink={0} attributes={hovered() && hasExpandableContent() ? TextAttributes.BOLD : undefined}>
             {name()}
           </text>
-          <text fg={theme().textMuted} flexShrink={1} attributes={hovered() ? TextAttributes.BOLD : undefined}>
+          <text fg={theme().textMuted} flexShrink={1} attributes={hovered() && hasExpandableContent() ? TextAttributes.BOLD : undefined}>
             {summary()}
           </text>
         </box>

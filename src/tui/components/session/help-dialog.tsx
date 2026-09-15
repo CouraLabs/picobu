@@ -27,6 +27,15 @@ const shortcuts: Array<{ keys: string; what: string }> = [
   { keys: 'CTRL + A', what: 'Select all text in the prompt' },
 ]
 
+const mouseEvents: Array<{ keys: string; what: string }> = [
+  { keys: 'Click model', what: 'Open the model picker (status bar)' },
+  { keys: 'Hover todos', what: 'Preview the session todo list' },
+  { keys: 'Click tool header', what: 'Collapse / expand tool output (disabled when empty)' },
+  { keys: 'Double-click message', what: 'Open Revert / Copy / Fork actions' },
+  { keys: 'Click subagent row', what: 'Open the sub session' },
+  { keys: 'Drag to select', what: 'Select text, then CTRL / CMD + C copies, ESC clears' },
+]
+
 const footerLines: Array<string> = [
   'The footer under the prompt shows the session at a glance. Token and cost segments always show `0`.',
   '',
@@ -72,6 +81,8 @@ export const HelpDialog = () => {
   const helpMarkdown = createMemo(() => {
     const lines: Array<string> = ['## Keyboard', '']
     for (const row of shortcuts) lines.push(`- \`${row.keys}\` — ${row.what}`)
+    lines.push('', '## Mouse', '')
+    for (const row of mouseEvents) lines.push(`- \`${row.keys}\` — ${row.what}`)
     lines.push('', '## Commands', '')
     const commandRows = [
       ...SYSTEM_COMMANDS.map((c) => `- \`/${c.name}\` — ${c.description}`),

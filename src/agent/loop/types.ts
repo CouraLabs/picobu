@@ -35,4 +35,5 @@ export interface Loop {
   stats: () => LoopStats
   onStats: (listener: (stats: LoopStats) => void) => () => void
   restoreStats: (stats: LoopStats) => void
+  refreshEndpoints: () => void
 }

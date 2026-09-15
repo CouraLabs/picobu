@@ -80,7 +80,7 @@ describe('edit handler', () => {
   test('ambiguous match errors', async () => {
     const sb = { root: dir }
     await createWriteTool().handler({ path: 'amb.txt', contents: 'foo foo' }, { experimental_sandbox: sb as never })
-    await expect(createEditTool().handler({ path: 'amb.txt', oldString: 'foo', newString: 'bar' }, { experimental_sandbox: sb as never })).rejects.toThrow('refusing ambiguous')
+    await expect(createEditTool().handler({ path: 'amb.txt', oldString: 'foo', newString: 'bar' }, { experimental_sandbox: sb as never })).rejects.toThrow('multiple matches')
   })
   test('missing file errors', async () => {
     const sb = { root: dir }
@@ -203,15 +203,16 @@ describe('shell tool', () => {
     }
     await expect(collect()).rejects.toThrow('exited 3')
   })
-  test('large output is capped near 100k chars', async () => {
+  test('large output is tailed near 50KB with a spill file note', async () => {
     const session = createLocalSandboxSession(dir, 'Unix:Sh')
     const shell = createShellTool()
     let final = ''
     for await (const chunk of shell.handler({ command: 'awk \'BEGIN{for(i=0;i<150000;i++)printf "x";}\'', timeout: 30 }, { experimental_sandbox: session as never })) {
       if (typeof chunk === 'string') final = chunk
     }
-    expect(final.length).toBeLessThanOrEqual(100000)
-    expect(final.length).toBeGreaterThan(90000)
+    expect(final.length).toBeLessThanOrEqual(60000)
+    expect(final.length).toBeGreaterThan(40000)
+    expect(final).toContain('Full output saved to:')
   })
 })
 describe('agent dirs', () => {
@@ -369,7 +370,7 @@ describe('toolset registry', () => {
     const names = buildToolSet({})
       .getTools()
       .map((t) => t.name)
-    for (const want of ['read', 'write', 'edit', 'glob', 'grep', 'shell', 'skill', 'rule']) {
+    for (const want of ['read', 'write', 'edit', 'apply_patch', 'glob', 'grep', 'shell', 'skill', 'rule']) {
       expect(names).toContain(want)
     }
     expect(names).not.toContain('ask')

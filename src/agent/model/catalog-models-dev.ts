@@ -1,4 +1,5 @@
-import type { ProviderModelOptions, ProviderModelReasoningEffort } from '@config/options.ts'
+import { filterAvailableModels, isExperimentalModelsEnabled } from '@agent/model/model-availability.ts'
+import type { ProviderModelOptions, ProviderModelReasoningEffort, ProviderModelStatus } from '@config/options.ts'
 import { Models, type Model as ModelsDevModel, type Provider as ModelsDevProvider } from '@opencode-ai/models'
 
 export const fetchModelsDevProvider = async (apiKeyEnv: string): Promise<ModelsDevProvider | undefined> => {
@@ -45,8 +46,10 @@ const modelsDevEfforts = (model: ModelsDevModel): Array<ProviderModelReasoningEf
   return efforts.length > 0 ? efforts : undefined
 }
 
-export const modelsFromModelsDev = (provider: ModelsDevProvider): Array<ProviderModelOptions> =>
-  Object.values(provider.models ?? {}).map((model) => {
+export const modelsFromModelsDev = (provider: ModelsDevProvider, opts?: { experimental?: boolean }): Array<ProviderModelOptions> => {
+  const experimental = opts?.experimental ?? isExperimentalModelsEnabled()
+  const baseUrl = typeof provider.api === 'string' ? provider.api : ''
+  const models = Object.values(provider.models ?? {}).map((model) => {
     const supports = ['text']
     if (model.modalities?.input?.includes('image') ?? false) supports.push('vision')
     const npm = typeof model.provider?.npm === 'string' && model.provider.npm.length > 0 ? model.provider.npm : undefined
@@ -68,5 +71,8 @@ export const modelsFromModelsDev = (provider: ModelsDevProvider): Array<Provider
           }
         : undefined,
       ...(npm ? { npm } : {}),
+      ...(model.status ? { status: model.status as ProviderModelStatus } : {}),
     } satisfies ProviderModelOptions
   })
+  return filterAvailableModels({ id: provider.id, baseUrl }, models, experimental)
+}

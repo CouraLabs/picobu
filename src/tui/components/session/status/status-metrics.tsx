@@ -16,7 +16,7 @@ export const StatusContext = (props: { data: SessionStatusData }) => (
 )
 
 export const StatusMetrics = (props: { data: SessionStatusData }) => (
-  <box flexDirection="row" columnGap={2} flexShrink={0} flexWrap="wrap">
+  <box flexDirection="row" columnGap={1} flexShrink={0} flexWrap="wrap">
     <StatusSegment icon={'TTFT'} value={props.data.ttftLabel()} valueColor={theme().primary} />
     <StatusSegment icon={'TPS'} value={props.data.tpsLabel()} valueColor={theme().primary} />
     <StatusSegment icon={'TT'} value={props.data.toolExecLabel()} valueColor={theme().primary} />

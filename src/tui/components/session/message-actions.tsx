@@ -58,7 +58,7 @@ const MessageActionsDialog = (props: MessageActionsProps) => {
       return
     }
     try {
-      await service.writeText(messageText(props.message), { destination: 'best-available' })
+      await service.writeText(messageText(props.message), { destination: 'all-available' })
       closeDialog()
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error)
@@ -106,7 +106,6 @@ const MessageActionsDialog = (props: MessageActionsProps) => {
         options={actions}
         focused
         onSelect={(_index, option) => option && runAction(option)}
-        backgroundColor={theme().backgroundPanel}
         textColor={theme().text}
         descriptionColor={theme().textMuted}
         selectedBackgroundColor={theme().accent}

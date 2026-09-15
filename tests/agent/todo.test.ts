@@ -2,7 +2,7 @@ import { afterAll, afterEach, beforeEach, describe, expect, test } from 'bun:tes
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { createTodoTool, type TodoItem } from '../../src/agent/tools/flow/todo.ts'
+import { buildTodoMessage, createTodoTool, type TodoItem } from '../../src/agent/tools/flow/todo.ts'
 
 const item = (title: string, done = false): TodoItem => ({
   phase: 'test',
@@ -32,31 +32,43 @@ describe('createTodoTool', () => {
 
   test('write replaces the whole list and persists it', async () => {
     const result = await tool().handler({ items: [item('a'), item('b')] })
-    expect(result.items).toHaveLength(2)
-    expect(result.message).toBe('0 of 2 done')
+    expect(result.done).toBe(0)
+    expect(result.total).toBe(2)
+    expect(result.message).toBe('Created 2 todos')
     const onDisk = JSON.parse(await readFile(todoPath, 'utf8'))
-    expect(onDisk.items).toEqual(result.items)
+    expect(onDisk.items.map((it: TodoItem) => it.title)).toEqual(['a', 'b'])
   })
 
   test('a second write updates done flags and removes steps without indexes', async () => {
     const t = tool()
     await t.handler({ items: [item('a'), item('b'), item('c')] })
     const result = await t.handler({ items: [item('a'), item('b2', true)] })
-    expect(result.items.map((it) => it.title)).toEqual(['a', 'b2'])
-    expect(result.items[1]?.done).toBe(true)
-    expect(result.message).toBe('1 of 2 done')
+    expect(result.done).toBe(1)
+    expect(result.total).toBe(2)
+    expect(result.message).toBe('Added 1 todo · Removed 2 todos (1 of 2 done)')
+  })
+
+  test('completing one step reports which todo finished', async () => {
+    const t = tool()
+    await t.handler({ items: [item('a'), item('b'), item('c'), item('d'), item('e', true)] })
+    const result = await t.handler({ items: [item('a'), item('b', true), item('c'), item('d'), item('e', true)] })
+    expect(result.message).toBe('Completed todo 2 of 5')
+    expect(result.done).toBe(2)
+    expect(result.total).toBe(5)
   })
 
   test('the first write creates the list', async () => {
     const result = await tool().handler({ items: [item('first')] })
-    expect(result.items).toHaveLength(1)
+    expect(result.message).toBe('Created 1 todo')
+    expect(result.total).toBe(1)
   })
 
   test('an empty list clears the todo list', async () => {
     const t = tool()
     await t.handler({ items: [item('a')] })
     const result = await t.handler({ items: [] })
-    expect(result.items).toHaveLength(0)
+    expect(result.done).toBe(0)
+    expect(result.total).toBe(0)
     expect(result.message).toBe('todo list cleared')
     const onDisk = JSON.parse(await readFile(todoPath, 'utf8'))
     expect(onDisk.items).toEqual([])
@@ -88,8 +100,15 @@ describe('createTodoTool', () => {
     const t = tool()
     await Promise.all([t.handler({ items: [item('a')] }), t.handler({ items: [item('a'), item('b')] }), t.handler({ items: [item('a'), item('b'), item('c')] })])
     const result = await t.handler({ items: [item('a'), item('b')] })
-    expect(result.items).toHaveLength(2)
+    expect(result.total).toBe(2)
     const onDisk = JSON.parse(await readFile(todoPath, 'utf8'))
     expect(onDisk.items).toHaveLength(2)
+  })
+
+  test('buildTodoMessage describes diffs without echoing the list', () => {
+    expect(buildTodoMessage([], [item('a'), item('b')]).message).toBe('Created 2 todos')
+    expect(buildTodoMessage([item('a')], []).message).toBe('todo list cleared')
+    expect(buildTodoMessage([item('a')], [item('a', true)]).message).toBe('Completed todo 1 of 1')
+    expect(buildTodoMessage([item('a')], [item('a'), item('b')]).message).toBe('Added 1 todo (0 of 2 done)')
   })
 })

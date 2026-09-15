@@ -128,7 +128,7 @@ export const SessionPage = (props: SessionPageProps) => {
   const [projectKey, setProjectKey] = createSignal<string>(projectKeyFor())
   const [commandOpen, setCommandOpen] = createSignal(false)
   const [commandExitNonce, setCommandExitNonce] = createSignal(0)
-  const [statsStatus, setStatsStatus] = createSignal<Pick<LoopStats, 'finishReason' | 'rawFinishReason' | 'warnings' | 'headers'> | undefined>(undefined)
+  const [statsStatus, setStatsStatus] = createSignal<Pick<LoopStats, 'finishReason' | 'rawFinishReason' | 'warnings' | 'headers' | 'endpoints' | 'steps'> | undefined>(undefined)
   const [statsPerformance, setStatsPerformance] = createSignal<LoopStats['performance']>(undefined)
   const [statsMetrics, setStatsMetrics] = createSignal<(Pick<LoopStats, 'total'> & { stepCount: number }) | undefined>(undefined)
   const sessionMgr = new SessionManager()
@@ -184,7 +184,11 @@ export const SessionPage = (props: SessionPageProps) => {
     const nextSteps = stats?.steps.length ?? 0
 
     batch(() => {
-      setStatsStatus(stats ? { finishReason: stats.finishReason, rawFinishReason: stats.rawFinishReason, warnings: stats.warnings, headers: stats.headers } : undefined)
+      setStatsStatus(
+        stats
+          ? { finishReason: stats.finishReason, rawFinishReason: stats.rawFinishReason, warnings: stats.warnings, headers: stats.headers, endpoints: stats.endpoints, steps: stats.steps }
+          : undefined,
+      )
       setStatsPerformance(stats?.performance)
       setStatsMetrics(stats ? { total: stats.total, stepCount: nextSteps } : undefined)
     })
@@ -1014,6 +1018,7 @@ export const SessionPage = (props: SessionPageProps) => {
           statsStatus={statsStatus()}
           statsPerformance={statsPerformance()}
           statsMetrics={statsMetrics()}
+          onModelOpen={openModelDialog}
         />
       </box>
     </box>

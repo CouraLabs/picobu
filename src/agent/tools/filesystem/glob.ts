@@ -1,3 +1,4 @@
+import { stat } from 'node:fs/promises'
 import { relative, resolve } from 'node:path'
 import { agentDirsUnder } from '@agent/tools/filesystem/agent-dirs.ts'
 import { killProcessTree, type LocalSandboxSession, sandboxRoot } from '@agent/tools/sandbox.ts'
@@ -42,6 +43,8 @@ export const globTool = {
   handler: async (args: z.infer<typeof GlobToolArgsSchema>, toolOptions?: ToolExecuteOptions): Promise<string> => {
     const limit = args.limit ?? 500
     const cwd = resolve(sandboxRoot(toolOptions?.experimental_sandbox) ?? process.cwd(), args.cwd ?? '.')
+    const cwdStat = await stat(cwd).catch(() => undefined)
+    if (cwdStat?.isFile()) throw new Error(`glob path must be a directory: ${cwd}`)
     const listing = await runArgv([rgPath, '--files', '--color', 'never'], cwd, toolOptions)
     if (listing.exitCode !== 0 && listing.exitCode !== 1) throw new Error(`rg failed (exit ${listing.exitCode}): ${listing.stderr.trim()}`)
     const allowed = new Set(listing.stdout.trim().split('\n').filter(Boolean))

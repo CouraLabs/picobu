@@ -1,3 +1,4 @@
+import { filterAvailableModels } from '@agent/model/model-availability.ts'
 import { getRuntimeApiKeyProviders } from '@agent/model/runtime-providers.ts'
 import { OAUTH_AUTHS } from '@auth/index.ts'
 import { oauthProviderNpm, oauthProviderType } from '@auth/register.ts'
@@ -59,5 +60,9 @@ export const listProviders = (): Array<ProviderOptions> => {
   const mergedIds = new Set(mergedConfigured.map((provider) => provider.id))
   const extraRuntime = runtime.filter((provider) => !mergedIds.has(provider.id))
   const extraLive = live.filter((entry) => !mergedIds.has(entry.id))
-  return [...mergedConfigured, ...extraRuntime, ...extraLive]
+  return [...mergedConfigured, ...extraRuntime, ...extraLive].flatMap((provider) => {
+    const models = filterAvailableModels(provider, provider.models)
+    if (models.length === 0) return []
+    return models.length === provider.models.length ? [provider] : [{ ...provider, models }]
+  })
 }

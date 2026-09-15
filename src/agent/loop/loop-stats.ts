@@ -5,7 +5,7 @@ import type { CallWarning, FinishReason, LanguageModelUsage, StepResultPerforman
 export type LoopStepCost = StepCost
 
 export interface LoopStepStats {
-  usage: Omit<LanguageModelUsage, 'raw'>
+  usage: LanguageModelUsage
   performance: StepResultPerformance
   warnings: Array<CallWarning> | undefined
   headers: Record<string, string> | undefined
@@ -19,6 +19,7 @@ export interface LoopStats {
   headers: Record<string, string> | undefined
   finishReason: FinishReason | undefined
   rawFinishReason: string | undefined
+  endpoints: Record<string, unknown> | undefined
   steps: Array<LoopStepStats>
   total: {
     usage: LanguageModelUsage
@@ -46,6 +47,7 @@ export interface LoopStatsStore {
   onChange: (listener: (stats: LoopStats) => void) => () => void
   handleStepEnd: (event: StepEndInput) => void
   handleEnd: (event: EndInput) => void
+  setEndpointValues: (values: Record<string, unknown>) => void
   restore: (stats: LoopStats) => void
 }
 
@@ -65,6 +67,7 @@ export const createLoopStatsStore = (getBilling: () => ProviderModelBilling | un
     headers: undefined,
     finishReason: undefined,
     rawFinishReason: undefined,
+    endpoints: undefined,
     steps: [],
     total: { usage: emptyUsage(), cost: zeroCost() },
   }
@@ -106,6 +109,10 @@ export const createLoopStatsStore = (getBilling: () => ProviderModelBilling | un
       stats.rawFinishReason = event.rawFinishReason
       notify()
     },
+    setEndpointValues: (values) => {
+      stats.endpoints = { ...(stats.endpoints ?? {}), ...cloneValue(values) }
+      notify()
+    },
     restore: (next) => {
       const cloned = cloneValue(next)
       stats.performance = cloned.performance
@@ -113,6 +120,7 @@ export const createLoopStatsStore = (getBilling: () => ProviderModelBilling | un
       stats.headers = cloned.headers
       stats.finishReason = cloned.finishReason
       stats.rawFinishReason = cloned.rawFinishReason
+      stats.endpoints = cloned.endpoints
       stats.steps = cloned.steps
       stats.finishReason = cloned.finishReason
       stats.total = cloned.total

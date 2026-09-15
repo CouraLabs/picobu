@@ -34,9 +34,9 @@ describe('sandbox containment', () => {
 })
 
 describe('edit guards', () => {
-  test('schema rejects empty path and oldString', () => {
+  test('schema rejects empty path but allows empty oldString for create', () => {
     expect(EditToolArgsSchema.safeParse({ path: '', oldString: 'a', newString: 'b' }).success).toBe(false)
-    expect(EditToolArgsSchema.safeParse({ path: 'f.txt', oldString: '', newString: 'b' }).success).toBe(false)
+    expect(EditToolArgsSchema.safeParse({ path: 'f.txt', oldString: '', newString: 'b' }).success).toBe(true)
   })
   test('schema accepts valid edit', () => {
     expect(EditToolArgsSchema.safeParse({ path: 'f.txt', oldString: 'a', newString: 'b' }).success).toBe(true)

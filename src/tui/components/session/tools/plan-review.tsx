@@ -1,7 +1,10 @@
-import type { InputRenderable, TextareaRenderable } from '@opentui/core'
+import type { BoxRenderable, InputRenderable, TextareaRenderable } from '@opentui/core'
+import { useKeyboard } from '@opentui/solid'
 import { clip } from '@shared/format.ts'
 import { theme } from '@states/theme-state.ts'
+import { pushToast } from '@states/toast.state.ts'
 import { Button } from '@tui/components/button.tsx'
+import { getClipboardService } from '@tui/hooks/clipboard.state.ts'
 import { icons } from '@tui/themes/icons.ts'
 import { createSignal, For, Show } from 'solid-js'
 
@@ -25,6 +28,7 @@ export const PlanReview = (props: PlanReviewProps) => {
   const [dismissed, setDismissed] = createSignal(false)
   const [sending, setSending] = createSignal(false)
   const lineRefs: Array<InputRenderable | null> = []
+  const rowRefs: Array<BoxRenderable | null> = []
   let overallRef: TextareaRenderable | null = null
 
   const readonly = () => !props.interactive || sending() || responded() || (props.status !== undefined && props.status !== 'pending')
@@ -68,6 +72,30 @@ export const PlanReview = (props: PlanReviewProps) => {
     }
   }
 
+  useKeyboard((key) => {
+    if (key.name !== 'return' && key.name !== 'enter') return
+    const index = openLine()
+    if (index === undefined) return
+    if (!lineRefs[index]?.focused) return
+    key.preventDefault()
+    key.stopPropagation()
+    setOpenLine(undefined)
+  })
+
+  const copy = async () => {
+    const service = getClipboardService()
+    if (!service) {
+      pushToast('Copy failed: no clipboard service available', 'error')
+      return
+    }
+    try {
+      await service.writeText(props.plan, { destination: 'all-available' })
+      pushToast('Copied to clipboard', 'info')
+    } catch (error) {
+      pushToast(`Copy failed: ${error instanceof Error ? error.message : String(error)}`, 'error')
+    }
+  }
+
   const cancel = async () => {
     if (readonly()) return
     setSending(true)
@@ -82,7 +110,7 @@ export const PlanReview = (props: PlanReviewProps) => {
   }
 
   return (
-    <box flexDirection="column" paddingLeft={1} border={['right']} borderStyle={'heavy'} borderColor={theme().borderSubtle}>
+    <box flexDirection="column">
       <Show
         when={!readonly()}
         fallback={
@@ -114,41 +142,58 @@ export const PlanReview = (props: PlanReviewProps) => {
             </Show>
           </box>
         }>
-        <text fg={theme().textMuted} selectable={false}>
-          {`${icons.pencil} Click the pencil icon next to a line to comment on it`}
+        <text fg={theme().textMuted} selectable={false} marginY={1}>
+          {` Click on the pencil or line to add a comment`}
         </text>
         <For each={lines()}>
           {(line, index) => {
             const commented = () => (lineComments()[index()] ?? '').trim().length > 0
             return (
-              <box flexDirection="column">
-                <box flexDirection="row" gap={1} onMouseUp={() => setOpenLine(openLine() === index() ? undefined : index())}>
-                  <box flexDirection="row" gap={1} flexShrink={0} border={commented() ? ['left'] : false} borderStyle={'heavy'} borderColor={commented() ? theme().accent : undefined}>
-                    <text fg={commented() ? theme().accent : theme().primary} selectable={false}>
-                      {commented() ? icons.flag : icons.pencil}
+              <box
+                ref={(r) => (rowRefs[index()] = r)}
+                flexDirection="column"
+                onMouseOver={() => {
+                  const row = rowRefs[index()]
+                  if (row) row.backgroundColor = theme().backgroundElement
+                }}
+                onMouseOut={() => {
+                  const row = rowRefs[index()]
+                  if (row) row.backgroundColor = undefined
+                }}>
+                <box flexDirection="row" columnGap={1} onMouseUp={() => setOpenLine(openLine() === index() ? undefined : index())}>
+                  <box flexDirection="row" columnGap={1} flexShrink={0} paddingLeft={1}>
+                    <text fg={commented() || openLine() === index() ? theme().accent : theme().primary} selectable={false}>
+                      {icons.pencil}
                     </text>
                   </box>
-                  <box flexShrink={1} minWidth={0}>
+                  <box flexShrink={1} minWidth={0} border={['left']} borderColor={theme().borderSubtle} paddingX={1}>
                     <markdown syntaxStyle={theme().syntax} conceal content={line.trim()} />
                   </box>
                 </box>
-                <Show when={commented()}>
-                  <text fg={theme().accent}>{`  ${icons.edit} ${(lineComments()[index()] ?? '').trim()}`}</text>
+                <Show when={commented() && !(openLine() === index())}>
+                  <text fg={theme().accent}>{` ${icons.boxBottomLeft}${icons.boxHorizontal}${icons.boxHorizontal} Comment: ${(lineComments()[index()] ?? '').trim()} `}</text>
                 </Show>
                 <Show when={openLine() === index()}>
-                  <box marginTop={0} marginLeft={4} onMouseUp={() => lineRefs[index()]?.focus()}>
-                    <input
-                      ref={(r) => {
-                        lineRefs[index()] = r
-                      }}
-                      value={lineComments()[index()] ?? ''}
-                      placeholder={`Comment on line ${index() + 1} (optional, clear to remove)`}
-                      placeholderColor={theme().textMuted}
-                      textColor={theme().text}
-                      cursorColor={theme().accent}
-                      backgroundColor={theme().backgroundElement}
-                      onInput={(value) => setLineComment(index(), value)}
-                    />
+                  <box flexDirection="row" marginTop={0} onMouseUp={() => queueMicrotask(() => lineRefs[index()]?.focus())}>
+                    <box flexBasis={5} flexShrink={1}>
+                      <text fg={theme().accent}>{` ${icons.boxBottomLeft}${icons.boxHorizontal}${icons.boxHorizontal}`}</text>
+                    </box>
+                    <box flexGrow={1} flexShrink={1}>
+                      <input
+                        ref={(r) => {
+                          lineRefs[index()] = r
+                        }}
+                        focused={openLine() === index()}
+                        paddingX={1}
+                        value={lineComments()[index()] ?? ''}
+                        placeholder={`Comment on line ${index() + 1} (optional, clear to remove)`}
+                        placeholderColor={theme().textMuted}
+                        textColor={theme().accent}
+                        cursorColor={theme().textMuted}
+                        backgroundColor={theme().backgroundElement}
+                        onInput={(value) => setLineComment(index(), value)}
+                      />
+                    </box>
                   </box>
                 </Show>
               </box>
@@ -172,11 +217,12 @@ export const PlanReview = (props: PlanReviewProps) => {
           />
         </box>
         <box flexDirection="row" gap={1} marginTop={1} flexWrap="wrap">
-          <Button label={`${icons.success} Approve`} isActive onClick={() => verdict('approved')} />
+          <Button label={`${icons.success} Approve`} onClick={() => verdict('approved')} />
           <Show when={hasComment()}>
             <Button label={`${icons.edit} Request changes`} onClick={() => verdict('rejected')} />
           </Show>
           <Button label={`${icons.cross} Dismiss`} onClick={cancel} />
+          <Button label={`${icons.messages} Copy`} onClick={copy} />
         </box>
       </Show>
     </box>

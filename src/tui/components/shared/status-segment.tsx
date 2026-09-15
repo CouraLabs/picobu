@@ -3,22 +3,27 @@ import { theme } from '@states/theme-state.ts'
 import { Show } from 'solid-js'
 
 export interface StatusSegmentProps {
-  icon: string
+  icon?: string
   label?: string
+  labelColor?: string | RGBA
   value: string
   valueColor?: string | RGBA
 }
 
 export const StatusSegment = (props: StatusSegmentProps) => (
   <box flexDirection="row" columnGap={1} flexShrink={0}>
-    <text fg={props.valueColor ?? theme().text} selectable={false}>
-      {props.icon}
-    </text>
-    <Show when={props.label}>
-      <text fg={theme().textMuted} selectable={false}>
-        {props.label}
-      </text>
-    </Show>
-    <text fg={theme().textMuted}>{props.value}</text>
+    <box flexDirection='row' columnGap={0}>
+      <Show when={props.icon}>
+        <text fg={props.valueColor ?? theme().text} selectable={false}>
+          {props.icon}
+        </text>
+      </Show>
+      <Show when={props.label}>
+        <text fg={props.labelColor ?? theme().textMuted} selectable={false}>
+          {props.label}
+        </text>
+      </Show>
+    </box>
+    <text fg={props.valueColor ?? theme().text}>{props.value}</text>
   </box>
 )

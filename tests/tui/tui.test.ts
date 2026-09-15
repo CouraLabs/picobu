@@ -171,7 +171,8 @@ describe('previewToolInput/summarizeToolOutput', () => {
     expect(summarizeToolOutput('plan-write', { message: 'm', status: 'pending' })).toBe('m')
     expect(summarizeToolOutput('plan-write', { status: 'done' })).toBe('done ·')
     expect(summarizeToolOutput('plan-write', {})).toBeUndefined()
-    expect(summarizeToolOutput('todo', { items: [{ done: true }, { done: false }] })).toBe('1 of 2 done')
+    expect(summarizeToolOutput('todo', { message: 'Completed todo 2 of 5', done: 2, total: 5 })).toBe('Completed todo 2 of 5')
+    expect(summarizeToolOutput('todo', { done: 1, total: 2 })).toBe('1 of 2 done')
     expect(summarizeToolOutput('todo', {})).toBeUndefined()
     expect(summarizeToolOutput('webfetch', { content: 'a\nb' })).toBe('2 lines')
     expect(summarizeToolOutput('webfetch', {})).toBeUndefined()
@@ -402,7 +403,7 @@ describe('theme color helpers', () => {
 })
 
 describe('todo helpers', () => {
-  const todoPart = (items: unknown, overrides: Partial<ToolPartLike> = {}) => part({ type: 'tool-todo', output: { items }, ...overrides })
+  const todoPart = (items: unknown, overrides: Partial<ToolPartLike> = {}) => part({ type: 'tool-todo', input: { items }, output: { message: 'Created 2 todos', done: 1, total: 2 }, ...overrides })
   const msg = (parts: unknown[]) => ({ parts }) as Parameters<typeof latestTodoItems>[0][number]
   const items = [
     { phase: 'a', title: 'one', prompt: 'p1', done: true },
@@ -416,9 +417,10 @@ describe('todo helpers', () => {
     expect(isTodoTool(part({ type: 'tool-ask' }))).toBe(false)
   })
 
-  test('todoItems prefers output and falls back to input', () => {
+  test('todoItems renders from input since output carries only the diff', () => {
     expect(todoItems(todoPart(items))).toEqual(items)
-    expect(todoItems(part({ type: 'tool-todo', input: { items } }))).toEqual(items)
+    expect(todoItems(part({ type: 'tool-todo', output: { message: 'Created 2 todos', done: 1, total: 2 } }))).toBeUndefined()
+    expect(todoItems(part({ type: 'tool-todo', input: { items: [] } }))).toBeUndefined()
     expect(todoItems(part({ type: 'tool-todo', input: { items: [{}] } }))).toBeUndefined()
     expect(todoItems(part({ type: 'tool-read' }))).toBeUndefined()
   })

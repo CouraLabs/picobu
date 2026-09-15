@@ -16,29 +16,35 @@ export const SkillToolOutputSchema = z.object({
   content: z.string(),
 })
 
+const SKILL_FILE_LIST_LIMIT = 10
+
 const listSkillFiles = async (dir: string): Promise<Array<string>> => {
   const files: Array<string> = []
   const walk = async (current: string, prefix: string): Promise<void> => {
+    if (files.length >= SKILL_FILE_LIST_LIMIT) return
     let entries: Array<Dirent>
     try {
       entries = await readdir(current, { withFileTypes: true })
     } catch {
       return
     }
+    entries.sort((a, b) => a.name.localeCompare(b.name))
     for (const entry of entries) {
+      if (files.length >= SKILL_FILE_LIST_LIMIT) break
       const rel = prefix ? `${prefix}/${entry.name}` : entry.name
       if (entry.isDirectory()) await walk(join(current, entry.name), rel)
-      else if (entry.isFile()) files.push(rel)
+      else if (entry.isFile()) files.push(join(dir, rel))
     }
   }
   await walk(dir, '')
-  return files.sort()
+  return files.sort().slice(0, SKILL_FILE_LIST_LIMIT)
 }
 
 export const createSkillTool = (getSkills: () => Array<Command> = listSkills) => ({
   name: 'skill',
   kind: 'flow' as const,
-  description: 'Load a skill by exact name and follow its instructions, reading related files from skillDir. For chained /skill:<name> requests, call once per skill.',
+  description:
+    'Load a skill by exact name and follow its instructions, reading related files from skillDir. Files is a sampled list (max 10 absolute paths). For chained /skill:<name> requests, call once per skill.',
   parameters: SkillToolArgsSchema,
   output: SkillToolOutputSchema,
   handler: async (args: z.infer<typeof SkillToolArgsSchema>): Promise<z.infer<typeof SkillToolOutputSchema>> => {

@@ -13,6 +13,7 @@ const GrepToolOutputSchema = z.object({
 export const GrepToolArgsSchema = z.object({
   pattern: z.string().min(1),
   path: z.string().optional(),
+  include: z.string().optional().describe('File glob to include in the search (e.g. "*.ts", "*.{ts,tsx}").'),
   limit: z.number().int().min(1).max(1000).optional(),
 })
 async function runArgv(argv: Array<string>, cwd: string, toolOptions?: ToolExecuteOptions) {
@@ -31,7 +32,8 @@ async function runArgv(argv: Array<string>, cwd: string, toolOptions?: ToolExecu
 }
 export const grepTool = {
   name: 'grep',
-  description: 'Search files with ripgrep regex; returns matching lines as path:line: content (max 100 by default, capped at 1000). Respects .gitignore except inside .agents dirs.',
+  description:
+    'Search files with ripgrep regex; returns matching lines as path:line: content (max 100 by default, capped at 1000). Use include to filter by file glob (e.g. "*.ts"). Respects .gitignore except inside .agents dirs.',
   parameters: GrepToolArgsSchema,
   output: GrepToolOutputSchema,
   isTerminal: false,
@@ -52,12 +54,17 @@ export const grepTool = {
     const base = resolve(searchPath)
     const bypassFilters = insideAgentDir(base)
     const flags = bypassFilters ? ['--hidden', '--no-ignore-vcs'] : []
-    const proc = await runArgv([rgPath, '-n', '--with-filename', '--no-heading', '--color', 'never', ...flags, '-e', args.pattern, '--', searchPath], root, toolOptions)
+    const includeFlags = args.include ? ['--glob', args.include] : []
+    const proc = await runArgv([rgPath, '-n', '--with-filename', '--no-heading', '--color', 'never', ...flags, ...includeFlags, '-e', args.pattern, '--', searchPath], root, toolOptions)
     if (proc.exitCode !== 0 && proc.exitCode !== 1) throw new Error(`rg failed (exit ${proc.exitCode}): ${proc.stderr.trim()}`)
     const lines = new Set(proc.stdout.trim().split('\n').filter(Boolean))
     if (!bypassFilters) {
       for (const dir of await agentDirsUnder(base)) {
-        const pass = await runArgv([rgPath, '-n', '--with-filename', '--no-heading', '--color', 'never', '--hidden', '--no-ignore-vcs', '-e', args.pattern, '--', dir], root, toolOptions)
+        const pass = await runArgv(
+          [rgPath, '-n', '--with-filename', '--no-heading', '--color', 'never', '--hidden', '--no-ignore-vcs', ...includeFlags, '-e', args.pattern, '--', dir],
+          root,
+          toolOptions,
+        )
         if (pass.exitCode !== 0 && pass.exitCode !== 1) throw new Error(`rg failed (exit ${pass.exitCode}): ${pass.stderr.trim()}`)
         for (const line of pass.stdout.trim().split('\n').filter(Boolean)) lines.add(line)
       }

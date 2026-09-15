@@ -1,6 +1,8 @@
 import { mkdir } from 'node:fs/promises'
 import { dirname, isAbsolute, relative, resolve } from 'node:path'
 import { CheckpointStore } from '@agent/sessions/checkpoints.ts'
+import { fileHasBom, joinBom, splitBom } from '@agent/tools/filesystem/bom.ts'
+import { diffForFile } from '@agent/tools/filesystem/replacers.ts'
 import { sandboxRoot } from '@agent/tools/sandbox.ts'
 import type { ToolExecuteOptions } from '@agent/tools/toolset.ts'
 import { withLock } from '@shared/lock.ts'
@@ -13,10 +15,12 @@ const CONTENT_PREVIEW_MAX_CHARS = 4_000
 export interface WriteToolResult {
   message: string
   content: string
+  diff?: string
 }
 export const WriteToolOutputSchema = z.object({
   message: z.string(),
   content: z.string(),
+  diff: z.string().optional(),
 })
 const resolveInsideBase = (base: string | undefined, userPath: string): string => {
   const resolved = resolve(base ?? process.cwd(), userPath)
@@ -32,7 +36,7 @@ export const createWriteTool = (checkpointsPath?: string) => {
   const checkpoints = checkpointsPath ? new CheckpointStore(checkpointsPath) : undefined
   return {
     name: 'write',
-    description: 'Write contents to a file at path, creating parent directories as needed.',
+    description: 'Write contents to a file at path, creating parent directories as needed. Preserves an existing UTF-8 BOM.',
     parameters: WriteToolArgsSchema,
     output: WriteToolOutputSchema,
     skipPermission: true,
@@ -42,18 +46,24 @@ export const createWriteTool = (checkpointsPath?: string) => {
       const resolvedPath = resolveInsideBase(base, args.path)
       return withLock(resolvedPath, async () => {
         await mkdir(dirname(resolvedPath), { recursive: true })
-        const before = await Bun.file(resolvedPath)
-          .text()
-          .catch(() => null)
-        await Bun.write(resolvedPath, args.contents)
+        const file = Bun.file(resolvedPath)
+        const existed = await file.exists()
+        const beforeRaw = existed ? await file.text().catch(() => null) : null
+        const beforeBom = existed ? await fileHasBom(resolvedPath) : false
+        const next = splitBom(args.contents)
+        const desiredBom = beforeBom || next.bom
+        const finalContents = joinBom(next.text, desiredBom)
+        await Bun.write(resolvedPath, finalContents)
         if (checkpoints) {
-          await checkpoints.record({ tool: 'write', path: resolvedPath, before, after: args.contents })
+          await checkpoints.record({ tool: 'write', path: resolvedPath, before: beforeRaw, after: finalContents })
         }
         const lines = (args.contents.match(/\n/g) ?? []).length + 1
         const content = args.contents.length > CONTENT_PREVIEW_MAX_CHARS ? `${args.contents.slice(0, CONTENT_PREVIEW_MAX_CHARS)}\n…[truncated]` : args.contents
+        const diff = beforeRaw === null ? diffForFile(resolvedPath, '', next.text) : diffForFile(resolvedPath, splitBom(beforeRaw).text, next.text)
         return {
           message: `Wrote ${args.path} (${lines} lines)`,
           content,
+          diff,
         }
       })
     },

@@ -37,14 +37,12 @@ export const isSpawnTool = (part: ToolPartLike): boolean => rawToolName(part).to
 export const isTodoTool = (part: ToolPartLike): boolean => part.type === 'tool-todo' || (part.type === DYNAMIC_TOOL_TYPE && part.toolName === 'todo')
 
 const isTodoItemValue = (value: unknown): value is TodoItem =>
-  typeof value === 'object' && value !== null && typeof (value as { title?: unknown }).title === 'string' && typeof (value as { done?: unknown }).done === 'boolean'
+  typeof value === 'object' &&
+  value !== null &&
+  typeof (value as { title?: unknown }).title === 'string' &&
+  (typeof (value as { done?: unknown }).done === 'boolean' || typeof (value as { status?: unknown }).status === 'string')
 
 export const todoItems = (part: ToolPartLike): Array<TodoItem> | undefined => {
-  const output = part.output
-  if (typeof output === 'object' && output !== null && Array.isArray((output as { items?: unknown }).items)) {
-    const items = (output as { items: Array<unknown> }).items.filter(isTodoItemValue)
-    if (items.length > 0) return items
-  }
   const input = part.input
   if (typeof input === 'object' && input !== null) {
     const list = (input as { items?: unknown }).items
@@ -171,6 +169,11 @@ export const summarizeToolInput = (name: string, input: unknown): string => {
     case 'write':
     case 'edit':
       return field('path') ?? '?'
+    case 'apply_patch': {
+      const files = args.files
+      if (Array.isArray(files)) return `${files.length} file(s)`
+      return 'patch'
+    }
     case 'glob':
     case 'grep':
       return field('pattern') ?? '?'
@@ -279,9 +282,13 @@ export const summarizeToolOutput = (name: string, output: unknown, errorText?: s
       const stats = diffStats(diff)
       return `${stats.added}+ ${stats.removed}−`
     }
-    case 'edit': {
+    case 'edit':
+    case 'apply_patch': {
       const diff = args && typeof args.diff === 'string' ? args.diff : undefined
-      if (diff === undefined) break
+      if (diff === undefined) {
+        const files = args && Array.isArray(args.files) ? args.files : undefined
+        return files ? `${files.length} file(s)` : undefined
+      }
       const stats = diffStats(diff)
       return `${stats.added}+ ${stats.removed}−`
     }
@@ -315,10 +322,12 @@ export const summarizeToolOutput = (name: string, output: unknown, errorText?: s
       return message !== undefined && message.length > 0 ? `${label}${singleLine(message, OUTPUT_PREVIEW_MAX)}` : status ? label.trim() : undefined
     }
     case 'todo': {
-      const items = args && Array.isArray(args.items) ? args.items : undefined
-      if (!items) break
-      const done = items.filter((item) => (item as { done?: unknown } | undefined)?.done === true).length
-      return `${done} of ${items.length} done`
+      const message = args && typeof args.message === 'string' ? args.message : undefined
+      if (message !== undefined && message.length > 0) return singleLine(message, OUTPUT_PREVIEW_MAX)
+      const done = args && typeof args.done === 'number' ? args.done : undefined
+      const total = args && typeof args.total === 'number' ? args.total : undefined
+      if (done !== undefined && total !== undefined) return `${done} of ${total} done`
+      break
     }
     case 'spawn': {
       const summary = args && typeof args.summary === 'string' ? args.summary : undefined

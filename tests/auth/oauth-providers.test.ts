@@ -76,6 +76,30 @@ describe('listProviders', () => {
     expect(providers[0]?.models.map((model) => model.id)).toEqual(['m1'])
     expect(providers[0]?.apiKey).toBe('auth:github-copilot')
   })
+  test('hides unavailable models and drops emptied providers', async () => {
+    options.providers = [
+      {
+        id: 'opencode-go',
+        name: 'OpenCode Go',
+        type: 'openai-compatible',
+        baseUrl: 'https://opencode.ai/zen/go/v1',
+        models: [
+          { id: 'ox-alpha-free', name: 'Ox', context: 0, output: 0, status: 'deprecated' },
+          { id: 'alpha-foo', name: 'Alpha', context: 0, output: 0 },
+          { id: 'glm-5.3-flash', name: 'Flash', context: 0, output: 0 },
+        ],
+      },
+      {
+        id: 'stale',
+        name: 'Stale',
+        type: 'openai-compatible',
+        baseUrl: 'https://example.com/v1',
+        models: [{ id: 'old', name: 'Old', context: 0, output: 0, status: 'deprecated' }],
+      },
+    ]
+    expect(listProviders().map((provider) => provider.id)).toEqual(['opencode-go'])
+    expect(listProviders()[0]?.models.map((model) => model.id)).toEqual(['glm-5.3-flash'])
+  })
 })
 
 describe('listModels', () => {

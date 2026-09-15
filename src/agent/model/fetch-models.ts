@@ -1,3 +1,4 @@
+import { filterAvailableModels, type ProviderRef } from '@agent/model/model-availability.ts'
 import type { ProviderModelCapability, ProviderModelOptions } from '@config/options.ts'
 import { z } from 'zod'
 
@@ -53,21 +54,22 @@ const toProviderModel = (entry: z.infer<typeof ModelsEntrySchema>): ProviderMode
   }
 }
 
-export const parseModelsResponse = (payload: unknown): Array<ProviderModelOptions> => {
+export const parseModelsResponse = (payload: unknown, provider?: ProviderRef): Array<ProviderModelOptions> => {
   const parsed = ModelsResponseSchema.safeParse(payload)
   if (!parsed.success) return []
-  return parsed.data.data.flatMap((entry) => {
+  const models = parsed.data.data.flatMap((entry) => {
     const model = toProviderModel(entry)
     return model ? [model] : []
   })
+  return provider ? filterAvailableModels(provider, models) : models
 }
 
-export const fetchModels = async (url: string, apiKey: string): Promise<Array<ProviderModelOptions>> => {
+export const fetchModels = async (url: string, apiKey: string, provider?: ProviderRef): Promise<Array<ProviderModelOptions>> => {
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${apiKey}` },
   })
   if (!res.ok) {
     throw new Error(`Fetching models from ${url} failed: ${res.status} ${res.statusText}`)
   }
-  return parseModelsResponse((await res.json()) as unknown)
+  return parseModelsResponse((await res.json()) as unknown, provider)
 }
