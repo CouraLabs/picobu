@@ -1,6 +1,6 @@
 {
   "name": "picobu",
-  "version": "1.22.5",
+  "version": "1.22.6",
   "module": "src/cli.ts",
   "type": "module",
   "private": true,

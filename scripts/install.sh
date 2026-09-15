@@ -6,7 +6,7 @@
 #   curl -fsSL https://raw.githubusercontent.com/CouraLabs/picobu/refs/heads/master/scripts/install.sh | bash
 #
 # Steps:
-#   1. Validate that bun and git are available
+#   1. Validate git, install bun when missing
 #   2. Clone the repo into ~/.picobu/install
 #   3. Build a standalone executable with bun
 #   4. Move the executable to ~/.picobu/bin
@@ -27,7 +27,13 @@ fail() { printf '\033[1;31m[picobu]\033[0m %s\n' "$1" >&2; exit 1; }
 # --- 1. Validate prerequisites -------------------------------------------
 
 command -v git >/dev/null 2>&1 || fail "git is required but not installed. Install it first: https://git-scm.com"
-command -v bun >/dev/null 2>&1 || fail "bun is required but not installed. Install it first: curl -fsSL https://bun.sh/install | bash"
+
+if ! command -v bun >/dev/null 2>&1; then
+  log "bun not found — installing it now ..."
+  curl -fsSL https://bun.sh/install | bash
+  export PATH="${BUN_INSTALL:-$HOME/.bun}/bin:$PATH"
+fi
+command -v bun >/dev/null 2>&1 || fail "Automatic bun install failed. Install it manually (curl -fsSL https://bun.sh/install | bash), then re-run this script."
 
 log "bun $(bun --version) and git found."
 

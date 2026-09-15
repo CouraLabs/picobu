@@ -5,7 +5,7 @@
 #   powershell -c "irm https://raw.githubusercontent.com/CouraLabs/picobu/refs/heads/master/scripts/install.ps1|iex"
 #
 # Steps:
-#   1. Validate that bun and git are available
+#   1. Validate git, install bun when missing
 #   2. Clone the repo into ~\.picobu\install
 #   3. Build a standalone executable with bun
 #   4. Move the executable to ~\.picobu\bin
@@ -30,7 +30,15 @@ if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
   Write-Fail "git is required but not installed. Install it first: https://git-scm.com"
 }
 if (-not (Get-Command bun -ErrorAction SilentlyContinue)) {
-  Write-Fail "bun is required but not installed. Install it first: powershell -c `"irm bun.sh/install.ps1|iex`""
+  Write-Log "bun not found — installing it now ..."
+  irm https://bun.sh/install.ps1 | iex
+  $BunDir = Join-Path $env:USERPROFILE ".bun\bin"
+  if ((Test-Path $BunDir) -and -not (($env:Path -split ';') -contains $BunDir)) {
+    $env:Path = "$BunDir;$env:Path"
+  }
+}
+if (-not (Get-Command bun -ErrorAction SilentlyContinue)) {
+  Write-Fail "Automatic bun install failed. Install it manually: powershell -c `"irm https://bun.sh/install.ps1|iex`", then re-run this script."
 }
 
 Write-Log "bun $((bun --version)) and git found."

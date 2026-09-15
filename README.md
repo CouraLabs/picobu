@@ -59,7 +59,7 @@ bun install
 bun dev
 ```
 
-Compiled install (requires `git` + `bun`; tracks `main`; writes `~/.picobu/bin/picobu` and wires `PATH` for the current shell):
+Compiled install (requires `git`; installs `bun` automatically when missing; tracks `main`; writes `~/.picobu/bin/picobu` and wires `PATH` for the current shell):
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/CouraLabs/picobu/refs/heads/master/scripts/install.sh | bash
