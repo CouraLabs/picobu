@@ -3,7 +3,7 @@
 # picobu install script (Linux / macOS)
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/CouraLabs/picobu/main/scripts/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/CouraLabs/picobu/refs/heads/master/scripts/install.sh | bash
 #
 # Steps:
 #   1. Validate that bun and git are available

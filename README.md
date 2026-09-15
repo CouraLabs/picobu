@@ -62,13 +62,13 @@ bun dev
 Compiled install (requires `git` + `bun`; tracks `main`; writes `~/.picobu/bin/picobu` and wires `PATH` for the current shell):
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/CouraLabs/picobu/main/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/CouraLabs/picobu/refs/heads/master/scripts/install.sh | bash
 ```
 
 On Windows (PowerShell, writes `%USERPROFILE%\.picobu\bin\picobu.exe` and prepends it to the user `PATH`):
 
 ```powershell
-powershell -c "irm https://raw.githubusercontent.com/CouraLabs/picobu/main/scripts/install.ps1|iex"
+powershell -c "irm https://raw.githubusercontent.com/CouraLabs/picobu/refs/heads/master/scripts/install.ps1|iex"
 ```
 
 `webfetch`/`websearch` need the Puppeteer Chrome downloaded during `bun install`, so keep that step even for compiled installs.
@@ -76,7 +76,7 @@ powershell -c "irm https://raw.githubusercontent.com/CouraLabs/picobu/main/scrip
 Uninstall deletes `~/.picobu` entirely — executable, sessions, settings, and OAuth credentials:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/CouraLabs/picobu/main/scripts/uninstall.sh | bash -s -- [-y]
+curl -fsSL https://raw.githubusercontent.com/CouraLabs/picobu/refs/heads/master/scripts/uninstall.sh | bash -s -- [-y]
 ```
 
 Or from a clone: `scripts/uninstall.sh [-y]` (`scripts/uninstall.ps1 [-y]` on Windows; `-y` skips the confirmation prompt).

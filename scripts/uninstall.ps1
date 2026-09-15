@@ -2,14 +2,14 @@
 # picobu uninstall script (Windows PowerShell)
 #
 # Usage:
-#   powershell -c "irm https://raw.githubusercontent.com/CouraLabs/picobu/main/scripts/uninstall.ps1|iex"
+#   powershell -c "irm https://raw.githubusercontent.com/CouraLabs/picobu/refs/heads/master/scripts/uninstall.ps1|iex"
 #
 # Removes everything under ~\.picobu, including the executable, saved
 # sessions, credentials and settings, and strips ~\.picobu\bin from
 # the user PATH.
 #
 # Usage:
-#   powershell -c "irm https://raw.githubusercontent.com/CouraLabs/picobu/main/scripts/uninstall.ps1|iex"
+#   powershell -c "irm https://raw.githubusercontent.com/CouraLabs/picobu/refs/heads/master/scripts/uninstall.ps1|iex"
 #   scripts/uninstall.ps1 -y   # skip the confirmation prompt
 #
 

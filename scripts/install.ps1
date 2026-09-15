@@ -2,7 +2,7 @@
 # picobu install script (Windows PowerShell)
 #
 # Usage:
-#   powershell -c "irm https://raw.githubusercontent.com/CouraLabs/picobu/main/scripts/install.ps1|iex"
+#   powershell -c "irm https://raw.githubusercontent.com/CouraLabs/picobu/refs/heads/master/scripts/install.ps1|iex"
 #
 # Steps:
 #   1. Validate that bun and git are available

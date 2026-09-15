@@ -3,7 +3,7 @@
 # picobu uninstall script (Linux / macOS)
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/CouraLabs/picobu/main/scripts/uninstall.sh | bash -s -- [-y]
+#   curl -fsSL https://raw.githubusercontent.com/CouraLabs/picobu/refs/heads/master/scripts/uninstall.sh | bash -s -- [-y]
 #
 # Removes everything under ~/.picobu, including the executable, saved
 # sessions, credentials and settings, and strips ~/.picobu/bin from
