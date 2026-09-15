@@ -85,26 +85,42 @@ export interface ModelInstanceOptions {
 const OPENCODE_GO_BASE_MARKER = '/zen/go/'
 const OPENCODE_GO_FALLBACK_SESSION = 'picobu-shared'
 const OPENCODE_GO_RESPONSES_MODELS: ReadonlySet<string> = new Set(['gpt-5.6-luna', 'grok-4.5', 'grok-4.6', 'muse-spark-1.2-contributor', 'muse-spark-1.3-contributor'])
+const OPENCODE_GO_MESSAGES_PREFIXES: ReadonlyArray<string> = ['minimax', 'qwen']
+const OPENCODE_GO_ENDPOINT_SUFFIXES: ReadonlyArray<string> = ['/chat/completions', '/responses', '/messages']
 
 export const isOpencodeGoProvider = (provider: ProviderOptions): boolean => provider.id === 'opencode-go' || provider.baseUrl.includes(OPENCODE_GO_BASE_MARKER)
 
+export const opencodeGoBaseUrl = (baseUrl: string | undefined): string | undefined => {
+  if (!baseUrl?.includes(OPENCODE_GO_BASE_MARKER)) return baseUrl
+  const trimmed = baseUrl.replace(/\/$/, '')
+  const suffix = OPENCODE_GO_ENDPOINT_SUFFIXES.find((ending) => trimmed.endsWith(ending))
+  return suffix ? trimmed.slice(0, -suffix.length) : baseUrl
+}
+
 export const npmForModel = (provider: ProviderOptions, modelMeta?: Pick<ProviderModelOptions, 'id' | 'npm'>): string => {
   if (modelMeta?.npm && modelMeta.npm.length > 0) return modelMeta.npm
-  if (isOpencodeGoProvider(provider) && modelMeta && OPENCODE_GO_RESPONSES_MODELS.has(modelMeta.id)) return '@ai-sdk/openai'
+  if (isOpencodeGoProvider(provider) && modelMeta) {
+    if (OPENCODE_GO_RESPONSES_MODELS.has(modelMeta.id)) return '@ai-sdk/openai'
+    const lowered = modelMeta.id.toLowerCase()
+    if (OPENCODE_GO_MESSAGES_PREFIXES.some((prefix) => lowered.startsWith(prefix))) return '@ai-sdk/anthropic'
+  }
   return provider.npm ?? npmForProviderType(provider.type)
 }
 
 export const createModelInstance = (provider: ProviderOptions, modelId: string, opts?: ModelInstanceOptions) => {
   const auth = resolveAuth(provider)
   const apiKey = auth.apiKey
-  const baseUrl = auth.baseUrl ?? (provider.baseUrl || undefined)
   const npm = npmForModel(provider, { id: modelId, ...(opts?.modelNpm ? { npm: opts.modelNpm } : {}) })
+  const rawBaseUrl = auth.baseUrl ?? (provider.baseUrl || undefined)
+  const goBaseUrl = isOpencodeGoProvider(provider) && provider.type !== 'openai-responses' ? opencodeGoBaseUrl(rawBaseUrl) : rawBaseUrl
+  const baseUrl = provider.id === 'github-copilot' && npm === '@ai-sdk/anthropic' && goBaseUrl && !goBaseUrl.replace(/\/$/, '').endsWith('/v1') ? `${goBaseUrl.replace(/\/$/, '')}/v1` : goBaseUrl
   const headers = headersForProvider(provider, opts?.sessionId ? { sessionId: opts.sessionId } : undefined)
   switch (npm) {
     case '@ai-sdk/anthropic':
       return createAnthropic({ baseURL: baseUrl, apiKey, headers })(modelId)
     case '@ai-sdk/openai':
       if (provider.type === 'openai-responses') return createOpenResponses({ url: baseUrl ?? '', name: provider.name, apiKey, headers })(modelId)
+      if (isOpencodeGoProvider(provider)) return createOpenAI({ baseURL: baseUrl, apiKey, headers }).responses(modelId)
       return createOpenAI({ baseURL: baseUrl, apiKey, headers })(modelId)
     case '@ai-sdk/google':
       return createGoogleGenerativeAI({ baseURL: baseUrl, apiKey, headers })(modelId)

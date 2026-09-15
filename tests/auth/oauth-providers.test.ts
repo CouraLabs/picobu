@@ -50,10 +50,10 @@ describe('listOAuthProviderEntries', () => {
     expect(entry?.type).toBe('openai-compatible')
     expect(entry?.models.map((model) => model.id)).toEqual(['a', 'b'])
   })
-  test('skips providers already configured in options', async () => {
+  test('returns live entry even when configured in options', async () => {
     await setCredential('github-copilot', copilotCredential(['a']))
     options.providers = [configuredCopilot()]
-    expect(listOAuthProviderEntries()).toEqual([])
+    expect(listOAuthProviderEntries().map((entry) => entry.id)).toEqual(['github-copilot'])
   })
   test('skips logged-out providers and credentials without ids', async () => {
     expect(listOAuthProviderEntries()).toEqual([])
@@ -67,6 +67,14 @@ describe('listProviders', () => {
     await setCredential('github-copilot', copilotCredential(['a']))
     options.providers = [configuredCopilot()].map((provider) => ({ ...provider, id: 'openai', name: 'OpenAI' }))
     expect(listProviders().map((provider) => provider.id)).toEqual(['openai', 'github-copilot'])
+  })
+  test('options models win over oauth live but oauth creds are used', async () => {
+    await setCredential('github-copilot', copilotCredential(['live-a', 'live-b']))
+    options.providers = [configuredCopilot()]
+    const providers = listProviders()
+    expect(providers.map((provider) => provider.id)).toEqual(['github-copilot'])
+    expect(providers[0]?.models.map((model) => model.id)).toEqual(['m1'])
+    expect(providers[0]?.apiKey).toBe('auth:github-copilot')
   })
 })
 

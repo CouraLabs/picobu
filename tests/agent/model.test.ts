@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import type { Provider as ModelsDevProvider } from '@opencode-ai/models'
 import { modelsFromModelsDev } from '../../src/agent/model/catalog-models-dev.ts'
-import { createModelInstance, headersForProvider, npmForModel } from '../../src/agent/model/resolver.ts'
+import { createModelInstance, headersForProvider, npmForModel, opencodeGoBaseUrl } from '../../src/agent/model/resolver.ts'
 import type { ProviderOptions } from '../../src/config/options.ts'
 
 const baseProvider = (overrides?: Partial<ProviderOptions>): ProviderOptions => ({
@@ -65,6 +65,32 @@ describe('npmForModel', () => {
   test('uses provider npm for regular go models', () => {
     expect(npmForModel(goProvider(), { id: 'glm-5.3-flash' })).toBe('@ai-sdk/openai-compatible')
   })
+  test('routes qwen and minimax go models without catalog npm to messages', () => {
+    expect(npmForModel(goProvider(), { id: 'qwen3.7-max' })).toBe('@ai-sdk/anthropic')
+    expect(npmForModel(goProvider(), { id: 'qwen3.8-max' })).toBe('@ai-sdk/anthropic')
+    expect(npmForModel(goProvider(), { id: 'qwen3.6-plus' })).toBe('@ai-sdk/anthropic')
+    expect(npmForModel(goProvider(), { id: 'minimax-m2.5', npm: '' })).toBe('@ai-sdk/anthropic')
+  })
+  test('keeps family routing scoped to go providers', () => {
+    const other = baseProvider({ id: 'openai', npm: '@ai-sdk/openai' })
+    expect(npmForModel(other, { id: 'qwen3.7-max' })).toBe('@ai-sdk/openai')
+  })
+})
+
+describe('opencodeGoBaseUrl', () => {
+  test('leaves the versioned root untouched', () => {
+    expect(opencodeGoBaseUrl('https://opencode.ai/zen/go/v1')).toBe('https://opencode.ai/zen/go/v1')
+  })
+  test('strips pasted endpoint suffixes back to the root', () => {
+    expect(opencodeGoBaseUrl('https://opencode.ai/zen/go/v1/chat/completions')).toBe('https://opencode.ai/zen/go/v1')
+    expect(opencodeGoBaseUrl('https://opencode.ai/zen/go/v1/responses')).toBe('https://opencode.ai/zen/go/v1')
+    expect(opencodeGoBaseUrl('https://opencode.ai/zen/go/v1/messages')).toBe('https://opencode.ai/zen/go/v1')
+    expect(opencodeGoBaseUrl('https://opencode.ai/zen/go/v1/messages/')).toBe('https://opencode.ai/zen/go/v1')
+  })
+  test('leaves foreign urls and missing values alone', () => {
+    expect(opencodeGoBaseUrl('https://api.openai.com/v1')).toBe('https://api.openai.com/v1')
+    expect(opencodeGoBaseUrl(undefined)).toBeUndefined()
+  })
 })
 
 describe('createModelInstance', () => {
@@ -83,6 +109,15 @@ describe('createModelInstance', () => {
   })
   test('keeps regular go models on chat completions', () => {
     const model = createModelInstance(goProvider(), 'glm-5.3-flash')
+    expect(String(model.provider)).toContain('chat')
+  })
+  test('routes go messages models to the messages API', () => {
+    const model = createModelInstance(goProvider(), 'qwen3.7-max')
+    expect(String(model.provider)).toContain('messages')
+  })
+  test('normalizes a pasted endpoint base url back to the root', () => {
+    const provider: ProviderOptions = { ...goProvider(), baseUrl: 'https://opencode.ai/zen/go/v1/chat/completions' }
+    const model = createModelInstance(provider, 'glm-5.3-flash')
     expect(String(model.provider)).toContain('chat')
   })
 })

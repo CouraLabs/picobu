@@ -1,5 +1,6 @@
 import { stdin as input, stdout as output } from 'node:process'
 import { createInterface } from 'node:readline/promises'
+import { buildCopilotModelsFromCatalog } from '@auth/copilot-models.ts'
 import { fetchCopilotModelsWithCredential, getGitHubCopilotBaseUrl, parseGitHubCopilotModelCatalog } from '@auth/github-copilot.ts'
 import { setCredential } from '@auth/store.ts'
 import type { OAuthAuth, OAuthCredential } from '@auth/types.ts'
@@ -75,7 +76,8 @@ export const verifyOAuthCredential = async (auth: OAuthAuth, credential: OAuthCr
       const allowPolicyFallback = getGitHubCopilotBaseUrl(effective.access, effective.enterpriseUrl) === COPILOT_INDIVIDUAL_BASE_URL
       const modelIds = parseGitHubCopilotModelCatalog(raw, allowPolicyFallback)
       if (modelIds.length === 0) return { ok: false, error: 'models catalog was empty' }
-      effective = { ...effective, availableModelIds: modelIds }
+      const availableModels = buildCopilotModelsFromCatalog(raw, allowPolicyFallback)
+      effective = { ...effective, availableModelIds: modelIds, availableModels }
       await setCredential(auth.id, effective)
       return { ok: true, modelCount: modelIds.length, credential: effective, modelIds }
     }

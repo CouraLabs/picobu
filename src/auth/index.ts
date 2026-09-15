@@ -87,7 +87,7 @@ export const startLogin = async (id: string, opts?: string): Promise<void> => {
       controller.signal.throwIfAborted()
       await registerOAuthProvider(auth, credential)
       controller.signal.throwIfAborted()
-      console.log(`Logged in as ${auth.name} — provider & models registered`)
+      console.log(`Logged in as ${auth.name} — credential saved`)
     } catch (error) {
       console.error(`Login failed for ${auth.id}: ${error instanceof Error ? error.message : String(error)}`)
     } finally {

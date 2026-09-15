@@ -1,3 +1,5 @@
+import type { ProviderModelOptions } from '@config/options.ts'
+
 export interface OAuthCredential {
   type: 'oauth'
   access: string
@@ -6,6 +8,7 @@ export interface OAuthCredential {
   accountId?: string
   enterpriseUrl?: string
   availableModelIds?: Array<string>
+  availableModels?: Array<ProviderModelOptions>
 }
 
 export type AuthNotifyEvent =

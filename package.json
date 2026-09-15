@@ -5,7 +5,7 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "dev": "bun run src/cli.ts",
+    "dev": "env -u BUN_INSPECT -u BUN_INSPECT_NOTIFY -u BUN_INSPECT_CONNECT_TO bun run src/cli.ts",
     "tsc": "tsc -noEmit",
     "test": "AGENT=1 bun test tests",
     "lint": "biome check src tests --max-diagnostics 900",

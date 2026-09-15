@@ -231,7 +231,7 @@ loginCommand.action((provider?: string, loginOpts?: string, cmdOpts?: { force?: 
             try {
               await registerOAuthProvider(auth, result.credential)
             } catch (error) {
-              console.warn(`Could not sync ${auth.name} models into options (${error instanceof Error ? error.message : String(error)}) — the model list may be stale…`)
+              console.warn(`Could not refresh ${auth.name} credential (${error instanceof Error ? error.message : String(error)})`)
             }
             const again = await confirmReLogin(auth.name)
             if (!again) {
