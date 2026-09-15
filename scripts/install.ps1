@@ -44,17 +44,20 @@ git clone --depth 1 $RepoUrl $InstallDir
 
 # --- 3. Build ------------------------------------------------------------------
 
-Set-Location $InstallDir
-Write-Log "Installing dependencies ..."
-bun install
+Push-Location $InstallDir
+try {
+  Write-Log "Installing dependencies ..."
+  bun install
 
-New-Item -ItemType Directory -Force -Path $BinDir | Out-Null
-Write-Log "Building standalone executable ..."
-bun build --compile src/cli.ts --outfile $BinPath
+  New-Item -ItemType Directory -Force -Path $BinDir | Out-Null
+  Write-Log "Building standalone executable ..."
+  bun build --compile src/cli.ts --outfile $BinPath
+} finally {
+  Pop-Location
+}
 
 # --- 4. Clean up -----------------------------------------------------------------
 
-Set-Location $env:USERPROFILE
 Remove-Item -Recurse -Force $InstallDir
 Write-Log "Removed $InstallDir"
 

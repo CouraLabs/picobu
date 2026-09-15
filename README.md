@@ -59,13 +59,27 @@ bun install
 bun dev
 ```
 
-Compiled install (writes `~/.picobu/bin/picobu` and wires `PATH` for zsh/bash):
+Compiled install (requires `git` + `bun`; tracks `main`; writes `~/.picobu/bin/picobu` and wires `PATH` for the current shell):
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/CouraLabs/picobu/main/scripts/install.sh | bash
 ```
 
-Uninstall with `scripts/uninstall.sh` (or `scripts/uninstall.ps1` on Windows).
+On Windows (PowerShell, writes `%USERPROFILE%\.picobu\bin\picobu.exe` and prepends it to the user `PATH`):
+
+```powershell
+powershell -c "irm https://raw.githubusercontent.com/CouraLabs/picobu/main/scripts/install.ps1|iex"
+```
+
+`webfetch`/`websearch` need the Puppeteer Chrome downloaded during `bun install`, so keep that step even for compiled installs.
+
+Uninstall deletes `~/.picobu` entirely — executable, sessions, settings, and OAuth credentials:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/CouraLabs/picobu/main/scripts/uninstall.sh | bash -s -- [-y]
+```
+
+Or from a clone: `scripts/uninstall.sh [-y]` (`scripts/uninstall.ps1 [-y]` on Windows; `-y` skips the confirmation prompt).
 
 Verify with:
 
@@ -75,7 +89,7 @@ bun run tsc
 bun test tests/<dir>/<file>.test.ts
 ```
 
-Smoke (`needs a real model in ~/.picobu/options.json`): `bun src/dev/smoke.ts`. Unit tests need no real keys (fake model keys, tmp dirs).
+Smoke (`needs a real model in ~/.picobu/options.json`): `bun run src/dev/smoke.ts`. Unit tests need no real keys (fake model keys, tmp dirs).
 
 ## Usage
 
@@ -184,9 +198,9 @@ Model roles:
 
 | Agent | Role | Tools |
 | --- | --- | --- |
-| `ask` | Fast Q&A, `flash` | `read`, `grep`, `glob`, `skill`, `rule`, `websearch`, `webfetch`, `ask` |
-| `coder` | Default coding loop, `flash` | `read`, `write`, `edit`, `glob`, `grep`, `shell`, `ask`, `todo`, `skill`, `rule`, `spawn`, `websearch`, `webfetch` |
-| `plan-code` | Deep planning + implementation, `heavy` | `read`, `grep`, `glob`, `skill`, `rule`, `ask`, `plan-write`, `plan-exit` |
+| `ask` | Fast Q&A, `flash` | `read`, `grep`, `glob`, `skill`, `rule`, `websearch`, `webfetch`, `ask`, `spawn` |
+| `coder` | Default coding loop, `flash` | `read`, `write`, `edit`, `apply_patch`, `glob`, `grep`, `shell`, `ask`, `todo`, `skill`, `rule`, `spawn`, `websearch`, `webfetch` |
+| `plan-code` | Deep planning + implementation, `heavy` | `read`, `grep`, `glob`, `skill`, `rule`, `ask`, `plan-write`, `plan-exit`, `spawn` |
 | `persistent` | Fresh, stateless 10-step runs per prompt (WhatsApp) | `wwp-msg`, `wwp-today`, `rule` |
 
 Custom agents are markdown files with `name`/`description`/`category`/`tools`/`model` frontmatter (`*` = all tools). Built-in subagents (`executor`, `explorer`, `reviewer`) can be overridden per project via `.agents/agents/*.md`; project skills live in `.agents/skills/<name>/SKILL.md` (ships with `ai-sdk`, `baileys-wp`, `opentui`). Rules are flat markdown files with `name`/`description` frontmatter from `.agents/rules`, `~/.picobu/rules`, `~/.agents/rules` (missing description = skipped). Workflows, prompts, and commands resolve from project → `~/.picobu` → home, in that precedence order.
@@ -195,9 +209,10 @@ Custom agents are markdown files with `name`/`description`/`category`/`tools`/`m
 
 | Tool | Family | Description |
 | --- | --- | --- |
-| `read` | filesystem | Read a file, optionally sliced by `fromLine`/`toLine` |
+| `read` | filesystem | Read a file (`skip`/`limit` slice lines) or list a directory; rejects binaries, images/PDFs return metadata only, long output is capped |
 | `write` | filesystem | Write contents to a path, creating parent directories; records an undo checkpoint |
-| `edit` | filesystem | Replace one exact `oldString` with `newString`; fails on missing/ambiguous matches, returns a diff |
+| `edit` | filesystem | Replace `oldString` with `newString` (exact or whitespace-tolerant match); fails on missing matches, refuses ambiguous single replaces unless `replaceAll` is true, returns a diff |
+| `apply_patch` | filesystem | Apply a verified unified diff across one or more files atomically; prefer `edit` for single small replacements |
 | `glob` | filesystem | Find files by glob pattern; respects `.gitignore` |
 | `grep` | filesystem | Search files with ripgrep regex; returns matching lines |
 | `shell` | filesystem | Run a shell command; streams output live, kills on timeout |
@@ -325,7 +340,7 @@ Aliases: `copilot` → `github-copilot`, `claude` → `anthropic`, `chatgpt`/`co
 
 ### Host frontends
 
-Reference TUI (`bun dev:tui`, `src/tui/` over OpenTUI + Solid): session page with streamed text/reasoning/tool parts (`ask` renders its form inline, plans render for review), session header/status, message actions, diff viewer, dialogs/dropdowns, hover tooltips (`Tooltip` wrapper + `TooltipLayer` with dropdown-style flip/clamp positioning), splash screen, 35 bundled themes (`picobu` default, `resolveTheme`/`generateSyntax`), icon set, and Solid state primitives for dialogs, dropdowns, tooltips, theme, and toasts (`src/states/`). Clipboard goes through an OpenTUI service adapter.
+Reference TUI (`bun run dev`, `src/tui/` over OpenTUI + Solid): session page with streamed text/reasoning/tool parts (`ask` renders its form inline, plans render for review), session header/status, message actions, diff viewer, dialogs/dropdowns, hover tooltips (`Tooltip` wrapper + `TooltipLayer` with dropdown-style flip/clamp positioning), splash screen, 35 bundled themes (`picobu` default, `resolveTheme`/`generateSyntax`), icon set, and Solid state primitives for dialogs, dropdowns, tooltips, theme, and toasts (`src/states/`). Clipboard goes through an OpenTUI service adapter.
 
 Mouse: click the status-bar model to switch models, hover the todo count to preview the list, click a tool header to collapse/expand its output (disabled when empty), double-click a message for Revert/Copy/Fork, click a subagent row to open its session, drag-select text then CTRL/CMD + C to copy (ESC clears the selection). The full list lives in the in-app help (`CTRL + H`).
 

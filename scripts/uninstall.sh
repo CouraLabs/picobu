@@ -56,6 +56,7 @@ strip_profile() {
 case "${SHELL:-}" in
   */zsh)  strip_profile "$HOME/.zshrc" ;;
   */bash) if [ "$(uname)" = "Darwin" ]; then strip_profile "$HOME/.bash_profile"; else strip_profile "$HOME/.bashrc"; fi ;;
+  */fish) strip_profile "$HOME/.config/fish/config.fish" ;;
   *)      strip_profile "$HOME/.profile" ;;
 esac
 

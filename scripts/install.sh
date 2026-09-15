@@ -69,9 +69,20 @@ add_to_profile() {
   fi
 }
 
+add_to_fish() {
+  local config="$HOME/.config/fish/config.fish"
+  mkdir -p "$(dirname "$config")"
+  [ -f "$config" ] || touch "$config"
+  if ! grep -q 'picobu/bin' "$config"; then
+    printf '\n# picobu\nset -gx PATH "$HOME/.picobu/bin" $PATH\n' >> "$config"
+    log "Added $BIN_DIR to $config"
+  fi
+}
+
 case "${SHELL:-}" in
   */zsh)  add_to_profile "$HOME/.zshrc" ;;
   */bash) if [ "$(uname)" = "Darwin" ]; then add_to_profile "$HOME/.bash_profile"; else add_to_profile "$HOME/.bashrc"; fi ;;
+  */fish) add_to_fish ;;
   *)      add_to_profile "$HOME/.profile" ;;
 esac
 

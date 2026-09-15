@@ -8,6 +8,12 @@
 # sessions, credentials and settings, and strips ~\.picobu\bin from
 # the user PATH.
 #
+# Usage:
+#   powershell -c "irm https://raw.githubusercontent.com/CouraLabs/picobu/main/scripts/uninstall.ps1|iex"
+#   scripts/uninstall.ps1 -y   # skip the confirmation prompt
+#
+
+param([Alias('y')][switch]$Yes)
 
 $ErrorActionPreference = "Stop"
 
@@ -25,10 +31,12 @@ if (-not (Test-Path $PicobuHome)) {
 Write-Log "This will permanently delete $PicobuHome, including:"
 Write-Log "  - the picobu executable"
 Write-Log "  - saved sessions, settings and OAuth credentials"
-$answer = Read-Host "Continue? [y/N]"
-if ($answer -notmatch '^[yY]') {
-  Write-Log "Aborted."
-  exit 0
+if (-not $Yes) {
+  $answer = Read-Host "Continue? [y/N]"
+  if ($answer -notmatch '^[yY]') {
+    Write-Log "Aborted."
+    exit 0
+  }
 }
 
 # --- Remove the user PATH entry ------------------------------------------------
