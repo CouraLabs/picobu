@@ -11,11 +11,13 @@ import {
   TOOLTIP_CLOSE_DELAY_MS,
   TOOLTIP_DEFAULT_MAX_WIDTH,
   TOOLTIP_FALLBACK_HEIGHT,
+  TOOLTIP_OPEN_DELAY_MS,
+  type TooltipPlacement,
   type TooltipPosition,
   tooltipState,
 } from '@states/tooltip.state.ts'
 import { useTerminalDims } from '@tui/hooks/terminal-dims.tsx'
-import { createEffect, createSignal, on, onCleanup, onMount, Show } from 'solid-js'
+import { createEffect, createMemo, createSignal, createUniqueId, on, onCleanup, onMount, Show } from 'solid-js'
 
 export interface TooltipProps {
   content: JSX.Element
@@ -24,26 +26,56 @@ export interface TooltipProps {
   children: JSX.Element
 }
 
+const TOOLTIP_READY_TIMEOUT_MS = 120
+
 export const Tooltip = (props: TooltipProps) => {
   let anchorRef: BoxRenderable | null = null
+  let openTimer: ReturnType<typeof setTimeout> | undefined
+  const anchorId = createUniqueId()
+  const content = () => props.content
 
-  onCleanup(() => closeTooltip())
+  const clearOpenTimer = (): void => {
+    if (openTimer === undefined) return
+    clearTimeout(openTimer)
+    openTimer = undefined
+  }
+
+  const readPlacement = (): TooltipPlacement => {
+    const anchor = anchorRef
+    if (!anchor) return { x: 0, y: 0, width: 0, height: 0 }
+    return { x: anchor.screenX ?? 0, y: anchor.screenY ?? 0, width: anchor.width ?? 0, height: anchor.height ?? 0 }
+  }
+
+  const show = (): void => {
+    clearOpenTimer()
+    const current = tooltipState()
+    if (current?.anchorId === anchorId) {
+      cancelTooltipClose()
+      return
+    }
+    const next = { anchorId, content, maxWidth: props.maxWidth ?? TOOLTIP_DEFAULT_MAX_WIDTH, position: props.position }
+    if (current !== null) {
+      openTooltip({ ...next, placement: readPlacement() })
+      return
+    }
+    openTimer = setTimeout(() => {
+      openTimer = undefined
+      openTooltip({ ...next, placement: readPlacement() })
+    }, TOOLTIP_OPEN_DELAY_MS)
+  }
+
+  const hide = (): void => {
+    clearOpenTimer()
+    if (tooltipState()?.anchorId === anchorId) scheduleTooltipClose(TOOLTIP_CLOSE_DELAY_MS)
+  }
+
+  onCleanup(() => {
+    clearOpenTimer()
+    if (tooltipState()?.anchorId === anchorId) closeTooltip()
+  })
 
   return (
-    <box
-      ref={(r) => (anchorRef = r)}
-      width={'auto'}
-      flexDirection={'row'}
-      flexShrink={0}
-      onMouseOver={(e) => {
-        openTooltip({
-          content: () => props.content,
-          placement: { x: e.x, y: e.y, width: e.currentTarget?.width ?? 0, height: e.currentTarget?.height ?? 0 },
-          maxWidth: props.maxWidth ?? TOOLTIP_DEFAULT_MAX_WIDTH,
-          position: props.position,
-        })
-      }}
-      onMouseOut={() => scheduleTooltipClose(TOOLTIP_CLOSE_DELAY_MS)}>
+    <box ref={(r) => (anchorRef = r)} width={'auto'} flexDirection={'row'} flexShrink={0} onMouseOver={show} onMouseOut={hide}>
       {props.children}
     </box>
   )
@@ -53,18 +85,44 @@ export const TooltipLayer = () => {
   const renderer = useRenderer()
   const dims = useTerminalDims()
   const [size, setSize] = createSignal<{ width: number; height: number } | undefined>(undefined)
+  const [ready, setReady] = createSignal(false)
   let boxRef: BoxRenderable | null = null
+  let lastMeasured: { width: number; height: number } | undefined
+  let readyTimer: ReturnType<typeof setTimeout> | undefined
+
+  const clearReadyTimer = (): void => {
+    if (readyTimer === undefined) return
+    clearTimeout(readyTimer)
+    readyTimer = undefined
+  }
 
   const applyMeasure = (): void => {
     const r = boxRef
-    if (!r) return
-    setSize((prev) => (prev?.width === r.width && prev?.height === r.height ? prev : { width: r.width, height: r.height }))
+    if (!r || tooltipState() === null) return
+    const next = { width: r.width, height: r.height }
+    setSize((prev) => (prev?.width === next.width && prev?.height === next.height ? prev : next))
+    if (lastMeasured?.width === next.width && lastMeasured?.height === next.height) {
+      if (!ready() && next.width > 0 && next.height > 0) setReady(true)
+    } else {
+      lastMeasured = next
+    }
   }
 
   createEffect(
     on(
-      () => tooltipState()?.content,
-      () => setSize(undefined),
+      () => tooltipState()?.anchorId,
+      () => {
+        clearReadyTimer()
+        lastMeasured = undefined
+        setSize(undefined)
+        setReady(false)
+        if (tooltipState() !== null) {
+          readyTimer = setTimeout(() => {
+            readyTimer = undefined
+            if (tooltipState() !== null) setReady(true)
+          }, TOOLTIP_READY_TIMEOUT_MS)
+        }
+      },
     ),
   )
 
@@ -72,10 +130,11 @@ export const TooltipLayer = () => {
     renderer.root.on(LayoutEvents.LAYOUT_CHANGED, applyMeasure)
   })
   onCleanup(() => {
+    clearReadyTimer()
     renderer.root.off(LayoutEvents.LAYOUT_CHANGED, applyMeasure)
   })
 
-  const pos = () => {
+  const pos = createMemo(() => {
     const s = tooltipState()
     if (!s) return { x: 0, y: 0 }
     const measuredSize = size()
@@ -85,7 +144,7 @@ export const TooltipLayer = () => {
       { width: dims().width, height: dims().height },
       s.position,
     )
-  }
+  })
 
   return (
     <Show when={tooltipState() !== null}>
@@ -100,14 +159,13 @@ export const TooltipLayer = () => {
         flexDirection={'column'}
         overflow={'hidden'}
         zIndex={900}
+        opacity={ready() ? 1 : 0}
         borderColor={theme().border}
         backgroundColor={theme().backgroundPanel}
         ref={(r: BoxRenderable) => {
           boxRef = r
           applyMeasure()
-        }}
-        onMouseOver={() => cancelTooltipClose()}
-        onMouseOut={() => scheduleTooltipClose(TOOLTIP_CLOSE_DELAY_MS)}>
+        }}>
         {tooltipState()?.content?.()}
       </box>
     </Show>

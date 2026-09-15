@@ -7,6 +7,7 @@ import {
   scheduleTooltipClose,
   TOOLTIP_CLOSE_DELAY_MS,
   TOOLTIP_FALLBACK_HEIGHT,
+  TOOLTIP_OPEN_DELAY_MS,
   tooltipState,
 } from '../../src/states/tooltip.state.ts'
 
@@ -57,8 +58,9 @@ describe('tooltip state', () => {
     closeTooltip()
     expect(tooltipState()).toBeNull()
     const view = (): string => 'tip'
-    openTooltip({ content: view, placement, maxWidth: 20 })
+    openTooltip({ anchorId: 'test-anchor', content: view, placement, maxWidth: 20 })
     const open = tooltipState()
+    expect(open?.anchorId).toBe('test-anchor')
     expect(open?.content()).toBe('tip')
     expect(open?.placement).toEqual(placement)
     expect(open?.maxWidth).toBe(20)
@@ -68,6 +70,7 @@ describe('tooltip state', () => {
   test('constants are usable', () => {
     expect(TOOLTIP_FALLBACK_HEIGHT).toBeGreaterThan(0)
     expect(TOOLTIP_CLOSE_DELAY_MS).toBeGreaterThanOrEqual(0)
+    expect(TOOLTIP_OPEN_DELAY_MS).toBeGreaterThan(0)
     scheduleTooltipClose(0)
     cancelTooltipClose()
   })

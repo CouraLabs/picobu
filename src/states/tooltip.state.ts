@@ -11,6 +11,7 @@ export interface TooltipPlacement {
 export type TooltipPosition = 'top' | 'bottom'
 
 export interface TooltipOpenState {
+  anchorId: string
   content: () => JSX.Element
   placement: TooltipPlacement
   maxWidth: number
@@ -19,6 +20,7 @@ export interface TooltipOpenState {
 
 export const TOOLTIP_FALLBACK_HEIGHT = 3
 export const TOOLTIP_CLOSE_DELAY_MS = 60
+export const TOOLTIP_OPEN_DELAY_MS = 250
 export const TOOLTIP_DEFAULT_MAX_WIDTH = 40
 
 const [state, setState] = createSignal<TooltipOpenState | null>(null)
