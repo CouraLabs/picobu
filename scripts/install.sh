@@ -47,34 +47,22 @@ git clone --depth 1 "$REPO_URL" "$INSTALL_DIR"
 
 cd "$INSTALL_DIR"
 log "Installing dependencies ..."
-if ! bun install --os='*' --cpu='*'; then
-  log "Full-platform install failed, retrying host-only install ..."
-  bun install
+if ! bun install; then
+  fail "bun install failed."
 fi
 
-bun_version="$(bun --version)"
-bun_major="${bun_version%%.*}"
-bun_minor="$(echo "$bun_version" | cut -d. -f2)"
-if [ "$bun_major" -lt 1 ] || { [ "$bun_major" -eq 1 ] && [ "$bun_minor" -lt 3 ]; }; then
-  fail "bun >= 1.3.0 is required for OpenTUI standalone builds (found $bun_version). Upgrade bun, then re-run this script."
-fi
-
-os="$(uname -s)"
-machine="$(uname -m)"
-target=""
-case "$os" in
-  Darwin) case "$machine" in arm64) target="bun-darwin-arm64" ;; *) target="bun-darwin-x64" ;; esac ;;
-  Linux) case "$machine" in aarch64|arm64) target="bun-linux-arm64" ;; *) target="bun-linux-x64" ;; esac ;;
-  MINGW*|MSYS*|CYGWIN*|Windows_NT) case "$machine" in aarch64|arm64) target="bun-windows-arm64" ;; *) target="bun-windows-x64" ;; esac ;;
-esac
-
+# The build target (including the host libc on linux) is resolved inside
+# build-standalone.ts, so no uname mapping is duplicated here. The wildcard
+# install below is only a fallback for builds that miss native optionals.
 mkdir -p "$BIN_DIR"
-if [ -n "$target" ]; then
-  log "Building standalone executable ($target) ..."
-  bun ./scripts/build-standalone.ts --target "$target" --outfile "$BIN_DIR/picobu" || fail "Build failed. If the error names a missing native library, update bun, delete bun.lock, and re-run this script so all @opentui/core optionals install."
-else
-  log "Building standalone executable ..."
-  bun ./scripts/build-standalone.ts --outfile "$BIN_DIR/picobu" || fail "Build failed. If the error names a missing native library, update bun, delete bun.lock, and re-run this script so all @opentui/core optionals install."
+if ! bun ./scripts/build-standalone.ts --outfile "$BIN_DIR/picobu"; then
+  log "Build failed - retrying with a full-platform install of native optionals ..."
+  if ! bun install --os='*' --cpu='*'; then
+    fail "Full-platform install failed."
+  fi
+  if ! bun ./scripts/build-standalone.ts --outfile "$BIN_DIR/picobu"; then
+    fail "Build failed. If the error names a missing native library, update bun, delete bun.lock, and re-run this script so all @opentui/core optionals install."
+  fi
 fi
 
 # --- 4. Clean up ----------------------------------------------------------

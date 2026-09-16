@@ -19,7 +19,17 @@ describe('resolveCompileTarget', () => {
   test('windows outfile keeps the exe extension', () => {
     expect(defaultOutfile('win32')).toBe('picobu.exe')
     expect(defaultOutfile('darwin')).toBe('picobu')
+  })
+})
+
+describe('normalizeLibc', () => {
+  test('normalizes case and whitespace', () => {
     expect(normalizeLibc('musl')).toBe('musl')
+    expect(normalizeLibc('MUSL')).toBe('musl')
+    expect(normalizeLibc(' glibc ')).toBe('glibc')
     expect(normalizeLibc(undefined)).toBe('glibc')
+  })
+  test('rejects typo values instead of coercing to glibc', () => {
+    expect(() => normalizeLibc('musll')).toThrow(/Unsupported libc/)
   })
 })

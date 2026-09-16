@@ -639,6 +639,9 @@ export const SessionPrompt = (props: SessionPromptProps) => {
               { name: 'return', action: 'submit' },
               { name: 'return', shift: true, action: 'newline' },
               { name: 'return', ctrl: true, action: 'newline' },
+              // Terminals without the kitty keyboard protocol (e.g. Windows Terminal)
+              // deliver ctrl+enter as name 'linefeed' with ctrl unset.
+              { name: 'linefeed', action: 'newline' },
             ]}
           />
         </box>

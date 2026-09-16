@@ -49,35 +49,39 @@ if (Test-Path $InstallDir) { Remove-Item -Recurse -Force $InstallDir }
 
 Write-Log "Cloning $RepoUrl into $InstallDir ..."
 git clone --depth 1 $RepoUrl $InstallDir
+if ($LASTEXITCODE -ne 0) {
+  Write-Fail "git clone failed with exit code $LASTEXITCODE."
+}
 
 # --- 3. Build ------------------------------------------------------------------
+#
+# Native commands never throw on a non-zero exit in PowerShell, so every bun/git
+# call is followed by a $LASTEXITCODE check. The build target (arch included) is
+# resolved inside build-standalone.ts, so no PROCESSOR_ARCHITECTURE mapping is
+# duplicated here. The wildcard install below is only a fallback for builds that
+# miss native optionals.
 
 Push-Location $InstallDir
 try {
   Write-Log "Installing dependencies ..."
-  try {
-    bun install --os='*' --cpu='*'
-  } catch {
-    Write-Log "Full-platform install failed, retrying host-only install ..."
-    bun install
+  bun install
+  if ($LASTEXITCODE -ne 0) {
+    Write-Fail "bun install failed with exit code $LASTEXITCODE."
   }
 
-  $BunVersion = (bun --version).Trim()
-  $BunParts = $BunVersion.Split('.')
-  if ([int]$BunParts[0] -lt 1 -or ([int]$BunParts[0] -eq 1 -and [int]$BunParts[1] -lt 3)) {
-    Write-Fail "bun >= 1.3.0 is required for OpenTUI standalone builds (found $BunVersion). Upgrade bun, then re-run this script."
-  }
-
-  $Target = 'bun-windows-x64'
-  if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') {
-    $Target = 'bun-windows-arm64'
-  }
   New-Item -ItemType Directory -Force -Path $BinDir | Out-Null
-  Write-Log "Building standalone executable ($Target) ..."
-  try {
-    bun ./scripts/build-standalone.ts --target $Target --outfile $BinPath
-  } catch {
-    Write-Fail "Build failed. If the error names a darwin/linux native library, update bun, delete bun.lock, and re-run this script so all @opentui/core optionals install. $_"
+  Write-Log "Building standalone executable ..."
+  bun ./scripts/build-standalone.ts --outfile $BinPath
+  if ($LASTEXITCODE -ne 0) {
+    Write-Log "Build failed - retrying with a full-platform install of native optionals ..."
+    bun install --os='*' --cpu='*'
+    if ($LASTEXITCODE -ne 0) {
+      Write-Fail "bun install --os='*' --cpu='*' failed with exit code $LASTEXITCODE."
+    }
+    bun ./scripts/build-standalone.ts --outfile $BinPath
+    if ($LASTEXITCODE -ne 0) {
+      Write-Fail "Build failed. If the error names a missing native library, update bun, delete bun.lock, and re-run this script so all @opentui/core optionals install. (exit code $LASTEXITCODE)"
+    }
   }
 } finally {
   Pop-Location
