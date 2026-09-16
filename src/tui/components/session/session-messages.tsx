@@ -54,6 +54,8 @@ export const SessionMessages = (props: SessionMessagesProps) => {
       flexGrow={1}
       flexShrink={1}
       flexBasis={0}
+      border={['left', 'right']}
+      borderColor={theme().border}
       scrollY
       overflow="hidden"
       stickyScroll

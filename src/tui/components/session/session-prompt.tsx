@@ -561,7 +561,7 @@ export const SessionPrompt = (props: SessionPromptProps) => {
     waitingMode() ? 'Answer the questions above…' : queueMode() ? 'Enqueued until the run finishes…' : steeringMode() ? 'Steer the running step…' : 'What are we going to build?'
 
   return (
-    <box flexDirection="column" flexShrink={0} marginTop={1}>
+    <box flexDirection="column" flexShrink={0}>
       <Show when={commandOpen()}>
         <box flexDirection="row" gap={0} flexShrink={0} paddingX={1}>
           <For each={tokenPreview()}>{(token) => <text fg={tokenColor(token.kind, token.text)}>{token.text}</text>}</For>
@@ -604,7 +604,8 @@ export const SessionPrompt = (props: SessionPromptProps) => {
         flexDirection="row"
         gap={1}
         flexShrink={0}
-        border={['top', 'bottom']}
+        paddingX={1}
+        border
         borderStyle={queueMode() || waitingMode() ? 'double' : steeringMode() ? 'heavy' : 'single'}
         borderColor={borderColor()}
         titleColor={titleColor()}

@@ -10,7 +10,7 @@ import { StatusSeparator } from '../shared/status-separator.tsx'
 export const SessionHeader = (props: SessionStatusProps) => {
   const data = createSessionStatusData(props)
   return (
-    <box flexDirection="row" columnGap={1} border={['top', 'bottom']} borderColor={theme().border} justifyContent="space-between" alignItems="center" flexShrink={0} flexWrap="wrap">
+    <box flexDirection="row" columnGap={1} paddingX={1} border borderColor={theme().border} justifyContent="space-between" alignItems="center" flexShrink={0} flexWrap="wrap">
       <box flexDirection="row" columnGap={1} flexShrink={0} flexWrap="wrap">
         <StatusSegment icon={icons.folderOpen} value={`/${data.folderLabel()}`} valueColor={theme().accent} />
         <Show when={props.git}>

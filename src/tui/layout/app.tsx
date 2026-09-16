@@ -73,14 +73,15 @@ export const App = (props: { sessionId?: string } = {}) => {
 
   return (
     <TerminalDimsProvider dims={dims}>
-      <box id="app" width={'100%'} height={'100%'} backgroundColor={theme().background} paddingX={1}>
+      <box id="app" width={'100%'} height={'100%'} backgroundColor={theme().background}>
         <box id="app-content" flexDirection="column" flexGrow={1} flexShrink={1}>
           <SessionPage sessionId={getLastSessionId() ?? props.sessionId} visible={isSession()} />
         </box>
         <box
           id="app-footer"
-          border={['top', 'bottom']}
+          border
           borderColor={theme().border}
+          paddingX={1}
           flexDirection="row"
           flexShrink={0}
           columnGap={1}
