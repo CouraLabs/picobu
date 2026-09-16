@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { mkdirSync } from 'node:fs'
 import { appendFile, readdir, readFile, stat, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
@@ -121,6 +122,8 @@ export async function listSessions(folderKey: string): Promise<Array<SessionRow>
   return rows.sort((a, b) => b.mtimeMs - a.mtimeMs)
 }
 
+const digestOf = (json: string): string => createHash('sha1').update(json).digest('hex')
+
 export class SessionSaver {
   private lastWritten = new Map<string, string>()
   private queue: Promise<void> = Promise.resolve()
@@ -147,16 +150,22 @@ export class SessionSaver {
     for (const m of messages) {
       if (isStreamingMessage(m)) continue
       const json = JSON.stringify({ id: m.id, role: m.role, metadata: m.metadata, parts: m.parts })
-      if (this.lastWritten.get(m.id) === json) continue
+      const digest = digestOf(json)
+      if (this.lastWritten.get(m.id) === digest) continue
       enqueue(async () => {
         await withLock(this.filePath, () => upsertLine(this.filePath, json))
-        this.lastWritten.set(m.id, json)
+        this.lastWritten.set(m.id, digest)
       })
     }
     return Promise.all(tasks).then(() => {})
   }
   flush(): Promise<void> {
     return this.queue
+  }
+  dedupeCacheBytes(): number {
+    let bytes = 0
+    for (const [id, digest] of this.lastWritten) bytes += id.length + digest.length
+    return bytes
   }
 }
 

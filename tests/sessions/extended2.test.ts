@@ -10,7 +10,7 @@ import { queuedFilesFromMessage, queuedTextFromMessage, toPromptMessage } from '
 import { forkSession, sliceMessagesUpTo } from '../../src/agent/sessions/session-fork.ts'
 import { createHeadlessChatState } from '../../src/agent/sessions/session-headless-chat.ts'
 import { JobTracker } from '../../src/agent/sessions/session-jobs.ts'
-import { SessionManager } from '../../src/agent/sessions/session-manager.ts'
+import { evictLiveSession, SessionManager } from '../../src/agent/sessions/session-manager.ts'
 import { deleteSessionMeta, folderKeyForSession, isWaiting, readSessionMeta, recoverSessionMeta, sessionMetaPath, updateSessionMeta, writeSessionMeta } from '../../src/agent/sessions/session-meta.ts'
 import { folderKeyFor } from '../../src/agent/sessions/session-paths.ts'
 import { deleteSessionCascade, listSessionsFor, listSessionTree } from '../../src/agent/sessions/session-queries.ts'
@@ -353,6 +353,32 @@ describe('session manager construction', () => {
   test('starts with no jobs', () => {
     const manager = new SessionManager({ cwd: dir, maxAgents: 1 })
     expect(manager.jobs()).toEqual([])
+  })
+})
+describe('evictLiveSession', () => {
+  test('evicts and closes the live session', async () => {
+    const live = new Map<string, unknown>()
+    let closed = 0
+    live.set('a', {
+      close: async () => {
+        closed += 1
+      },
+    })
+    const evicted = await evictLiveSession(live as never, 'a')
+    expect(evicted).toBe(true)
+    expect(closed).toBe(1)
+    expect(live.has('a')).toBe(false)
+  })
+  test('returns false for unknown ids', async () => {
+    const live = new Map<string, unknown>()
+    expect(await evictLiveSession(live as never, 'missing')).toBe(false)
+  })
+  test('evicts even when close rejects', async () => {
+    const live = new Map<string, unknown>()
+    live.set('a', { close: () => Promise.reject(new Error('boom')) })
+    const evicted = await evictLiveSession(live as never, 'a')
+    expect(evicted).toBe(true)
+    expect(live.has('a')).toBe(false)
   })
 })
 describe('headless chat state', () => {

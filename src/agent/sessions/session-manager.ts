@@ -24,6 +24,14 @@ export interface CreateSessionOptions {
 }
 const DEFAULT_MAX_AGENTS = 4
 
+export const evictLiveSession = async (live: Map<string, Session>, id: string): Promise<boolean> => {
+  const session = live.get(id)
+  if (!session) return false
+  live.delete(id)
+  await session.close().catch(() => {})
+  return true
+}
+
 export class SessionManager {
   private cwd: string
   private _sandboxEnabled = true
@@ -108,6 +116,10 @@ export class SessionManager {
 
   getSession(id: string): Session | undefined {
     return this.live.get(id)
+  }
+
+  async evictSession(id: string): Promise<boolean> {
+    return evictLiveSession(this.live, id)
   }
 
   async loadMessages(id: string): Promise<Array<UIMessage> | null> {

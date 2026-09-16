@@ -62,8 +62,9 @@ export const renderSessionHtml = (input: { sessionId: string; title?: string; me
   const byTool = new Map<string, number>()
   for (const row of toolCalls) byTool.set(row.name, (byTool.get(row.name) ?? 0) + 1)
   const steps = input.stats?.steps ?? []
-  const totalIn = steps.reduce((n, s) => n + (s.usage.inputTokens ?? 0), 0)
-  const totalOut = steps.reduce((n, s) => n + (s.usage.outputTokens ?? 0), 0)
+  const totals = input.stats?.tokenTotals
+  const totalIn = totals?.inputTokens ?? steps.reduce((n, s) => n + (s.usage.inputTokens ?? 0), 0)
+  const totalOut = totals?.outputTokens ?? steps.reduce((n, s) => n + (s.usage.outputTokens ?? 0), 0)
   const messageHtml = input.messages
     .map((m) => {
       const text = escapeHtml(textOf(m).slice(0, 4000))
@@ -74,7 +75,7 @@ export const renderSessionHtml = (input: { sessionId: string; title?: string; me
     })
     .join('\n')
   const stepRows = steps.map((s, i) => `<tr><td>${i}</td><td>${s.usage.inputTokens}</td><td>${s.usage.outputTokens}</td><td>${escapeHtml(s.finishReason ?? '')}</td></tr>`).join('\n')
-  return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8" /><title>Session ${escapeHtml(input.sessionId)}</title><style>body{font-family:system-ui,sans-serif;max-width:960px;margin:0 auto;padding:24px}pre{background:#111;color:#ddd;padding:12px;border-radius:8px;overflow:auto;white-space:pre-wrap}table{border-collapse:collapse;width:100%}td,th{border:1px solid #ccc;padding:6px 8px;text-align:left}section{border:1px solid #ddd;border-radius:8px;padding:12px;margin:12px 0}</style></head><body><h1>Session ${escapeHtml(input.sessionId)}</h1><p>${escapeHtml(input.title ?? '')}</p><p>${input.messages.length} messages · ${toolCalls.length} tool calls (${[...byTool.entries()].map(([k, v]) => `${k} ${v}`).join(', ')}) · ${steps.length} steps · ${totalIn} in / ${totalOut} out tokens</p><h2>Steps</h2><table><thead><tr><th>#</th><th>input</th><th>output</th><th>finish</th></tr></thead><tbody>${stepRows}</tbody></table><h2>Messages</h2>${messageHtml}</body></html>`
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8" /><title>Session ${escapeHtml(input.sessionId)}</title><style>body{font-family:system-ui,sans-serif;max-width:960px;margin:0 auto;padding:24px}pre{background:#111;color:#ddd;padding:12px;border-radius:8px;overflow:auto;white-space:pre-wrap}table{border-collapse:collapse;width:100%}td,th{border:1px solid #ccc;padding:6px 8px;text-align:left}section{border:1px solid #ddd;border-radius:8px;padding:12px;margin:12px 0}</style></head><body><h1>Session ${escapeHtml(input.sessionId)}</h1><p>${escapeHtml(input.title ?? '')}</p><p>${input.messages.length} messages · ${toolCalls.length} tool calls (${[...byTool.entries()].map(([k, v]) => `${k} ${v}`).join(', ')}) · ${input.stats?.stepCount ?? steps.length} steps · ${totalIn} in / ${totalOut} out tokens</p><h2>Steps</h2><table><thead><tr><th>#</th><th>input</th><th>output</th><th>finish</th></tr></thead><tbody>${stepRows}</tbody></table><h2>Messages</h2>${messageHtml}</body></html>`
 }
 
 export const exportSessionHtml = async (input: ExportSessionInput): Promise<string> => {

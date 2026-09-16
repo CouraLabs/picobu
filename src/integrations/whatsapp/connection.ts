@@ -14,6 +14,7 @@ let sock: ReturnType<typeof makeWASocket> | null = null
 let connectPromise: Promise<void> | null = null
 let reconnectAttempts = 0
 let reconnectTimer: ReturnType<typeof setTimeout> | undefined
+let userDisconnect = false
 let pairedPhone = ''
 let pairedLid = ''
 
@@ -31,6 +32,7 @@ export const isSocketActive = (): boolean => sock !== null
 export const connectToWhatsApp = async (): Promise<void> => {
   if (sock) return
   if (connectPromise) return connectPromise
+  userDisconnect = false
   connectPromise = doConnect().finally(() => {
     connectPromise = null
   })
@@ -112,7 +114,17 @@ const handleConnectionUpdate = (
     return
   }
   if (update.connection === 'close') {
+    if (sock !== null && s !== sock) return
     sock = null
+    if (userDisconnect) {
+      userDisconnect = false
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer)
+        reconnectTimer = undefined
+      }
+      whatsappStore.trigger.setStatus({ status: 'disconnected' })
+      return
+    }
     const code = (update.lastDisconnect?.error as { output?: { statusCode?: number } } | undefined)?.output?.statusCode
     if (code === DisconnectReason.loggedOut) {
       try {
@@ -131,6 +143,7 @@ const handleConnectionUpdate = (
     reconnectAttempts += 1
     whatsappStore.trigger.setStatus({ status: 'connecting' })
     log(`Connection lost — reconnecting (${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`)
+    if (reconnectTimer) clearTimeout(reconnectTimer)
     reconnectTimer = setTimeout(() => {
       reconnectTimer = undefined
       void connectToWhatsApp().catch((error) => {
@@ -217,16 +230,23 @@ const toChatContactInput = (c: BaileysChat): { phone: string; name: string | nul
 })
 
 export const disconnectFromWhatsApp = (): void => {
-  if (!sock) return
-  try {
-    sock.end(undefined)
-  } catch {}
-  sock = null
+  userDisconnect = true
   reconnectAttempts = 0
   if (reconnectTimer) {
     clearTimeout(reconnectTimer)
     reconnectTimer = undefined
   }
+  if (!sock) {
+    whatsappStore.trigger.setStatus({ status: 'disconnected' })
+    whatsappStore.trigger.setQr({ qr: null })
+    whatsappStore.trigger.setPairingCode({ code: null })
+    log('Disconnected by user')
+    return
+  }
+  try {
+    sock.end(undefined)
+  } catch {}
+  sock = null
   whatsappStore.trigger.setStatus({ status: 'disconnected' })
   whatsappStore.trigger.setQr({ qr: null })
   whatsappStore.trigger.setPairingCode({ code: null })

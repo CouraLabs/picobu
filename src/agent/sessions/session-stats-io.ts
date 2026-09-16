@@ -40,6 +40,11 @@ const isStep = (value: unknown): boolean => {
 export const isLoopStats = (value: unknown): value is LoopStats => {
   if (!isRecord(value)) return false
   if (!Array.isArray(value.steps) || !value.steps.every(isStep)) return false
+  if (value.stepCount !== undefined && !isFiniteNumber(value.stepCount)) return false
+  if (value.tokenTotals !== undefined) {
+    if (!isRecord(value.tokenTotals)) return false
+    if (!isFiniteNumber(value.tokenTotals.inputTokens) || !isFiniteNumber(value.tokenTotals.outputTokens)) return false
+  }
   if (!isUsageAndCost(value.total)) return false
   if (value.finishReason !== undefined && typeof value.finishReason !== 'string') return false
   if (value.rawFinishReason !== undefined && typeof value.rawFinishReason !== 'string') return false

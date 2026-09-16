@@ -182,7 +182,7 @@ export const SessionPage = (props: SessionPageProps) => {
   const syncStats = (stats: LoopStats | undefined, ownerId?: string) => {
     const live = session()
     if (ownerId !== undefined && live !== undefined && live.id !== ownerId && activeId() !== ownerId) return
-    const nextSteps = stats?.steps.length ?? 0
+    const nextSteps = stats ? (stats.stepCount ?? stats.steps.length) : 0
 
     batch(() => {
       setStatsStatus(
@@ -468,7 +468,8 @@ export const SessionPage = (props: SessionPageProps) => {
       clearInterval(mcpTimer)
       clearInterval(watchdogTimer)
       detachQueue?.()
-      session()?.close()
+      const closing = session()
+      if (closing) void sessionMgr.evictSession(closing.id)
     })
   })
 
@@ -637,7 +638,7 @@ export const SessionPage = (props: SessionPageProps) => {
         await target.flush()
       } catch {}
       detachQueue?.()
-      await target.close().catch(() => {})
+      await sessionMgr.evictSession(target.id)
       batch(() => {
         setSession(undefined)
         setMessages([])
@@ -667,7 +668,7 @@ export const SessionPage = (props: SessionPageProps) => {
         await target.flush()
       } catch {}
       detachQueue?.()
-      await target.close()
+      await sessionMgr.evictSession(target.id)
       batch(() => {
         setSession(undefined)
         setMessages([])
@@ -947,7 +948,7 @@ export const SessionPage = (props: SessionPageProps) => {
     try {
       const { sessionId: forkId } = await sessionMgr.forkSession(target.id, { upToMessageId: messageId })
       closeDialog()
-      await target.close()
+      await sessionMgr.evictSession(target.id)
       batch(() => {
         setSession(undefined)
         setMessages([])

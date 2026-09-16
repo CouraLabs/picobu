@@ -21,6 +21,8 @@ export interface LoopStats {
   rawFinishReason: string | undefined
   endpoints: Record<string, unknown> | undefined
   steps: Array<LoopStepStats>
+  stepCount?: number
+  tokenTotals?: { inputTokens: number; outputTokens: number }
   total: {
     usage: LanguageModelUsage
     cost: LoopStepCost
@@ -61,6 +63,8 @@ const cloneValue = <TValue>(value: TValue): TValue => {
   }
 }
 
+const MAX_RETAINED_STEPS = 200
+
 export const createLoopStatsStore = (getBilling: () => ProviderModelBilling | undefined): LoopStatsStore => {
   const stats: LoopStats = {
     performance: undefined,
@@ -70,6 +74,7 @@ export const createLoopStatsStore = (getBilling: () => ProviderModelBilling | un
     rawFinishReason: undefined,
     endpoints: undefined,
     steps: [],
+    stepCount: 0,
     total: { usage: emptyUsage(), cost: zeroCost() },
   }
   const listeners = new Set<(stats: LoopStats) => void>()
@@ -97,6 +102,12 @@ export const createLoopStatsStore = (getBilling: () => ProviderModelBilling | un
         rawFinishReason: event.rawFinishReason,
       })
       stats.steps.push(step)
+      if (stats.steps.length > MAX_RETAINED_STEPS) stats.steps.shift()
+      stats.stepCount = (stats.stepCount ?? 0) + 1
+      stats.tokenTotals = {
+        inputTokens: (stats.tokenTotals?.inputTokens ?? 0) + (event.usage.inputTokens ?? 0),
+        outputTokens: (stats.tokenTotals?.outputTokens ?? 0) + (event.usage.outputTokens ?? 0),
+      }
       stats.finishReason = step.finishReason
       stats.rawFinishReason = step.rawFinishReason
       stats.performance = step.performance
@@ -126,7 +137,12 @@ export const createLoopStatsStore = (getBilling: () => ProviderModelBilling | un
       stats.finishReason = cloned.finishReason
       stats.rawFinishReason = cloned.rawFinishReason
       stats.endpoints = cloned.endpoints
-      stats.steps = cloned.steps
+      stats.steps = cloned.steps.slice(-MAX_RETAINED_STEPS)
+      stats.stepCount = cloned.stepCount ?? cloned.steps.length
+      stats.tokenTotals = cloned.tokenTotals ?? {
+        inputTokens: cloned.steps.reduce((total, step) => total + (step.usage.inputTokens ?? 0), 0),
+        outputTokens: cloned.steps.reduce((total, step) => total + (step.usage.outputTokens ?? 0), 0),
+      }
       stats.finishReason = cloned.finishReason
       stats.total = cloned.total
       notify()

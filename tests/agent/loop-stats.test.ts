@@ -103,6 +103,47 @@ describe('createLoopStatsStore', () => {
     expect(fresh.steps[0]?.usage.inputTokens).toBe(5)
     expect(fresh.total.usage.inputTokens).toBe(5)
   })
+  test('caps retained steps while keeping count and token totals', () => {
+    const store = createLoopStatsStore(() => undefined)
+    for (let i = 0; i < 600; i++) store.handleStepEnd(stepEnd(1))
+    const stats = store.get()
+    expect(stats.steps).toHaveLength(200)
+    expect(stats.stepCount).toBe(600)
+    expect(stats.tokenTotals).toEqual({ inputTokens: 600, outputTokens: 0 })
+    expect(stats.total.usage.inputTokens).toBe(1)
+  })
+  test('restore slices oversized step history and keeps the full count', () => {
+    const store = createLoopStatsStore(() => undefined)
+    const restored: LoopStats = {
+      ...store.get(),
+      steps: Array.from({ length: 500 }, () => ({ usage: stepEnd(1).usage, performance: performance(1), warnings: undefined, headers: undefined, finishReason: 'stop', rawFinishReason: 'stop' })),
+      stepCount: 500,
+    }
+    store.restore(restored)
+    const stats = store.get()
+    expect(stats.steps).toHaveLength(200)
+    expect(stats.stepCount).toBe(500)
+  })
+  test('restore falls back to retained steps for the count when absent', () => {
+    const store = createLoopStatsStore(() => undefined)
+    const restored: LoopStats = {
+      ...store.get(),
+      stepCount: undefined,
+      steps: [1, 2, 3].map(() => ({ usage: stepEnd(1).usage, performance: performance(1), warnings: undefined, headers: undefined, finishReason: 'stop', rawFinishReason: 'stop' })),
+    }
+    store.restore(restored)
+    expect(store.get().stepCount).toBe(3)
+  })
+  test('restore derives token totals from legacy step history', () => {
+    const store = createLoopStatsStore(() => undefined)
+    const restored: LoopStats = {
+      ...store.get(),
+      tokenTotals: undefined,
+      steps: [10, 20].map((tokens) => ({ usage: { ...stepEnd(tokens).usage }, performance: performance(1), warnings: undefined, headers: undefined, finishReason: 'stop', rawFinishReason: 'stop' })),
+    }
+    store.restore(restored)
+    expect(store.get().tokenTotals).toEqual({ inputTokens: 30, outputTokens: 0 })
+  })
   test('keeps usage raw payloads for step-raw status items', () => {
     const store = createLoopStatsStore(() => undefined)
     const input = stepEnd(5)
