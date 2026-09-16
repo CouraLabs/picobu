@@ -21,6 +21,7 @@ import { ClipboardProvider } from './hooks/clipboard-provider.tsx'
 import { takeExitStatus } from './hooks/exit-status.ts'
 import { onAppReload } from './hooks/reload-bus.ts'
 import { win32DisableProcessedInput, win32FlushInputBuffer, win32InstallCtrlCGuard } from './terminal-win32.ts'
+import { enableWin32InputMode } from './win32-input-mode.ts'
 export interface TuiAppOptions {
   debug?: boolean
   sessionId?: string
@@ -47,8 +48,26 @@ export async function runTui(options: TuiAppOptions = {}): Promise<void> {
 
 const startTui = async (options: TuiAppOptions, unguard: (() => void) | undefined): Promise<void> => {
   const debug = options.debug ?? false
+  // The Ctrl+C guard on Windows turns Ctrl+C into plain stdin bytes; dropping SIGINT
+  // from the renderer's exit signals keeps the app alive when a console CTRL_C_EVENT
+  // still reaches us. Other platforms keep the library defaults so an external
+  // `kill -INT` still shuts down through onDestroy instead of hard-killing.
+  const rendererExitSignals: NodeJS.Signals[] | undefined = process.platform === 'win32' ? ['SIGTERM', 'SIGQUIT', 'SIGABRT', 'SIGHUP', 'SIGPIPE', 'SIGBREAK', 'SIGBUS'] : undefined
+  // Terminals without the kitty keyboard protocol cannot report Shift with Ctrl on
+  // letter chords; xterm's modifyOtherKeys mode (CSI >4;2m) makes them send
+  // CSI 27;mod;code~ sequences that OpenTUI's raw parser decodes with modifiers.
+  let keyboardFallbackActive = false
+  // Windows ConPTY without kitty support gets win32-input-mode (DECSET 9001) so that
+  // collapsed chords (ctrl+h -> 0x08, lone-ESC timing) arrive as explicit key events.
+  let disableWin32InputMode: (() => void) | undefined
+  const cleanupInputModes = (): void => {
+    if (keyboardFallbackActive) process.stdout.write('\x1b[>4m')
+    disableWin32InputMode?.()
+    disableWin32InputMode = undefined
+  }
   const renderer = await createCliRenderer({
     exitOnCtrlC: false,
+    exitSignals: rendererExitSignals,
     useMouse: true,
     enableMouseMovement: true,
     useKittyKeyboard: { disambiguate: true, alternateKeys: true },
@@ -70,7 +89,7 @@ const startTui = async (options: TuiAppOptions, unguard: (() => void) | undefine
     memorySnapshotInterval: debug ? 3000 : 0,
     backgroundColor: theme().background,
     onDestroy: () => {
-      process.stdout.write('\x1b[>4m')
+      cleanupInputModes()
       win32FlushInputBuffer()
       try {
         unguard?.()
@@ -100,17 +119,16 @@ const startTui = async (options: TuiAppOptions, unguard: (() => void) | undefine
   const clipboardService = createClipboard({ host: createHostClipboard(), terminal: createRendererClipboardAdapter(renderer) })
   setClipboardService(clipboardService)
 
-  // Terminals without the kitty keyboard protocol cannot report Shift with Ctrl on
-  // letter chords; xterm's modifyOtherKeys mode (CSI >4;2m) makes them send
-  // CSI 27;mod;code~ sequences that OpenTUI's raw parser decodes with modifiers.
-  let keyboardFallbackActive = false
   process.on('exit', () => {
-    if (keyboardFallbackActive) process.stdout.write('\x1b[>4m')
+    cleanupInputModes()
   })
   renderer.on(CliRenderEvents.CAPABILITIES, (caps: TerminalCapabilities) => {
     if (caps.kitty_keyboard) return
     keyboardFallbackActive = true
     process.stdout.write('\x1b[>4;2m')
+    if (disableWin32InputMode) return
+    if (process.platform !== 'win32' || !process.stdin.isTTY) return
+    disableWin32InputMode = enableWin32InputMode(renderer)
   })
 
   if (debug) {

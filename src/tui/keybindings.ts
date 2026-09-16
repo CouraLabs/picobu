@@ -4,6 +4,7 @@ export interface KeyLike {
   meta: boolean
   shift?: boolean
   super?: boolean
+  sequence?: string
 }
 
 const lowerName = (key: KeyLike): string => key.name.toLowerCase()
@@ -15,6 +16,10 @@ const ctrlOnly = (key: KeyLike): boolean => key.ctrl && !key.meta && !(key.super
 // (e.g. option+o types 'ø') and must fall through to the prompt.
 const metaOnly = (key: KeyLike, platform: string): boolean => platform === 'win32' && key.meta && !key.ctrl && !(key.super ?? false)
 
+// Windows legacy encoding sends ctrl+h as the 0x08 byte, which OpenTUI parses as plain
+// backspace; a real Backspace sends 0x7F, so the raw sequence disambiguates them.
+const legacyCtrlH = (key: KeyLike, platform: string): boolean => platform === 'win32' && key.name === 'backspace' && key.sequence === String.fromCharCode(8)
+
 // The canonical chord is ctrl+shift+letter; plain ctrl+letter stays as an alias for
 // terminals that cannot report Shift with Ctrl (no kitty protocol or modifyOtherKeys).
 const matchesLetter = (key: KeyLike, letters: Array<string>, platform: string): boolean => {
@@ -25,7 +30,7 @@ const matchesLetter = (key: KeyLike, letters: Array<string>, platform: string): 
 
 export const hasMod = (key: KeyLike): boolean => key.ctrl || key.meta || (key.super ?? false)
 
-export const isHelpKey = (key: KeyLike, platform: string = process.platform): boolean => lowerName(key) === 'f1' || matchesLetter(key, ['h'], platform)
+export const isHelpKey = (key: KeyLike, platform: string = process.platform): boolean => lowerName(key) === 'f1' || matchesLetter(key, ['h'], platform) || legacyCtrlH(key, platform)
 
 export const isModelKey = (key: KeyLike, platform: string = process.platform): boolean => lowerName(key) === 'f2' || matchesLetter(key, ['m', 'o'], platform)
 
