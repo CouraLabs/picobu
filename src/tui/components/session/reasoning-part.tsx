@@ -45,7 +45,7 @@ export const ReasoningPart = (props: ReasoningPartProps) => {
   }
 
   return (
-    <box flexDirection="column">
+    <box flexDirection="column" backgroundColor={hovered() ? theme().backgroundElement : undefined}>
       <box
         flexDirection="row"
         gap={1}

@@ -55,11 +55,11 @@
       "light": "#FFF"
     },
     "backgroundPanel": {
-      "dark": "picobuBg",
+      "dark": "#181818",
       "light": "#F0F0F0"
     },
     "backgroundElement": {
-      "dark": "picobuBg",
+      "dark": "#202020",
       "light": "#E0E0E0"
     },
     "border": {
@@ -71,7 +71,7 @@
       "light": "#C7461A"
     },
     "borderSubtle": {
-      "dark": "#1C1C1C",
+      "dark": "#222222",
       "light": "#E8E8E8"
     },
     "diffAdded": {

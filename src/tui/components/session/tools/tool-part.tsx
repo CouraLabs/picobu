@@ -173,7 +173,7 @@ export const ToolPart = (props: ToolPartProps) => {
   const toolCallId = () => props.part.toolCallId ?? ''
 
   return (
-    <box flexDirection="column" paddingLeft={1} border={['left']} bottomTitle={` ${name()} `} bottomTitleAlignment="right" borderStyle={'heavy'} borderColor={color()}>
+    <box flexDirection="column" paddingLeft={1} backgroundColor={hovered() ? theme().backgroundElement : undefined}>
       <Show
         when={expanded()}
         fallback={

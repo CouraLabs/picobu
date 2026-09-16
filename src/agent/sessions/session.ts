@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { AGENTS, listAgents } from '@agent/agents/registry.ts'
 import { type Command, listCommands, listSkills } from '@agent/commands/index.ts'
-import { createLoop, type LoopConfig, type LoopMessage, type LoopStats } from '@agent/loop/create-loop.ts'
+import { createLoop, type LoopConfig, type LoopMessage, type LoopStats, type LoopStepCost } from '@agent/loop/create-loop.ts'
 import { resolveModelRef } from '@agent/model/resolver.ts'
 import { type SummarizeResult, summarizeSession } from '@agent/prompts/summarizer.ts'
 import { listRules, type Rule } from '@agent/rules/rules.ts'
@@ -139,6 +139,7 @@ export interface Session {
   }
   readonly stats: LoopStats | undefined
   readonly state: SessionState
+  addExternalCost: (cost: LoopStepCost) => void
   summarize: () => Promise<SummarizeResult>
   compact: (opts?: { force?: boolean }) => Promise<CompactionResult>
   setTitle: (title: string) => void
@@ -529,6 +530,7 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
     get state(): SessionState {
       return deriveState(chat)
     },
+    addExternalCost: (cost) => loop.addExternalCost(cost),
     summarize: async (): Promise<SummarizeResult> => {
       const config = effectiveConfig()
       return summarizeSession({

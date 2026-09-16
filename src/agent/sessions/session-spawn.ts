@@ -15,6 +15,7 @@ export interface SpawnSubSessionParams {
   subagent: string
   prompt: SessionPrompt
   depth: number
+  sessionId?: string
   description?: string
   taskId?: string
 }
@@ -30,7 +31,7 @@ export interface SpawnContext {
 
 export async function spawnSubSession(
   ctx: SpawnContext,
-  { parentId, subagent, prompt, depth, description, taskId }: SpawnSubSessionParams,
+  { parentId, subagent, prompt, depth, sessionId: requestedSessionId, description, taskId }: SpawnSubSessionParams,
 ): Promise<{
   sessionId: string
   summary: string
@@ -62,7 +63,7 @@ export async function spawnSubSession(
   if (nested && ctx.jobs.activeSlots >= ctx.maxAgents) {
     throw new Error('Agent concurrency limit reached — wait for the current sub agents to finish, then retry')
   }
-  const sessionId = generateSessionId()
+  const sessionId = requestedSessionId ?? generateSessionId()
   ctx.jobs.set({
     sessionId,
     parentId,
@@ -72,6 +73,14 @@ export async function spawnSubSession(
     startedAt: Date.now(),
   })
   let slotAcquired = false
+  let child: Session | undefined
+  let costRolledUp = false
+  const rollUpCost = (): void => {
+    const childStats = child?.stats
+    if (!childStats || costRolledUp) return
+    costRolledUp = true
+    ctx.live.get(parentId)?.addExternalCost(childStats.total.cost)
+  }
   try {
     if (!nested) {
       await ctx.jobs.acquireSlot(ctx.maxAgents)
@@ -98,16 +107,17 @@ export async function spawnSubSession(
       : promptText.trim()
         ? `${subagent}: ${truncate(promptText.replace(/\s+/g, ' ').trim())}`
         : `${subagent}: sub session`
-    const child = await createSession({
+    child = await createSession({
       config: () => ctx.baseConfig({ modelKey, sessionId, agentOverride: prepared, subagent: true, spawn: { manager: ctx.manager, parentId: sessionId, depth: depth + 1 } }),
       id: sessionId,
       meta: { cwd: ctx.cwd, parentSessionId: parentId, title: taskId ? `${fallbackTitle} (continues ${taskId.slice(0, 8)})` : fallbackTitle },
     })
     ctx.live.set(sessionId, child)
+    const created = child
     if (promptText.trim()) {
       generateSessionTitle(promptText, undefined, { sessionId })
         .then((generated) => {
-          child.setTitle(generated)
+          created.setTitle(generated)
         })
         .catch(() => {})
     }
@@ -121,6 +131,7 @@ export async function spawnSubSession(
         summary = result?.summary ?? '(sub agent produced no output)'
       }
       const childStats = child.stats
+      rollUpCost()
       ctx.jobs.patch(sessionId, {
         state: 'finished',
         ...(childStats ? { stats: { usage: childStats.total.usage, cost: childStats.total.cost, stepCount: childStats.steps.length } } : {}),
@@ -131,11 +142,11 @@ export async function spawnSubSession(
       }
     } finally {
       ctx.live.delete(sessionId)
-      await child.close().catch(() => {})
+      await child?.close().catch(() => {})
     }
   } catch (error) {
-    const liveChild = ctx.live.get(sessionId)
-    const childStats = liveChild?.stats
+    rollUpCost()
+    const childStats = child?.stats
     ctx.jobs.patch(sessionId, {
       state: 'error',
       ...(childStats ? { stats: { usage: childStats.total.usage, cost: childStats.total.cost, stepCount: childStats.steps.length } } : {}),

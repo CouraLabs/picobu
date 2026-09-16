@@ -47,6 +47,7 @@ export interface LoopStatsStore {
   onChange: (listener: (stats: LoopStats) => void) => () => void
   handleStepEnd: (event: StepEndInput) => void
   handleEnd: (event: EndInput) => void
+  addExternal: (cost: StepCost) => void
   setEndpointValues: (values: Record<string, unknown>) => void
   restore: (stats: LoopStats) => void
 }
@@ -107,6 +108,10 @@ export const createLoopStatsStore = (getBilling: () => ProviderModelBilling | un
     handleEnd: (event) => {
       stats.finishReason = event.finishReason
       stats.rawFinishReason = event.rawFinishReason
+      notify()
+    },
+    addExternal: (cost) => {
+      stats.total = { usage: stats.total.usage, cost: addCosts(stats.total.cost, cost) }
       notify()
     },
     setEndpointValues: (values) => {

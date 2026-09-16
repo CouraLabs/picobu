@@ -17,14 +17,14 @@ export const StatusContext = (props: { data: SessionStatusData }) => (
 
 export const StatusMetrics = (props: { data: SessionStatusData }) => (
   <box flexDirection="row" columnGap={1} flexShrink={0} flexWrap="wrap">
-    <StatusSegment icon={'TTFT'} value={props.data.ttftLabel()} valueColor={theme().primary} />
-    <StatusSegment icon={'TPS'} value={props.data.tpsLabel()} valueColor={theme().primary} />
-    <StatusSegment icon={'TT'} value={props.data.toolExecLabel()} valueColor={theme().primary} />
+    <StatusSegment icon={'TTFT'} value={props.data.ttftLabel()} labelColor={theme().primary} valueColor={theme().textMuted} />
+    <StatusSegment icon={'TPS'} value={props.data.tpsLabel()} labelColor={theme().primary} valueColor={theme().textMuted} />
+    <StatusSegment icon={'TT'} value={props.data.toolExecLabel()} labelColor={theme().primary} valueColor={theme().textMuted} />
     <StatusSeparator sep={icons.middleDot} />
-    <StatusSegment icon={icons.arrowUp} value={props.data.inputLabel()} valueColor={theme().info} />
-    <StatusSegment icon={icons.arrowDown} value={props.data.outputLabel()} valueColor={theme().success} />
-    <StatusSegment icon={icons.cache} value={props.data.cacheSummary()} valueColor={theme().secondary} />
+    <StatusSegment icon={icons.arrowUp} value={props.data.inputLabel()} labelColor={theme().info} valueColor={theme().textMuted} />
+    <StatusSegment icon={icons.arrowDown} value={props.data.outputLabel()} labelColor={theme().success} valueColor={theme().textMuted} />
+    <StatusSegment icon={icons.cache} value={props.data.cacheSummary()} labelColor={theme().secondary} valueColor={theme().textMuted} />
     <StatusSeparator sep={icons.middleDot} />
-    <StatusSegment icon={icons.cost} value={props.data.costValue()} valueColor={theme().warning} />
+    <StatusSegment icon={icons.cost} value={props.data.costValue()} labelColor={theme().warning} valueColor={theme().textMuted} />
   </box>
 )

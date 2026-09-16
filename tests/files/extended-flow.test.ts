@@ -99,14 +99,19 @@ describe('spawn tool', () => {
     expect(SpawnToolArgsSchema.safeParse({ subagent: '', prompt: '' }).success).toBe(false)
     expect(SpawnToolArgsSchema.safeParse({ subagent: 'coder' }).success).toBe(false)
   })
-  test('handler delegates to manager and returns summary', async () => {
+  test('handler delegates to manager and yields preliminary sessionId then final summary', async () => {
     const fake = {
-      spawnSubSession: async (input: { prompt: string }) => ({
+      spawnSubSession: async (input: { prompt: string; sessionId?: string }) => ({
+        sessionId: input.sessionId ?? 'child-1',
         summary: `done:${input.prompt}`,
       }),
     }
     const tool = createSpawnTool({ manager: fake as never, parentId: 'p', depth: 0 })
-    const got = await tool.handler({ subagent: 'coder', prompt: 'hi' })
-    expect(got.summary).toBe('done:hi')
+    const outputs: Array<{ sessionId?: string; summary: string }> = []
+    for await (const output of tool.handler({ subagent: 'coder', prompt: 'hi' })) outputs.push(output)
+    expect(outputs).toHaveLength(2)
+    expect(outputs[0]?.sessionId).toBe(outputs[1]?.sessionId)
+    expect(outputs[0]?.summary).toBe('')
+    expect(outputs[1]?.summary).toBe('done:hi')
   })
 })

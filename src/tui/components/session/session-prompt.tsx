@@ -9,6 +9,7 @@ import { theme } from '@states/theme-state.ts'
 import { pushToast } from '@states/toast.state.ts'
 import { getClipboardService } from '@tui/hooks/clipboard.state.ts'
 import { useTerminalDims } from '@tui/hooks/terminal-dims.tsx'
+import { isCopyKey, isPasteKey, isSelectAllKey } from '@tui/keybindings.ts'
 import { icons } from '@tui/themes/icons.ts'
 import { batch, createEffect, createMemo, createSignal, For, mergeProps, on, onCleanup, onMount, Show } from 'solid-js'
 
@@ -370,16 +371,12 @@ export const SessionPrompt = (props: SessionPromptProps) => {
     else cycleForward()
   })
 
-  const mod = (key: { ctrl: boolean; meta: boolean; super?: boolean }): boolean => key.ctrl || key.meta || (key.super ?? false)
-
   useKeyboard((key) => {
+    if (!isSelectAllKey(key)) return
     if (!textareaRef?.focused) return
-    const name = key.name.toLowerCase()
-    if (mod(key) && name === 'a') {
-      key.preventDefault()
-      key.stopPropagation()
-      textareaRef?.selectAll()
-    }
+    key.preventDefault()
+    key.stopPropagation()
+    textareaRef?.selectAll()
   })
 
   const tokenPreview = createMemo(() => tokenizeCommandLine(text()))
@@ -478,15 +475,14 @@ export const SessionPrompt = (props: SessionPromptProps) => {
   }
 
   useKeyboard((key) => {
-    if (!mod(key)) return
+    if (!isCopyKey(key) && !isPasteKey(key)) return
     if (!textareaRef?.focused) return
-    const name = key.name.toLowerCase()
-    if (name === 'c') {
+    if (isCopyKey(key)) {
       if (!textareaRef?.hasSelection()) return
       key.preventDefault()
       key.stopPropagation()
       copySelection()
-    } else if (name === 'v') {
+    } else {
       key.preventDefault()
       key.stopPropagation()
       pasteClipboard()
@@ -565,7 +561,7 @@ export const SessionPrompt = (props: SessionPromptProps) => {
     waitingMode() ? 'Answer the questions above…' : queueMode() ? 'Enqueued until the run finishes…' : steeringMode() ? 'Steer the running step…' : 'What are we going to build?'
 
   return (
-    <box flexDirection="column" flexShrink={0}>
+    <box flexDirection="column" flexShrink={0} marginTop={1}>
       <Show when={commandOpen()}>
         <box flexDirection="row" gap={0} flexShrink={0} paddingX={1}>
           <For each={tokenPreview()}>{(token) => <text fg={tokenColor(token.kind, token.text)}>{token.text}</text>}</For>

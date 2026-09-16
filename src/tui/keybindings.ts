@@ -15,6 +15,8 @@ const ctrlOnly = (key: KeyLike): boolean => key.ctrl && !key.meta && !(key.super
 // (e.g. option+o types 'ø') and must fall through to the prompt.
 const metaOnly = (key: KeyLike, platform: string): boolean => platform === 'win32' && key.meta && !key.ctrl && !(key.super ?? false)
 
+// The canonical chord is ctrl+shift+letter; plain ctrl+letter stays as an alias for
+// terminals that cannot report Shift with Ctrl (no kitty protocol or modifyOtherKeys).
 const matchesLetter = (key: KeyLike, letters: Array<string>, platform: string): boolean => {
   const name = lowerName(key)
   if (!letters.includes(name)) return false
@@ -31,6 +33,14 @@ export const isJobsKey = (key: KeyLike, platform: string = process.platform): bo
 
 export const isSteerKey = (key: KeyLike, platform: string = process.platform): boolean => lowerName(key) === 'f4' || matchesLetter(key, ['w'], platform)
 
-// shift is excluded so ctrl+shift+d keeps reaching the textarea's default
-// 'delete-line' binding instead of arming the exit window.
-export const isExitKey = (key: KeyLike): boolean => lowerName(key) === 'f10' || (ctrlOnly(key) && !key.shift && lowerName(key) === 'd')
+// ctrl+shift+d is the canonical exit chord; plain ctrl+d stays as an alias. Both chords
+// are claimed away from the textarea's delete/delete-line defaults; the session handler
+// preventDefaults before the textarea sees the key.
+export const isExitKey = (key: KeyLike): boolean => lowerName(key) === 'f10' || (ctrlOnly(key) && lowerName(key) === 'd')
+
+// Prompt-editing chords: shift is ignored so ctrl and ctrl+shift variants both work.
+export const isCopyKey = (key: KeyLike): boolean => hasMod(key) && lowerName(key) === 'c'
+
+export const isPasteKey = (key: KeyLike): boolean => hasMod(key) && lowerName(key) === 'v'
+
+export const isSelectAllKey = (key: KeyLike): boolean => hasMod(key) && lowerName(key) === 'a'

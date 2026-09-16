@@ -1,5 +1,6 @@
 import { SUBAGENT_DEPTH_CAP } from '@agent/agents/subagents.ts'
 import type { SessionManager } from '@agent/sessions/session-manager.ts'
+import { generateSessionId } from '@agent/sessions/session-paths.ts'
 import z from 'zod'
 export const SpawnToolArgsSchema = z.object({
   subagent: z.string().min(1),
@@ -26,17 +27,22 @@ export const createSpawnTool = (ctx: SpawnToolContext) => ({
     'Run a subagent by exact name with a self-contained prompt and wait for its final report; parallel spawns settle together. Pass description (3-5 words) for progress UI and taskId to continue a previous task.',
   parameters: SpawnToolArgsSchema,
   output: SpawnToolOutputSchema,
-  handler: async (args: z.infer<typeof SpawnToolArgsSchema>): Promise<SpawnToolResult> => {
+  handler: async function* (args: z.infer<typeof SpawnToolArgsSchema>): AsyncGenerator<SpawnToolResult, void> {
     if (ctx.depth >= SUBAGENT_DEPTH_CAP) {
       throw new Error(`Subagent depth limit reached (${SUBAGENT_DEPTH_CAP}). Report your findings instead of spawning deeper.`)
     }
-    return ctx.manager.spawnSubSession({
+    const sessionId = generateSessionId()
+    const run = ctx.manager.spawnSubSession({
       parentId: ctx.parentId,
       subagent: args.subagent,
       prompt: args.prompt,
       depth: ctx.depth,
+      sessionId,
       ...(args.description ? { description: args.description } : {}),
       ...(args.taskId ? { taskId: args.taskId } : {}),
     })
+    yield { sessionId, summary: '' }
+    const result = await run
+    yield { sessionId, summary: result.summary }
   },
 })

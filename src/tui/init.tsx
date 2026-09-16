@@ -3,6 +3,7 @@ import { resolve } from 'node:path'
 import { autoloadLlmProviders } from '@agent/model/registry.ts'
 import { ensureOAuthTokens } from '@auth/index.ts'
 import { options as appOptions } from '@config/options.ts'
+import type { TerminalCapabilities } from '@opentui/core'
 import { CliRenderEvents, ConsolePosition, createClipboard, createCliRenderer, createHostClipboard, createRendererClipboardAdapter, DebugOverlayCorner, engine } from '@opentui/core'
 import { render } from '@opentui/solid'
 import { resetConsoleTitle, setConsoleTitle } from '@shared/console-title.ts'
@@ -60,6 +61,7 @@ export async function runTui(options: TuiAppOptions = {}): Promise<void> {
     memorySnapshotInterval: debug ? 3000 : 0,
     backgroundColor: theme().background,
     onDestroy: () => {
+      process.stdout.write('\x1b[>4m')
       clipboardService.dispose()
       resetConsoleTitle()
       const exit = takeExitStatus()
@@ -82,6 +84,19 @@ export async function runTui(options: TuiAppOptions = {}): Promise<void> {
 
   const clipboardService = createClipboard({ host: createHostClipboard(), terminal: createRendererClipboardAdapter(renderer) })
   setClipboardService(clipboardService)
+
+  // Terminals without the kitty keyboard protocol cannot report Shift with Ctrl on
+  // letter chords; xterm's modifyOtherKeys mode (CSI >4;2m) makes them send
+  // CSI 27;mod;code~ sequences that OpenTUI's raw parser decodes with modifiers.
+  let keyboardFallbackActive = false
+  process.on('exit', () => {
+    if (keyboardFallbackActive) process.stdout.write('\x1b[>4m')
+  })
+  renderer.on(CliRenderEvents.CAPABILITIES, (caps: TerminalCapabilities) => {
+    if (caps.kitty_keyboard) return
+    keyboardFallbackActive = true
+    process.stdout.write('\x1b[>4;2m')
+  })
 
   if (debug) {
     renderer.keyInput.on('keypress', (key) => {

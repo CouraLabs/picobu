@@ -1,12 +1,14 @@
 import { describe, expect, test } from 'bun:test'
-import { isExitKey, isHelpKey, isJobsKey, isModelKey, isSteerKey, type KeyLike } from '../../src/tui/keybindings.ts'
+import { isCopyKey, isExitKey, isHelpKey, isJobsKey, isModelKey, isPasteKey, isSelectAllKey, isSteerKey, type KeyLike } from '../../src/tui/keybindings.ts'
 
 const key = (overrides: Partial<KeyLike> & { name: string }): KeyLike => ({ ctrl: false, meta: false, super: false, ...overrides })
 
 describe('windows fallback shortcuts', () => {
-  test('help fires on ctrl+h, alt+h on windows, and f1', () => {
+  test('help fires on ctrl+h, ctrl+shift+h, alt+h on windows, and f1', () => {
     expect(isHelpKey(key({ name: 'h', ctrl: true }))).toBe(true)
+    expect(isHelpKey(key({ name: 'h', ctrl: true, shift: true }))).toBe(true)
     expect(isHelpKey(key({ name: 'h', meta: true }), 'win32')).toBe(true)
+    expect(isHelpKey(key({ name: 'h', meta: true, shift: true }), 'win32')).toBe(true)
     expect(isHelpKey(key({ name: 'f1' }))).toBe(true)
     expect(isHelpKey(key({ name: 'h' }))).toBe(false)
   })
@@ -20,30 +22,50 @@ describe('windows fallback shortcuts', () => {
     expect(isHelpKey(key({ name: 'h', ctrl: true, meta: true }))).toBe(false)
     expect(isHelpKey(key({ name: 'h', ctrl: true, meta: true }), 'win32')).toBe(false)
     expect(isModelKey(key({ name: 'm', ctrl: true, meta: true }))).toBe(false)
+    expect(isModelKey(key({ name: 'm', ctrl: true, meta: true, shift: true }))).toBe(false)
   })
-  test('model fires on ctrl+m, ctrl+o, alt+m on windows, and f2', () => {
+  test('model fires on ctrl+m, ctrl+o, ctrl+shift+m, ctrl+shift+o, alt+m on windows, and f2', () => {
     expect(isModelKey(key({ name: 'm', ctrl: true }))).toBe(true)
     expect(isModelKey(key({ name: 'o', ctrl: true }))).toBe(true)
+    expect(isModelKey(key({ name: 'm', ctrl: true, shift: true }))).toBe(true)
+    expect(isModelKey(key({ name: 'o', ctrl: true, shift: true }))).toBe(true)
     expect(isModelKey(key({ name: 'm', meta: true }), 'win32')).toBe(true)
     expect(isModelKey(key({ name: 'f2' }))).toBe(true)
     expect(isModelKey(key({ name: 'return', ctrl: true }))).toBe(false)
   })
-  test('jobs fires on ctrl+j, alt+j on windows, and f3', () => {
+  test('jobs fires on ctrl+j, ctrl+shift+j, alt+j on windows, and f3', () => {
     expect(isJobsKey(key({ name: 'j', ctrl: true }))).toBe(true)
+    expect(isJobsKey(key({ name: 'j', ctrl: true, shift: true }))).toBe(true)
     expect(isJobsKey(key({ name: 'j', meta: true }), 'win32')).toBe(true)
     expect(isJobsKey(key({ name: 'f3' }))).toBe(true)
     expect(isJobsKey(key({ name: 'j' }))).toBe(false)
   })
-  test('steer fires on ctrl+w, alt+w on windows, and f4', () => {
+  test('steer fires on ctrl+w, ctrl+shift+w, alt+w on windows, and f4', () => {
     expect(isSteerKey(key({ name: 'w', ctrl: true }))).toBe(true)
+    expect(isSteerKey(key({ name: 'w', ctrl: true, shift: true }))).toBe(true)
     expect(isSteerKey(key({ name: 'w', meta: true }), 'win32')).toBe(true)
     expect(isSteerKey(key({ name: 'f4' }))).toBe(true)
     expect(isSteerKey(key({ name: 'w' }))).toBe(false)
   })
-  test('exit fires on double-press ctrl+d and on f10, but not on ctrl+shift+d', () => {
+  test('exit fires on ctrl+d, ctrl+shift+d, and f10', () => {
     expect(isExitKey(key({ name: 'd', ctrl: true }))).toBe(true)
+    expect(isExitKey(key({ name: 'd', ctrl: true, shift: true }))).toBe(true)
     expect(isExitKey(key({ name: 'f10' }))).toBe(true)
     expect(isExitKey(key({ name: 'd' }))).toBe(false)
-    expect(isExitKey(key({ name: 'd', ctrl: true, shift: true }))).toBe(false)
+  })
+  test('copy, paste, and select-all fire with or without shift', () => {
+    expect(isCopyKey(key({ name: 'c', ctrl: true }))).toBe(true)
+    expect(isCopyKey(key({ name: 'c', ctrl: true, shift: true }))).toBe(true)
+    expect(isCopyKey(key({ name: 'c', meta: true }))).toBe(true)
+    expect(isCopyKey(key({ name: 'c', super: true }))).toBe(true)
+    expect(isCopyKey(key({ name: 'c' }))).toBe(false)
+    expect(isPasteKey(key({ name: 'v', ctrl: true }))).toBe(true)
+    expect(isPasteKey(key({ name: 'v', ctrl: true, shift: true }))).toBe(true)
+    expect(isPasteKey(key({ name: 'v', meta: true }))).toBe(true)
+    expect(isPasteKey(key({ name: 'v' }))).toBe(false)
+    expect(isSelectAllKey(key({ name: 'a', ctrl: true }))).toBe(true)
+    expect(isSelectAllKey(key({ name: 'a', ctrl: true, shift: true }))).toBe(true)
+    expect(isSelectAllKey(key({ name: 'a', meta: true }))).toBe(true)
+    expect(isSelectAllKey(key({ name: 'a' }))).toBe(false)
   })
 })

@@ -387,7 +387,7 @@ export const SessionPage = (props: SessionPageProps) => {
         void quitApp()
       } else {
         lastCtrlD = now
-        pushToast('Press ⌃D (or F10) again to exit!', 'warning')
+        pushToast('Press ⌃⇧D (or F10) again to exit!', 'warning')
       }
       return
     }

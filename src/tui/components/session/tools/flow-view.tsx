@@ -50,7 +50,7 @@ export const FlowStaticView = (props: FlowViewProps) => {
   const showPlan = () => props.flowKind === 'plan-write' && hasToolCallId() && plan() !== undefined && status() !== undefined
   const pendingWithoutId = () => !hasToolCallId() && (questions().length > 0 || plan() !== undefined) && status() !== undefined
   return (
-    <box flexDirection="column" paddingLeft={1} border={['left']} bottomTitle={` ${name()} `} bottomTitleAlignment="right" borderStyle={'heavy'} borderColor={color()}>
+    <box flexDirection="column" paddingLeft={1}>
       <box flexDirection="row" gap={1} flexWrap="wrap">
         <ToolStatusIcon running={running()} color={color()} icon={view().icon} />
         <text fg={color()} flexShrink={0}>

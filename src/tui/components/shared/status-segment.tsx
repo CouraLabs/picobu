@@ -12,9 +12,9 @@ export interface StatusSegmentProps {
 
 export const StatusSegment = (props: StatusSegmentProps) => (
   <box flexDirection="row" columnGap={1} flexShrink={0}>
-    <box flexDirection='row' columnGap={0}>
+    <box flexDirection="row" columnGap={0}>
       <Show when={props.icon}>
-        <text fg={props.valueColor ?? theme().text} selectable={false}>
+        <text fg={props.labelColor ?? theme().text} selectable={false}>
           {props.icon}
         </text>
       </Show>

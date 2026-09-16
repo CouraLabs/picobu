@@ -1,4 +1,3 @@
-import type { SpawnJobStats } from '@agent/sessions/session-jobs.ts'
 import type { SessionManager } from '@agent/sessions/session-manager.ts'
 import { clip, fmtCostPreciseBare, fmtTokens } from '@shared/format.ts'
 import { dialogJustClosed } from '@states/dialog.state.ts'
@@ -8,7 +7,7 @@ import { toneColor } from '@tui/components/shared/tool-tone.ts'
 import { useTerminalDims } from '@tui/hooks/terminal-dims.tsx'
 import { icons } from '@tui/themes/icons.ts'
 import { createMemo, createSignal, onCleanup, onMount, Show } from 'solid-js'
-import { isToolRunning, spawnSessionId, spawnSubagentName, type ToolPartLike, toolStateView } from './tool-summary.ts'
+import { isPreliminaryToolResult, isToolRunning, spawnSessionId, spawnSubagentName, type ToolPartLike, toolStateView } from './tool-summary.ts'
 
 export const SpawnView = (props: { part: ToolPartLike; onOpen?: (sessionId: string, label: string) => void; manager?: SessionManager }) => {
   const [hovered, setHovered] = createSignal(false)
@@ -16,19 +15,19 @@ export const SpawnView = (props: { part: ToolPartLike; onOpen?: (sessionId: stri
   const color = createMemo(() => toneColor(view().tone))
   const subagent = createMemo(() => spawnSubagentName(props.part.input) ?? 'Spawn')
   const sessionId = createMemo(() => spawnSessionId(props.part.output))
-  const [jobStats, setJobStats] = createSignal<SpawnJobStats | undefined>(undefined)
-  const running = createMemo(() => isToolRunning(props.part))
+  const [jobsVersion, setJobsVersion] = createSignal(0)
+  const jobStats = createMemo(() => {
+    const id = sessionId()
+    if (id === undefined) return undefined
+    jobsVersion()
+    return props.manager?.jobs().find((job) => job.sessionId === id)?.stats
+  })
+  const running = createMemo(() => isToolRunning(props.part) || isPreliminaryToolResult(props.part))
   const failed = createMemo(() => props.part.state === 'output-error')
   const startAt = Date.now()
   const [tick, setTick] = createSignal(Date.now())
   onMount(() => {
-    const id = sessionId()
-    if (id !== undefined) setJobStats(props.manager?.jobs().find((job) => job.sessionId === id)?.stats)
-    const off = props.manager?.onJobs((rows) => {
-      const current = sessionId()
-      if (current === undefined) return
-      setJobStats(rows.find((job) => job.sessionId === current)?.stats)
-    })
+    const off = props.manager?.onJobs(() => setJobsVersion((v) => v + 1))
     const timer = setInterval(() => {
       if (!running()) {
         clearInterval(timer)
@@ -71,11 +70,7 @@ export const SpawnView = (props: { part: ToolPartLike; onOpen?: (sessionId: stri
     <box
       flexDirection="column"
       paddingLeft={1}
-      border={['left']}
-      bottomTitle={` Spawn: ${subagent()} `}
-      bottomTitleAlignment="right"
-      borderStyle={hovered() ? 'heavy' : 'single'}
-      borderColor={color()}
+      backgroundColor={hovered() ? theme().backgroundElement : undefined}
       onMouseOver={() => setHovered(true)}
       onMouseOut={() => setHovered(false)}
       onMouseUp={(event) => {
@@ -97,12 +92,12 @@ export const SpawnView = (props: { part: ToolPartLike; onOpen?: (sessionId: stri
             · failed
           </text>
         </Show>
-        <Show when={!running() && !failed()}>
+        <Show when={!running()}>
           <text fg={theme().textMuted} flexShrink={1}>
             {clipRest(`· ${usageLine()}`)}
           </text>
         </Show>
-        <Show when={!running() && sessionId()}>
+        <Show when={sessionId()}>
           <text fg={hovered() ? theme().accent : theme().textMuted} flexShrink={0} selectable={false}>
             · open →
           </text>

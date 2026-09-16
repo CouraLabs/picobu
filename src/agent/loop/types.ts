@@ -1,5 +1,5 @@
 import type { AgentType } from '@agent/agents/types.ts'
-import type { LoopStats } from '@agent/loop/loop-stats.ts'
+import type { LoopStats, LoopStepCost } from '@agent/loop/loop-stats.ts'
 import type { SpawnToolContext } from '@agent/tools/flow/spawn.ts'
 import type { ProviderModelReasoningEffort } from '@config/options.ts'
 import type { McpManager } from '@integrations/mcp/client.ts'
@@ -35,5 +35,6 @@ export interface Loop {
   stats: () => LoopStats
   onStats: (listener: (stats: LoopStats) => void) => () => void
   restoreStats: (stats: LoopStats) => void
+  addExternalCost: (cost: LoopStepCost) => void
   refreshEndpoints: () => void
 }

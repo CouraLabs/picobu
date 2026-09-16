@@ -77,11 +77,13 @@ export function settleAbortedToolParts<M extends UIMessage>(messages: Array<M>):
   const out = messages.map((m) => {
     let messageChanged = false
     const parts = m.parts.map((part) => {
-      const loose = part as { type?: unknown; state?: unknown }
+      const loose = part as { type?: unknown; state?: unknown; preliminary?: unknown }
       const isTool = loose.type === 'dynamic-tool' || (typeof loose.type === 'string' && loose.type.startsWith('tool-'))
-      if (!isTool || !RUNNING_TOOL_STATES.has(loose.state as string)) return part
+      const isRunning = isTool && (RUNNING_TOOL_STATES.has(loose.state as string) || loose.preliminary === true)
+      if (!isRunning) return part
       messageChanged = true
-      return { ...part, state: 'output-error', errorText: 'Aborted' } as M['parts'][number]
+      const { preliminary: _dropped, ...rest } = part as M['parts'][number] & { preliminary?: unknown }
+      return { ...rest, state: 'output-error', errorText: 'Aborted' } as M['parts'][number]
     })
     if (!messageChanged) return m
     changed = true

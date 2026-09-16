@@ -194,7 +194,7 @@ describe('spawn args', () => {
       },
     }
     const tool = createSpawnTool({ manager: fake as never, parentId: 'p', depth: 0 })
-    await tool.handler({ subagent: 'explorer', prompt: 'go', description: 'map repo', taskId: 'abc' })
+    for await (const output of tool.handler({ subagent: 'explorer', prompt: 'go', description: 'map repo', taskId: 'abc' })) void output
     expect(seen).toMatchObject({ description: 'map repo', taskId: 'abc' })
   })
   test('unknown taskId fails fast', async () => {

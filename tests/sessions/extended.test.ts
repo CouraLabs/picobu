@@ -172,6 +172,14 @@ describe('settleAbortedToolParts', () => {
     expect(first?.state).toBe('output-error')
     expect(second?.state).toBe('output-error')
   })
+  test('settles preliminary parts and keeps their output so spawn links survive', () => {
+    const preliminary = toolMessage('a', { type: 'tool-spawn', toolCallId: 't1', state: 'output-available', preliminary: true, output: { sessionId: 'sub-1', summary: '' } })
+    const out = settleAbortedToolParts([preliminary] as UIMessage[])
+    const part = out[0]?.parts?.[0] as { state?: string; preliminary?: unknown; errorText?: string; output?: { sessionId?: string } }
+    expect(part.state).toBe('output-error')
+    expect(part.preliminary).toBeUndefined()
+    expect(part.output?.sessionId).toBe('sub-1')
+  })
   test('keeps settled tool parts untouched and returns identity when nothing changed', () => {
     const done = toolMessage('a', { type: 'tool-read', toolCallId: 't1', state: 'output-available', output: 'ok' })
     const text = textMessage('b', 'user', 'hi')

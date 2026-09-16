@@ -111,6 +111,28 @@ describe('createLoopStatsStore', () => {
     const stats = store.get()
     expect((stats.steps[0]?.usage.raw as { cost?: { hypercredits?: number } })?.cost?.hypercredits).toBe(11)
   })
+  test('addExternal adds cost without touching usage and keeps accumulating', () => {
+    const store = createLoopStatsStore(() => ({ input: 1_000_000, output: 0 }))
+    store.handleStepEnd(stepEnd(10))
+    const before = store.get().total.usage
+    store.addExternal({ input: 0.5, output: 0.25, cache: 0.25, total: 1 })
+    const stats = store.get()
+    expect(stats.total.usage).toEqual(before)
+    expect(stats.total.cost).toEqual({ input: 10.5, output: 0.25, cache: 0.25, total: 11 })
+    store.handleStepEnd(stepEnd(20))
+    expect(store.get().total.cost.input).toBeCloseTo(30.5, 9)
+  })
+  test('addExternal notifies listeners', () => {
+    const store = createLoopStatsStore(() => undefined)
+    const seen: LoopStats[] = []
+    const unsubscribe = store.onChange((stats) => {
+      seen.push(stats)
+    })
+    store.addExternal({ input: 1, output: 1, cache: 0, total: 2 })
+    expect(seen).toHaveLength(1)
+    expect(seen[0]?.total.cost.total).toBe(2)
+    unsubscribe()
+  })
   test('endpoint values merge and notify listeners', () => {
     const store = createLoopStatsStore(() => undefined)
     const seen: Array<LoopStats> = []

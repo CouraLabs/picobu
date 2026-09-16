@@ -89,5 +89,5 @@ export function createLoop(getConfig: () => LoopConfig): Loop {
   })
   const agent = withSandbox(loopAgent, cwd, initialConfig.sandbox !== false)
   const transport = createLoopTransport(agent, isPersistent)
-  return { agent, transport, mcp, stats: statsStore.get, onStats: statsStore.onChange, restoreStats: statsStore.restore, refreshEndpoints }
+  return { agent, transport, mcp, stats: statsStore.get, onStats: statsStore.onChange, restoreStats: statsStore.restore, addExternalCost: statsStore.addExternal, refreshEndpoints }
 }

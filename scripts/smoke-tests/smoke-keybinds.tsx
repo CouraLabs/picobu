@@ -26,7 +26,7 @@ const App = () => {
     if (key.ctrl && key.name === "m") {
       key.preventDefault()
       key.stopPropagation()
-      setSeen("ctrl-m")
+      setSeen(key.shift ? "ctrl-shift-m" : "ctrl-m")
     }
   })
 
@@ -68,6 +68,9 @@ try {
 
   await mockInput.pressKey("m", { ctrl: true })
   await frameOf("after ctrl+m")
+
+  await mockInput.pressKey("m", { ctrl: true, shift: true })
+  await frameOf("after ctrl+shift+m")
 } finally {
   renderer.destroy()
 }
