@@ -7,6 +7,7 @@ import {
   diffStats,
   flowOutputMessage,
   flowOutputStatus,
+  hasRenderableOutput,
   isTodoTool,
   isToolPart,
   latestTodoItems,
@@ -116,6 +117,9 @@ describe('summarizeToolInput', () => {
     expect(summarizeToolInput('plan-write', { plan: '' })).toBe('0 lines')
     expect(summarizeToolInput('plan-write', {})).toBe('?')
   })
+  test('plan-exit takes no input', () => {
+    expect(summarizeToolInput('plan-exit', {})).toBe('')
+  })
   test('todo summarizes the written list', () => {
     expect(summarizeToolInput('todo', { items: [1, 2] })).toBe('2 item(s)')
     expect(summarizeToolInput('todo', {})).toBe('?')
@@ -171,12 +175,35 @@ describe('previewToolInput/summarizeToolOutput', () => {
     expect(summarizeToolOutput('plan-write', { message: 'm', status: 'pending' })).toBe('m')
     expect(summarizeToolOutput('plan-write', { status: 'done' })).toBe('done ·')
     expect(summarizeToolOutput('plan-write', {})).toBeUndefined()
+    expect(summarizeToolOutput('plan-exit', { switchedTo: 'coder', message: 'Plan approved' })).toBe('Plan approved')
+    expect(summarizeToolOutput('plan-exit', {})).toBeUndefined()
     expect(summarizeToolOutput('todo', { message: 'Completed todo 2 of 5', done: 2, total: 5 })).toBe('Completed todo 2 of 5')
     expect(summarizeToolOutput('todo', { done: 1, total: 2 })).toBe('1 of 2 done')
     expect(summarizeToolOutput('todo', {})).toBeUndefined()
     expect(summarizeToolOutput('webfetch', { content: 'a\nb' })).toBe('2 lines')
     expect(summarizeToolOutput('webfetch', {})).toBeUndefined()
     expect(summarizeToolOutput('mystery', { a: 1 })).toBe('{"a":1}')
+  })
+})
+
+describe('hasRenderableOutput', () => {
+  test('errored tools never expand', () => {
+    expect(hasRenderableOutput(part({ state: 'output-error', errorText: 'boom' }))).toBe(false)
+    expect(hasRenderableOutput(part({ state: 'output-error', output: { message: 'x' } }))).toBe(false)
+  })
+  test('finished tools need non-empty output', () => {
+    expect(hasRenderableOutput(part({ state: 'output-available', output: undefined }))).toBe(false)
+    expect(hasRenderableOutput(part({ state: 'output-available', output: null }))).toBe(false)
+    expect(hasRenderableOutput(part({ state: 'output-available', output: '' }))).toBe(false)
+    expect(hasRenderableOutput(part({ state: 'output-available', output: '   ' }))).toBe(false)
+    expect(hasRenderableOutput(part({ state: 'output-available', output: {} }))).toBe(false)
+    expect(hasRenderableOutput(part({ state: 'output-available', output: { message: 'x' } }))).toBe(true)
+    expect(hasRenderableOutput(part({ state: 'output-available', output: 'text' }))).toBe(true)
+  })
+  test('running and pending tools keep the affordance', () => {
+    expect(hasRenderableOutput(part({ state: 'input-available' }))).toBe(true)
+    expect(hasRenderableOutput(part({ state: 'input-streaming' }))).toBe(true)
+    expect(hasRenderableOutput(part({}))).toBe(true)
   })
 })
 

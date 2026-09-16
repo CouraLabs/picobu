@@ -20,6 +20,7 @@ import { setClipboardService } from './hooks/clipboard.state.ts'
 import { ClipboardProvider } from './hooks/clipboard-provider.tsx'
 import { takeExitStatus } from './hooks/exit-status.ts'
 import { onAppReload } from './hooks/reload-bus.ts'
+import { win32DisableProcessedInput, win32FlushInputBuffer, win32InstallCtrlCGuard } from './terminal-win32.ts'
 export interface TuiAppOptions {
   debug?: boolean
   sessionId?: string
@@ -36,7 +37,15 @@ export async function runTui(options: TuiAppOptions = {}): Promise<void> {
     appOptions.app.cwd = next
   }
   setConsoleTitle(undefined)
+  const unguard = win32InstallCtrlCGuard()
+  try {
+    await startTui(options, unguard)
+  } finally {
+    unguard?.()
+  }
+}
 
+const startTui = async (options: TuiAppOptions, unguard: (() => void) | undefined): Promise<void> => {
   const debug = options.debug ?? false
   const renderer = await createCliRenderer({
     exitOnCtrlC: false,
@@ -62,6 +71,10 @@ export async function runTui(options: TuiAppOptions = {}): Promise<void> {
     backgroundColor: theme().background,
     onDestroy: () => {
       process.stdout.write('\x1b[>4m')
+      win32FlushInputBuffer()
+      try {
+        unguard?.()
+      } catch {}
       clipboardService.dispose()
       resetConsoleTitle()
       const exit = takeExitStatus()
@@ -76,6 +89,8 @@ export async function runTui(options: TuiAppOptions = {}): Promise<void> {
       process.exit(0)
     },
   })
+
+  win32DisableProcessedInput()
 
   const bootstrapProviders = async (): Promise<void> => {
     await Promise.all([autoloadLlmProviders(), ensureOAuthTokens()]).catch(() => {})

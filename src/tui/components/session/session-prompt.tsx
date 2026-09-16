@@ -567,7 +567,7 @@ export const SessionPrompt = (props: SessionPromptProps) => {
           <For each={tokenPreview()}>{(token) => <text fg={tokenColor(token.kind, token.text)}>{token.text}</text>}</For>
         </box>
         <Show when={filteredItems().length > 0}>
-          <box flexDirection="column" flexShrink={0} border={['top']} borderColor={theme().border}>
+          <box flexDirection="column" flexShrink={0} border borderColor={theme().border}>
             <scrollbox ref={(r) => (flyoutListRef = r)} height={flyoutHeight()} scrollY overflow="hidden" flexShrink={0}>
               <box flexDirection="column" flexShrink={0}>
                 <For each={filteredItems()}>
@@ -636,8 +636,6 @@ export const SessionPrompt = (props: SessionPromptProps) => {
               { name: 'return', action: 'submit' },
               { name: 'return', shift: true, action: 'newline' },
               { name: 'return', ctrl: true, action: 'newline' },
-              // Terminals without the kitty keyboard protocol (e.g. Windows Terminal)
-              // deliver ctrl+enter as name 'linefeed' with ctrl unset.
               { name: 'linefeed', action: 'newline' },
             ]}
           />

@@ -77,17 +77,7 @@ export const App = (props: { sessionId?: string } = {}) => {
         <box id="app-content" flexDirection="column" flexGrow={1} flexShrink={1}>
           <SessionPage sessionId={getLastSessionId() ?? props.sessionId} visible={isSession()} />
         </box>
-        <box
-          id="app-footer"
-          border
-          borderColor={theme().border}
-          paddingX={1}
-          flexDirection="row"
-          flexShrink={0}
-          columnGap={1}
-          justifyContent="space-between"
-          alignItems="center"
-          flexWrap="wrap">
+        <box id="app-footer" border borderColor={theme().border} paddingX={1} flexDirection="row" flexShrink={0} columnGap={1} justifyContent="space-between" alignItems="center" flexWrap="wrap">
           <box id="app-footer-left" flexDirection="row" flexWrap="wrap-reverse" columnGap={1}>
             <box flexDirection="row" columnGap={1} flexShrink={0}>
               <Dropdown options={themeOptions} onSelect={(option) => setTheme(String(option.value), themeInfo().variant)} selected={indexOfTheme(themes)} placeholder="Select theme…" />

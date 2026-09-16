@@ -41,4 +41,5 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
 # transient local output (test logs)
 .tmp/
+aux
 

@@ -126,6 +126,18 @@ export const isPreliminaryToolResult = (part: ToolPartLike): boolean => (part as
 
 export const isToolRunning = (part: ToolPartLike): boolean => part.state !== 'output-available' && part.state !== 'output-error'
 
+// A finished tool only offers expand/collapse when its output has something to show:
+// errored tools and finished-with-empty-output tools collapse to the static row.
+export const hasRenderableOutput = (part: ToolPartLike): boolean => {
+  if (part.state === 'output-error') return false
+  if (part.state !== 'output-available') return true
+  const output = part.output
+  if (output === undefined || output === null) return false
+  if (typeof output === 'string') return output.trim().length > 0
+  if (typeof output === 'object') return Object.keys(output).length > 0
+  return true
+}
+
 export const toolStateView = (part: ToolPartLike): ToolStateView => {
   switch (part.state) {
     case 'input-streaming':
@@ -201,6 +213,8 @@ export const summarizeToolInput = (name: string, input: unknown): string => {
       if (!first) return `${lines} lines`
       return lines <= 1 ? first : `${first} · ${lines} lines`
     }
+    case 'plan-exit':
+      return ''
     case 'todo': {
       const items = Array.isArray(args.items) ? args.items : undefined
       return items ? `${items.length} item(s)` : '?'
@@ -320,6 +334,10 @@ export const summarizeToolOutput = (name: string, output: unknown, errorText?: s
       const status = args && typeof args.status === 'string' ? args.status : undefined
       const label = status !== undefined && status !== 'pending' ? `${status} · ` : ''
       return message !== undefined && message.length > 0 ? `${label}${singleLine(message, OUTPUT_PREVIEW_MAX)}` : status ? label.trim() : undefined
+    }
+    case 'plan-exit': {
+      const message = args && typeof args.message === 'string' ? args.message : undefined
+      return message !== undefined && message.length > 0 ? singleLine(message, OUTPUT_PREVIEW_MAX) : undefined
     }
     case 'todo': {
       const message = args && typeof args.message === 'string' ? args.message : undefined

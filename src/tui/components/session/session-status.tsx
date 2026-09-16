@@ -1,11 +1,11 @@
 import 'opentui-spinner/solid'
+import { theme } from '@states/theme-state.ts'
 import { createSessionStatusData, type SessionStatusProps } from './status/session-status-data.ts'
 import { StatusFooter } from './status/status-footer.tsx'
 import { StatusHeader } from './status/status-header.tsx'
 import { StatusMetrics } from './status/status-metrics.tsx'
 import { SessionProviderStatus } from './status/status-provider.tsx'
 import { THINKING_LEVELS } from './status/thinking.ts'
-import { theme } from '@states/theme-state.ts'
 
 export type { SessionStatusProps }
 export { THINKING_LEVELS }

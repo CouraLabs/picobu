@@ -44,7 +44,7 @@ const SubagentMessagesDialog = (props: SubagentMessagesProps) => {
   })
 
   return (
-    <box flexDirection="column" width={132} height={38} paddingX={2} paddingY={1}>
+    <box flexDirection="column" width={'95%'} height={'90%'} paddingX={2} paddingY={1}>
       <box border={['bottom']} borderColor={theme().border} flexShrink={0} flexDirection="row" gap={1}>
         <text fg={theme().text} flexShrink={1}>
           {title() ?? props.label}

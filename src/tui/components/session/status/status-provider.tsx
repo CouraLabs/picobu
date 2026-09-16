@@ -29,9 +29,7 @@ export const SessionProviderStatus = (props: { status: SessionStatusProps; data:
   const extras = () => getStatusLineValues(props)
   return (
     <box flexDirection="row" columnGap={1} flexShrink={0} flexWrap="wrap">
-      <For each={extras()}>
-        {(extra) => <StatusSegment label={`${extra.label}`} labelColor={theme().text} value={extra.value} valueColor={theme().textMuted} />}
-      </For>
+      <For each={extras()}>{(extra) => <StatusSegment label={`${extra.label}`} labelColor={theme().text} value={extra.value} valueColor={theme().textMuted} />}</For>
     </box>
   )
 }

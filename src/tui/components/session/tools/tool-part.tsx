@@ -18,6 +18,7 @@ import {
   EXPANDED_MAX_LINES,
   flowOutputMessage,
   flowOutputStatus,
+  hasRenderableOutput,
   isSpawnTool,
   isTodoTool,
   isToolRunning,
@@ -120,6 +121,7 @@ export const ToolPart = (props: ToolPartProps) => {
   const todos = createMemo(() => (isTodoTool(props.part) ? todoItems(props.part) : undefined))
   const isTodo = createMemo(() => isTodoTool(props.part))
   const hasExpandableContent = createMemo(() => {
+    if (!hasRenderableOutput(props.part)) return false
     if (isTodo()) return todos() !== undefined
     return running() || runningProgress() !== undefined || written() !== undefined || knowledge() !== undefined || diff() !== undefined || expandedText() !== undefined || outputPreview() !== undefined
   })
