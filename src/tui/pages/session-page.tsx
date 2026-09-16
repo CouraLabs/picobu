@@ -38,6 +38,7 @@ import { openSubagentMessages } from '@tui/components/session/subagent-dialog.ts
 import type { ToolFlowResponse } from '@tui/components/session/tools/tool-part.tsx'
 import { setExitStatus } from '@tui/hooks/exit-status.ts'
 import { requestAppReload, setLastSessionId } from '@tui/hooks/reload-bus.ts'
+import { isExitKey, isJobsKey, isModelKey, isSteerKey } from '@tui/keybindings.ts'
 import type { CreateUIMessage } from 'ai'
 import { batch, createEffect, createSignal, onCleanup, onMount } from 'solid-js'
 
@@ -373,12 +374,12 @@ export const SessionPage = (props: SessionPageProps) => {
       }
       return
     }
-    if (key.ctrl && key.name === 'w') {
+    if (isSteerKey(key)) {
       key.preventDefault()
       setMode((m) => (m === 'steer' ? 'normal' : 'steer'))
       return
     }
-    if (key.ctrl && key.name === 'd') {
+    if (isExitKey(key)) {
       key.preventDefault()
       const now = Date.now()
       if (now - lastCtrlD < EXIT_WINDOW_MS) {
@@ -390,7 +391,7 @@ export const SessionPage = (props: SessionPageProps) => {
       }
       return
     }
-    if (key.ctrl && key.name === 'j') {
+    if (isJobsKey(key)) {
       key.preventDefault()
       openJobsDialog({
         manager: sessionMgr,
@@ -430,7 +431,7 @@ export const SessionPage = (props: SessionPageProps) => {
       }
       return
     }
-    if (key.ctrl && key.name === 'm') {
+    if (isModelKey(key)) {
       key.preventDefault()
       openModelDialog()
     }

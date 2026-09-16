@@ -47,11 +47,35 @@ git clone --depth 1 "$REPO_URL" "$INSTALL_DIR"
 
 cd "$INSTALL_DIR"
 log "Installing dependencies ..."
-bun install
+if ! bun install --os='*' --cpu='*'; then
+  log "Full-platform install failed, retrying host-only install ..."
+  bun install
+fi
+
+bun_version="$(bun --version)"
+bun_major="${bun_version%%.*}"
+bun_minor="$(echo "$bun_version" | cut -d. -f2)"
+if [ "$bun_major" -lt 1 ] || { [ "$bun_major" -eq 1 ] && [ "$bun_minor" -lt 3 ]; }; then
+  fail "bun >= 1.3.0 is required for OpenTUI standalone builds (found $bun_version). Upgrade bun, then re-run this script."
+fi
+
+os="$(uname -s)"
+machine="$(uname -m)"
+target=""
+case "$os" in
+  Darwin) case "$machine" in arm64) target="bun-darwin-arm64" ;; *) target="bun-darwin-x64" ;; esac ;;
+  Linux) case "$machine" in aarch64|arm64) target="bun-linux-arm64" ;; *) target="bun-linux-x64" ;; esac ;;
+  MINGW*|MSYS*|CYGWIN*|Windows_NT) case "$machine" in aarch64|arm64) target="bun-windows-arm64" ;; *) target="bun-windows-x64" ;; esac ;;
+esac
 
 mkdir -p "$BIN_DIR"
-log "Building standalone executable ..."
-bun build --compile src/cli.ts --outfile "$BIN_DIR/picobu"
+if [ -n "$target" ]; then
+  log "Building standalone executable ($target) ..."
+  bun ./scripts/build-standalone.ts --target "$target" --outfile "$BIN_DIR/picobu" || fail "Build failed. If the error names a missing native library, update bun, delete bun.lock, and re-run this script so all @opentui/core optionals install."
+else
+  log "Building standalone executable ..."
+  bun ./scripts/build-standalone.ts --outfile "$BIN_DIR/picobu" || fail "Build failed. If the error names a missing native library, update bun, delete bun.lock, and re-run this script so all @opentui/core optionals install."
+fi
 
 # --- 4. Clean up ----------------------------------------------------------
 

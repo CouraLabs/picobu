@@ -84,6 +84,9 @@ export async function runTui(options: TuiAppOptions = {}): Promise<void> {
   setClipboardService(clipboardService)
 
   if (debug) {
+    renderer.keyInput.on('keypress', (key) => {
+      console.log(`key name=${key.name} ctrl=${key.ctrl} meta=${key.meta} shift=${key.shift} super=${key.super ?? false} source=${key.source}`)
+    })
     renderer.configureDebugOverlay({
       enabled: true,
       corner: DebugOverlayCorner.bottomRight,

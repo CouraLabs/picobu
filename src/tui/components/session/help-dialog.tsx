@@ -12,14 +12,14 @@ import { getSharedTreeSitterClientSync } from '@wrappers/treesitter-wrapper.ts'
 import { createMemo, createSignal, onMount } from 'solid-js'
 
 const shortcuts: Array<{ keys: string; what: string }> = [
-  { keys: 'CTRL + H', what: 'Open this help' },
-  { keys: 'CTRL + D CTRL + D', what: 'Exit the app' },
+  { keys: 'CTRL + H / F1', what: 'Open this help' },
+  { keys: 'CTRL + D CTRL + D / F10', what: 'Exit the app' },
   { keys: 'ESC ESC', what: 'Answer flow first, then move newest queued prompt back to edit, then stop the run' },
   { keys: 'CTRL + C / CMD + C', what: 'Copy selected text' },
   { keys: 'CTRL + V / CMD + V', what: 'Paste into the prompt' },
-  { keys: 'CTRL + M', what: 'Change model' },
-  { keys: 'CTRL + J', what: 'Subagent jobs' },
-  { keys: 'CTRL + W', what: 'Toggle steer mode (steer never clears the queue)' },
+  { keys: 'CTRL + M / CTRL + O / F2', what: 'Change model' },
+  { keys: 'CTRL + J / F3', what: 'Subagent jobs' },
+  { keys: 'CTRL + W / F4', what: 'Toggle steer mode (steer never clears the queue)' },
   { keys: 'TAB', what: 'Cycle agent' },
   { keys: 'SHIFT + TAB', what: 'Cycle thinking level' },
   { keys: 'UP / DOWN', what: 'Prompt history on first / last line (disabled while the command flyout is open)' },

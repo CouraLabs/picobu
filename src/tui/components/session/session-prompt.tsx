@@ -638,6 +638,7 @@ export const SessionPrompt = (props: SessionPromptProps) => {
             keyBindings={[
               { name: 'return', action: 'submit' },
               { name: 'return', shift: true, action: 'newline' },
+              { name: 'return', ctrl: true, action: 'newline' },
             ]}
           />
         </box>

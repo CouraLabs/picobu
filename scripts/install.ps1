@@ -55,11 +55,30 @@ git clone --depth 1 $RepoUrl $InstallDir
 Push-Location $InstallDir
 try {
   Write-Log "Installing dependencies ..."
-  bun install
+  try {
+    bun install --os='*' --cpu='*'
+  } catch {
+    Write-Log "Full-platform install failed, retrying host-only install ..."
+    bun install
+  }
 
+  $BunVersion = (bun --version).Trim()
+  $BunParts = $BunVersion.Split('.')
+  if ([int]$BunParts[0] -lt 1 -or ([int]$BunParts[0] -eq 1 -and [int]$BunParts[1] -lt 3)) {
+    Write-Fail "bun >= 1.3.0 is required for OpenTUI standalone builds (found $BunVersion). Upgrade bun, then re-run this script."
+  }
+
+  $Target = 'bun-windows-x64'
+  if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') {
+    $Target = 'bun-windows-arm64'
+  }
   New-Item -ItemType Directory -Force -Path $BinDir | Out-Null
-  Write-Log "Building standalone executable ..."
-  bun build --compile src/cli.ts --outfile $BinPath
+  Write-Log "Building standalone executable ($Target) ..."
+  try {
+    bun ./scripts/build-standalone.ts --target $Target --outfile $BinPath
+  } catch {
+    Write-Fail "Build failed. If the error names a darwin/linux native library, update bun, delete bun.lock, and re-run this script so all @opentui/core optionals install. $_"
+  }
 } finally {
   Pop-Location
 }

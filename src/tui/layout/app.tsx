@@ -13,6 +13,7 @@ import { getClipboardService } from '@tui/hooks/clipboard.state.ts'
 import { getLastSessionId } from '@tui/hooks/reload-bus.ts'
 import { focusedHandlesCopy, hasRendererSelection, rendererCopyText } from '@tui/hooks/selection.ts'
 import { TerminalDimsProvider } from '@tui/hooks/terminal-dims.tsx'
+import { isHelpKey } from '@tui/keybindings.ts'
 import { SessionPage } from '@tui/pages/session-page.tsx'
 import { icons } from '@tui/themes/icons.ts'
 import { createMemo, createSignal } from 'solid-js'
@@ -60,8 +61,7 @@ export const App = (props: { sessionId?: string } = {}) => {
   })
 
   useKeyboard((key) => {
-    if (!key.ctrl || key.meta || key.super) return
-    if (key.name.toLowerCase() !== 'h') return
+    if (!isHelpKey(key)) return
     if (dialogStatus().status === 'open') return
     key.preventDefault()
     key.stopPropagation()
@@ -96,14 +96,14 @@ export const App = (props: { sessionId?: string } = {}) => {
               <Button label={themeInfo().variant} onClick={() => toggleThemeVariant()} />
               <StatusSeparator sep={icons.middleDot} />
               <text fg={theme().text} attributes={TextAttributes.DIM}>
-                {icons.control}H
+                {icons.control}H / F1
               </text>
               <text fg={theme().textMuted} attributes={TextAttributes.DIM}>
                 (help)
               </text>
               <StatusSeparator sep={icons.middleDot} />
               <text fg={theme().text} attributes={TextAttributes.DIM}>
-                {icons.control}D {icons.control}D
+                {icons.control}D {icons.control}D / F10
               </text>
               <text fg={theme().textMuted} attributes={TextAttributes.DIM}>
                 (exit)
