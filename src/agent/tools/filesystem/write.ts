@@ -11,7 +11,7 @@ export const WriteToolArgsSchema = z.object({
   path: z.string().min(1),
   contents: z.string(),
 })
-const CONTENT_PREVIEW_MAX_CHARS = 4_000
+const CONTENT_PREVIEW_MAX_CHARS = 8_000
 export interface WriteToolResult {
   message: string
   content: string
@@ -36,7 +36,7 @@ export const createWriteTool = (checkpointsPath?: string) => {
   const checkpoints = checkpointsPath ? new CheckpointStore(checkpointsPath) : undefined
   return {
     name: 'write',
-    description: 'Write contents to a file at path, creating parent directories as needed. Preserves an existing UTF-8 BOM.',
+    description: 'Write the "contents" to a file at "path", it can create files and parent directories as needed, existing files get "cotents" appended',
     parameters: WriteToolArgsSchema,
     output: WriteToolOutputSchema,
     skipPermission: true,
