@@ -23,6 +23,7 @@ const shortcuts: Array<{ keys: string; what: string }> = [
   { keys: 'CTRL + W / F4', what: 'Toggle steer mode (steer never clears the queue)' },
   { keys: 'SHIFT + TAB', what: 'Cycle agent' },
   { keys: 'CTRL + E', what: 'Cycle thinking effort' },
+  { keys: 'CTRL + P', what: 'Toggle sandbox (takes effect on next run)' },
   { keys: 'UP / UP, DOWN / DOWN', what: 'Prompt history on first / last line (disabled while the command flyout is open)' },
   { keys: 'TAB (in command flyout)', what: 'Complete command in the flyout' },
   { keys: 'CTRL + A', what: 'Select all text in the prompt' },

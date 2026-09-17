@@ -7,6 +7,7 @@ import type { SessionStatusData, SessionStatusProps } from './session-status-dat
 
 export const StatusFooter = (props: { status: SessionStatusProps; data: SessionStatusData }) => (
   <box flexDirection="row" columnGap={2} flexShrink={0} flexWrap="wrap">
+    <StatusSegment icon={icons.shield} value={props.status.sandbox === false ? 'Sandbox Off' : 'Sandbox On'} valueColor={props.status.sandbox === false ? theme().warning : theme().success} />
     <StatusSegment icon={icons.fileText} value={`${props.data.stats().total} msgs`} />
     <StatusSegment icon={icons.tool} value={`${props.data.stats().tools} tools`} />
     <Show when={props.status.mcp && props.status.mcp.total > 0}>
@@ -16,6 +17,10 @@ export const StatusFooter = (props: { status: SessionStatusProps; data: SessionS
     <Show when={props.data.queueLabel()}>
       <StatusSeparator sep={icons.middleDot} />
       <StatusSegment icon={icons.bell} value={props.data.queueLabel() as string} valueColor={theme().warning} />
+    </Show>
+    <Show when={(props.status.bgJobs ?? 0) > 0}>
+      <StatusSeparator sep={icons.middleDot} />
+      <StatusSegment icon={icons.stop} value={`${props.status.bgJobs} bg`} valueColor={theme().warning} />
     </Show>
   </box>
 )

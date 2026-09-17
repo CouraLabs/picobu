@@ -3,6 +3,7 @@ import type { SessionManager } from '@agent/sessions/session-manager.ts'
 import { closeDialog, dialogJustClosed, openDialog } from '@states/dialog.state.ts'
 import { theme } from '@states/theme-state.ts'
 import { SessionMessages } from '@tui/components/session/session-messages.tsx'
+import { useTerminalDims } from '@tui/hooks/terminal-dims.tsx'
 import { createSignal, onCleanup, onMount, Show } from 'solid-js'
 
 export interface SubagentMessagesProps {
@@ -12,6 +13,7 @@ export interface SubagentMessagesProps {
 }
 
 const SubagentMessagesDialog = (props: SubagentMessagesProps) => {
+  const dims = useTerminalDims()
   const [messages, setMessages] = createSignal<Array<LoopMessage>>([])
   const [title, setTitle] = createSignal<string | undefined>(undefined)
   let settled = false
@@ -44,7 +46,12 @@ const SubagentMessagesDialog = (props: SubagentMessagesProps) => {
   })
 
   return (
-    <box flexDirection="column" width={'95%'} height={'90%'} paddingX={2} paddingY={1}>
+    <box
+      flexDirection="column"
+      width={Math.max(20, Math.min(Math.floor(dims().width * 0.95), dims().width - 2))}
+      height={Math.max(10, Math.min(Math.floor(dims().height * 0.9), dims().height - 2))}
+      paddingX={2}
+      paddingY={1}>
       <box border={['bottom']} borderColor={theme().border} flexShrink={0} flexDirection="row" gap={1}>
         <text fg={theme().text} flexShrink={1}>
           {title() ?? props.label}
@@ -58,9 +65,7 @@ const SubagentMessagesDialog = (props: SubagentMessagesProps) => {
           </text>
         </Show>
       </box>
-      <box flexGrow={1} flexShrink={1}>
-        <SessionMessages messages={messages()} />
-      </box>
+      <SessionMessages messages={messages()} />
       <box border={['top']} borderColor={theme().border} flexShrink={0}>
         <text fg={theme().textMuted}>(esc to close)</text>
       </box>

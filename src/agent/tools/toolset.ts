@@ -3,7 +3,9 @@ import { createEditTool } from '@agent/tools/filesystem/edit.ts'
 import { globTool } from '@agent/tools/filesystem/glob.ts'
 import { grepTool } from '@agent/tools/filesystem/grep.ts'
 import { readTool } from '@agent/tools/filesystem/read.ts'
+import { repoMapTool } from '@agent/tools/filesystem/repomap.ts'
 import { createShellTool } from '@agent/tools/filesystem/shell.ts'
+import { createTaskOutputTool, createTaskStopTool } from '@agent/tools/filesystem/task-tools.ts'
 import { createWriteTool } from '@agent/tools/filesystem/write.ts'
 import { createAskTool } from '@agent/tools/flow/ask.ts'
 import { createPlanExitTool } from '@agent/tools/flow/plan-exit.ts'
@@ -48,7 +50,9 @@ export function buildToolSet(ctx: ToolSetContext = {}) {
     wrapTool(createApplyPatchTool(ctx.checkpointsPath)),
     wrapTool(globTool),
     wrapTool(grepTool),
-    wrapTool(createShellTool()),
+    wrapTool(repoMapTool),
+    wrapTool(createShellTool({ ...(ctx.sessionId ? { sessionId: ctx.sessionId } : {}), allowBackground: ctx.interactive !== false })),
+    ...(ctx.interactive === false ? [] : [wrapTool(createTaskOutputTool()), wrapTool(createTaskStopTool())]),
     wrapTool(websearchTool),
     wrapTool(webfetchTool),
     ...wwpTools.map(wrapTool),

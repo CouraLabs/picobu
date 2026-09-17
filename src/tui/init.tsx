@@ -1,6 +1,7 @@
 import { stat } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { autoloadLlmProviders } from '@agent/model/registry.ts'
+import { stopAllBackgroundShells } from '@agent/tools/filesystem/background-shell.ts'
 import { ensureOAuthTokens } from '@auth/index.ts'
 import { options as appOptions } from '@config/options.ts'
 import type { TerminalCapabilities } from '@opentui/core'
@@ -98,6 +99,7 @@ const startTui = async (options: TuiAppOptions, unguard: (() => void) | undefine
       cleanupInputModes()
       restoreStderr()
       win32FlushInputBuffer()
+      void stopAllBackgroundShells().catch(() => {})
       try {
         unguard?.()
       } catch {}

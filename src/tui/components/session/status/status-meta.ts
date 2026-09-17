@@ -24,6 +24,8 @@ export interface SessionStatusProps {
   mode?: string
   waiting?: boolean
   mcp?: { connected: number; total: number; tools: number }
+  sandbox?: boolean
+  bgJobs?: number
   provider?: { id: string; name?: string; detail?: string }
   statsStatus?: Pick<LoopStats, 'finishReason' | 'warnings' | 'headers' | 'endpoints'> & { rawUsage?: LanguageModelUsage['raw'] }
   statsPerformance?: LoopStats['performance']

@@ -11,6 +11,7 @@ import { folderKeyFor, generateSessionId } from '@agent/sessions/session-paths.t
 import { deleteSessionCascade, listSessionsFor, listSessionTree, type SessionListRow } from '@agent/sessions/session-queries.ts'
 import { type SpawnSubSessionParams, spawnSubSession } from '@agent/sessions/session-spawn.ts'
 import { loadSession } from '@agent/sessions/session-store.ts'
+import { type BackgroundShellEntry, listBackgroundShells, onBackgroundShells, stopBackgroundShell } from '@agent/tools/filesystem/background-shell.ts'
 import { options, type ProviderModelReasoningEffort, resolveModelRole } from '@config/options.ts'
 import type { UIMessage } from 'ai'
 
@@ -38,9 +39,11 @@ export class SessionManager {
   private readonly _maxAgents: number
   private readonly live = new Map<string, Session>()
   private readonly jobTracker = new JobTracker()
+  private readonly shellJobNotified = new Set<string>()
   constructor(init: { cwd?: string; maxAgents?: number } = {}) {
     this.cwd = resolve(init.cwd ?? options.app.cwd)
     this._maxAgents = init.maxAgents ?? options.harness.maxAgents ?? DEFAULT_MAX_AGENTS
+    onBackgroundShells((entries) => this.handleShellJobUpdates(entries))
   }
 
   get currentCwd(): string {
@@ -56,6 +59,37 @@ export class SessionManager {
   }
   get sandboxEnabled(): boolean {
     return this._sandboxEnabled
+  }
+
+  private handleShellJobUpdates(entries: Array<BackgroundShellEntry>): void {
+    for (const entry of entries) {
+      if (entry.status === 'running' || this.shellJobNotified.has(entry.id)) continue
+      this.shellJobNotified.add(entry.id)
+      const owner = entry.ownerSessionId ? this.live.get(entry.ownerSessionId) : undefined
+      if (!owner) continue
+      const exit = entry.exitCode !== undefined ? `exit ${entry.exitCode}` : entry.status
+      const tail = entry.tail.trimEnd()
+      const preview = tail.length > 2000 ? `${tail.slice(tail.length - 2000)}\n…full log at ${entry.logFile}` : tail
+      try {
+        owner.queue(`Background task ${entry.id} ("${entry.command}") finished (${exit}):\n${preview || '(no output)'}`)
+      } catch {}
+    }
+  }
+
+  shellJobs(): Array<BackgroundShellEntry> {
+    return listBackgroundShells()
+  }
+
+  runningShellJobCount(): number {
+    return listBackgroundShells().filter((entry) => entry.status === 'running').length
+  }
+
+  onShellJobs(listener: (entries: Array<BackgroundShellEntry>) => void): () => void {
+    return onBackgroundShells(listener)
+  }
+
+  async killShellJob(id: string): Promise<BackgroundShellEntry | undefined> {
+    return stopBackgroundShell(id)
   }
 
   private baseConfig(overrides: { agentId?: string; modelKey?: string; sessionId?: string; agentOverride?: AgentType; subagent?: boolean; spawn?: LoopConfig['spawn'] } = {}): LoopConfig {

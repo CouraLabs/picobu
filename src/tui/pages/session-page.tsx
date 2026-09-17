@@ -11,6 +11,7 @@ import { SessionManager } from '@agent/sessions/session-manager.ts'
 import { lastAssistantText } from '@agent/sessions/session-messages.ts'
 import { isWaiting } from '@agent/sessions/session-meta.ts'
 import { createSessionWatchdog } from '@agent/sessions/session-watchdog.ts'
+import { stopAllBackgroundShells } from '@agent/tools/filesystem/background-shell.ts'
 import { resetAuthCache } from '@auth/store.ts'
 import type { ProviderModelReasoningEffort } from '@config/options.ts'
 import { options } from '@config/options.ts'
@@ -39,7 +40,7 @@ import type { ToolFlowResponse } from '@tui/components/session/tools/tool-part.t
 import { setExitStatus } from '@tui/hooks/exit-status.ts'
 import { useAppKeyboard } from '@tui/hooks/keyboard-provider.tsx'
 import { requestAppReload, setLastSessionId } from '@tui/hooks/reload-bus.ts'
-import { DOUBLE_PRESS_WINDOW_MS, isCycleEffortKey, isExitKey, isJobsKey, isModelKey, isSteerKey } from '@tui/keybindings.ts'
+import { DOUBLE_PRESS_WINDOW_MS, isCycleEffortKey, isExitKey, isJobsKey, isModelKey, isSandboxKey, isSteerKey } from '@tui/keybindings.ts'
 import type { CreateUIMessage } from 'ai'
 import { batch, createEffect, createSignal, getOwner, onCleanup, onMount, runWithOwner } from 'solid-js'
 import { type StatsStatusState, shouldSyncStats, toStatsState } from './session-stats-sync.ts'
@@ -132,6 +133,8 @@ export const SessionPage = (props: SessionPageProps) => {
   const [statsPerformance, setStatsPerformance] = createSignal<LoopStats['performance']>(undefined)
   const [statsMetrics, setStatsMetrics] = createSignal<(Pick<LoopStats, 'total'> & { stepCount: number }) | undefined>(undefined)
   const sessionMgr = new SessionManager()
+  const [sandboxOn, setSandboxOn] = createSignal(sessionMgr.sandboxEnabled)
+  const [bgJobs, setBgJobs] = createSignal(sessionMgr.runningShellJobCount())
   const renderer = useRenderer()
   const watchdog = createSessionWatchdog({ staleTimeoutMs: options.watchdog.staleTimeoutMs })
   let lastEsc = 0
@@ -463,6 +466,15 @@ export const SessionPage = (props: SessionPageProps) => {
         }
         return
       }
+      if (isSandboxKey(key)) {
+        key.preventDefault()
+        key.stopPropagation()
+        const next = !sessionMgr.sandboxEnabled
+        sessionMgr.setSandbox(next)
+        setSandboxOn(next)
+        pushToast(next ? 'Sandbox enabled — takes effect on next run' : 'Sandbox disabled — takes effect on next run', next ? 'success' : 'warning')
+        return
+      }
       if (isModelKey(key)) {
         key.preventDefault()
         key.stopPropagation()
@@ -474,6 +486,7 @@ export const SessionPage = (props: SessionPageProps) => {
 
   onMount(() => {
     void openSession(activeId())
+    const detachShellJobs = sessionMgr.onShellJobs((entries) => setBgJobs(entries.filter((entry) => entry.status === 'running').length))
     const mcpTimer = setInterval(() => refreshMcp(session()), 15000)
     const watchdogTimer = setInterval(() => {
       const target = session()
@@ -502,6 +515,7 @@ export const SessionPage = (props: SessionPageProps) => {
     onCleanup(() => {
       clearInterval(mcpTimer)
       clearInterval(watchdogTimer)
+      detachShellJobs()
       detachQueue?.()
       detachStats?.()
       resetStatsThrottle()
@@ -630,6 +644,7 @@ export const SessionPage = (props: SessionPageProps) => {
     try {
       await target?.flush()
     } catch {}
+    await stopAllBackgroundShells().catch(() => {})
     setExitStatus(
       target
         ? {
@@ -1052,6 +1067,8 @@ export const SessionPage = (props: SessionPageProps) => {
           mode={mode()}
           waiting={waiting() || answering()}
           mcp={mcp()}
+          sandbox={sandboxOn()}
+          bgJobs={bgJobs()}
           provider={modelKey() ? { id: modelKey()?.split('/')[0] ?? '' } : undefined}
           statsStatus={statsStatus()}
           statsPerformance={statsPerformance()}

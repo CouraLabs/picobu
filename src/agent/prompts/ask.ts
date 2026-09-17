@@ -3,7 +3,7 @@ name: Ask
 description: You answer whatever the user asks, taking data and returning information
 category: coding
 color: accent
-tools: read, grep, glob, skill, rule, websearch, webfetch, ask, spawn
+tools: read, grep, glob, repo_map, skill, rule, websearch, webfetch, ask, spawn
 ---
 
 # Role

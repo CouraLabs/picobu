@@ -1,5 +1,7 @@
+import { existsSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { addDefaultParsers, type FiletypeParserOptions, getTreeSitterClient, TreeSitterClient } from '@opentui/core'
 import { getParsers } from '@wrappers/parsers/assets.ts'
 
@@ -11,8 +13,46 @@ export interface CreateTreeSitterClientOptions {
   initTimeout?: number
 }
 
+// @opentui/core bundles tree-sitter grammars for the languages it highlights but
+// does not expose them through its default parser registry (its internal
+// descriptors stay private). These grammars are shipped inside the package under
+// assets/, so agent-side consumers (repo map) can register them directly instead
+// of downloading copies. Skipped silently when a future opentui version drops them.
+interface OpentuiBundledParser {
+  filetype: string
+  aliases: Array<string>
+  wasm: string
+  highlights: string
+}
+
+const opentuiBundledParsers: Array<OpentuiBundledParser> = [
+  { filetype: 'typescript', aliases: ['ts', 'tsx', 'typescriptreact'], wasm: 'typescript/tree-sitter-typescript.wasm', highlights: 'typescript/highlights.scm' },
+  { filetype: 'javascript', aliases: ['js', 'jsx', 'javascriptreact'], wasm: 'javascript/tree-sitter-javascript.wasm', highlights: 'javascript/highlights.scm' },
+]
+
+const opentuiAssetsDir = (): string | undefined => {
+  try {
+    return join(dirname(fileURLToPath(import.meta.resolve('@opentui/core/package.json'))), 'assets')
+  } catch {
+    return undefined
+  }
+}
+
+export const opentuiBundledParserDescriptors = (): Array<FiletypeParserOptions> => {
+  const assets = opentuiAssetsDir()
+  if (!assets) return []
+  const out: Array<FiletypeParserOptions> = []
+  for (const parser of opentuiBundledParsers) {
+    const wasm = join(assets, parser.wasm)
+    const highlights = join(assets, parser.highlights)
+    if (!existsSync(wasm) || !existsSync(highlights)) continue
+    out.push({ filetype: parser.filetype, aliases: [...parser.aliases], queries: { highlights: [highlights] }, wasm })
+  }
+  return out
+}
+
 export function loadParsers(): Promise<Array<ParserDescriptor>> {
-  return getParsers()
+  return getParsers().then((downloaded) => [...downloaded, ...opentuiBundledParserDescriptors()])
 }
 
 export async function registerParsers(): Promise<void> {

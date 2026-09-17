@@ -1,5 +1,6 @@
 import { isAbsolute, relative, resolve } from 'node:path'
-import { killProcessTree, shellSpec } from '@agent/tools/sandbox.ts'
+import { startBackgroundShell } from '@agent/tools/filesystem/background-shell.ts'
+import { killProcessTree, sandboxRoot, shellSpec } from '@agent/tools/sandbox.ts'
 import type { ToolExecuteOptions } from '@agent/tools/toolset.ts'
 import { MAX_TOOL_OUTPUT_BYTES, MAX_TOOL_OUTPUT_LINES, tailText, writeFullToolOutput } from '@agent/tools/truncate-output.ts'
 import { options } from '@config/options.ts'
@@ -8,8 +9,9 @@ export const ShellToolArgsSchema = z.object({
   command: z.string(),
   cwd: z.string().optional(),
   timeout: z.number().int().min(1).max(600).optional().describe('Timeout in seconds (1-600, default 120).'),
+  run_in_background: z.boolean().optional().describe('Start the command in the background and return a taskId immediately; collect output later with task_output.'),
 })
-export const ShellToolOutputSchema = z.union([z.object({ progress: z.string() }), z.string()])
+export const ShellToolOutputSchema = z.union([z.object({ progress: z.string() }), z.string(), z.object({ taskId: z.string(), outputFile: z.string(), note: z.string() })])
 type ShellToolArgs = z.infer<typeof ShellToolArgsSchema>
 type ShellToolChunk = z.infer<typeof ShellToolOutputSchema>
 const DEFAULT_TIMEOUT_SECONDS = 120
@@ -151,18 +153,44 @@ const runStreaming = async function* (label: string, child: Child, toolOptions: 
     resolveCancel('cancel')
   }
 }
-export function createShellTool() {
+export function createShellTool(ctx: { sessionId?: string; allowBackground?: boolean } = {}) {
+  const allowBackground = ctx.allowBackground !== false
+  const parameters = allowBackground ? ShellToolArgsSchema : ShellToolArgsSchema.extend({}).omit({ run_in_background: true })
   return {
     name: 'shell',
-    description:
-      'Run a shell command; streams output live, kills on timeout. Large output is tailed near 50KB/2000 lines with the full log spilled to a file. Prefer read/write/edit/glob/grep when they fit. Run expensive commands once and filter the output file instead of re-running to re-filter.',
-    parameters: ShellToolArgsSchema,
+    description: allowBackground
+      ? 'Run a shell command; streams output live, kills on timeout. Large output is tailed near 50KB/2000 lines with the full log spilled to a file. Prefer read/write/edit/glob/grep when they fit. Run expensive commands once and filter the output file instead of re-running to re-filter. Use run_in_background for dev servers, watchers and long builds, then collect with task_output.'
+      : 'Run a shell command; streams output live, kills on timeout. Large output is tailed near 50KB/2000 lines with the full log spilled to a file. Prefer read/write/edit/glob/grep when they fit. Run expensive commands once and filter the output file instead of re-running to re-filter.',
+    parameters,
     output: ShellToolOutputSchema,
     isTerminal: true,
     overridesBuiltInTool: true,
     skipPermission: true,
     defer: 'auto',
     handler: async function* (args: ShellToolArgs, toolOptions?: ToolExecuteOptions): AsyncGenerator<ShellToolChunk> {
+      if (args.run_in_background) {
+        const sandboxRootPath = sandboxRoot(toolOptions?.experimental_sandbox) ?? process.cwd()
+        if (args.cwd) {
+          const cwdPath = resolve(sandboxRootPath, args.cwd)
+          const rel = relative(sandboxRootPath, cwdPath)
+          if (rel !== '' && (rel === '..' || rel.startsWith('../') || isAbsolute(rel))) {
+            throw new Error(`Working directory escapes allowed root: ${args.cwd}`)
+          }
+        }
+        const entry = startBackgroundShell({
+          command: args.command,
+          cwd: args.cwd,
+          ...(ctx.sessionId ? { ownerSessionId: ctx.sessionId } : {}),
+          ...(toolOptions?.experimental_sandbox ? { sandbox: toolOptions.experimental_sandbox } : {}),
+          ...(toolOptions?.abortSignal ? { abortSignal: toolOptions.abortSignal } : {}),
+        })
+        yield {
+          taskId: entry.id,
+          outputFile: entry.logFile,
+          note: `Command running in background as ${entry.id}. Full output streams to ${entry.logFile}. Collect results with task_output (block: true) when you need them; do not poll in a loop.`,
+        }
+        return
+      }
       const sandbox = toolOptions?.experimental_sandbox
       const timeoutSeconds = args.timeout ?? DEFAULT_TIMEOUT_SECONDS
       let child: Child
