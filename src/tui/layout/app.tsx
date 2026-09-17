@@ -1,5 +1,5 @@
 import { TextAttributes } from '@opentui/core'
-import { useKeyboard, useRenderer, useTerminalDimensions } from '@opentui/solid'
+import { useRenderer, useTerminalDimensions } from '@opentui/solid'
 import { dialogStatus } from '@states/dialog.state.ts'
 import { indexOfTheme, setTheme, theme, themeInfo, themeOptions, themes, toggleThemeVariant } from '@states/theme-state.ts'
 import { pushToast } from '@states/toast.state.ts'
@@ -10,6 +10,7 @@ import { openHelpDialog } from '@tui/components/session/help-dialog.tsx'
 import { StatusSeparator } from '@tui/components/shared/status-separator.tsx'
 import { TooltipLayer } from '@tui/components/tooltip.tsx'
 import { getClipboardService } from '@tui/hooks/clipboard.state.ts'
+import { useAppKeyboard } from '@tui/hooks/keyboard-provider.tsx'
 import { getLastSessionId } from '@tui/hooks/reload-bus.ts'
 import { focusedHandlesCopy, hasRendererSelection, rendererCopyText } from '@tui/hooks/selection.ts'
 import { TerminalDimsProvider } from '@tui/hooks/terminal-dims.tsx'
@@ -41,7 +42,7 @@ export const App = (props: { sessionId?: string } = {}) => {
     return true
   }
 
-  useKeyboard((key) => {
+  useAppKeyboard((key) => {
     if (dialogStatus().status === 'open') return
     if (isCopyKey(key)) {
       if (focusedHandlesCopy(renderer)) return
@@ -59,7 +60,7 @@ export const App = (props: { sessionId?: string } = {}) => {
     }
   })
 
-  useKeyboard((key) => {
+  useAppKeyboard((key) => {
     if (!isHelpKey(key)) return
     if (dialogStatus().status === 'open') return
     key.preventDefault()

@@ -15,7 +15,7 @@ import { resetAuthCache } from '@auth/store.ts'
 import type { ProviderModelReasoningEffort } from '@config/options.ts'
 import { options } from '@config/options.ts'
 import { resetMcpAuthCache } from '@integrations/mcp/auth.ts'
-import { useKeyboard, useRenderer } from '@opentui/solid'
+import { useRenderer } from '@opentui/solid'
 import { setConsoleTitle } from '@shared/console-title.ts'
 import { getGitInfo } from '@shared/git-info.ts'
 import { logError, setLogRunId } from '@shared/logger.ts'
@@ -37,6 +37,7 @@ import { getModelContextSize } from '@tui/components/session/status/status-meta.
 import { openSubagentMessages } from '@tui/components/session/subagent-dialog.tsx'
 import type { ToolFlowResponse } from '@tui/components/session/tools/tool-part.tsx'
 import { setExitStatus } from '@tui/hooks/exit-status.ts'
+import { useAppKeyboard } from '@tui/hooks/keyboard-provider.tsx'
 import { requestAppReload, setLastSessionId } from '@tui/hooks/reload-bus.ts'
 import { isExitKey, isJobsKey, isModelKey, isSteerKey } from '@tui/keybindings.ts'
 import type { CreateUIMessage } from 'ai'
@@ -385,7 +386,7 @@ export const SessionPage = (props: SessionPageProps) => {
     }
   }
 
-  useKeyboard((key) => {
+  useAppKeyboard((key) => {
     if (dialogStatus().status === 'open') return
     const target = session()
     if (!target) return

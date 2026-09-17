@@ -1,14 +1,17 @@
 import { type BoxRenderable, type MouseEvent, RGBA } from '@opentui/core'
-import { useKeyboard } from '@opentui/solid'
 import { closeDialog, dialogStatus } from '@states/dialog.state.ts'
+import { dropdownState } from '@states/dropdown.state.ts'
 import { theme } from '@states/theme-state.ts'
+import { useAppKeyboard } from '@tui/hooks/keyboard-provider.tsx'
+import { requestPromptFocus } from '@tui/hooks/prompt-focus.ts'
 import { createEffect } from 'solid-js'
 
 export const Dialog = () => {
   let backdropRef: BoxRenderable | null = null
   let panelRef: BoxRenderable | null = null
+  let wasOpen = false
 
-  useKeyboard((key) => {
+  useAppKeyboard((key) => {
     if (dialogStatus().status !== 'open') return false
     if (key.name === 'escape') {
       closeDialog()
@@ -26,6 +29,15 @@ export const Dialog = () => {
 
   createEffect(() => {
     if (dialogStatus().status === 'open') panelRef?.focus()
+  })
+
+  createEffect(() => {
+    const open = dialogStatus().status === 'open'
+    if (wasOpen && !open)
+      queueMicrotask(() => {
+        if (dialogStatus().status === 'close' && dropdownState() === null) requestPromptFocus()
+      })
+    wasOpen = open
   })
 
   return (

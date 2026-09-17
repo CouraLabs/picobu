@@ -13,6 +13,7 @@ import { bumpCatalog } from '@states/catalog-state.ts'
 import { theme } from '@states/theme-state.ts'
 import { pushToast } from '@states/toast.state.ts'
 import { Splash } from '@tui/components/splash.tsx'
+import { KeyboardProvider } from '@tui/hooks/keyboard-provider.tsx'
 import { App } from '@tui/layout/app.tsx'
 import { closeMessage } from '@tui/themes/logo.ts'
 import { getSharedTreeSitterClient, registerParsers } from '@wrappers/treesitter-wrapper.ts'
@@ -169,11 +170,13 @@ const startTui = async (options: TuiAppOptions, unguard: (() => void) | undefine
     renderer.setMaxListeners(0)
     await render(
       () => (
-        <Show when={ready()} fallback={<Splash />}>
-          <ClipboardProvider clipboardService={clipboardService}>
-            <App sessionId={options.sessionId} />
-          </ClipboardProvider>
-        </Show>
+        <KeyboardProvider>
+          <Show when={ready()} fallback={<Splash />}>
+            <ClipboardProvider clipboardService={clipboardService}>
+              <App sessionId={options.sessionId} />
+            </ClipboardProvider>
+          </Show>
+        </KeyboardProvider>
       ),
       renderer,
     )

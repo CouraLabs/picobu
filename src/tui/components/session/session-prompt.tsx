@@ -3,11 +3,12 @@ import { SYSTEM_COMMANDS, toKebab, tokenizeCommandLine } from '@agent/commands/p
 import type { CommandKind } from '@agent/commands/types.ts'
 import { addPrompt, clearDraft, loadDraft, loadPromptHistory, saveDraft } from '@agent/sessions/prompt-history.ts'
 import type { MouseEvent, ScrollBoxRenderable, TextareaRenderable } from '@opentui/core'
-import { useKeyboard } from '@opentui/solid'
 import { catalogVersion } from '@states/catalog-state.ts'
 import { theme } from '@states/theme-state.ts'
 import { pushToast } from '@states/toast.state.ts'
 import { getClipboardService } from '@tui/hooks/clipboard.state.ts'
+import { useAppKeyboard } from '@tui/hooks/keyboard-provider.tsx'
+import { usePromptFocus } from '@tui/hooks/prompt-focus.ts'
 import { useTerminalDims } from '@tui/hooks/terminal-dims.tsx'
 import { isCopyKey, isPasteKey, isSelectAllKey } from '@tui/keybindings.ts'
 import { icons } from '@tui/themes/icons.ts'
@@ -97,6 +98,7 @@ export const nextFileSeq = (staged: Array<AttachedFile>): number => {
 export const SessionPrompt = (props: SessionPromptProps) => {
   const merged = mergeProps({ streaming: false, waiting: false }, props)
   let textareaRef: TextareaRenderable | null = null
+  usePromptFocus(() => textareaRef?.focus())
   const [text, setText] = createSignal('')
   const [highlight, setHighlight] = createSignal(0)
   const [history, setHistory] = createSignal<Array<string>>([])
@@ -281,7 +283,7 @@ export const SessionPrompt = (props: SessionPromptProps) => {
     textareaRef?.focus()
   }
 
-  useKeyboard((key) => {
+  useAppKeyboard((key) => {
     if (!commandOpen()) return
     if (key.name === 'up') {
       key.preventDefault()
@@ -354,7 +356,7 @@ export const SessionPrompt = (props: SessionPromptProps) => {
 
   let lastHistoryKey: HistoryKeyPress | null = null
 
-  useKeyboard((key) => {
+  useAppKeyboard((key) => {
     if (key.name !== 'up' && key.name !== 'down') return
     if (key.ctrl || key.meta || key.super) return
     if (!textareaRef?.focused) return
@@ -371,7 +373,7 @@ export const SessionPrompt = (props: SessionPromptProps) => {
     else cycleForward()
   })
 
-  useKeyboard((key) => {
+  useAppKeyboard((key) => {
     if (!isSelectAllKey(key)) return
     if (!textareaRef?.focused) return
     key.preventDefault()
@@ -474,7 +476,7 @@ export const SessionPrompt = (props: SessionPromptProps) => {
       })
   }
 
-  useKeyboard((key) => {
+  useAppKeyboard((key) => {
     if (!isCopyKey(key) && !isPasteKey(key)) return
     if (!textareaRef?.focused) return
     if (isCopyKey(key)) {

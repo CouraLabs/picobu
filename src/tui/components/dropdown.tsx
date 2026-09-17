@@ -1,10 +1,12 @@
 import { type BoxRenderable, RGBA } from '@opentui/core'
-import { useKeyboard } from '@opentui/solid'
+import { dialogStatus } from '@states/dialog.state.ts'
 import { closeDropdown, dropdownState, openDropdown } from '@states/dropdown.state.ts'
 import { theme } from '@states/theme-state.ts'
 import { Marquee } from '@tui/components/marquee.tsx'
+import { useAppKeyboard } from '@tui/hooks/keyboard-provider.tsx'
+import { requestPromptFocus } from '@tui/hooks/prompt-focus.ts'
 import { useTerminalDims } from '@tui/hooks/terminal-dims.tsx'
-import { createComputed, createMemo, createSignal, For, mergeProps, on } from 'solid-js'
+import { createComputed, createEffect, createMemo, createSignal, For, mergeProps, on } from 'solid-js'
 export interface DropdownOption {
   name: string
   value?: unknown
@@ -79,6 +81,15 @@ export const DropdownLayer = () => {
   let popupRef: BoxRenderable | null = null
   const state = createMemo(() => dropdownState())
   const open = () => state() !== null
+  let wasOpen = false
+  createEffect(() => {
+    const nowOpen = state() !== null
+    if (wasOpen && !nowOpen)
+      queueMicrotask(() => {
+        if (state() === null && dialogStatus().status === 'close') requestPromptFocus()
+      })
+    wasOpen = nowOpen
+  })
   const options = () => state()?.options ?? []
   const maxVisible = () => state()?.maxVisible ?? 6
   const maxWidth = () => state()?.maxWidth ?? 20
@@ -131,7 +142,7 @@ export const DropdownLayer = () => {
     closeDropdown()
     s.onSelect(option, index)
   }
-  useKeyboard((key) => {
+  useAppKeyboard((key) => {
     if (!open()) return false
     if (popupRef && !popupRef.focused && !popupRef.hasFocusedDescendant) return false
     if (key.name === 'escape') {

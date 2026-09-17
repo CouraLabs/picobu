@@ -1,10 +1,10 @@
 import type { BoxRenderable, InputRenderable, TextareaRenderable } from '@opentui/core'
-import { useKeyboard } from '@opentui/solid'
 import { clip } from '@shared/format.ts'
 import { theme } from '@states/theme-state.ts'
 import { pushToast } from '@states/toast.state.ts'
 import { Button } from '@tui/components/button.tsx'
 import { getClipboardService } from '@tui/hooks/clipboard.state.ts'
+import { useAppKeyboard } from '@tui/hooks/keyboard-provider.tsx'
 import { icons } from '@tui/themes/icons.ts'
 import { createSignal, For, Show } from 'solid-js'
 
@@ -72,7 +72,7 @@ export const PlanReview = (props: PlanReviewProps) => {
     }
   }
 
-  useKeyboard((key) => {
+  useAppKeyboard((key) => {
     if (key.name !== 'return' && key.name !== 'enter') return
     const index = openLine()
     if (index === undefined) return

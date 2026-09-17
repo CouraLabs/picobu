@@ -1,7 +1,7 @@
 import { listProviders } from '@auth/oauth-providers.ts'
 import type { InputRenderable, ScrollBoxRenderable } from '@opentui/core'
-import { useKeyboard } from '@opentui/solid'
 import { theme } from '@states/theme-state.ts'
+import { useAppKeyboard } from '@tui/hooks/keyboard-provider.tsx'
 import { useTerminalDims } from '@tui/hooks/terminal-dims.tsx'
 import { icons } from '@tui/themes/icons.ts'
 import { createEffect, createMemo, createSignal, For, onMount, Show } from 'solid-js'
@@ -104,7 +104,7 @@ export const ModelSelect = (props: ModelSelectProps) => {
     props.onSelect(row.key)
   }
 
-  useKeyboard((key) => {
+  useAppKeyboard((key) => {
     if (key.name === 'up') {
       key.preventDefault()
       key.stopPropagation()
