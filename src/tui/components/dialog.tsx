@@ -4,6 +4,7 @@ import { dropdownState } from '@states/dropdown.state.ts'
 import { theme } from '@states/theme-state.ts'
 import { useAppKeyboard } from '@tui/hooks/keyboard-provider.tsx'
 import { requestPromptFocus } from '@tui/hooks/prompt-focus.ts'
+import { isHelpKey, isJobsKey, isModelKey } from '@tui/keybindings.ts'
 import { createEffect } from 'solid-js'
 
 export const Dialog = () => {
@@ -11,14 +12,17 @@ export const Dialog = () => {
   let panelRef: BoxRenderable | null = null
   let wasOpen = false
 
-  useAppKeyboard((key) => {
-    if (dialogStatus().status !== 'open') return false
-    if (key.name === 'escape') {
-      closeDialog()
-      return true
-    }
-    return false
-  })
+  useAppKeyboard(
+    (key) => {
+      if (dialogStatus().status !== 'open') return
+      if (key.name === 'escape' || isHelpKey(key) || isJobsKey(key) || isModelKey(key)) {
+        key.preventDefault()
+        key.stopPropagation()
+        closeDialog()
+      }
+    },
+    { release: true },
+  )
 
   const handleBackdropMouseUp = (event: MouseEvent) => {
     if (event.target === backdropRef) {

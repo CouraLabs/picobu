@@ -10,7 +10,7 @@ import { getClipboardService } from '@tui/hooks/clipboard.state.ts'
 import { useAppKeyboard } from '@tui/hooks/keyboard-provider.tsx'
 import { usePromptFocus } from '@tui/hooks/prompt-focus.ts'
 import { useTerminalDims } from '@tui/hooks/terminal-dims.tsx'
-import { isCopyKey, isPasteKey, isSelectAllKey } from '@tui/keybindings.ts'
+import { isCopyKey, isSelectAllKey } from '@tui/keybindings.ts'
 import { icons } from '@tui/themes/icons.ts'
 import { batch, createEffect, createMemo, createSignal, For, mergeProps, on, onCleanup, onMount, Show } from 'solid-js'
 
@@ -58,14 +58,10 @@ const DRAFT_DEBOUNCE_MS = 450
 const MAX_FILES = 5
 const MAX_FILE_BYTES = 10 * 1024 * 1024
 
-export const HISTORY_DOUBLE_PRESS_MS = 200
-
-export interface HistoryKeyPress {
-  name: 'up' | 'down'
-  time: number
+export const nextHistoryIndex = (current: number, length: number): number => {
+  if (length === 0) return -1
+  return current === length - 1 ? -1 : current + 1
 }
-
-export const isDoublePress = (prev: HistoryKeyPress | null, name: HistoryKeyPress['name'], now: number): boolean => prev !== null && prev.name === name && now - prev.time <= HISTORY_DOUBLE_PRESS_MS
 
 const fmtSize = (bytes: number): string => {
   if (bytes < 1024) return `${bytes}B`
@@ -296,54 +292,35 @@ export const SessionPrompt = (props: SessionPromptProps) => {
       const len = filteredItems().length
       setHighlight((h) => (h + 1) % Math.max(1, len))
     } else if (key.name === 'tab') {
+      if (key.shift) return
       key.preventDefault()
       key.stopPropagation()
-      completeItem(highlight())
+      if (isFlyoutOpen() && navIndex() === -1) completeItem(highlight())
+      else cycleForward()
     }
   })
-
-  const cycleBack = () => {
-    const items = history()
-    if (items.length === 0) return
-    if (navIndex() === -1) {
-      draftStash = textareaRef?.plainText ?? ''
-      const idx = items.length - 1
-      const next = items[idx] ?? ''
-      textareaRef?.setText(next)
-      batch(() => {
-        setNavIndex(idx)
-        setText(next)
-      })
-    } else if (navIndex() > 0) {
-      const idx = navIndex() - 1
-      const next = items[idx] ?? ''
-      textareaRef?.setText(next)
-      batch(() => {
-        setNavIndex(idx)
-        setText(next)
-      })
-    }
-    textareaRef?.gotoBufferEnd()
-  }
 
   const cycleForward = () => {
     const items = history()
     if (navIndex() === -1) {
-      if (draftStash.length > 0) {
-        textareaRef?.setText(draftStash)
-        setText(draftStash)
-        draftStash = ''
-      }
-      return
-    }
-    if (navIndex() >= items.length - 1) {
+      if (items.length === 0) return
+      const current = textareaRef?.plainText ?? ''
+      if (current.trim().length > 0) saveDraft(current, merged.historyProjectKey)
+      draftStash = current
+      const next = items[0] ?? ''
+      textareaRef?.setText(next)
+      batch(() => {
+        setNavIndex(0)
+        setText(next)
+      })
+    } else if (navIndex() >= items.length - 1) {
       textareaRef?.setText(draftStash)
       batch(() => {
         setNavIndex(-1)
         setText(draftStash)
       })
     } else {
-      const idx = navIndex() + 1
+      const idx = nextHistoryIndex(navIndex(), items.length)
       const next = items[idx] ?? ''
       textareaRef?.setText(next)
       batch(() => {
@@ -354,32 +331,26 @@ export const SessionPrompt = (props: SessionPromptProps) => {
     textareaRef?.gotoBufferEnd()
   }
 
-  let lastHistoryKey: HistoryKeyPress | null = null
-
   useAppKeyboard((key) => {
-    if (key.name !== 'up' && key.name !== 'down') return
+    if (key.name !== 'tab' || key.shift) return
     if (key.ctrl || key.meta || key.super) return
+    if (commandOpen()) return
     if (!textareaRef?.focused) return
-    if (isFlyoutOpen()) return
-    const now = Date.now()
-    if (!isDoublePress(lastHistoryKey, key.name, now)) {
-      lastHistoryKey = { name: key.name, time: now }
-      return
-    }
-    lastHistoryKey = null
     key.preventDefault()
     key.stopPropagation()
-    if (key.name === 'up') cycleBack()
-    else cycleForward()
+    cycleForward()
   })
 
-  useAppKeyboard((key) => {
-    if (!isSelectAllKey(key)) return
-    if (!textareaRef?.focused) return
-    key.preventDefault()
-    key.stopPropagation()
-    textareaRef?.selectAll()
-  })
+  useAppKeyboard(
+    (key) => {
+      if (!isSelectAllKey(key)) return
+      if (!textareaRef?.focused) return
+      key.preventDefault()
+      key.stopPropagation()
+      textareaRef?.selectAll()
+    },
+    { release: true },
+  )
 
   const tokenPreview = createMemo(() => tokenizeCommandLine(text()))
 
@@ -476,20 +447,17 @@ export const SessionPrompt = (props: SessionPromptProps) => {
       })
   }
 
-  useAppKeyboard((key) => {
-    if (!isCopyKey(key) && !isPasteKey(key)) return
-    if (!textareaRef?.focused) return
-    if (isCopyKey(key)) {
+  useAppKeyboard(
+    (key) => {
+      if (!isCopyKey(key)) return
+      if (!textareaRef?.focused) return
       if (!textareaRef?.hasSelection()) return
       key.preventDefault()
       key.stopPropagation()
       copySelection()
-    } else {
-      key.preventDefault()
-      key.stopPropagation()
-      pasteClipboard()
-    }
-  })
+    },
+    { release: true },
+  )
 
   const handleMouseDown = (e: MouseEvent) => {
     if (!textareaRef) return
@@ -596,7 +564,7 @@ export const SessionPrompt = (props: SessionPromptProps) => {
             </scrollbox>
             <box flexShrink={0} paddingX={1}>
               <text fg={theme().textMuted}>
-                {highlight() + 1}/{filteredItems().length} — arrows to navigate, TAB to complete
+                {highlight() + 1}/{filteredItems().length} — arrows to navigate, TAB to complete or cycle history
               </text>
             </box>
           </box>
@@ -627,6 +595,10 @@ export const SessionPrompt = (props: SessionPromptProps) => {
             cursorColor={theme().accent}
             textColor={theme().text}
             onSubmit={submit}
+            onPaste={(event) => {
+              event.preventDefault()
+              pasteClipboard()
+            }}
             onContentChange={() => {
               const next = textareaRef?.plainText ?? ''
               if (navIndex() !== -1 && next !== (history()[navIndex()] ?? '')) setNavIndex(-1)

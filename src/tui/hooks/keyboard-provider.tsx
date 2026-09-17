@@ -3,7 +3,24 @@ import { useKeyboard } from '@opentui/solid'
 import { type Accessor, createContext, createSignal, onCleanup, type ParentProps, useContext } from 'solid-js'
 
 export interface UseAppKeyboardOptions {
+  /** Handle release events instead of presses. Falls back to presses on terminals that cannot report key releases. */
   release?: boolean
+}
+
+let releasesSupported = false
+
+export const setKeyboardReleasesSupported = (supported: boolean): void => {
+  releasesSupported = supported
+}
+
+// Dispatch contract: release entries get release events; press entries get press events.
+// Holding a key emits repeat events, which must never re-trigger release-based actions.
+// On terminals that cannot report key releases (no kitty keyboard protocol), release
+// entries fall back to receiving press events so shortcuts keep working.
+export const deliversEvent = (entryRelease: boolean, eventType: string, supportsReleases: boolean): boolean => {
+  if (eventType === 'release') return entryRelease
+  if (entryRelease) return !supportsReleases && eventType === 'press'
+  return true
 }
 
 interface KeyboardEntry {
@@ -33,9 +50,8 @@ export const KeyboardProvider = (props: ParentProps) => {
   }
   useKeyboard(
     (key: KeyEvent) => {
-      const isRelease = key.eventType === 'release'
       for (const entry of entries()) {
-        if (isRelease && !entry.release) continue
+        if (!deliversEvent(entry.release, key.eventType, releasesSupported)) continue
         try {
           entry.handler(key)
         } catch (error) {

@@ -14,7 +14,7 @@ import { useAppKeyboard } from '@tui/hooks/keyboard-provider.tsx'
 import { getLastSessionId } from '@tui/hooks/reload-bus.ts'
 import { focusedHandlesCopy, hasRendererSelection, rendererCopyText } from '@tui/hooks/selection.ts'
 import { TerminalDimsProvider } from '@tui/hooks/terminal-dims.tsx'
-import { isCopyKey, isHelpKey } from '@tui/keybindings.ts'
+import { isClaimedChord, isCopyKey, isHelpKey } from '@tui/keybindings.ts'
 import { SessionPage } from '@tui/pages/session-page.tsx'
 import { icons } from '@tui/themes/icons.ts'
 import { createMemo, createSignal } from 'solid-js'
@@ -42,31 +42,45 @@ export const App = (props: { sessionId?: string } = {}) => {
     return true
   }
 
+  // Claims the presses of release-acted chords so textarea defaults (delete-line,
+  // kill-line, line-home, focus cycling on tab) never fire; the real actions run on
+  // release in the handlers below.
   useAppKeyboard((key) => {
     if (dialogStatus().status === 'open') return
-    if (isCopyKey(key)) {
-      if (focusedHandlesCopy(renderer)) return
-      if (!hasRendererSelection(renderer)) return
-      key.preventDefault()
-      key.stopPropagation()
-      copyRendererSelection()
-      return
-    }
-    if (key.name === 'escape') {
-      if (!hasRendererSelection(renderer)) return
-      key.preventDefault()
-      key.stopPropagation()
-      renderer.clearSelection()
-    }
+    if (isClaimedChord(key)) key.preventDefault()
   })
 
-  useAppKeyboard((key) => {
-    if (!isHelpKey(key)) return
-    if (dialogStatus().status === 'open') return
-    key.preventDefault()
-    key.stopPropagation()
-    openHelpDialog()
-  })
+  useAppKeyboard(
+    (key) => {
+      if (dialogStatus().status === 'open') return
+      if (isCopyKey(key)) {
+        if (focusedHandlesCopy(renderer)) return
+        if (!hasRendererSelection(renderer)) return
+        key.preventDefault()
+        key.stopPropagation()
+        copyRendererSelection()
+        return
+      }
+      if (key.name === 'escape') {
+        if (!hasRendererSelection(renderer)) return
+        key.preventDefault()
+        key.stopPropagation()
+        renderer.clearSelection()
+      }
+    },
+    { release: true },
+  )
+
+  useAppKeyboard(
+    (key) => {
+      if (!isHelpKey(key)) return
+      if (dialogStatus().status === 'open') return
+      key.preventDefault()
+      key.stopPropagation()
+      openHelpDialog()
+    },
+    { release: true },
+  )
 
   const pages = [{ id: 'app-tab-session', label: 'session' }]
 
@@ -85,17 +99,14 @@ export const App = (props: { sessionId?: string } = {}) => {
               <Button label={themeInfo().variant} onClick={() => toggleThemeVariant()} />
               <StatusSeparator sep={icons.middleDot} />
               <text fg={theme().text} attributes={TextAttributes.DIM}>
-                {icons.control}
-                {icons.shift}H / F1
+                F1
               </text>
               <text fg={theme().textMuted} attributes={TextAttributes.DIM}>
                 (help)
               </text>
               <StatusSeparator sep={icons.middleDot} />
               <text fg={theme().text} attributes={TextAttributes.DIM}>
-                {icons.control}
-                {icons.shift}D {icons.control}
-                {icons.shift}D / F10
+                {icons.control}D {icons.control}D / F10
               </text>
               <text fg={theme().textMuted} attributes={TextAttributes.DIM}>
                 (exit)

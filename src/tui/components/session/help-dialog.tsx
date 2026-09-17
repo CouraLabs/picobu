@@ -12,19 +12,20 @@ import { getSharedTreeSitterClientSync } from '@wrappers/treesitter-wrapper.ts'
 import { createMemo, createSignal, onMount } from 'solid-js'
 
 const shortcuts: Array<{ keys: string; what: string }> = [
-  { keys: 'CTRL + SHIFT + H / F1', what: 'Open this help' },
-  { keys: 'CTRL + SHIFT + D CTRL + SHIFT + D / F10', what: 'Exit the app' },
+  { keys: 'F1', what: 'Open / close this help' },
+  { keys: 'CTRL + D CTRL + D / F10', what: 'Exit the app' },
   { keys: 'ESC ESC', what: 'Answer flow first, then move newest queued prompt back to edit, then stop the run' },
-  { keys: 'CTRL + C / CTRL + SHIFT + C / CMD + C', what: 'Copy selected text' },
-  { keys: 'CTRL + V / CTRL + SHIFT + V / CMD + V', what: 'Paste into the prompt' },
-  { keys: 'CTRL + SHIFT + M / CTRL + SHIFT + O / F2', what: 'Change model' },
-  { keys: 'CTRL + SHIFT + J / F3', what: 'Subagent jobs' },
-  { keys: 'CTRL + SHIFT + W / F4', what: 'Toggle steer mode (steer never clears the queue)' },
-  { keys: 'TAB', what: 'Cycle agent' },
-  { keys: 'SHIFT + TAB', what: 'Cycle thinking level' },
-  { keys: 'UP / DOWN', what: 'Prompt history on first / last line (disabled while the command flyout is open)' },
+  { keys: 'ESC', what: 'Close dialogs' },
+  { keys: 'CTRL + C', what: 'Copy selected text' },
+  { keys: 'CTRL + V', what: 'Paste into the prompt (handled by the prompt paste support, not a keybinding)' },
+  { keys: 'CTRL + U / F2', what: 'Change model (same chord again closes the dialog)' },
+  { keys: 'CTRL + K / F3', what: 'Subagent jobs (same chord again closes the dialog)' },
+  { keys: 'CTRL + W / F4', what: 'Toggle steer mode (steer never clears the queue)' },
+  { keys: 'SHIFT + TAB', what: 'Cycle agent' },
+  { keys: 'CTRL + E', what: 'Cycle thinking effort' },
+  { keys: 'UP / UP, DOWN / DOWN', what: 'Prompt history on first / last line (disabled while the command flyout is open)' },
   { keys: 'TAB (in command flyout)', what: 'Complete command in the flyout' },
-  { keys: 'CTRL + A / CTRL + SHIFT + A', what: 'Select all text in the prompt' },
+  { keys: 'CTRL + A', what: 'Select all text in the prompt' },
 ]
 
 const mouseEvents: Array<{ keys: string; what: string }> = [

@@ -13,7 +13,7 @@ import { bumpCatalog } from '@states/catalog-state.ts'
 import { theme } from '@states/theme-state.ts'
 import { pushToast } from '@states/toast.state.ts'
 import { Splash } from '@tui/components/splash.tsx'
-import { KeyboardProvider } from '@tui/hooks/keyboard-provider.tsx'
+import { KeyboardProvider, setKeyboardReleasesSupported } from '@tui/hooks/keyboard-provider.tsx'
 import { App } from '@tui/layout/app.tsx'
 import { closeMessage } from '@tui/themes/logo.ts'
 import { getSharedTreeSitterClient, registerParsers } from '@wrappers/treesitter-wrapper.ts'
@@ -130,6 +130,7 @@ const startTui = async (options: TuiAppOptions, unguard: (() => void) | undefine
     cleanupInputModes()
   })
   renderer.on(CliRenderEvents.CAPABILITIES, (caps: TerminalCapabilities) => {
+    setKeyboardReleasesSupported(Boolean(caps.kitty_keyboard))
     if (caps.kitty_keyboard) return
     keyboardFallbackActive = true
     process.stdout.write('\x1b[>4;2m')

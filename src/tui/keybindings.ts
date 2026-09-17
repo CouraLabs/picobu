@@ -16,12 +16,8 @@ const ctrlOnly = (key: KeyLike): boolean => key.ctrl && !key.meta && !(key.super
 // (e.g. option+o types 'ø') and must fall through to the prompt.
 const metaOnly = (key: KeyLike, platform: string): boolean => platform === 'win32' && key.meta && !key.ctrl && !(key.super ?? false)
 
-// Windows legacy encoding sends ctrl+h as the 0x08 byte, which OpenTUI parses as plain
-// backspace; a real Backspace sends 0x7F, so the raw sequence disambiguates them.
-const legacyCtrlH = (key: KeyLike, platform: string): boolean => platform === 'win32' && key.name === 'backspace' && key.sequence === String.fromCharCode(8)
-
-// The canonical chord is ctrl+shift+letter; plain ctrl+letter stays as an alias for
-// terminals that cannot report Shift with Ctrl (no kitty protocol or modifyOtherKeys).
+// The canonical chord is ctrl+letter; shift is ignored so terminals that report
+// ctrl+shift+letter still match.
 const matchesLetter = (key: KeyLike, letters: Array<string>, platform: string): boolean => {
   const name = lowerName(key)
   if (!letters.includes(name)) return false
@@ -30,22 +26,38 @@ const matchesLetter = (key: KeyLike, letters: Array<string>, platform: string): 
 
 export const hasMod = (key: KeyLike): boolean => key.ctrl || key.meta || (key.super ?? false)
 
-export const isHelpKey = (key: KeyLike, platform: string = process.platform): boolean => lowerName(key) === 'f1' || matchesLetter(key, ['h'], platform) || legacyCtrlH(key, platform)
+// Window for double-press chords (exit, esc esc interrupt).
+export const DOUBLE_PRESS_WINDOW_MS = 150
 
-export const isModelKey = (key: KeyLike, platform: string = process.platform): boolean => lowerName(key) === 'f2' || matchesLetter(key, ['m', 'o'], platform)
+export const isHelpKey = (key: KeyLike): boolean => lowerName(key) === 'f1'
 
-export const isJobsKey = (key: KeyLike, platform: string = process.platform): boolean => lowerName(key) === 'f3' || matchesLetter(key, ['j'], platform)
+export const isModelKey = (key: KeyLike, platform: string = process.platform): boolean => lowerName(key) === 'f2' || matchesLetter(key, ['u'], platform)
+
+export const isJobsKey = (key: KeyLike, platform: string = process.platform): boolean => lowerName(key) === 'f3' || matchesLetter(key, ['k'], platform)
 
 export const isSteerKey = (key: KeyLike, platform: string = process.platform): boolean => lowerName(key) === 'f4' || matchesLetter(key, ['w'], platform)
 
-// ctrl+shift+d is the canonical exit chord; plain ctrl+d stays as an alias. Both chords
-// are claimed away from the textarea's delete/delete-line defaults; the session handler
-// preventDefaults before the textarea sees the key.
+export const isCycleEffortKey = (key: KeyLike, platform: string = process.platform): boolean => matchesLetter(key, ['e'], platform)
+
+// ctrl+d is the exit chord. Both press and release are claimed away from the textarea's
+// delete/delete-line defaults; the session handler preventDefaults before the textarea
+// sees the key.
 export const isExitKey = (key: KeyLike): boolean => lowerName(key) === 'f10' || (ctrlOnly(key) && lowerName(key) === 'd')
 
 // Prompt-editing chords: shift is ignored so ctrl and ctrl+shift variants both work.
 export const isCopyKey = (key: KeyLike): boolean => hasMod(key) && lowerName(key) === 'c'
 
-export const isPasteKey = (key: KeyLike): boolean => hasMod(key) && lowerName(key) === 'v'
-
 export const isSelectAllKey = (key: KeyLike): boolean => hasMod(key) && lowerName(key) === 'a'
+
+// Chords whose action runs on key release; a global handler preventDefaults the press
+// so textarea defaults (delete-line, kill-line, line-home, ...) never fire. Tab is
+// included in any shift state so an unhandled press cannot move renderer focus.
+export const isClaimedChord = (key: KeyLike, platform: string = process.platform): boolean =>
+  isModelKey(key, platform) ||
+  isJobsKey(key, platform) ||
+  isSteerKey(key, platform) ||
+  isCycleEffortKey(key, platform) ||
+  isExitKey(key) ||
+  isCopyKey(key) ||
+  isSelectAllKey(key) ||
+  lowerName(key) === 'tab'

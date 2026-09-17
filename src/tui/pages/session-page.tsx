@@ -39,7 +39,7 @@ import type { ToolFlowResponse } from '@tui/components/session/tools/tool-part.t
 import { setExitStatus } from '@tui/hooks/exit-status.ts'
 import { useAppKeyboard } from '@tui/hooks/keyboard-provider.tsx'
 import { requestAppReload, setLastSessionId } from '@tui/hooks/reload-bus.ts'
-import { isExitKey, isJobsKey, isModelKey, isSteerKey } from '@tui/keybindings.ts'
+import { DOUBLE_PRESS_WINDOW_MS, isCycleEffortKey, isExitKey, isJobsKey, isModelKey, isSteerKey } from '@tui/keybindings.ts'
 import type { CreateUIMessage } from 'ai'
 import { batch, createEffect, createSignal, getOwner, onCleanup, onMount, runWithOwner } from 'solid-js'
 import { type StatsStatusState, shouldSyncStats, toStatsState } from './session-stats-sync.ts'
@@ -50,9 +50,6 @@ export interface SessionPageProps {
 }
 
 const AGENT_CYCLE = ['ask', 'coder', 'plan-code']
-
-const ESC_WINDOW_MS = 600
-const EXIT_WINDOW_MS = 2000
 
 const showError = (error: unknown, sessionId?: string) => {
   logError(error, { scope: 'session-page', ...(sessionId ? { sessionId } : {}) })
@@ -386,89 +383,94 @@ export const SessionPage = (props: SessionPageProps) => {
     }
   }
 
-  useAppKeyboard((key) => {
-    if (dialogStatus().status === 'open') return
-    const target = session()
-    if (!target) return
+  useAppKeyboard(
+    (key) => {
+      if (dialogStatus().status === 'open') return
+      const target = session()
+      if (!target) return
 
-    if (key.name === 'escape') {
-      if (commandOpen()) {
-        setCommandExitNonce((n) => n + 1)
-        lastEsc = 0
+      if (key.name === 'escape') {
+        if (commandOpen()) {
+          setCommandExitNonce((n) => n + 1)
+          lastEsc = 0
+          return
+        }
+        const now = Date.now()
+        if (now - lastEsc < DOUBLE_PRESS_WINDOW_MS) {
+          lastEsc = 0
+          key.preventDefault()
+          void interruptStack()
+        } else {
+          lastEsc = now
+        }
         return
       }
-      const now = Date.now()
-      if (now - lastEsc < ESC_WINDOW_MS) {
-        lastEsc = 0
+      if (isSteerKey(key)) {
         key.preventDefault()
-        void interruptStack()
-      } else {
-        lastEsc = now
+        setMode((m) => (m === 'steer' ? 'normal' : 'steer'))
+        return
       }
-      return
-    }
-    if (isSteerKey(key)) {
-      key.preventDefault()
-      setMode((m) => (m === 'steer' ? 'normal' : 'steer'))
-      return
-    }
-    if (isExitKey(key)) {
-      key.preventDefault()
-      const now = Date.now()
-      if (now - lastCtrlD < EXIT_WINDOW_MS) {
-        lastCtrlD = 0
-        void quitApp()
-      } else {
-        lastCtrlD = now
-        pushToast('Press ⌃⇧D (or F10) again to exit!', 'warning')
+      if (isExitKey(key)) {
+        key.preventDefault()
+        const now = Date.now()
+        if (now - lastCtrlD < DOUBLE_PRESS_WINDOW_MS) {
+          lastCtrlD = 0
+          void quitApp()
+        } else {
+          lastCtrlD = now
+          pushToast('Press ⌃D (or F10) again to exit!', 'warning')
+        }
+        return
       }
-      return
-    }
-    if (isJobsKey(key)) {
-      key.preventDefault()
-      openJobsDialog({
-        manager: sessionMgr,
-        onOpenSession: (id, label) => openSubagentMessages({ manager: sessionMgr, sessionId: id, label }),
-      })
-      return
-    }
-    if (key.name === 'tab' && !key.shift) {
-      if (commandOpen()) return
-      key.preventDefault()
-      try {
-        const current = AGENT_CYCLE.indexOf(agentId() ?? target.config.agentId)
-        const candidate = AGENT_CYCLE[(current + 1) % AGENT_CYCLE.length] ?? AGENT_CYCLE[0]
-        if (candidate === undefined) throw new Error('No agents configured')
-        const next = candidate
-        const previous = agentId() ?? target.config.agentId
-        target.switchAgent(next)
-        setAgentId(next)
-        if (previous !== next) pushToast(`Agent changed from ${previous} to ${next}`, 'info')
-      } catch (error) {
-        showError(error)
+      if (isJobsKey(key)) {
+        key.preventDefault()
+        key.stopPropagation()
+        openJobsDialog({
+          manager: sessionMgr,
+          onOpenSession: (id, label) => openSubagentMessages({ manager: sessionMgr, sessionId: id, label }),
+        })
+        return
       }
-      return
-    }
-    if (key.name === 'tab' && key.shift) {
-      key.preventDefault()
-      try {
-        const current = THINKING_LEVELS.indexOf(thinking() as (typeof THINKING_LEVELS)[number])
-        const len = THINKING_LEVELS.length
-        const candidate = THINKING_LEVELS[current < 0 ? len - 1 : (current - 1 + len) % len] ?? THINKING_LEVELS[0]
-        if (candidate === undefined) throw new Error('No thinking levels configured')
-        const next = candidate
-        target.switchThinking(next)
-        setThinking(next)
-      } catch (error) {
-        showError(error)
+      if (key.name === 'tab' && key.shift) {
+        if (commandOpen()) return
+        key.preventDefault()
+        try {
+          const current = AGENT_CYCLE.indexOf(agentId() ?? target.config.agentId)
+          const candidate = AGENT_CYCLE[(current + 1) % AGENT_CYCLE.length] ?? AGENT_CYCLE[0]
+          if (candidate === undefined) throw new Error('No agents configured')
+          const next = candidate
+          const previous = agentId() ?? target.config.agentId
+          target.switchAgent(next)
+          setAgentId(next)
+          if (previous !== next) pushToast(`Agent changed from ${previous} to ${next}`, 'info')
+        } catch (error) {
+          showError(error)
+        }
+        return
       }
-      return
-    }
-    if (isModelKey(key)) {
-      key.preventDefault()
-      openModelDialog()
-    }
-  })
+      if (isCycleEffortKey(key)) {
+        key.preventDefault()
+        try {
+          const current = THINKING_LEVELS.indexOf(thinking() as (typeof THINKING_LEVELS)[number])
+          const len = THINKING_LEVELS.length
+          const candidate = THINKING_LEVELS[current < 0 ? len - 1 : (current - 1 + len) % len] ?? THINKING_LEVELS[0]
+          if (candidate === undefined) throw new Error('No thinking levels configured')
+          const next = candidate
+          target.switchThinking(next)
+          setThinking(next)
+        } catch (error) {
+          showError(error)
+        }
+        return
+      }
+      if (isModelKey(key)) {
+        key.preventDefault()
+        key.stopPropagation()
+        openModelDialog()
+      }
+    },
+    { release: true },
+  )
 
   onMount(() => {
     void openSession(activeId())

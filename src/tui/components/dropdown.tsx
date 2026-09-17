@@ -142,13 +142,21 @@ export const DropdownLayer = () => {
     closeDropdown()
     s.onSelect(option, index)
   }
+  useAppKeyboard(
+    (key) => {
+      if (!open()) return
+      if (popupRef && !popupRef.focused && !popupRef.hasFocusedDescendant) return
+      if (key.name === 'escape') {
+        key.preventDefault()
+        key.stopPropagation()
+        closeDropdown()
+      }
+    },
+    { release: true },
+  )
   useAppKeyboard((key) => {
     if (!open()) return false
     if (popupRef && !popupRef.focused && !popupRef.hasFocusedDescendant) return false
-    if (key.name === 'escape') {
-      closeDropdown()
-      return true
-    }
     if (key.name === 'up') {
       move(-1)
       return true

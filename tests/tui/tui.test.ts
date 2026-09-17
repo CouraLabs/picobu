@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { RGBA, type TerminalColors } from '@opentui/core'
 import { EXTENSION_LANGUAGE, filetypeFromPath } from '../../src/tui/components/diff.tsx'
-import { HISTORY_DOUBLE_PRESS_MS, isDoublePress } from '../../src/tui/components/session/session-prompt.tsx'
+import { nextHistoryIndex } from '../../src/tui/components/session/session-prompt.tsx'
 import {
   asToolPart,
   diffStats,
@@ -24,6 +24,7 @@ import {
   toolProgress,
   toolStateView,
 } from '../../src/tui/components/session/tools/tool-summary.ts'
+import { deliversEvent } from '../../src/tui/hooks/keyboard-provider.tsx'
 import { icons } from '../../src/tui/themes/icons.ts'
 import { allThemes, generateSystem, hasTheme, isTheme, resolveTheme, type ThemeJson, terminalMode, tint } from '../../src/tui/themes/index.ts'
 
@@ -302,15 +303,36 @@ describe('filetypeFromPath', () => {
   })
 })
 
-describe('prompt history double-press', () => {
-  test('accepts same key within the 100ms window', () => {
-    expect(isDoublePress({ name: 'up', time: 1000 }, 'up', 1000 + HISTORY_DOUBLE_PRESS_MS)).toBe(true)
-    expect(isDoublePress({ name: 'down', time: 500 }, 'down', 500 + HISTORY_DOUBLE_PRESS_MS - 1)).toBe(true)
+describe('prompt history tab cycling', () => {
+  test('starts at the newest entry and walks forward', () => {
+    expect(nextHistoryIndex(-1, 3)).toBe(0)
+    expect(nextHistoryIndex(0, 3)).toBe(1)
+    expect(nextHistoryIndex(1, 3)).toBe(2)
   })
-  test('rejects different keys, gaps, and empty history', () => {
-    expect(isDoublePress({ name: 'up', time: 1000 }, 'down', 1050)).toBe(false)
-    expect(isDoublePress({ name: 'up', time: 1000 }, 'up', 1000 + HISTORY_DOUBLE_PRESS_MS + 1)).toBe(false)
-    expect(isDoublePress(null, 'up', 1000)).toBe(false)
+  test('wraps from the oldest entry back to the current prompt, then loops', () => {
+    expect(nextHistoryIndex(2, 3)).toBe(-1)
+    expect(nextHistoryIndex(nextHistoryIndex(2, 3), 3)).toBe(0)
+  })
+  test('stays on the current prompt with empty history', () => {
+    expect(nextHistoryIndex(-1, 0)).toBe(-1)
+    expect(nextHistoryIndex(0, 0)).toBe(-1)
+  })
+})
+
+describe('keyboard event delivery', () => {
+  test('press handlers always get press, never release or repeat', () => {
+    expect(deliversEvent(false, 'press', true)).toBe(true)
+    expect(deliversEvent(false, 'press', false)).toBe(true)
+    expect(deliversEvent(false, 'release', true)).toBe(false)
+    expect(deliversEvent(false, 'repeat', true)).toBe(true)
+  })
+  test('release handlers get releases, press-fallback without release support, never repeat', () => {
+    expect(deliversEvent(true, 'release', true)).toBe(true)
+    expect(deliversEvent(true, 'release', false)).toBe(true)
+    expect(deliversEvent(true, 'press', false)).toBe(true)
+    expect(deliversEvent(true, 'press', true)).toBe(false)
+    expect(deliversEvent(true, 'repeat', false)).toBe(false)
+    expect(deliversEvent(true, 'repeat', true)).toBe(false)
   })
 })
 
