@@ -62,9 +62,9 @@ describe('rawToolName/toolDisplayName', () => {
     expect(rawToolName(part({ type: 'dynamic-tool', toolName: 'mcp__fetch' }))).toBe('mcp__fetch')
     expect(rawToolName(part({ type: 'dynamic-tool' }))).toBe('tool')
   })
-  test('display name capitalizes first letter', () => {
-    expect(toolDisplayName(part({ type: 'tool-read' }))).toBe('Read')
-    expect(toolDisplayName(part({ type: 'dynamic-tool', toolName: 'fetch' }))).toBe('Fetch')
+  test('display name is upper case', () => {
+    expect(toolDisplayName(part({ type: 'tool-read' }))).toBe('READ')
+    expect(toolDisplayName(part({ type: 'dynamic-tool', toolName: 'fetch' }))).toBe('FETCH')
   })
 })
 
@@ -124,6 +124,10 @@ describe('summarizeToolInput', () => {
   test('todo summarizes the written list', () => {
     expect(summarizeToolInput('todo', { items: [1, 2] })).toBe('2 item(s)')
     expect(summarizeToolInput('todo', {})).toBe('?')
+  })
+  test('spawn summary upper-cases the subagent name', () => {
+    expect(summarizeToolInput('spawn', { subagent: 'explorer' })).toBe('EXPLORER')
+    expect(summarizeToolInput('spawn', {})).toBe('?')
   })
   test('names are case-insensitive with ? fallback', () => {
     expect(summarizeToolInput('READ', { path: 'x' })).toBe('x')

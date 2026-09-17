@@ -13,7 +13,7 @@ export const SpawnView = (props: { part: ToolPartLike; onOpen?: (sessionId: stri
   const [hovered, setHovered] = createSignal(false)
   const view = createMemo(() => toolStateView(props.part))
   const color = createMemo(() => toneColor(view().tone))
-  const subagent = createMemo(() => spawnSubagentName(props.part.input) ?? 'Spawn')
+  const subagent = createMemo(() => (spawnSubagentName(props.part.input) ?? 'Spawn').toUpperCase())
   const sessionId = createMemo(() => spawnSessionId(props.part.output))
   const [jobsVersion, setJobsVersion] = createSignal(0)
   const jobStats = createMemo(() => {

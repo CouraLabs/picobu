@@ -16,8 +16,8 @@ import {
 const key = (overrides: Partial<KeyLike> & { name: string }): KeyLike => ({ ctrl: false, meta: false, super: false, ...overrides })
 
 describe('double-press window', () => {
-  test('is 150ms', () => {
-    expect(DOUBLE_PRESS_WINDOW_MS).toBe(150)
+  test('is 200ms', () => {
+    expect(DOUBLE_PRESS_WINDOW_MS).toBe(200)
   })
 })
 

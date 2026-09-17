@@ -1,4 +1,4 @@
-import type { BoxRenderable, InputRenderable, TextareaRenderable } from '@opentui/core'
+import type { BoxRenderable, TextareaRenderable } from '@opentui/core'
 import { clip } from '@shared/format.ts'
 import { theme } from '@states/theme-state.ts'
 import { pushToast } from '@states/toast.state.ts'
@@ -27,7 +27,7 @@ export const PlanReview = (props: PlanReviewProps) => {
   const [responded, setResponded] = createSignal(false)
   const [dismissed, setDismissed] = createSignal(false)
   const [sending, setSending] = createSignal(false)
-  const lineRefs: Array<InputRenderable | null> = []
+  const lineRefs: Array<TextareaRenderable | null> = []
   const rowRefs: Array<BoxRenderable | null> = []
   let overallRef: TextareaRenderable | null = null
 
@@ -74,6 +74,7 @@ export const PlanReview = (props: PlanReviewProps) => {
 
   useAppKeyboard((key) => {
     if (key.name !== 'return' && key.name !== 'enter') return
+    if (!key.meta && !key.ctrl) return
     const index = openLine()
     if (index === undefined) return
     if (!lineRefs[index]?.focused) return
@@ -174,24 +175,36 @@ export const PlanReview = (props: PlanReviewProps) => {
                   <text fg={theme().accent}>{` ${icons.boxBottomLeft}${icons.boxHorizontal}${icons.boxHorizontal} Comment: ${(lineComments()[index()] ?? '').trim()} `}</text>
                 </Show>
                 <Show when={openLine() === index()}>
-                  <box flexDirection="row" marginTop={0} onMouseUp={() => queueMicrotask(() => lineRefs[index()]?.focus())}>
+                  <box
+                    flexDirection="row"
+                    marginTop={0}
+                    onMouseUp={() =>
+                      queueMicrotask(() => {
+                        const ref = lineRefs[index()]
+                        if (ref && !ref.isDestroyed) ref.focus()
+                      })
+                    }>
                     <box flexBasis={5} flexShrink={1}>
                       <text fg={theme().accent}>{` ${icons.boxBottomLeft}${icons.boxHorizontal}${icons.boxHorizontal}`}</text>
                     </box>
-                    <box flexGrow={1} flexShrink={1}>
-                      <input
+                    <box flexGrow={1} flexShrink={1} minWidth={0}>
+                      <textarea
                         ref={(r) => {
                           lineRefs[index()] = r
+                          const existing = lineComments()[index()] ?? ''
+                          if (existing.length > 0 && r.plainText !== existing) r.setText(existing)
+                          r.focus()
                         }}
-                        focused={openLine() === index()}
-                        paddingX={1}
-                        value={lineComments()[index()] ?? ''}
+                        maxHeight={3}
                         placeholder={`Comment on line ${index() + 1} (optional, clear to remove)`}
                         placeholderColor={theme().textMuted}
                         textColor={theme().accent}
                         cursorColor={theme().textMuted}
                         backgroundColor={theme().backgroundElement}
-                        onInput={(value) => setLineComment(index(), value)}
+                        onContentChange={() => {
+                          const ref = lineRefs[index()]
+                          if (ref && !ref.isDestroyed) setLineComment(index(), ref.plainText)
+                        }}
                       />
                     </box>
                   </box>
@@ -200,7 +213,12 @@ export const PlanReview = (props: PlanReviewProps) => {
             )
           }}
         </For>
-        <box marginTop={1} flexGrow={1} onMouseUp={() => overallRef?.focus()}>
+        <box
+          marginTop={1}
+          flexGrow={1}
+          onMouseUp={() => {
+            if (overallRef && !overallRef.isDestroyed) overallRef.focus()
+          }}>
           <textarea
             ref={(r) => {
               overallRef = r
@@ -212,7 +230,8 @@ export const PlanReview = (props: PlanReviewProps) => {
             backgroundColor={theme().backgroundElement}
             maxHeight={4}
             onContentChange={() => {
-              if (!readonly()) setOverall(overallRef?.plainText ?? '')
+              if (readonly()) return
+              if (overallRef && !overallRef.isDestroyed) setOverall(overallRef.plainText)
             }}
           />
         </box>

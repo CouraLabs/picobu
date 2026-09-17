@@ -5,7 +5,7 @@ import { theme } from '@states/theme-state.ts'
 import { Button } from '@tui/components/button.tsx'
 import { ModelSelect } from '@tui/components/session/model-select.tsx'
 import { THINKING_LEVELS } from '@tui/components/session/session-status.tsx'
-import { createSignal, For, Show } from 'solid-js'
+import { type Accessor, createSignal, For, Show } from 'solid-js'
 
 const EFFORTS: Array<string> = [...THINKING_LEVELS]
 
@@ -28,51 +28,68 @@ const openModelPicker = (current: string | undefined, onPick: (modelKey: string)
   ))
 }
 
-export const openRolesDialog = () => {
-  const render = () => openDialog(() => <RolesDialogView reopen={render} />)
-  render()
+interface RolesDialogState {
+  defaultModel: Accessor<string>
+  tiny: Accessor<string>
+  flash: Accessor<string>
+  heavy: Accessor<string>
+  flashThinking: Accessor<string>
+  heavyThinkingLevel: Accessor<string>
+  setDefaultModel: (v: string) => void
+  setTiny: (v: string) => void
+  setFlash: (v: string) => void
+  setHeavy: (v: string) => void
+  setFlashThinking: (v: string) => void
+  setHeavyThinkingLevel: (v: string) => void
 }
 
-const RolesDialogView = (props: { reopen: () => void }) => {
+export const openRolesDialog = () => {
   const roles = () => options.harness.modelRoles ?? {}
   const [defaultModel, setDefaultModel] = createSignal(options.harness.defaultModel ?? '')
   const [tiny, setTiny] = createSignal(roles().tiny ?? '')
   const [flash, setFlash] = createSignal(roles().flash ?? '')
   const [heavy, setHeavy] = createSignal(roles().heavy ?? '')
   const [flashThinking, setFlashThinking] = createSignal(roles().flashThinking ?? 'medium')
-  const [heavyThinking, setHeavyThinking] = createSignal(roles().heavyThinkingLevel ?? 'high')
+  const [heavyThinkingLevel, setHeavyThinkingLevel] = createSignal(roles().heavyThinkingLevel ?? 'high')
+  const state: RolesDialogState = {
+    defaultModel,
+    tiny,
+    flash,
+    heavy,
+    flashThinking,
+    heavyThinkingLevel,
+    setDefaultModel,
+    setTiny,
+    setFlash,
+    setHeavy,
+    setFlashThinking,
+    setHeavyThinkingLevel,
+  }
+  const render = () => openDialog(() => <RolesDialogView state={state} reopen={render} />)
+  render()
+}
+
+const RolesDialogView = (props: { state: RolesDialogState; reopen: () => void }) => {
   const [error, setError] = createSignal<string | undefined>(undefined)
   const [saving, setSaving] = createSignal(false)
 
-  const modelRows: Array<{ label: string; value: () => string; set: (v: string) => void }> = [
-    { label: 'default', value: defaultModel, set: setDefaultModel },
-    { label: 'tiny', value: tiny, set: setTiny },
-    { label: 'flash', value: flash, set: setFlash },
-    { label: 'heavy', value: heavy, set: setHeavy },
-  ]
-
-  const effortRows: Array<{ label: string; value: () => string; set: (v: string) => void }> = [
-    { label: 'flashThinking', value: flashThinking, set: setFlashThinking },
-    { label: 'heavyThinkingLevel', value: heavyThinking, set: setHeavyThinking },
-  ]
-
   const save = async () => {
-    setSaving(true)
     setError(undefined)
+    setSaving(true)
     try {
-      for (const key of [defaultModel(), tiny(), flash(), heavy()].filter((v) => v.trim().length > 0)) {
+      for (const key of [props.state.defaultModel(), props.state.tiny(), props.state.flash(), props.state.heavy()].filter((v) => v.trim().length > 0)) {
         resolveModelRef(key)
       }
       const next = await updateSettings({
         harness: {
           ...options.harness,
-          defaultModel: defaultModel().trim() || undefined,
+          defaultModel: props.state.defaultModel().trim() || undefined,
           modelRoles: {
-            tiny: tiny().trim() || undefined,
-            flash: flash().trim() || undefined,
-            flashThinking: flashThinking(),
-            heavy: heavy().trim() || undefined,
-            heavyThinkingLevel: heavyThinking(),
+            tiny: props.state.tiny().trim() || undefined,
+            flash: props.state.flash().trim() || undefined,
+            flashThinking: props.state.flashThinking(),
+            heavy: props.state.heavy().trim() || undefined,
+            heavyThinkingLevel: props.state.heavyThinkingLevel(),
           },
         },
       })
@@ -84,6 +101,18 @@ const RolesDialogView = (props: { reopen: () => void }) => {
       setSaving(false)
     }
   }
+
+  const modelRows: Array<{ label: string; value: () => string; set: (v: string) => void }> = [
+    { label: 'default', value: props.state.defaultModel, set: props.state.setDefaultModel },
+    { label: 'tiny', value: props.state.tiny, set: props.state.setTiny },
+    { label: 'flash', value: props.state.flash, set: props.state.setFlash },
+    { label: 'heavy', value: props.state.heavy, set: props.state.setHeavy },
+  ]
+
+  const effortRows: Array<{ label: string; value: () => string; set: (v: string) => void }> = [
+    { label: 'flashThinking', value: props.state.flashThinking, set: props.state.setFlashThinking },
+    { label: 'heavyThinkingLevel', value: props.state.heavyThinkingLevel, set: props.state.setHeavyThinkingLevel },
+  ]
 
   return (
     <box flexDirection="column" width={72} paddingX={2} paddingY={1} gap={1}>

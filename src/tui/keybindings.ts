@@ -27,7 +27,7 @@ const matchesLetter = (key: KeyLike, letters: Array<string>, platform: string): 
 export const hasMod = (key: KeyLike): boolean => key.ctrl || key.meta || (key.super ?? false)
 
 // Window for double-press chords (exit, esc esc interrupt).
-export const DOUBLE_PRESS_WINDOW_MS = 150
+export const DOUBLE_PRESS_WINDOW_MS = 200
 
 export const isHelpKey = (key: KeyLike): boolean => lowerName(key) === 'f1'
 

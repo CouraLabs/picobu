@@ -60,12 +60,7 @@ export function notifyFailure(message: string): void {
   osNotify(`${APP_NAME} — run failed`, message, { error: true })
 }
 
-export function notifyStale(message = 'The session is stale'): void {
+export function notifyBlocking(toolName: string): void {
   bell()
-  osNotify(APP_NAME, message)
-}
-
-export function notifyBlocking(message: string): void {
-  bell()
-  osNotify(APP_NAME, message)
+  osNotify(APP_NAME, `${toolName} - Waiting User Action`)
 }

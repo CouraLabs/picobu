@@ -1,10 +1,11 @@
 import { createAgent } from '@agent/agents/create-agent.ts'
 import type { AgentCategory, AgentType } from '@agent/agents/types.ts'
+import { listModels } from '@agent/model/resolver.ts'
 import { askMarkdown } from '@agent/prompts/ask.ts'
 import { coderMarkdown } from '@agent/prompts/coder.ts'
 import { persistentMarkdown } from '@agent/prompts/persistent.ts'
 import { planMarkdown } from '@agent/prompts/plan.ts'
-import type { ModelRoleId } from '@config/options.ts'
+import { type ModelRoleId, options, type ProviderModelReasoningEffort, resolveModelRole } from '@config/options.ts'
 
 export const AGENTS: Record<string, AgentType> = {
   ask: createAgent(askMarkdown),
@@ -20,6 +21,31 @@ export const DEFAULT_AGENT_ROLE: Record<string, ModelRoleId> = {
 }
 
 export const DEFAULT_AGENT_ID = 'ask'
+
+export interface AgentModelChoice {
+  modelKey: string
+  thinking: ProviderModelReasoningEffort
+}
+
+const AGENT_ROLE_THINKING: Partial<Record<ModelRoleId, ModelRoleId>> = {
+  flash: 'flashThinking',
+  heavy: 'heavyThinkingLevel',
+}
+
+export function resolveAgentModel(agentId: string): AgentModelChoice | undefined {
+  const role = DEFAULT_AGENT_ROLE[agentId]
+  if (!role) return undefined
+  try {
+    const resolved = resolveModelRole(options.harness, role)
+    const thinkingRole = AGENT_ROLE_THINKING[role]
+    const thinking = (thinkingRole ? resolveModelRole(options.harness, thinkingRole).thinking : resolved.thinking) ?? 'medium'
+    return { modelKey: resolved.modelKey, thinking }
+  } catch {
+    const first = listModels()[0]
+    if (!first) return undefined
+    return { modelKey: first.key, thinking: 'medium' }
+  }
+}
 
 export function getAgent(name: string): AgentType {
   const agent = AGENTS[name]

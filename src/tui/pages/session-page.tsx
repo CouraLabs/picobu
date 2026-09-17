@@ -20,7 +20,7 @@ import { useRenderer } from '@opentui/solid'
 import { setConsoleTitle } from '@shared/console-title.ts'
 import { getGitInfo } from '@shared/git-info.ts'
 import { logError, setLogRunId } from '@shared/logger.ts'
-import { notifyBlocking, notifyCompletion, notifyFailure, notifyStale } from '@shared/notify.ts'
+import { notifyBlocking, notifyCompletion, notifyFailure } from '@shared/notify.ts'
 import { bumpCatalog } from '@states/catalog-state.ts'
 import { closeDialog, dialogStatus, openDialog } from '@states/dialog.state.ts'
 import { flushThemeSave, theme } from '@states/theme-state.ts'
@@ -93,6 +93,8 @@ const pendingFlowPart = (parts: Array<unknown>): { tool: 'ask' | 'plan-write'; t
   }
   return undefined
 }
+
+const flowToolName = (tool: 'ask' | 'plan-write'): string => (tool === 'ask' ? 'ASK' : 'PLAN WRITE')
 
 const lastUserText = (messages: Array<LoopMessage>): string | undefined => {
   for (let i = messages.length - 1; i >= 0; i--) {
@@ -443,9 +445,15 @@ export const SessionPage = (props: SessionPageProps) => {
           if (candidate === undefined) throw new Error('No agents configured')
           const next = candidate
           const previous = agentId() ?? target.config.agentId
+          const previousModel = modelKey() ?? target.config.modelKey
           target.switchAgent(next)
           setAgentId(next)
+          batch(() => {
+            setModelKey(target.config.modelKey)
+            setThinking(target.config.thinking)
+          })
           if (previous !== next) pushToast(`Agent changed from ${previous} to ${next}`, 'info')
+          if (previousModel !== target.config.modelKey) pushToast(`Model switched to ${target.config.modelKey} (agent ${next})`, 'info')
         } catch (error) {
           showError(error)
         }
@@ -496,7 +504,6 @@ export const SessionPage = (props: SessionPageProps) => {
       const snapshot = { status, messages: messages() as Array<never>, error: target.error }
       if (options.watchdog.enableNotificationWhenStale && watchdog.shouldNotifyStale(snapshot)) {
         pushToast('The session is stale', 'warning')
-        notifyStale('The session is stale')
       }
       if (options.watchdog.enableContinuePromptWhenStale && watchdog.shouldSendContinue(snapshot)) {
         pushToast('Session stale — sending continue prompt', 'warning')
@@ -555,28 +562,30 @@ export const SessionPage = (props: SessionPageProps) => {
           if (!prevWaiting && w) {
             const last = state.messages[state.messages.length - 1]
             const found = last?.role === 'assistant' ? pendingFlowPart(last.parts as Array<unknown>) : undefined
-            if (found?.tool === 'plan-write') {
-              pushToast('Then agent waiting you to verify the plan', 'warning')
-              notifyBlocking('Then agent waiting you to verify the plan')
+            if (found) {
+              const waitingMessage = `${flowToolName(found.tool)} - Waiting User Action`
+              pushToast(waitingMessage, 'warning')
+              notifyBlocking(flowToolName(found.tool))
             } else {
               pushToast('The agent is asking you questions', 'warning')
-              notifyBlocking('The agent is asking you questions')
+              notifyBlocking('Agent')
             }
           }
           if (prevStreaming && !streaming) {
             watchdog.reset()
             if (state.error) {
-              pushToast(`Run gave error: ${state.error.message}`, 'error')
-              notifyFailure(state.error.message)
+              pushToast(`Run did throw an Error: ${state.error.message}`, 'error')
+              notifyFailure(`Run did throw an Error: ${state.error.message}`)
             } else {
               pushToast('Run is complete', 'success')
-              notifyCompletion('Run complete')
+              const lastRole = state.messages[state.messages.length - 1]?.role
+              if (lastRole === 'assistant') notifyCompletion(live?.title ? `${live.title} — run complete` : 'Run complete')
               if (live) regenerateTitle(live)
             }
             refreshMcp(live)
           } else if (state.error && state.error.message !== prevErrorMessage) {
-            pushToast(`Run gave error: ${state.error.message}`, 'error')
-            notifyFailure(state.error.message)
+            pushToast(`Run did throw an Error: ${state.error.message}`, 'error')
+            notifyFailure(`Run did throw an Error: ${state.error.message}`)
           }
           prevStreaming = streaming
           prevWaiting = w

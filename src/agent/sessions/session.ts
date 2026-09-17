@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { AGENTS, listAgents } from '@agent/agents/registry.ts'
+import { AGENTS, listAgents, resolveAgentModel } from '@agent/agents/registry.ts'
 import { type Command, listCommands, listSkills } from '@agent/commands/index.ts'
 import { createLoop, type LoopConfig, type LoopMessage, type LoopStats, type LoopStepCost } from '@agent/loop/create-loop.ts'
 import { resolveModelRef } from '@agent/model/resolver.ts'
@@ -206,6 +206,13 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
   }
   const overrides: Partial<LoopConfig> = {}
   const effectiveConfig = (): LoopConfig => ({ ...getConfig(), ...overrides, sessionId: id })
+  const applyAgentOverride = (agentId: string): void => {
+    overrides.agentId = agentId
+    const model = resolveAgentModel(agentId)
+    if (!model) return
+    overrides.modelKey = model.modelKey
+    overrides.thinking = model.thinking
+  }
   const loop = createLoop(effectiveConfig)
   const persistedStats = await readLoopStats(folderKey, id)
   if (persistedStats) loop.restoreStats(persistedStats)
@@ -417,7 +424,7 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
         .filter((id): id is string => !!id && !consumedPlanExits.has(id))
       for (const id of freshExits) consumedPlanExits.add(id)
       if (freshExits.length > 0) {
-        overrides.agentId = 'coder'
+        applyAgentOverride('coder')
         resuming = true
         planExitOnce = true
       }
@@ -593,7 +600,7 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
     },
     switchAgent: (agentId) => {
       if (!AGENTS[agentId]) throw new Error(`Unknown agent "${agentId}". Known agents: ${Object.keys(AGENTS).join(', ')}`)
-      overrides.agentId = agentId
+      applyAgentOverride(agentId)
     },
     switchModel: (modelKey) => {
       const ref = resolveModelRef(modelKey)

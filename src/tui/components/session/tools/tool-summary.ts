@@ -117,10 +117,7 @@ export const planLineCount = (input: unknown): number | undefined => {
   return plan.length === 0 ? 0 : plan.split('\n').length
 }
 
-export const toolDisplayName = (part: ToolPartLike): string => {
-  const name = rawToolName(part)
-  return name.charAt(0).toUpperCase() + name.slice(1)
-}
+export const toolDisplayName = (part: ToolPartLike): string => rawToolName(part).toUpperCase()
 
 export const isPreliminaryToolResult = (part: ToolPartLike): boolean => (part as { preliminary?: unknown }).preliminary === true
 
@@ -199,7 +196,7 @@ export const summarizeToolInput = (name: string, input: unknown): string => {
     case 'rule':
       return field('name') ?? '?'
     case 'spawn':
-      return field('subagent') ?? '?'
+      return (field('subagent') ?? '?').toUpperCase()
     case 'ask': {
       const titles = askTitles(input)
       if (titles.length === 0) return '?'

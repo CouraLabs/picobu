@@ -1,8 +1,7 @@
-import type { InputRenderable } from '@opentui/core'
+import type { TextareaRenderable } from '@opentui/core'
 import { clip } from '@shared/format.ts'
 import { theme } from '@states/theme-state.ts'
 import { Button } from '@tui/components/button.tsx'
-import { useTerminalDims } from '@tui/hooks/terminal-dims.tsx'
 import { icons } from '@tui/themes/icons.ts'
 import { createComputed, createSignal, For, on, Show } from 'solid-js'
 import type { AskQuestionView } from './tool-summary.ts'
@@ -17,7 +16,6 @@ export interface AskFormProps {
 }
 
 const TAB_MAX_WIDTH = 24
-const COMMENT_MAX_WIDTH = 48
 
 export const AskForm = (props: AskFormProps) => {
   const [active, setActive] = createSignal(0)
@@ -27,7 +25,7 @@ export const AskForm = (props: AskFormProps) => {
   const [responded, setResponded] = createSignal(false)
   const [dismissed, setDismissed] = createSignal(false)
   const [sending, setSending] = createSignal(false)
-  const inputRefs: Array<InputRenderable | null> = []
+  const commentRefs: Array<TextareaRenderable | null> = []
 
   createComputed(
     on(
@@ -36,6 +34,9 @@ export const AskForm = (props: AskFormProps) => {
         if (key === prevKey) return
         setAnswers(props.questions.map(() => []))
         setComments(props.questions.map(() => ''))
+        commentRefs.forEach((ref) => {
+          if (ref && !ref.isDestroyed) ref.setText('')
+        })
         setActive(0)
       },
       { defer: true },
@@ -118,8 +119,6 @@ export const AskForm = (props: AskFormProps) => {
 
   const tabBackground = (tabIndex: number) => (active() === tabIndex ? theme().primary : theme().backgroundElement)
   const tabColor = (tabIndex: number) => (active() === tabIndex ? theme().selected(tabBackground(tabIndex)) : theme().textMuted)
-  const dims = useTerminalDims()
-  const commentWidth = () => Math.max(16, Math.min(COMMENT_MAX_WIDTH + 2, dims().width - 10))
 
   return (
     <box flexDirection="column">
@@ -209,18 +208,31 @@ export const AskForm = (props: AskFormProps) => {
                     )
                   }}
                 </For>
-                <box marginTop={1} onMouseUp={() => inputRefs[questionIndex()]?.focus()}>
-                  <input
+                <box
+                  marginTop={1}
+                  flexGrow={1}
+                  flexShrink={1}
+                  minWidth={0}
+                  onMouseUp={() => {
+                    const ref = commentRefs[questionIndex()]
+                    if (ref && !ref.isDestroyed) ref.focus()
+                  }}>
+                  <textarea
                     ref={(r) => {
-                      inputRefs[questionIndex()] = r
+                      commentRefs[questionIndex()] = r
+                      const existing = comments()[questionIndex()] ?? ''
+                      if (existing.length > 0 && r.plainText !== existing) r.setText(existing)
                     }}
+                    maxHeight={3}
                     placeholder="Add a comment (optional)"
                     placeholderColor={theme().textMuted}
                     textColor={theme().text}
                     cursorColor={theme().accent}
                     backgroundColor={theme().backgroundElement}
-                    width={commentWidth()}
-                    onInput={(value) => setComment(questionIndex(), value)}
+                    onContentChange={() => {
+                      const ref = commentRefs[questionIndex()]
+                      if (ref && !ref.isDestroyed) setComment(questionIndex(), ref.plainText)
+                    }}
                   />
                 </box>
               </box>
