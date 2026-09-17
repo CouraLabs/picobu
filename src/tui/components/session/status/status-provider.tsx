@@ -16,8 +16,7 @@ export interface SessionProviderStatusInfo {
 const getStatusLineValues = (props: { status: SessionStatusProps }): Array<{ label: string; value: string }> => {
   try {
     const resolved = resolveModelRef(props.status.modelKey)
-    const steps = props.status.statsStatus?.steps ?? []
-    const raw = steps.length > 0 ? steps[steps.length - 1]?.usage.raw : undefined
+    const raw = props.status.statsStatus?.rawUsage
     const items = selectStatusLineItems(options.statusLine, resolved.provider.id)
     return resolveStatusLineValues(items, { headers: props.status.statsStatus?.headers, raw, endpoints: props.status.statsStatus?.endpoints })
   } catch {

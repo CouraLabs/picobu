@@ -7,6 +7,7 @@ import { RGBA } from '@opentui/core'
 import { fmtCostPreciseBare, fmtMs, fmtTokens, fmtTps } from '@shared/format.ts'
 import { theme } from '@states/theme-state.ts'
 import { isToolPart, latestTodoItems } from '@tui/components/session/tools/tool-summary.ts'
+import type { LanguageModelUsage } from 'ai'
 import { type ActivityKind, getActivity, getFinishColor, getFinishReason } from './status-activity.ts'
 import { thinkingColor } from './thinking.ts'
 
@@ -24,7 +25,7 @@ export interface SessionStatusProps {
   waiting?: boolean
   mcp?: { connected: number; total: number; tools: number }
   provider?: { id: string; name?: string; detail?: string }
-  statsStatus?: Pick<LoopStats, 'finishReason' | 'rawFinishReason' | 'warnings' | 'headers' | 'endpoints' | 'steps'>
+  statsStatus?: Pick<LoopStats, 'finishReason' | 'warnings' | 'headers' | 'endpoints'> & { rawUsage?: LanguageModelUsage['raw'] }
   statsPerformance?: LoopStats['performance']
   statsMetrics?: Pick<LoopStats, 'total'> & { stepCount: number }
 }
@@ -164,7 +165,7 @@ export const createSessionStatusData = (props: SessionStatusProps): SessionStatu
     agentName: () => getAgentName(props.agentId),
     agentColor: () => getAgentColor(props.agentId),
     modelLabel: () => getModelLabel(props.modelKey),
-    inputLabel: () => fmtTokens(metricsTotal()?.usage?.inputTokenDetails?.noCacheTokens ?? 0),
+    inputLabel: () => fmtTokens(metricsTotal()?.usage?.inputTokens ?? 0),
     outputLabel: () => fmtTokens(metricsTotal()?.usage.outputTokens ?? 0),
     contextValue,
     contextPercent,

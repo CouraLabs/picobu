@@ -1,67 +1,38 @@
 #!/usr/bin/env bash
-#
-# picobu uninstall script (Linux / macOS)
-#
-# Usage:
-#   curl -fsSL https://raw.githubusercontent.com/CouraLabs/picobu/refs/heads/master/scripts/uninstall.sh | bash -s -- [-y]
-#
-# Removes everything under ~/.picobu, including the executable, saved
-# sessions, credentials and settings, and strips ~/.picobu/bin from
-# the shell profile PATH.
-#
+# picobu uninstaller: deletes ~/.picobu entirely (binary, source clone,
+# sessions, settings, OAuth credentials) and removes the PATH entry added by
+# scripts/install.sh.
 set -euo pipefail
 
 PICOBU_HOME="$HOME/.picobu"
-BIN_DIR="$PICOBU_HOME/bin"
-ASSUME_YES=false
 
-log()  { printf '\033[1;35m[picobu]\033[0m %s\n' "$1"; }
-fail() { printf '\033[1;31m[picobu]\033[0m %s\n' "$1" >&2; exit 1; }
-
-for arg in "$@"; do
-  case "$arg" in
-    -y|--yes) ASSUME_YES=true ;;
-    *) fail "Unknown option: $arg" ;;
-  esac
-done
-
-if [ ! -d "$PICOBU_HOME" ]; then
-  log "picobu is not installed ($PICOBU_HOME not found). Nothing to do."
-  exit 0
+if [ -d "$PICOBU_HOME" ]; then
+  echo "==> deleting $PICOBU_HOME"
+  echo "    (binary, source clone, sessions, options.json, auth.json, WhatsApp auth)"
+  rm -rf "$PICOBU_HOME"
+else
+  echo "==> $PICOBU_HOME not found; nothing to delete"
 fi
 
-if [ "$ASSUME_YES" != true ]; then
-  log "This will permanently delete $PICOBU_HOME, including:"
-  log "  - the picobu executable"
-  log "  - saved sessions, settings and OAuth credentials"
-  if [ -t 0 ]; then
-    read -r -p "Continue? [y/N] " answer
-    case "$answer" in
-      y|Y|yes|YES) ;;
-      *) log "Aborted."; exit 0 ;;
-    esac
-  else
-    fail "Refusing to delete $PICOBU_HOME without confirmation. Re-run with -y to force."
+# Remove the PATH lines install.sh appended to shell rc files (exact match
+# only; never touches user lines that merely mention .picobu).
+remove_from_rc() {
+  local rc="$1" line="$2"
+  [ -f "$rc" ] || return 0
+  local tmp
+  tmp="$(mktemp)"
+  grep -vF "$line" "$rc" >"$tmp" || true
+  if ! cmp -s "$rc" "$tmp"; then
+    cat "$tmp" >"$rc"
+    echo "==> removed picobu PATH entry from $rc"
   fi
-fi
-
-# --- Remove PATH entries from shell profiles --------------------------------
-
-strip_profile() {
-  local profile="$1"
-  [ -f "$profile" ] || return 0
-  sed -i.bak '/# picobu/d; /\.picobu\/bin/d' "$profile" && rm -f "$profile.bak"
+  rm -f "$tmp"
 }
 
-case "${SHELL:-}" in
-  */zsh)  strip_profile "$HOME/.zshrc" ;;
-  */bash) if [ "$(uname)" = "Darwin" ]; then strip_profile "$HOME/.bash_profile"; else strip_profile "$HOME/.bashrc"; fi ;;
-  */fish) strip_profile "$HOME/.config/fish/config.fish" ;;
-  *)      strip_profile "$HOME/.profile" ;;
-esac
+PICOBU_PATH_LINE='export PATH="$HOME/.picobu/bin:$PATH"'
+remove_from_rc "$HOME/.zshrc" "$PICOBU_PATH_LINE"
+remove_from_rc "$HOME/.bash_profile" "$PICOBU_PATH_LINE"
+remove_from_rc "$HOME/.bashrc" "$PICOBU_PATH_LINE"
+remove_from_rc "$HOME/.config/fish/config.fish" 'fish_add_path "$HOME/.picobu/bin"'
 
-# --- Delete everything ------------------------------------------------------
-
-rm -rf "$PICOBU_HOME"
-log "Removed $PICOBU_HOME"
-log "picobu uninstalled. Restart your terminal to refresh your PATH."
+echo "==> picobu uninstalled; open a new shell so PATH changes take effect"

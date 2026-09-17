@@ -1,110 +1,103 @@
 #!/usr/bin/env bash
-#
-# picobu install script (Linux / macOS)
-#
-# Usage:
-#   curl -fsSL https://raw.githubusercontent.com/CouraLabs/picobu/refs/heads/master/scripts/install.sh | bash
-#
-# Steps:
-#   1. Validate git, install bun when missing
-#   2. Clone the repo into ~/.picobu/install
-#   3. Build a standalone executable with bun
-#   4. Move the executable to ~/.picobu/bin
-#   5. Remove ~/.picobu/install
-#   6. Add ~/.picobu/bin to the user PATH
-#
+# picobu installer: clones the repo, installs deps, and compiles a standalone
+# binary to ~/.picobu/bin/picobu. Rerunning updates via a fresh re-clone.
 set -euo pipefail
 
 REPO_URL="https://github.com/CouraLabs/picobu.git"
 PICOBU_HOME="$HOME/.picobu"
-INSTALL_DIR="$PICOBU_HOME/install"
+SOURCE_DIR="$PICOBU_HOME/source"
+CLONE_DIR="$SOURCE_DIR/picobu"
 BIN_DIR="$PICOBU_HOME/bin"
 BIN_PATH="$BIN_DIR/picobu"
 
-log()  { printf '\033[1;35m[picobu]\033[0m %s\n' "$1"; }
-fail() { printf '\033[1;31m[picobu]\033[0m %s\n' "$1" >&2; exit 1; }
+log() { printf '%s\n' "==> $*"; }
+fail() { printf 'error: %s\n' "$*" >&2; exit 1; }
 
-# --- 1. Validate prerequisites -------------------------------------------
+command -v git >/dev/null 2>&1 || fail "git is required. Install it with one of:
+  winget install --id Git.Git        (Windows)
+  brew install git                   (macOS)
+  sudo apt-get install git           (Debian/Ubuntu)"
 
-command -v git >/dev/null 2>&1 || fail "git is required but not installed. Install it first: https://git-scm.com"
-
-if ! command -v bun >/dev/null 2>&1; then
-  log "bun not found — installing it now ..."
+ensure_bun() {
+  if command -v bun >/dev/null 2>&1; then
+    return
+  fi
+  if [ -x "$HOME/.bun/bin/bun" ]; then
+    export PATH="$HOME/.bun/bin:$PATH"
+    return
+  fi
+  log "bun not found; installing via https://bun.sh"
   curl -fsSL https://bun.sh/install | bash
-  export PATH="${BUN_INSTALL:-$HOME/.bun}/bin:$PATH"
-fi
-command -v bun >/dev/null 2>&1 || fail "Automatic bun install failed. Install it manually (curl -fsSL https://bun.sh/install | bash), then re-run this script."
-
-log "bun $(bun --version) and git found."
-
-# --- 2. Clone the repository ---------------------------------------------
-
-rm -rf "$INSTALL_DIR"
-log "Cloning $REPO_URL into $INSTALL_DIR ..."
-git clone --depth 1 "$REPO_URL" "$INSTALL_DIR"
-
-# --- 3. Build -------------------------------------------------------------
-
-cd "$INSTALL_DIR"
-log "Installing dependencies ..."
-if ! bun install; then
-  fail "bun install failed."
-fi
-
-# The build target (including the host libc on linux) is resolved inside
-# build-standalone.ts, so no uname mapping is duplicated here. The wildcard
-# install below is only a fallback for builds that miss native optionals.
-mkdir -p "$BIN_DIR"
-if ! bun ./scripts/build-standalone.ts --outfile "$BIN_DIR/picobu"; then
-  log "Build failed - retrying with a full-platform install of native optionals ..."
-  if ! bun install --os='*' --cpu='*'; then
-    fail "Full-platform install failed."
-  fi
-  if ! bun ./scripts/build-standalone.ts --outfile "$BIN_DIR/picobu"; then
-    fail "Build failed. If the error names a missing native library, update bun, delete bun.lock, and re-run this script so all @opentui/core optionals install."
-  fi
-fi
-
-# --- 4. Clean up ----------------------------------------------------------
-
-cd "$HOME"
-rm -rf "$INSTALL_DIR"
-log "Removed $INSTALL_DIR"
-
-# --- 5. PATH setup ---------------------------------------------------------
-
-case ":$PATH:" in
-  *":$BIN_DIR:"*) ;;
-  *) export PATH="$BIN_DIR:$PATH" ;;
-esac
-
-add_to_profile() {
-  local profile="$1"
-  [ -f "$profile" ] || touch "$profile"
-  if ! grep -q 'picobu/bin' "$profile"; then
-    printf '\n# picobu\nexport PATH="$HOME/.picobu/bin:$PATH"\n' >> "$profile"
-    log "Added $BIN_DIR to $profile"
-  fi
+  export PATH="$HOME/.bun/bin:$PATH"
+  command -v bun >/dev/null 2>&1 || fail "bun installation did not produce a bun on PATH; install manually from https://bun.sh"
 }
 
-add_to_fish() {
-  local config="$HOME/.config/fish/config.fish"
-  mkdir -p "$(dirname "$config")"
-  [ -f "$config" ] || touch "$config"
-  if ! grep -q 'picobu/bin' "$config"; then
-    printf '\n# picobu\nset -gx PATH "$HOME/.picobu/bin" $PATH\n' >> "$config"
-    log "Added $BIN_DIR to $config"
+ensure_bun
+
+log "creating $PICOBU_HOME"
+mkdir -p "$SOURCE_DIR" "$BIN_DIR"
+
+if [ -d "$CLONE_DIR" ]; then
+  log "removing existing clone at $CLONE_DIR"
+  rm -rf "$CLONE_DIR"
+fi
+
+log "cloning $REPO_URL into $CLONE_DIR"
+git clone --depth 1 "$REPO_URL" "$CLONE_DIR"
+cd "$CLONE_DIR"
+
+log "installing dependencies"
+bun install --os="*" --cpu="*" --no-cache --no-save --trust
+
+log "compiling binary to $BIN_PATH"
+bun build --compile src/cli.ts --outfile "$BIN_PATH"
+
+[ -f "$BIN_PATH" ] || fail "compile did not produce $BIN_PATH"
+chmod +x "$BIN_PATH"
+
+# PATH wiring: append to the rc of the login shell, guarded against duplicates.
+PICOBU_PATH_LINE='export PATH="$HOME/.picobu/bin:$PATH"'
+append_line_to_rc() {
+  local rc="$1" line="$2"
+  if [ ! -f "$rc" ]; then
+    return 1
   fi
+  if grep -qsF "$line" "$rc"; then
+    return 0
+  fi
+  printf '\n%s\n' "$line" >>"$rc"
+  log "appended PATH entry to $rc"
+  return 0
 }
 
-case "${SHELL:-}" in
-  */zsh)  add_to_profile "$HOME/.zshrc" ;;
-  */bash) if [ "$(uname)" = "Darwin" ]; then add_to_profile "$HOME/.bash_profile"; else add_to_profile "$HOME/.bashrc"; fi ;;
-  */fish) add_to_fish ;;
-  *)      add_to_profile "$HOME/.profile" ;;
+export PATH="$BIN_DIR:$PATH"
+RC_DONE=0
+case "$(basename "${SHELL:-}")" in
+  zsh)
+    append_line_to_rc "$HOME/.zshrc" "$PICOBU_PATH_LINE" && RC_DONE=1
+    ;;
+  bash)
+    if [ "$(uname -s)" = "Darwin" ]; then
+      append_line_to_rc "$HOME/.bash_profile" "$PICOBU_PATH_LINE" || append_line_to_rc "$HOME/.bashrc" "$PICOBU_PATH_LINE"
+      RC_DONE=1
+    else
+      append_line_to_rc "$HOME/.bashrc" "$PICOBU_PATH_LINE" && RC_DONE=1
+    fi
+    ;;
+  fish)
+    append_line_to_rc "$HOME/.config/fish/config.fish" 'fish_add_path "$HOME/.picobu/bin"' && RC_DONE=1
+    ;;
 esac
+if [ "$RC_DONE" -eq 0 ]; then
+  log "could not detect a supported shell rc; add this to your shell config:"
+  log '  export PATH="$HOME/.picobu/bin:$PATH"'
+fi
 
-# --- Done ------------------------------------------------------------------
-
-log "picobu installed successfully at $BIN_PATH"
-log "Run 'source ~/.zshrc' (or restart your terminal), then run: picobu"
+printf '\n'
+log "picobu installed: $BIN_PATH"
+if command -v picobu >/dev/null 2>&1; then
+  log "run 'picobu' to start (current shell already has it on PATH)"
+else
+  log "open a new shell or run:  export PATH=\"\$HOME/.picobu/bin:\$PATH\""
+fi
+log "rerun this installer anytime to update picobu (fresh re-clone + recompile)"

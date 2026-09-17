@@ -247,10 +247,7 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
       return 0
     }
   }
-  const lastStepUsage = (): LanguageModelUsage | undefined => {
-    const steps = loop.stats().steps
-    return steps.length > 0 ? steps[steps.length - 1]?.usage : undefined
-  }
+  const lastStepUsage = (): LanguageModelUsage | undefined => loop.stats().usage
   const runCompact = async (force: boolean): Promise<CompactionResult> => {
     if (compacting) throw new Error('Compaction already in progress')
     compacting = true

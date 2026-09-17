@@ -1,12 +1,12 @@
 {
   "name": "picobu",
-  "version": "1.22.12",
+  "version": "1.23.0",
   "module": "src/cli.ts",
   "type": "module",
   "private": true,
   "scripts": {
     "dev": "env -u BUN_INSPECT -u BUN_INSPECT_NOTIFY -u BUN_INSPECT_CONNECT_TO bun run src/cli.ts",
-    "build": "bun ./scripts/build-standalone.ts",
+    "build": "bun build --compile src/cli.ts --outfile dist/picobu",
     "tsc": "tsc -noEmit",
     "test": "AGENT=1 bun test tests",
     "lint": "biome check src tests --max-diagnostics 900",

@@ -1,7 +1,10 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
+import { spawnSync } from 'node:child_process'
+import { mkdtempSync, rmSync } from 'node:fs'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { options } from '../../src/config/options.ts'
 import {
   createMcpAuthProvider,
   getMcpCredential,
@@ -17,6 +20,7 @@ import {
 import { createMcpManager } from '../../src/integrations/mcp/client.ts'
 import { DEFAULT_MCP_OPTIONS, mergeMcpServers, normalizeServer, normalizeServerMap, resolveEnvMap, resolveEnvRef, serverTarget } from '../../src/integrations/mcp/config.ts'
 import { parseProjectMcpJson } from '../../src/integrations/mcp/discover.ts'
+import { closeMcpStderrTargets, createMcpStderrTarget } from '../../src/integrations/mcp/stderr-sink.ts'
 import { mcpToolName, renderMcpServerToolsInfo, renderMcpToolInfo } from '../../src/integrations/mcp/tools-info.ts'
 import { initLockDir } from '../../src/shared/lock.ts'
 
@@ -247,5 +251,47 @@ describe('mcp auth file', () => {
     await setMcpCredential('srv', { tokens: { access_token: 'a', token_type: 'bearer' } } as unknown as Parameters<typeof setMcpCredential>[1])
     expect(await removeMcpCredential('srv')).toBe(true)
     expect(await removeMcpCredential('srv')).toBe(false)
+  })
+})
+
+describe('mcp stderr sink', () => {
+  test('createMcpStderrTarget returns an fd-backed number or ignore fallback', () => {
+    const target = createMcpStderrTarget('test-fd-server')
+    expect(typeof target === 'number' || target === 'ignore').toBe(true)
+    closeMcpStderrTargets()
+  })
+  test('caches the target per server id and closes on demand', () => {
+    const first = createMcpStderrTarget('test-cache-server')
+    const second = createMcpStderrTarget('test-cache-server')
+    expect(second).toBe(first)
+    closeMcpStderrTargets()
+    const third = createMcpStderrTarget('test-cache-server')
+    expect(third).not.toBeUndefined()
+    expect(third === 'ignore' || typeof third === 'number').toBe(true)
+    closeMcpStderrTargets()
+  })
+  test('writes from a spawned child land in the per-server log file', async () => {
+    const previousSystemDir = options.app.systemDir
+    const logDir = mkdtempSync(join(tmpdir(), 'picobu-mcp-stderr-'))
+    options.app.systemDir = logDir
+    try {
+      const target = createMcpStderrTarget('test-write-server')
+      expect(typeof target).toBe('number')
+      const fd = target as number
+      const child = spawnSync('sh', ['-c', 'echo spawned-noise-line >&2'], { stdio: ['ignore', 'ignore', fd] })
+      expect(child.status).toBe(0)
+      const deadline = Date.now() + 2000
+      let body = ''
+      for (;;) {
+        body = await Bun.file(join(logDir, 'mcp-stderr', 'test-write-server.log')).text()
+        if (body.includes('spawned-noise-line') || Date.now() > deadline) break
+        await Bun.sleep(10)
+      }
+      expect(body).toContain('spawned-noise-line')
+    } finally {
+      closeMcpStderrTargets()
+      options.app.systemDir = previousSystemDir
+      rmSync(logDir, { recursive: true, force: true })
+    }
   })
 })

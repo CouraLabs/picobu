@@ -1,6 +1,7 @@
 import { addCosts, calcStepCost, emptyUsage, type StepCost, zeroCost } from '@agent/loop/loop-cost.ts'
 import type { ProviderModelBilling } from '@config/options.ts'
 import type { CallWarning, FinishReason, LanguageModelUsage, StepResultPerformance } from 'ai'
+import { createSignal } from 'solid-js'
 
 export type LoopStepCost = StepCost
 
@@ -10,7 +11,6 @@ export interface LoopStepStats {
   warnings: Array<CallWarning> | undefined
   headers: Record<string, string> | undefined
   finishReason: FinishReason
-  rawFinishReason: string | undefined
 }
 
 export interface LoopStats {
@@ -18,15 +18,14 @@ export interface LoopStats {
   warnings: Array<CallWarning> | undefined
   headers: Record<string, string> | undefined
   finishReason: FinishReason | undefined
-  rawFinishReason: string | undefined
   endpoints: Record<string, unknown> | undefined
-  steps: Array<LoopStepStats>
+  usage?: LanguageModelUsage
   stepCount?: number
-  tokenTotals?: { inputTokens: number; outputTokens: number }
   total: {
     usage: LanguageModelUsage
     cost: LoopStepCost
   }
+  tokenTotals?: { inputTokens: number; outputTokens: number }
 }
 
 export interface StepEndInput {
@@ -35,13 +34,11 @@ export interface StepEndInput {
   warnings: Array<CallWarning> | undefined
   response: { headers?: Record<string, string> }
   finishReason: FinishReason
-  rawFinishReason: string | undefined
 }
 
 export interface EndInput {
   usage: LanguageModelUsage
   finishReason: FinishReason
-  rawFinishReason: string | undefined
 }
 
 export interface LoopStatsStore {
@@ -63,28 +60,28 @@ const cloneValue = <TValue>(value: TValue): TValue => {
   }
 }
 
-const MAX_RETAINED_STEPS = 200
-
 export const createLoopStatsStore = (getBilling: () => ProviderModelBilling | undefined): LoopStatsStore => {
-  const stats: LoopStats = {
+  const [stats, setStats] = createSignal<LoopStats>({
     performance: undefined,
     warnings: undefined,
     headers: undefined,
     finishReason: undefined,
-    rawFinishReason: undefined,
     endpoints: undefined,
-    steps: [],
+    usage: undefined,
     stepCount: 0,
-    total: { usage: emptyUsage(), cost: zeroCost() },
-  }
+    total: {
+      usage: emptyUsage(),
+      cost: zeroCost(),
+    },
+  })
+
   const listeners = new Set<(stats: LoopStats) => void>()
-  const snapshot = (): LoopStats => cloneValue(stats)
   const notify = (): void => {
-    const next = snapshot()
+    const next = stats()
     for (const listener of listeners) listener(next)
   }
   return {
-    get: snapshot,
+    get: () => cloneValue(stats()),
     onChange: (listener) => {
       listeners.add(listener)
       return () => {
@@ -92,59 +89,67 @@ export const createLoopStatsStore = (getBilling: () => ProviderModelBilling | un
       }
     },
     handleStepEnd: (event) => {
-      const cost = calcStepCost(event.usage, getBilling())
-      const step: LoopStepStats = cloneValue({
-        usage: event.usage,
-        performance: event.performance,
-        warnings: event.warnings,
-        headers: event.response?.headers,
-        finishReason: event.finishReason,
-        rawFinishReason: event.rawFinishReason,
-      })
-      stats.steps.push(step)
-      if (stats.steps.length > MAX_RETAINED_STEPS) stats.steps.shift()
-      stats.stepCount = (stats.stepCount ?? 0) + 1
-      stats.tokenTotals = {
-        inputTokens: (stats.tokenTotals?.inputTokens ?? 0) + (event.usage.inputTokens ?? 0),
-        outputTokens: (stats.tokenTotals?.outputTokens ?? 0) + (event.usage.outputTokens ?? 0),
-      }
-      stats.finishReason = step.finishReason
-      stats.rawFinishReason = step.rawFinishReason
-      stats.performance = step.performance
-      stats.warnings = step.warnings
-      stats.headers = step.headers
-      stats.total = { usage: step.usage, cost: addCosts(stats.total.cost, cost) }
+      const step = cloneValue(event)
+      setStats((st) => ({
+        ...st,
+        stepCount: (st.stepCount ?? 0) + 1,
+        finishReason: step.finishReason,
+        performance: step.performance,
+        warnings: step.warnings,
+        headers: step.response?.headers,
+        usage: step.usage,
+        total: {
+          usage: step.usage,
+          cost: addCosts(st.total.cost, calcStepCost(event.usage, getBilling())),
+        },
+      }))
       notify()
     },
     handleEnd: (event) => {
-      stats.finishReason = event.finishReason
-      stats.rawFinishReason = event.rawFinishReason
+      setStats((st) => ({
+        ...st,
+        finishReason: event.finishReason,
+        tokenTotals: {
+          inputTokens: event.usage.inputTokens ?? 0,
+          outputTokens: event.usage.outputTokens ?? 0,
+        },
+      }))
       notify()
     },
     addExternal: (cost) => {
-      stats.total = { usage: stats.total.usage, cost: addCosts(stats.total.cost, cost) }
+      setStats((st) => ({
+        ...st,
+        total: {
+          usage: st.total.usage,
+          cost: addCosts(st.total.cost, cost),
+        },
+      }))
       notify()
     },
     setEndpointValues: (values) => {
-      stats.endpoints = { ...(stats.endpoints ?? {}), ...cloneValue(values) }
+      setStats((st) => ({
+        ...st,
+        endpoints: {
+          ...(st.endpoints ?? {}),
+          ...cloneValue(values),
+        },
+      }))
       notify()
     },
     restore: (next) => {
       const cloned = cloneValue(next)
-      stats.performance = cloned.performance
-      stats.warnings = cloned.warnings
-      stats.headers = cloned.headers
-      stats.finishReason = cloned.finishReason
-      stats.rawFinishReason = cloned.rawFinishReason
-      stats.endpoints = cloned.endpoints
-      stats.steps = cloned.steps.slice(-MAX_RETAINED_STEPS)
-      stats.stepCount = cloned.stepCount ?? cloned.steps.length
-      stats.tokenTotals = cloned.tokenTotals ?? {
-        inputTokens: cloned.steps.reduce((total, step) => total + (step.usage.inputTokens ?? 0), 0),
-        outputTokens: cloned.steps.reduce((total, step) => total + (step.usage.outputTokens ?? 0), 0),
-      }
-      stats.finishReason = cloned.finishReason
-      stats.total = cloned.total
+      setStats((st) => ({
+        ...st,
+        performance: cloned.performance,
+        warnings: cloned.warnings,
+        headers: cloned.headers,
+        finishReason: cloned.finishReason,
+        endpoints: cloned.endpoints,
+        stepCount: cloned.stepCount ?? (cloned.usage ? 1 : 0),
+        usage: cloned.usage,
+        tokenTotals: cloned.tokenTotals,
+        total: cloned.total,
+      }))
       notify()
     },
   }

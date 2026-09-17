@@ -1,9 +1,9 @@
 import { stat } from 'node:fs/promises'
 import { relative, resolve } from 'node:path'
 import { agentDirsUnder } from '@agent/tools/filesystem/agent-dirs.ts'
+import { resolveRgPath } from '@agent/tools/filesystem/rg.ts'
 import { killProcessTree, type LocalSandboxSession, sandboxRoot } from '@agent/tools/sandbox.ts'
 import type { ToolExecuteOptions } from '@agent/tools/toolset.ts'
-import { rgPath } from '@vscode/ripgrep'
 import z from 'zod'
 export const GlobToolArgsSchema = z.object({
   pattern: z.string(),
@@ -41,6 +41,7 @@ export const globTool = {
   parameters: GlobToolArgsSchema,
   output: z.string(),
   handler: async (args: z.infer<typeof GlobToolArgsSchema>, toolOptions?: ToolExecuteOptions): Promise<string> => {
+    const rgPath = await resolveRgPath()
     const limit = args.limit ?? 500
     const cwd = resolve(sandboxRoot(toolOptions?.experimental_sandbox) ?? process.cwd(), args.cwd ?? '.')
     const cwdStat = await stat(cwd).catch(() => undefined)

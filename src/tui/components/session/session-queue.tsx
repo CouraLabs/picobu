@@ -18,7 +18,7 @@ const singleLine = (text: string): string => {
 
 export const SessionQueue = (props: SessionQueueProps) => (
   <Show when={props.items.length > 0}>
-    <box flexDirection="column" flexShrink={0} border={['top']} borderColor={theme().border} paddingX={1}>
+    <box flexDirection="column" flexShrink={0} border borderColor={theme().border} paddingX={1}>
       <box flexDirection="row" gap={1} flexShrink={0} flexWrap="wrap">
         <text fg={theme().warning}>Queued ({props.items.length}) — oldest runs next</text>
         <text fg={theme().textMuted}>· double-ESC edits newest · flow answer first, then queue, then stop</text>

@@ -40,7 +40,8 @@ import { setExitStatus } from '@tui/hooks/exit-status.ts'
 import { requestAppReload, setLastSessionId } from '@tui/hooks/reload-bus.ts'
 import { isExitKey, isJobsKey, isModelKey, isSteerKey } from '@tui/keybindings.ts'
 import type { CreateUIMessage } from 'ai'
-import { batch, createEffect, createSignal, onCleanup, onMount } from 'solid-js'
+import { batch, createEffect, createSignal, getOwner, onCleanup, onMount, runWithOwner } from 'solid-js'
+import { type StatsStatusState, shouldSyncStats, toStatsState } from './session-stats-sync.ts'
 
 export interface SessionPageProps {
   sessionId?: string
@@ -129,7 +130,7 @@ export const SessionPage = (props: SessionPageProps) => {
   const [projectKey, setProjectKey] = createSignal<string>(projectKeyFor())
   const [commandOpen, setCommandOpen] = createSignal(false)
   const [commandExitNonce, setCommandExitNonce] = createSignal(0)
-  const [statsStatus, setStatsStatus] = createSignal<Pick<LoopStats, 'finishReason' | 'rawFinishReason' | 'warnings' | 'headers' | 'endpoints' | 'steps'> | undefined>(undefined)
+  const [statsStatus, setStatsStatus] = createSignal<StatsStatusState | undefined>(undefined)
   const [statsPerformance, setStatsPerformance] = createSignal<LoopStats['performance']>(undefined)
   const [statsMetrics, setStatsMetrics] = createSignal<(Pick<LoopStats, 'total'> & { stepCount: number }) | undefined>(undefined)
   const sessionMgr = new SessionManager()
@@ -167,11 +168,45 @@ export const SessionPage = (props: SessionPageProps) => {
   }
 
   let detachQueue: (() => void) | undefined
+  let detachStats: (() => void) | undefined
   let editNonce = 0
-  let pendingStats: LoopStats | undefined
+  const pageOwner = getOwner()
+  let statsBuffer: LoopStats | undefined
+  let statsBufferOwner: string | undefined
+  let statsTimer: ReturnType<typeof setTimeout> | undefined
+  let statsWindowOpen = false
+
+  const resetStatsThrottle = () => {
+    statsBuffer = undefined
+    statsBufferOwner = undefined
+    statsWindowOpen = false
+    if (statsTimer) {
+      clearTimeout(statsTimer)
+      statsTimer = undefined
+    }
+  }
+
+  const flushStatsBuffer = () => {
+    statsTimer = undefined
+    statsWindowOpen = false
+    const snapshot = statsBuffer
+    const ownerId = statsBufferOwner
+    statsBuffer = undefined
+    statsBufferOwner = undefined
+    if (snapshot !== undefined) runWithOwner(pageOwner, () => syncStats(snapshot, ownerId))
+  }
+
+  const bufferStats = (stats: LoopStats, ownerId: string | undefined) => {
+    statsBuffer = stats
+    statsBufferOwner = ownerId
+    if (statsWindowOpen) return
+    statsWindowOpen = true
+    runWithOwner(pageOwner, () => syncStats(stats, ownerId))
+    statsTimer = setTimeout(() => flushStatsBuffer(), 200)
+  }
 
   const resetStats = () => {
-    pendingStats = undefined
+    resetStatsThrottle()
     batch(() => {
       setStatsStatus(undefined)
       setStatsPerformance(undefined)
@@ -180,18 +215,13 @@ export const SessionPage = (props: SessionPageProps) => {
   }
 
   const syncStats = (stats: LoopStats | undefined, ownerId?: string) => {
-    const live = session()
-    if (ownerId !== undefined && live !== undefined && live.id !== ownerId && activeId() !== ownerId) return
-    const nextSteps = stats ? (stats.stepCount ?? stats.steps.length) : 0
+    if (!shouldSyncStats(ownerId, session()?.id, activeId())) return
+    const next = toStatsState(stats)
 
     batch(() => {
-      setStatsStatus(
-        stats
-          ? { finishReason: stats.finishReason, rawFinishReason: stats.rawFinishReason, warnings: stats.warnings, headers: stats.headers, endpoints: stats.endpoints, steps: stats.steps }
-          : undefined,
-      )
-      setStatsPerformance(stats?.performance)
-      setStatsMetrics(stats ? { total: stats.total, stepCount: nextSteps } : undefined)
+      setStatsStatus(next.status)
+      setStatsPerformance(next.performance)
+      setStatsMetrics(next.metrics)
     })
   }
 
@@ -238,6 +268,7 @@ export const SessionPage = (props: SessionPageProps) => {
 
   const attachSession = (next: Session) => {
     detachQueue?.()
+    detachStats?.()
     setLastSessionId(next.id)
     try {
       setLogRunId(next.id)
@@ -270,8 +301,9 @@ export const SessionPage = (props: SessionPageProps) => {
         setQueueDepth(changedDepth)
       })
     })
-    pendingStats = undefined
+    resetStatsThrottle()
     syncStats(next.stats, next.id)
+    detachStats = next.onStatsChange((stats) => bufferStats(stats, next.id))
     prevStreaming = streaming
     prevWaiting = w
     prevErrorMessage = next.error?.message
@@ -468,6 +500,8 @@ export const SessionPage = (props: SessionPageProps) => {
       clearInterval(mcpTimer)
       clearInterval(watchdogTimer)
       detachQueue?.()
+      detachStats?.()
+      resetStatsThrottle()
       const closing = session()
       if (closing) void sessionMgr.evictSession(closing.id)
     })
@@ -532,11 +566,10 @@ export const SessionPage = (props: SessionPageProps) => {
           prevErrorMessage = state.error?.message
           const statsSource = session()?.id === next.id ? session() : next
           if (streaming) {
-            pendingStats = statsSource?.stats
+            if (statsSource?.stats) bufferStats(statsSource.stats, next.id)
           } else {
-            const stats = pendingStats ?? statsSource?.stats
-            pendingStats = undefined
-            syncStats(stats, next.id)
+            resetStatsThrottle()
+            syncStats(statsSource?.stats, next.id)
           }
         },
       })

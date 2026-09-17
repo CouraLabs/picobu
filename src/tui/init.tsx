@@ -8,6 +8,7 @@ import { CliRenderEvents, ConsolePosition, createClipboard, createCliRenderer, c
 import { render } from '@opentui/solid'
 import { resetConsoleTitle, setConsoleTitle } from '@shared/console-title.ts'
 import { initLogger, logError } from '@shared/logger.ts'
+import { divertStderr } from '@shared/quiet-stderr.ts'
 import { bumpCatalog } from '@states/catalog-state.ts'
 import { theme } from '@states/theme-state.ts'
 import { pushToast } from '@states/toast.state.ts'
@@ -48,6 +49,10 @@ export async function runTui(options: TuiAppOptions = {}): Promise<void> {
 
 const startTui = async (options: TuiAppOptions, unguard: (() => void) | undefined): Promise<void> => {
   const debug = options.debug ?? false
+  // OpenTUI captures console.* but not raw stderr (externalOutputMode: 'passthrough'),
+  // so stray writes from libraries and child processes would paint over the UI. They
+  // go to the log file instead; with --debug they also land in the console overlay.
+  const restoreStderr = divertStderr(debug)
   // The Ctrl+C guard on Windows turns Ctrl+C into plain stdin bytes; dropping SIGINT
   // from the renderer's exit signals keeps the app alive when a console CTRL_C_EVENT
   // still reaches us. Other platforms keep the library defaults so an external
@@ -90,6 +95,7 @@ const startTui = async (options: TuiAppOptions, unguard: (() => void) | undefine
     backgroundColor: theme().background,
     onDestroy: () => {
       cleanupInputModes()
+      restoreStderr()
       win32FlushInputBuffer()
       try {
         unguard?.()
@@ -160,6 +166,7 @@ const startTui = async (options: TuiAppOptions, unguard: (() => void) | undefine
     }
   })
   try {
+    renderer.setMaxListeners(0)
     await render(
       () => (
         <Show when={ready()} fallback={<Splash />}>

@@ -76,10 +76,10 @@ powershell -c "irm https://raw.githubusercontent.com/CouraLabs/picobu/refs/heads
 Uninstall deletes `~/.picobu` entirely — executable, sessions, settings, and OAuth credentials:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/CouraLabs/picobu/refs/heads/master/scripts/uninstall.sh | bash -s -- [-y]
+curl -fsSL https://raw.githubusercontent.com/CouraLabs/picobu/refs/heads/master/scripts/uninstall.sh | bash
 ```
 
-Or from a clone: `scripts/uninstall.sh [-y]` (`scripts/uninstall.ps1 [-y]` on Windows; `-y` skips the confirmation prompt).
+Or from a clone: `scripts/uninstall.sh` (`scripts/uninstall.ps1` on Windows).
 
 Verify with:
 

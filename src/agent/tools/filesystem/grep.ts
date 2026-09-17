@@ -1,9 +1,9 @@
 import { isAbsolute, relative, resolve } from 'node:path'
 import { agentDirsUnder, insideAgentDir } from '@agent/tools/filesystem/agent-dirs.ts'
+import { resolveRgPath } from '@agent/tools/filesystem/rg.ts'
 import { type LocalSandboxSession, sandboxRoot } from '@agent/tools/sandbox.ts'
 import type { ToolExecuteOptions } from '@agent/tools/toolset.ts'
 import { detectFiletype } from '@shared/filetype.ts'
-import { rgPath } from '@vscode/ripgrep'
 import z from 'zod'
 
 const GrepToolOutputSchema = z.object({
@@ -41,6 +41,7 @@ export const grepTool = {
   skipPermission: true,
   defer: 'auto',
   handler: async (args: z.infer<typeof GrepToolArgsSchema>, toolOptions?: ToolExecuteOptions): Promise<z.infer<typeof GrepToolOutputSchema>> => {
+    const rgPath = await resolveRgPath()
     const limit = args.limit ?? 100
     const sandbox = sandboxRoot(toolOptions?.experimental_sandbox)
     const root = sandbox ?? process.cwd()

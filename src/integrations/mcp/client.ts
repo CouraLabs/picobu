@@ -4,6 +4,7 @@ import { options } from '@config/options.ts'
 import { createMcpAuthProvider, ensureMcpAuth } from '@integrations/mcp/auth.ts'
 import { type McpServerOptions, resolveServerEnv } from '@integrations/mcp/config.ts'
 import { loadMcpConfig } from '@integrations/mcp/discover.ts'
+import { createMcpStderrTarget } from '@integrations/mcp/stderr-sink.ts'
 import { mcpToolName } from '@integrations/mcp/tools-info.ts'
 import { describeError } from '@shared/error-report.ts'
 
@@ -81,6 +82,7 @@ export const createMcpManager = (opts: { dir?: string; servers?: Array<McpServer
             command,
             ...(server.args ? { args: server.args } : {}),
             ...(env ? { env } : {}),
+            stderr: createMcpStderrTarget(server.id),
           })
         } else {
           const url = server.url

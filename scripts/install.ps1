@@ -1,110 +1,87 @@
-#
-# picobu install script (Windows PowerShell)
-#
-# Usage:
-#   powershell -c "irm https://raw.githubusercontent.com/CouraLabs/picobu/refs/heads/master/scripts/install.ps1|iex"
-#
-# Steps:
-#   1. Validate git, install bun when missing
-#   2. Clone the repo into ~\.picobu\install
-#   3. Build a standalone executable with bun
-#   4. Move the executable to ~\.picobu\bin
-#   5. Remove ~\.picobu\install
-#   6. Add ~\.picobu\bin to the user PATH
-#
+# picobu installer for Windows: clones the repo, installs deps, and compiles a
+# standalone binary to $env:USERPROFILE\.picobu\bin\picobu.exe.
+$ErrorActionPreference = 'Stop'
 
-$ErrorActionPreference = "Stop"
+$RepoUrl = 'https://github.com/CouraLabs/picobu.git'
+$PicobuHome = Join-Path $env:USERPROFILE '.picobu'
+$SourceDir = Join-Path $PicobuHome 'source'
+$CloneDir = Join-Path $SourceDir 'picobu'
+$BinDir = Join-Path $PicobuHome 'bin'
+$BinPath = Join-Path $BinDir 'picobu.exe'
 
-$RepoUrl    = "https://github.com/CouraLabs/picobu.git"
-$PicobuHome = Join-Path $env:USERPROFILE ".picobu"
-$InstallDir = Join-Path $PicobuHome "install"
-$BinDir     = Join-Path $PicobuHome "bin"
-$BinPath    = Join-Path $BinDir "picobu.exe"
-
-function Write-Log  { Write-Host "[picobu] $args" -ForegroundColor Magenta }
-function Write-Fail { Write-Host "[picobu] $args" -ForegroundColor Red; exit 1 }
-
-# --- 1. Validate prerequisites ----------------------------------------------
+function Log { param([string]$Message) Write-Host "==> $Message" }
+function Fail { param([string]$Message) Write-Host "error: $Message" -ForegroundColor Red; exit 1 }
 
 if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
-  Write-Fail "git is required but not installed. Install it first: https://git-scm.com"
+  Fail @"
+git is required. Install it with one of:
+  winget install --id Git.Git        (Windows)
+  brew install git                   (macOS)
+  sudo apt-get install git           (Debian/Ubuntu)
+"@
 }
-if (-not (Get-Command bun -ErrorAction SilentlyContinue)) {
-  Write-Log "bun not found — installing it now ..."
+
+function Ensure-Bun {
+  if (Get-Command bun -ErrorAction SilentlyContinue) { return }
+  $bunLocal = Join-Path $env:USERPROFILE '.bun\bin\bun.exe'
+  if (Test-Path $bunLocal) {
+    $env:Path = "$(Split-Path $bunLocal -Parent);$env:Path"
+    return
+  }
+  Log 'bun not found; installing via https://bun.sh'
   irm https://bun.sh/install.ps1 | iex
-  $BunDir = Join-Path $env:USERPROFILE ".bun\bin"
-  if ((Test-Path $BunDir) -and -not (($env:Path -split ';') -contains $BunDir)) {
-    $env:Path = "$BunDir;$env:Path"
+  if (Test-Path $bunLocal) {
+    $env:Path = "$(Split-Path $bunLocal -Parent);$env:Path"
+  }
+  if (-not (Get-Command bun -ErrorAction SilentlyContinue)) {
+    Fail 'bun installation did not produce a bun on PATH; install manually from https://bun.sh'
   }
 }
-if (-not (Get-Command bun -ErrorAction SilentlyContinue)) {
-  Write-Fail "Automatic bun install failed. Install it manually: powershell -c `"irm https://bun.sh/install.ps1|iex`", then re-run this script."
+
+Ensure-Bun
+
+Log "creating $PicobuHome"
+New-Item -ItemType Directory -Force -Path $SourceDir, $BinDir | Out-Null
+
+if (Test-Path $CloneDir) {
+  Log "removing existing clone at $CloneDir"
+  Remove-Item -Recurse -Force $CloneDir
 }
 
-Write-Log "bun $((bun --version)) and git found."
-
-# --- 2. Clone the repository --------------------------------------------------
-
-if (Test-Path $InstallDir) { Remove-Item -Recurse -Force $InstallDir }
-
-Write-Log "Cloning $RepoUrl into $InstallDir ..."
-git clone --depth 1 $RepoUrl $InstallDir
-if ($LASTEXITCODE -ne 0) {
-  Write-Fail "git clone failed with exit code $LASTEXITCODE."
-}
-
-# --- 3. Build ------------------------------------------------------------------
-#
-# Native commands never throw on a non-zero exit in PowerShell, so every bun/git
-# call is followed by a $LASTEXITCODE check. The build target (arch included) is
-# resolved inside build-standalone.ts, so no PROCESSOR_ARCHITECTURE mapping is
-# duplicated here. The wildcard install below is only a fallback for builds that
-# miss native optionals.
-
-Push-Location $InstallDir
+Log "cloning $RepoUrl into $CloneDir"
+git clone --depth 1 $RepoUrl $CloneDir
+if ($LASTEXITCODE -ne 0) { Fail "git clone failed with exit code $LASTEXITCODE" }
+Push-Location $CloneDir
 try {
-  Write-Log "Installing dependencies ..."
-  bun install
-  if ($LASTEXITCODE -ne 0) {
-    Write-Fail "bun install failed with exit code $LASTEXITCODE."
-  }
+  Log 'installing dependencies'
+  bun install --os="*" --cpu="*" --no-cache --no-save --trust
+  if ($LASTEXITCODE -ne 0) { Fail "bun install failed with exit code $LASTEXITCODE" }
 
-  New-Item -ItemType Directory -Force -Path $BinDir | Out-Null
-  Write-Log "Building standalone executable ..."
-  bun ./scripts/build-standalone.ts --outfile $BinPath
-  if ($LASTEXITCODE -ne 0) {
-    Write-Log "Build failed - retrying with a full-platform install of native optionals ..."
-    bun install --os='*' --cpu='*'
-    if ($LASTEXITCODE -ne 0) {
-      Write-Fail "bun install --os='*' --cpu='*' failed with exit code $LASTEXITCODE."
-    }
-    bun ./scripts/build-standalone.ts --outfile $BinPath
-    if ($LASTEXITCODE -ne 0) {
-      Write-Fail "Build failed. If the error names a missing native library, update bun, delete bun.lock, and re-run this script so all @opentui/core optionals install. (exit code $LASTEXITCODE)"
-    }
-  }
+  Log "compiling binary to $BinPath"
+  bun build --compile src/cli.ts --outfile $BinPath
+  if ($LASTEXITCODE -ne 0) { Fail "bun build failed with exit code $LASTEXITCODE" }
 } finally {
   Pop-Location
 }
 
-# --- 4. Clean up -----------------------------------------------------------------
-
-Remove-Item -Recurse -Force $InstallDir
-Write-Log "Removed $InstallDir"
-
-# --- 5. PATH setup -----------------------------------------------------------------
-
-if (-not (($env:Path -split ';') -contains $BinDir)) {
-  $env:Path = "$BinDir;$env:Path"
+if (-not (Test-Path $BinPath)) {
+  Fail "compile did not produce $BinPath"
 }
 
-$UserPath = [Environment]::GetEnvironmentVariable("Path", "User")
-if (-not (($UserPath -split ';') -contains $BinDir)) {
-  [Environment]::SetEnvironmentVariable("Path", "$BinDir;$UserPath", "User")
-  Write-Log "Added $BinDir to the user PATH"
+$binEntry = $BinDir
+$userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
+if ($userPath -and $userPath.Split(';') -contains $binEntry) {
+  Log 'user PATH already contains picobu bin; leaving it unchanged'
+} else {
+  $nextPath = if ($userPath) { "$binEntry;$userPath" } else { $binEntry }
+  [Environment]::SetEnvironmentVariable('Path', $nextPath, 'User')
+  Log 'prepended picobu bin to the user PATH'
+}
+if (-not ($env:Path.Split(';') -contains $binEntry)) {
+  $env:Path = "$binEntry;$env:Path"
 }
 
-# --- Done ---------------------------------------------------------------------------
-
-Write-Log "picobu installed successfully at $BinPath"
-Write-Log "Restart your terminal, then run: picobu"
+Write-Host ''
+Log "picobu installed: $BinPath"
+Log 'open a new terminal so the updated PATH takes effect, then run: picobu'
+Log 'rerun this installer anytime to update picobu (fresh re-clone + recompile)'

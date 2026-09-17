@@ -134,7 +134,7 @@ export async function spawnSubSession(
       rollUpCost()
       ctx.jobs.patch(sessionId, {
         state: 'finished',
-        ...(childStats ? { stats: { usage: childStats.total.usage, cost: childStats.total.cost, stepCount: childStats.stepCount ?? childStats.steps.length } } : {}),
+        ...(childStats ? { stats: { usage: childStats.total.usage, cost: childStats.total.cost, stepCount: childStats.stepCount ?? 0 } } : {}),
       })
       return {
         sessionId,
@@ -149,7 +149,7 @@ export async function spawnSubSession(
     const childStats = child?.stats
     ctx.jobs.patch(sessionId, {
       state: 'error',
-      ...(childStats ? { stats: { usage: childStats.total.usage, cost: childStats.total.cost, stepCount: childStats.stepCount ?? childStats.steps.length } } : {}),
+      ...(childStats ? { stats: { usage: childStats.total.usage, cost: childStats.total.cost, stepCount: childStats.stepCount ?? 0 } } : {}),
     })
     throw error
   } finally {
