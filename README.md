@@ -91,6 +91,13 @@ bun test tests/<dir>/<file>.test.ts
 
 Smoke (`needs a real model in ~/.picobu/options.json`): `bun run src/dev/smoke.ts`. Unit tests need no real keys (fake model keys, tmp dirs).
 
+### Troubleshooting installs
+
+The compiled binary is built hermetically (`bun run build` → `scripts/build.ts`): the OpenTUI Solid transform is applied at build time via `@opentui/solid/bun-plugin`, and the executable does not autoload `bunfig.toml` (`autoloadBunfig: false`).
+
+- `error: preload not found "@opentui/solid/preload"` on launch — the binary predates the hermetic build, or you are running `bun` against a `bunfig.toml` (project or `~/.bunfig.toml`) with a `preload` line that cannot resolve outside the clone. Reinstall with the current installer; if it persists, remove the `preload` entry from the global bunfig.
+- App starts but the TUI never appears (log shows `Orphan text error` / `unhandledRejection` with no UI) — binaries built before the hermetic build compiled Solid TSX with the wrong JSX transform. Rebuild via the current installer; `scripts/build.ts` now applies the correct transform explicitly.
+
 ## Usage
 
 Run the bootstrap (autoloads providers, refreshes OAuth tokens, connects WhatsApp when enabled):

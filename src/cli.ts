@@ -336,8 +336,15 @@ program.action((opts: CliActionOptions) => {
       console.error(`Bootstrap failed: ${error instanceof Error ? error.message : String(error)}`)
       process.exit(1)
     }
-    const { runTui } = await import('@tui/init.tsx')
-    await runTui({ sessionId: typeof opts.session === 'string' ? opts.session : undefined })
+    try {
+      const { runTui } = await import('@tui/init.tsx')
+      await runTui({ sessionId: typeof opts.session === 'string' ? opts.session : undefined })
+    } catch (error) {
+      logError(error, { scope: 'tui' })
+      console.error(`picobu: TUI error: ${error instanceof Error ? error.message : String(error)}`)
+      console.error(`picobu: see ${options.app.systemDir}/logs for details`)
+      process.exit(1)
+    }
   })()
 })
 program.parse(process.argv)

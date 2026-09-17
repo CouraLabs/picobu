@@ -9,8 +9,20 @@ $CloneDir = Join-Path $SourceDir 'picobu'
 $BinDir = Join-Path $PicobuHome 'bin'
 $BinPath = Join-Path $BinDir 'picobu.exe'
 
-function Log { param([string]$Message) Write-Host "==> $Message" }
-function Fail { param([string]$Message) Write-Host "error: $Message" -ForegroundColor Red; exit 1 }
+$UseColor = -not [Console]::IsOutputRedirected -and -not $env:NO_COLOR
+function Dim($Message) {
+  if ($UseColor) { Write-Host "  $Message" -ForegroundColor DarkGray } else { Write-Host "  $Message" }
+}
+function Run($Message) {
+  if ($UseColor) { Write-Host "  · $Message" -ForegroundColor DarkGray } else { Write-Host "  · $Message" }
+}
+function Ok($Message) {
+  if ($UseColor) { Write-Host "  ✓ $Message" -ForegroundColor Green } else { Write-Host "  ✓ $Message" }
+}
+function Fail($Message) {
+  if ($UseColor) { Write-Host "error: $Message" -ForegroundColor Red } else { Write-Host "error: $Message" }
+  exit 1
+}
 
 if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
   Fail @"
@@ -22,13 +34,17 @@ git is required. Install it with one of:
 }
 
 function Ensure-Bun {
-  if (Get-Command bun -ErrorAction SilentlyContinue) { return }
+  if (Get-Command bun -ErrorAction SilentlyContinue) {
+    Run "Bun $(bun --version)"
+    return
+  }
   $bunLocal = Join-Path $env:USERPROFILE '.bun\bin\bun.exe'
   if (Test-Path $bunLocal) {
     $env:Path = "$(Split-Path $bunLocal -Parent);$env:Path"
+    Run "Bun $(bun --version)"
     return
   }
-  Log 'bun not found; installing via https://bun.sh'
+  Run 'Installing Bun via https://bun.sh'
   irm https://bun.sh/install.ps1 | iex
   if (Test-Path $bunLocal) {
     $env:Path = "$(Split-Path $bunLocal -Parent);$env:Path"
@@ -36,52 +52,100 @@ function Ensure-Bun {
   if (-not (Get-Command bun -ErrorAction SilentlyContinue)) {
     Fail 'bun installation did not produce a bun on PATH; install manually from https://bun.sh'
   }
+  Run "Bun $(bun --version)"
 }
+
+Write-Host ''
+Dim "Installing picobu → $BinPath"
+Write-Host ''
 
 Ensure-Bun
 
-Log "creating $PicobuHome"
+Run "Preparing $PicobuHome"
 New-Item -ItemType Directory -Force -Path $SourceDir, $BinDir | Out-Null
 
 if (Test-Path $CloneDir) {
-  Log "removing existing clone at $CloneDir"
+  Run 'Removing previous clone'
   Remove-Item -Recurse -Force $CloneDir
 }
 
-Log "cloning $RepoUrl into $CloneDir"
-git clone --depth 1 $RepoUrl $CloneDir
+Run "Cloning $RepoUrl"
+git clone -q --depth 1 $RepoUrl $CloneDir
 if ($LASTEXITCODE -ne 0) { Fail "git clone failed with exit code $LASTEXITCODE" }
+
 Push-Location $CloneDir
 try {
-  Log 'installing dependencies'
-  bun install --os="*" --cpu="*" --no-cache --no-save --trust
-  if ($LASTEXITCODE -ne 0) { Fail "bun install failed with exit code $LASTEXITCODE" }
+  $PicobuVersion = (Get-Content package.json -Raw | ConvertFrom-Json).version
 
-  Log "compiling binary to $BinPath"
-  bun build --compile src/cli.ts --outfile $BinPath
-  if ($LASTEXITCODE -ne 0) { Fail "bun build failed with exit code $LASTEXITCODE" }
+  Run 'Installing dependencies'
+  $installOut = bun install --os="*" --cpu="*" --no-cache --no-save --trust 2>&1
+  if ($LASTEXITCODE -ne 0) {
+    $installOut | ForEach-Object { Dim "| $_" }
+    Fail "bun install failed with exit code $LASTEXITCODE"
+  }
+  $pkgCount = ($installOut | Select-String -Pattern '(\d+) packages installed').Matches.Groups[1].Value
+  if ($pkgCount) { Ok "Dependencies installed ($pkgCount packages)" } else { Ok 'Dependencies installed' }
+
+  Run 'Compiling binary'
+  $buildOut = bun scripts/build.ts --out-dir $BinDir --quiet 2>&1
+  if ($LASTEXITCODE -ne 0) {
+    $buildOut | ForEach-Object { Dim "| $_" }
+    Fail "compile failed with exit code $LASTEXITCODE"
+  }
+  if (-not (Test-Path $BinPath)) { Fail "compile did not produce $BinPath" }
+  $sizeMb = '{0:N1} MB' -f ((Get-Item $BinPath).Length / 1MB)
+  Ok "Binary compiled ($BinPath, $sizeMb)"
+
+  Run 'Smoke test (--version)'
+  $smokeDir = Join-Path ([System.IO.Path]::GetTempPath()) ("picobu-smoke-" + [Guid]::NewGuid().ToString('N'))
+  New-Item -ItemType Directory -Force -Path $smokeDir | Out-Null
+  Push-Location $smokeDir
+  try {
+    # Native stderr under Windows PowerShell 5.1 becomes a terminating error
+    # with EAP=Stop, so relax it for this call and fail on the exit code only.
+    $eap = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+      & $BinPath --version 2>&1 | Out-Null
+    } finally {
+      $ErrorActionPreference = $eap
+    }
+    if ($LASTEXITCODE -ne 0) { Fail "smoke test failed: $BinPath --version did not run cleanly" }
+  } finally {
+    Pop-Location
+    Remove-Item -Recurse -Force $smokeDir -ErrorAction SilentlyContinue
+  }
+  Ok "picobu $(& $BinPath --version) runs cleanly"
 } finally {
   Pop-Location
-}
-
-if (-not (Test-Path $BinPath)) {
-  Fail "compile did not produce $BinPath"
 }
 
 $binEntry = $BinDir
 $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
 if ($userPath -and $userPath.Split(';') -contains $binEntry) {
-  Log 'user PATH already contains picobu bin; leaving it unchanged'
+  Ok 'PATH already configured (user PATH contains picobu bin)'
 } else {
   $nextPath = if ($userPath) { "$binEntry;$userPath" } else { $binEntry }
   [Environment]::SetEnvironmentVariable('Path', $nextPath, 'User')
-  Log 'prepended picobu bin to the user PATH'
+  Ok 'PATH updated (user PATH)'
 }
 if (-not ($env:Path.Split(';') -contains $binEntry)) {
   $env:Path = "$binEntry;$env:Path"
 }
 
+$logo = @(
+  '┌╦═══╦┐┌═╤╦╤═┐┌╦═══╦┐┌╦═══╦┐┌╦══╦┐ ┌╦   ╦┐'
+  '│╠═══╩┘  │║│  │║     │║   ║││╠══╩╗┐│║   ║│'
+  '└╩     └═╧╩╧═┘└╩═══╩┘└╩═══╩┘└╩═══╩┘└╩═══╩┘'
+)
 Write-Host ''
-Log "picobu installed: $BinPath"
-Log 'open a new terminal so the updated PATH takes effect, then run: picobu'
-Log 'rerun this installer anytime to update picobu (fresh re-clone + recompile)'
+foreach ($line in $logo) { Dim $line }
+Write-Host ''
+Write-Host "  picobu $PicobuVersion installed"
+Write-Host ''
+Write-Host '  cd <project>'
+Write-Host '  picobu'
+Write-Host ''
+Dim 'open a new terminal so the updated PATH takes effect'
+Dim 'rerun this installer to update picobu (fresh re-clone + recompile)'
+Write-Host ''
