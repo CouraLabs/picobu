@@ -10,6 +10,7 @@ A headless autonomous coding agent core. One agent loop — read, plan, edit —
 - [Install](#install)
 - [Usage](#usage)
   - [CLI](#cli)
+  - [Keyboard shortcuts](#keyboard-shortcuts)
   - [Configuration](#configuration)
   - [Agents](#agents)
   - [Tools](#tools)
@@ -59,7 +60,7 @@ bun install
 bun dev
 ```
 
-Compiled install (requires `git`; installs `bun` automatically when missing; tracks `main`; writes `~/.picobu/bin/picobu` and wires `PATH` for the current shell):
+Compiled install (requires `git`; installs `bun` automatically when missing; tracks the default branch (`master`); writes `~/.picobu/bin/picobu` and wires `PATH` for the current shell):
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/CouraLabs/picobu/refs/heads/master/scripts/install.sh | bash
@@ -135,6 +136,28 @@ picobu logout <provider>        # logout and repoint harness selectors
 
 Direct TUI entry: `bun run src/tui/init.tsx [--session <id>] [--cd <folder>] [--debug]` (mouse + Kitty keyboard, 30–60fps).
 
+### Keyboard shortcuts
+
+Shortcut actions fire when the key is **released**, so holding a key never repeats the action. Double-press chords use a 150ms window. On terminals that cannot report key releases (no Kitty keyboard protocol — e.g. Apple Terminal, tmux, Windows ConPTY), shortcuts transparently fall back to acting on key press.
+
+| Keys | Action |
+| --- | --- |
+| `F1` | Open / close help |
+| `CTRL+D` `CTRL+D` / `F10` | Exit the app (double-press) |
+| `ESC` | Close dialogs |
+| `ESC` `ESC` | Interrupt: answer the flow first, move the newest queued prompt back to edit, then stop the run |
+| `CTRL+U` / `F2` | Change model (same chord again closes the dialog) |
+| `CTRL+K` / `F3` | Subagent jobs (same chord again closes the dialog) |
+| `CTRL+W` / `F4` | Toggle steer mode |
+| `SHIFT+TAB` | Cycle agent |
+| `CTRL+E` | Cycle thinking effort |
+| `CTRL+C` | Copy selected text |
+| `CTRL+A` | Select all text in the prompt |
+| `UP` / `DOWN` (in command flyout) | Move the command highlight |
+| `TAB` | Complete command (flyout open) or cycle prompt history (flyout closed) |
+
+`CTRL+V` is intentionally not a keybinding: pasting into the prompt goes through its paste support, which reads the clipboard service — text is inserted at the cursor and images/PDFs attach as files.
+
 ### Configuration
 
 Everything lives in `~/.picobu/options.json` (auto-created, auto-seeded, lock-guarded; corrupt files are backed up to `options.json.corrupt-<ts>`). Top-level blocks:
@@ -196,10 +219,9 @@ Model roles:
 | Role | Purpose | Default thinking |
 | --- | --- | --- |
 | `tiny` | fast, cheap lookups (session titles) | `none` |
-| `flash` | default workhorse (ask + coder agents) | model's `defaultEffort` |
-| `heavy` | deep reasoning (plan-code agent) | model's `defaultEffort` (`heavyThinkingLevel` → `high`) |
+| `flash` | default workhorse for all agents (ask, coder, plan-code, …) | `flashThinking` (default `medium`) |
 
-`harness.maxAgents` (default `4`) caps concurrent spawned sub sessions tree-wide and depth-inclusively. Set `0` to disable spawning entirely.
+`harness.modelRoles` also accepts `heavy` and `heavyThinkingLevel` (default `high`) keys, but no runtime path resolves them today. `harness.maxAgents` (default `4`) caps concurrent spawned sub sessions tree-wide. Set `0` to disable spawning entirely.
 
 ### Agents
 
@@ -207,10 +229,10 @@ Model roles:
 | --- | --- | --- |
 | `ask` | Fast Q&A, `flash` | `read`, `grep`, `glob`, `skill`, `rule`, `websearch`, `webfetch`, `ask`, `spawn` |
 | `coder` | Default coding loop, `flash` | `read`, `write`, `edit`, `apply_patch`, `glob`, `grep`, `shell`, `ask`, `todo`, `skill`, `rule`, `spawn`, `websearch`, `webfetch` |
-| `plan-code` | Deep planning + implementation, `heavy` | `read`, `grep`, `glob`, `skill`, `rule`, `ask`, `plan-write`, `plan-exit`, `spawn` |
-| `persistent` | Fresh, stateless 10-step runs per prompt (WhatsApp) | `wwp-msg`, `wwp-today`, `rule` |
+| `plan-code` | Deep planning + implementation, `flash` | `read`, `grep`, `glob`, `skill`, `rule`, `ask`, `plan-write`, `plan-exit`, `spawn` |
+| `persistent` | Fresh, stateless runs per prompt (WhatsApp) | `wwp-msg`, `wwp-today`, `rule` |
 
-Custom agents are markdown files with `name`/`description`/`category`/`tools`/`model` frontmatter (`*` = all tools). Built-in subagents (`executor`, `explorer`, `reviewer`) can be overridden per project via `.agents/agents/*.md`; project skills live in `.agents/skills/<name>/SKILL.md` (ships with `ai-sdk`, `baileys-wp`, `opentui`). Rules are flat markdown files with `name`/`description` frontmatter from `.agents/rules`, `~/.picobu/rules`, `~/.agents/rules` (missing description = skipped). Workflows, prompts, and commands resolve from project → `~/.picobu` → home, in that precedence order.
+Custom agents are markdown files with `name`/`description`/`category`/`tools`/`model` frontmatter (`*` = all tools). Built-in subagents (`executor`, `explorer`, `reviewer`) can be overridden per project via `.agents/agents/*.md`; project skills live in `.agents/skills/<name>/SKILL.md` (ships with `ai-sdk`, `baileys-wp`, `opentui`, `typescript-best-practices`, `solid-js-best-practices`). Rules are flat markdown files with `name`/`description` frontmatter from `.agents/rules`, `~/.picobu/rules`, `~/.agents/rules` (missing description = skipped). Workflows, prompts, and commands resolve from project → `~/.picobu` → home, in that precedence order.
 
 ### Tools
 
@@ -223,7 +245,7 @@ Custom agents are markdown files with `name`/`description`/`category`/`tools`/`m
 | `glob` | filesystem | Find files by glob pattern; respects `.gitignore` |
 | `grep` | filesystem | Search files with ripgrep regex; returns matching lines |
 | `shell` | filesystem | Run a shell command; streams output live, kills on timeout |
-| `todo` | flow | Session todo list (`ins` append, `upd` replace by index, `del` remove by index), persisted per session |
+| `todo` | flow | Session todo list: a full `items` array replaces the list in place, `[]` clears it; persisted per session |
 | `skill` | flow | Load a discovered skill by name (SKILL.md body + related file paths) |
 | `rule` | flow | Load a discovered rule by name and apply it |
 | `ask` | flow, interrupting | Ask the user up to 5 structured single/multiple-choice questions; run pauses for answers |
@@ -240,26 +262,27 @@ Every tool carries a JSON Schema rendered into the system prompt. `glob`/`grep` 
 
 ### Sessions
 
-Every run is saved incrementally (per message) to `~/.picobu/sessions/<folder>/<id>.jsonl` (`<folder>` = sanitized cwd, `<id>` = 16-hex), but only after its first prompt. A meta sidecar (`<id>.meta.json`) records cwd, parent link, lifecycle state (`running`/`waiting`/`finished`/`error`), title, and lifetime cost totals; a meta stuck in `running` after a crash downgrades to `error` on load.
+Every run is saved incrementally (per message) to `~/.picobu/sessions/<folder>/<id>.jsonl` (`<folder>` = sanitized cwd, `<id>` = 16-hex), but only after its first prompt. A meta sidecar (`<id>.meta.json`) records cwd, parent link, lifecycle state (`running`/`waiting`/`finished`/`error`), title, and model; a meta stuck in `running` after a crash downgrades to `error` on load.
 
 The `Session` facade drives every frontend:
 
-- Runs: `sendMessage`, `queue` (parks a prompt until the run settles), `steer` (mid-run follow-up), `regenerate`, `stop`/`abort`, `flush`/`close` (drains and tears down, MCP included).
-- Streaming: `stream()` (raw chunks), `streamMessages()` (whole messages), `onChange` notifications.
-- History: `revertToMessage` (truncates + persists), `undo`/`redo` (file-level, no LLM call, refused mid-run; new edits drop the redo tail; shell mutations are not checkpointed), `switchAgent`/`switchModel`/`switchThinking` mid-session, `addToolOutput` (deliver `ask`/`plan-write` answers without a run), `summarize` (read-only one-shot summary), `fork`.
+- Runs: `sendMessage`, `queue` (parks a prompt until the run settles), `steer` (mid-run follow-up), `regenerate`, `stop`/`abort`, `flush` (awaits persistence), `close` (stops the run, drains state, tears down MCP included).
+- Streaming: `stream()` (raw chunks), `streamMessages()` (whole messages), `onQueueChange`/`onStatsChange` notifications.
+- History: `revertToMessage` (truncates + persists), `undo`/`redo` (file-level, no LLM call, refused mid-run; new edits drop the redo tail; shell mutations are not checkpointed), `switchAgent`/`switchModel`/`switchThinking` mid-session, `addToolOutput` (deliver `ask`/`plan-write` answers without a run), `summarize` (read-only one-shot summary).
 - Catalogs: `skills`, `workflows`, `rules`, `agents`, `mcp` (snapshots, tool names, `refresh()`).
-- Multi-worktree: `changeDirectory(path)` starts a new session under the new folder key; worktrees run concurrently with separate sandboxes.
 
-Sub sessions & spawn: `spawn` is blocking and waits for every call to settle; nested spawns fail fast when over capacity (root spawns queue FIFO) so holders can never deadlock; depth cap 3 (no self/ancestor spawns); subagents never get interactive tools (`ask`, `plan-write`, `plan-exit`) and report back `{ summary, usage }`. `manager.jobs()`/`onJobs()`/`abortJob()` expose the job registry.
+The `SessionManager` rounds it out: `changeDirectory(path)` starts a new session under the new folder key (worktrees run concurrently with separate sandboxes) and `forkSession` clones a session.
 
-Cost accounting: `session.usage` is last-run (status bar); `session.stats` is the lifetime `LoopStats` view — per-step usage and cost, `total` accumulated across runs, `currentTotal` as the live sum of all recorded steps — persisted to the session stats file on every step and settle.
+Sub sessions & spawn: `spawn` is blocking and waits for every call to settle; nested spawns fail fast when over capacity (root spawns queue FIFO) so holders can never deadlock; depth cap 3; subagents never get interactive tools (`ask`, `plan-write`, `plan-exit`) and report back `{ sessionId, summary }`. `manager.jobs()`/`onJobs()`/`abortJob()` expose the job registry.
+
+Cost accounting: `session.stats` is the lifetime `LoopStats` view — per-step usage and cost, with `total` accumulating cost across runs — persisted to the session stats file (`<id>.stats.json`) on every step and settle.
 
 Session footer: four rows under the prompt. Token and timing segments reflect the latest step; `$` cost is the session lifetime total.
 
 - Agent row: agent, model, thinking level, finish reason or live activity (`Prompting`, `Reasoning`, `Tooling`, `Delegating`, `Answering`), session title.
-- Metrics row: `⧖` time to first output, `↯` output tokens/sec, `⌛` step time, `↻` LLM response time, `⯿` tool execution time, `↑` input tokens, `↓` output tokens, `⛁` cache total (hit %), `$` session cost, cost split (`in` / `out` / `read` / `write`).
-- Session row: message count (`u`ser / `a`ssistant), tool calls, run count with subagent cost, MCP connections, queue state.
-- Provider row (`SessionProviderStatus`): provider id/name for the active model, plus up to 8 `statusLine` chips (`Label value`, sticky-last across runs, `Label -` when never resolved).
+- Metrics row: `TTFT` time to first output, `TPS` output tokens/sec, `TT` tool execution time, `↑` input tokens, `↓` output tokens, `⛁` cache total (hit %), `$` session cost.
+- Session row: message count, tool calls, MCP connections, queue state.
+- Provider row (`SessionProviderStatus`): up to 8 `statusLine` chips (`Label value`, sticky-last across runs, `Label -` when never resolved).
 
 ### Provider status line
 
@@ -293,9 +316,9 @@ Three item types:
 
 The `hyper` (Charm Hyper) provider ships with the above defaults: per-response day/hour rate-limit headers, per-run HyperCredits from the step payload, and account balance polled on run start/end. Missing entries are backfilled automatically (your edits are never overwritten).
 
-Sandbox: each session runs inside a local sandbox rooted at its cwd (AI SDK `experimental_sandbox` over Bun); `shell` uses your detected shell, abort kills running commands; relative paths resolve against the cwd (absolute paths pass through — no jail in v1); `setSandbox(false)` is a runtime kill switch for subsequently created sessions.
+Sandbox: each session runs inside a local sandbox rooted at its cwd (AI SDK `experimental_sandbox` over Bun); `shell` uses your detected shell, abort kills running commands; relative paths resolve against the cwd and any path resolving outside the sandbox root is rejected; `setSandbox(false)` is a runtime kill switch for subsequently created sessions.
 
-Prompt history: last 20 prompts persist per project to a SQLite store at `~/.picobu/prompts.db` (drafts too); in the TUI, double-press Arrow Up/Down within 200 ms to cycle through them (single presses move the cursor normally). Session titles come from a one-shot `tiny`-role call (≤50 chars).
+Prompt history: last 20 prompts persist per project to a SQLite store at `~/.picobu/prompts.db` (drafts too); in the TUI, `TAB` cycles back through them (and returns to your draft at the end; completing a command in the flyout also uses `TAB`). Session titles come from a one-shot `tiny`-role call (≤50 chars).
 
 ### MCP (Model Context Protocol)
 
@@ -325,7 +348,7 @@ Picobu connects to [MCP](https://modelcontextprotocol.io/) servers via `@ai-sdk/
 
 ### WhatsApp
 
-Baileys integration (unofficial WhatsApp Web API) in `src/integrations/whatsapp/`. When `whatsapp.enabled` is set, `connectToWhatsApp()` runs at bootstrap and reconnects from `~/.picobu/whatsapp/auth` (0700) without a QR, retrying 10×/3s. `allowedNumbers` lists phone numbers allowed to talk to the agent (empty = nobody; outbound sending still works). Inbound messages from allowed numbers are submitted to the persistent session, which replies and acts via `wwp-msg`/`wwp-today`. Agent-sent texts carry an invisible zero-width-space sentinel so `fromMe` echoes are recognized and dropped. Pairing codes, QR/status/errors, contacts, and the `today` todo list (`~/.picobu/whatsapp/today.json`) are managed alongside the connection. Group (`@g.us`) and broadcast messages are ignored.
+Baileys integration (unofficial WhatsApp Web API) in `src/integrations/whatsapp/`. When `whatsapp.enabled` is set, `connectToWhatsApp()` runs at bootstrap and reconnects from `~/.picobu/whatsapp/auth` (0700) without a QR, retrying 10×/3s. `allowedNumbers` lists phone numbers allowed to talk to the agent (the paired phone is always allowed regardless; outbound sending still works). Inbound messages from allowed numbers are submitted to the persistent session, which replies and acts via `wwp-msg`/`wwp-today`. Agent-sent texts carry an invisible zero-width-space sentinel so `fromMe` echoes are recognized and dropped. Pairing codes, QR/status/errors, contacts, and the `today` todo list (`~/.picobu/whatsapp/today.json`) are managed alongside the connection. Group (`@g.us`) and broadcast messages are ignored.
 
 ### Login & OAuth
 
@@ -343,13 +366,13 @@ Baileys integration (unofficial WhatsApp Web API) in `src/integrations/whatsapp/
 | `snowflake-cortex` | `openai-compatible` | Snowflake PKCE (`picobu login snowflake-cortex <account> [role]`, copied from opencode, untested); base derived from account |
 | `azure` | `openai-compatible` | Microsoft Entra ID via `az login` (`picobu login azure <resource-name>`, copied from opencode, untested); `@ai-sdk/azure` factory |
 
-Aliases: `copilot` → `github-copilot`, `claude` → `anthropic`, `chatgpt`/`codex` → `openai`, `kimi` → `kimi-coding`, `snowflake` → `snowflake-cortex`, `do` → `digitalocean`. Tokens auto-refresh at bootstrap and before every run. First-time login also becomes `harness.defaultModel`. Logout removes the credential and provider and repoints harness selectors. API-key-only providers autoload too: Charm Hyper via `HYPER_API_KEY`, plus every models.dev provider with `env` (e.g. `ANTHROPIC_API_KEY`/`OPENAI_API_KEY`/`GITHUB_TOKEN`/`GOOGLE_API_KEY`/`XAI_API_KEY`/`OPENROUTER_API_KEY`) preloaded at startup with the `npm`-selected factory.
+Aliases: `copilot` → `github-copilot`, `claude` → `anthropic`, `chatgpt`/`codex` → `openai`, `kimi` → `kimi-coding`, `snowflake` → `snowflake-cortex`, `do` → `digitalocean`. Tokens auto-refresh at bootstrap. First-time login also becomes `harness.defaultModel`. Logout removes the credential and provider and repoints harness selectors. API-key-only providers autoload too: Charm Hyper via `HYPER_API_KEY`, plus every models.dev provider with `env` (e.g. `ANTHROPIC_API_KEY`/`OPENAI_API_KEY`/`GITHUB_TOKEN`/`GOOGLE_API_KEY`/`XAI_API_KEY`/`OPENROUTER_API_KEY`) preloaded at startup with the `npm`-selected factory.
 
 ### Host frontends
 
 Reference TUI (`bun run dev`, `src/tui/` over OpenTUI + Solid): session page with streamed text/reasoning/tool parts (`ask` renders its form inline, plans render for review), session header/status, message actions, diff viewer, dialogs/dropdowns, hover tooltips (`Tooltip` wrapper + `TooltipLayer` with dropdown-style flip/clamp positioning), splash screen, 35 bundled themes (`picobu` default, `resolveTheme`/`generateSyntax`), icon set, and Solid state primitives for dialogs, dropdowns, tooltips, theme, and toasts (`src/states/`). Clipboard goes through an OpenTUI service adapter.
 
-Mouse: click the status-bar model to switch models, hover the todo count to preview the list, click a tool header to collapse/expand its output (disabled when empty), double-click a message for Revert/Copy/Fork, click a subagent row to open its session, drag-select text then CTRL/CMD + C to copy (ESC clears the selection). The full list lives in the in-app help (`CTRL + H`).
+Mouse: click the status-bar model to switch models, hover the todo count to preview the list, click a tool header to collapse/expand its output (disabled when empty), double-click a message for Revert/Copy/Fork, click a subagent row to open its session, drag-select text then CTRL/CMD + C to copy (ESC clears the selection). The full list lives in the in-app help (`F1`).
 
 Library kit: `createHeadlessChatState()` implements the AI SDK `ChatState` contract over the loop (reuse `useChat` against any session); `src/wrappers/` bundles tree-sitter parser WASMs + highlight queries for 39 languages (`createTreeSitterClient()`, data under `~/.picobu/tree-sitter`); prompt history and session-title helpers round out host needs. No UI logic lives in the agent loop.
 
