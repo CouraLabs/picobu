@@ -30,7 +30,7 @@ describe('format', () => {
   })
   test('clip fmtTokens fmtCost fmtDuration', () => {
     expect(clip('abcdef', 3)).toBe('ab…')
-    expect(fmtTokens(1500)).toBe('1.5K')
+    expect(fmtTokens(1500)).toBe('1.50K')
     expect(fmtCost(2)).toBe('$2')
     expect(fmtDuration(90)).toBe('1m 30s')
   })

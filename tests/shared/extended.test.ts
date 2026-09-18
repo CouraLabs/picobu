@@ -58,9 +58,9 @@ describe('format edges', () => {
     expect(fmtTokens(0)).toBe('0')
     expect(fmtTokens(999)).toBe('999')
     expect(fmtTokens(1000)).toBe('1K')
-    expect(fmtTokens(2500)).toBe('2.5K')
+    expect(fmtTokens(2500)).toBe('2.50K')
     expect(fmtTokens(1000000)).toBe('1M')
-    expect(fmtTokens(2200000)).toBe('2.2M')
+    expect(fmtTokens(2200000)).toBe('2.20M')
   })
   test('fmtCost empty and rounding', () => {
     expect(fmtCost(undefined)).toBe('')
