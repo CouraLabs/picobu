@@ -60,10 +60,6 @@ export function resetPromptHistoryCache(): void {
   legacyMigrated = false
 }
 
-export function flushPromptHistory(): Promise<void> {
-  return Promise.resolve()
-}
-
 const encode = (text: string): string => Buffer.from(text, 'utf8').toString('base64')
 const decode = (b64: string): string | undefined => {
   try {

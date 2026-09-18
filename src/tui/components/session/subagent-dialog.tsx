@@ -1,6 +1,6 @@
 import type { LoopMessage } from '@agent/loop/create-loop.ts'
 import type { SessionManager } from '@agent/sessions/session-manager.ts'
-import { closeDialog, dialogJustClosed, openDialog } from '@states/dialog.state.ts'
+import { dialogJustClosed, openDialog } from '@states/dialog.state.ts'
 import { theme } from '@states/theme-state.ts'
 import { SessionMessages } from '@tui/components/session/session-messages.tsx'
 import { useTerminalDims } from '@tui/hooks/terminal-dims.tsx'
@@ -77,8 +77,4 @@ const SubagentMessagesDialog = (props: SubagentMessagesProps) => {
 export const openSubagentMessages = (props: SubagentMessagesProps) => {
   if (dialogJustClosed()) return
   openDialog(() => <SubagentMessagesDialog {...props} />)
-}
-
-export const closeSubagentMessages = () => {
-  closeDialog()
 }

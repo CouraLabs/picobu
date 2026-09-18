@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { headersForProviderId, providerSpecFor } from '../../src/agent/model/providers/index.ts'
-import { npmForProviderType, typeForNpm } from '../../src/agent/model/resolver.ts'
+import { npmForProviderType } from '../../src/agent/model/resolver.ts'
 
 describe('provider specs', () => {
   test('exposes anthropic beta headers', () => {
@@ -16,12 +16,6 @@ describe('provider specs', () => {
 })
 
 describe('npm mapping', () => {
-  test('maps known npm packages to types', () => {
-    expect(typeForNpm('@ai-sdk/openai')).toBe('openai')
-    expect(typeForNpm('@ai-sdk/anthropic')).toBe('anthropic')
-    expect(typeForNpm('@ai-sdk/xai')).toBe('openai-compatible')
-    expect(typeForNpm(undefined)).toBe('openai-compatible')
-  })
   test('maps types back to npm', () => {
     expect(npmForProviderType('openai')).toBe('@ai-sdk/openai')
     expect(npmForProviderType('anthropic')).toBe('@ai-sdk/anthropic')

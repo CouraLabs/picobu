@@ -56,7 +56,3 @@ export const getGitInfo = (cwd: string): GitInfo | null => {
   }
   return info
 }
-
-export const resetGitInfoCache = (): void => {
-  cache.clear()
-}

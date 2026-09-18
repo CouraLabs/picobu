@@ -55,5 +55,3 @@ export const headersForProviderId = (id: string, configured?: Record<string, str
   if (!configured) return { ...base }
   return { ...base, ...configured }
 }
-
-export const listProviderSpecIds = (): Array<string> => Object.keys(SPECS)

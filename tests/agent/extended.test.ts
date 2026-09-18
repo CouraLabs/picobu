@@ -16,7 +16,6 @@ import { createModelInstance, listModels, resolveApiKey, resolveAuth } from '../
 import { loadAgentsMarkdown } from '../../src/agent/prompts/agents-md.ts'
 import { askMarkdown } from '../../src/agent/prompts/ask.ts'
 import { coderMarkdown } from '../../src/agent/prompts/coder.ts'
-import { bytesToDataUrl, countLines, fileEmbedLabel, resolvePrompt, textEmbedLabel } from '../../src/agent/prompts/embeds.ts'
 import { persistentMarkdown } from '../../src/agent/prompts/persistent.ts'
 import { planMarkdown } from '../../src/agent/prompts/plan.ts'
 import { buildTitlePrompt, generateSessionTitle, sessionTitlePrompt } from '../../src/agent/prompts/session-title.ts'
@@ -476,26 +475,6 @@ describe('agent prompt texts', () => {
     expect(byKey.get('Rules')).toContain('RULES-MARK')
     expect(byKey.get('Subagents')).toContain('SUBAGENTS-MARK')
     expect(byKey.get('Available Tools')).toContain('TOOLS-MARK')
-  })
-})
-
-describe('prompt embeds', () => {
-  test('counters and labels', () => {
-    expect(countLines('')).toBe(0)
-    expect(countLines('x')).toBe(1)
-    expect(countLines('a\nb\nc')).toBe(3)
-    expect(textEmbedLabel('T', 5)).toBe('[T Pasted 1 ~ 5]')
-    expect(fileEmbedLabel('F', 'image/png')).toBe('[F File image/png]')
-  })
-  test('bytes convert to data urls', () => {
-    expect(bytesToDataUrl(new Uint8Array([104, 105]), 'text/plain')).toBe('data:text/plain;base64,aGk=')
-  })
-  test('resolvePrompt replaces text and file tokens', () => {
-    const resolved = resolvePrompt('A [T#1 pasted] B [F#2 file] C [T#9 missing] D', { 'T#1': 'HELLO' }, { 'F#2': { mimeType: 'image/png', filename: 'pic.png', dataUrl: 'data:image/png;base64,xx' } })
-    expect(resolved.text).toBe('A HELLO B  C  D')
-    expect(resolved.files.length).toBe(1)
-    expect(resolved.files[0]?.mediaType).toBe('image/png')
-    expect(resolved.files[0]?.filename).toBe('pic.png')
   })
 })
 

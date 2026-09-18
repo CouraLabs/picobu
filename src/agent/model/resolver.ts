@@ -76,17 +76,6 @@ export const npmForProviderType = (type: ProviderOptions['type']): string => {
   }
 }
 
-export const typeForNpm = (npm?: string): ProviderOptions['type'] => {
-  switch (npm) {
-    case '@ai-sdk/openai':
-      return 'openai'
-    case '@ai-sdk/anthropic':
-      return 'anthropic'
-    default:
-      return 'openai-compatible'
-  }
-}
-
 export interface ModelInstanceOptions {
   modelNpm?: string
   sessionId?: string

@@ -2,7 +2,7 @@ import type { JobRow } from '@agent/sessions/session-jobs.ts'
 import type { SessionManager } from '@agent/sessions/session-manager.ts'
 import type { BackgroundShellEntry } from '@agent/tools/filesystem/background-shell.ts'
 import { fmtDuration } from '@shared/format.ts'
-import { closeDialog, openDialog } from '@states/dialog.state.ts'
+import { openDialog } from '@states/dialog.state.ts'
 import { theme } from '@states/theme-state.ts'
 import { Button } from '@tui/components/button.tsx'
 import { useTerminalDims } from '@tui/hooks/terminal-dims.tsx'
@@ -116,8 +116,4 @@ const JobsDialogView = (props: JobsDialogProps) => {
 
 export const openJobsDialog = (props: JobsDialogProps) => {
   openDialog(() => <JobsDialogView {...props} />)
-}
-
-export const closeJobsDialog = () => {
-  closeDialog()
 }

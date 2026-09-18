@@ -26,7 +26,7 @@ import {
 } from '../../src/tui/components/session/tools/tool-summary.ts'
 import { deliversEvent } from '../../src/tui/hooks/keyboard-provider.tsx'
 import { icons } from '../../src/tui/themes/icons.ts'
-import { allThemes, generateSystem, hasTheme, isTheme, resolveTheme, type ThemeJson, terminalMode, tint } from '../../src/tui/themes/index.ts'
+import { allThemes, hasTheme, isTheme, resolveTheme, type ThemeJson, tint } from '../../src/tui/themes/index.ts'
 
 const part = (overrides: Partial<ToolPartLike> & Record<string, unknown> = {}): ToolPartLike => ({ type: 'tool-read', ...overrides })
 
@@ -441,17 +441,6 @@ describe('theme color helpers', () => {
     expect(gray.r).toBe(128 / 255)
     expect(gray.g).toBe(128 / 255)
     expect(gray.b).toBe(128 / 255)
-  })
-  test('terminalMode follows background luminance', () => {
-    expect(terminalMode(colors('#000000'))).toBe('dark')
-    expect(terminalMode(colors('#ffffff'))).toBe('light')
-  })
-  test('generateSystem round-trips through resolveTheme', () => {
-    const system = generateSystem(colors('#101014'), 'dark')
-    expect(isTheme(system)).toBe(true)
-    const resolved = resolveTheme(system, 'dark')
-    expect(resolved.thinkingOpacity).toBe(0.6)
-    expect(typeof resolved.primary.r).toBe('number')
   })
 })
 

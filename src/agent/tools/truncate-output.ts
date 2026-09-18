@@ -32,23 +32,6 @@ export const writeFullToolOutput = async (text: string): Promise<string> => {
   return file
 }
 
-export const cleanupToolOutputs = async (): Promise<void> => {
-  const cutoff = Date.now() - TRUNCATION_RETENTION_MS
-  let entries: Array<string>
-  try {
-    entries = (await readdir(toolOutputDir())).filter((name) => name.startsWith('tool_'))
-  } catch {
-    return
-  }
-  for (const entry of entries) {
-    const file = join(toolOutputDir(), entry)
-    try {
-      const info = await stat(file)
-      if (info.mtimeMs < cutoff) await rm(file, { force: true })
-    } catch {}
-  }
-}
-
 export interface TailResult {
   text: string
   cut: boolean

@@ -8,7 +8,6 @@ import {
   addPrompt,
   clearDraft,
   clearPromptHistory,
-  flushPromptHistory,
   loadDraft,
   loadPromptHistory,
   PROMPT_HISTORY_LIMIT,
@@ -227,7 +226,6 @@ describe('prompt history with tmp file', () => {
   })
   test('persists prompts across cache reset', async () => {
     addPrompt('persisted')
-    await flushPromptHistory()
     resetPromptHistoryCache()
     expect(loadPromptHistory()).toEqual(['persisted'])
   })
