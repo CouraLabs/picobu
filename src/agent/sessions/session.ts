@@ -365,8 +365,10 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
   let aborting = false
   let lastDerivedState: SessionState | undefined
   let lastStreamBackupAt = 0
+  let closed = false
   const STREAM_BACKUP_INTERVAL_MS = 1000
   const handleStateChange = (state: ChatState<LoopMessage>): void => {
+    if (closed) return
     if (resuming && state.status !== 'ready') resuming = false
     const derived = deriveState(chat)
     if (derived !== lastDerivedState) {
@@ -698,6 +700,7 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
       await pendingStatsWrite
     },
     close: async () => {
+      closed = true
       unsubscribeLoopStats()
       settlePending()
       if (isRunning()) {

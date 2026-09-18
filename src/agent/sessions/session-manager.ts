@@ -40,10 +40,21 @@ export class SessionManager {
   private readonly live = new Map<string, Session>()
   private readonly jobTracker = new JobTracker()
   private readonly shellJobNotified = new Set<string>()
+  private readonly unsubscribeShells: () => void
+  private disposed = false
   constructor(init: { cwd?: string; maxAgents?: number } = {}) {
     this.cwd = resolve(init.cwd ?? options.app.cwd)
     this._maxAgents = init.maxAgents ?? options.harness.maxAgents ?? DEFAULT_MAX_AGENTS
-    onBackgroundShells((entries) => this.handleShellJobUpdates(entries))
+    this.unsubscribeShells = onBackgroundShells((entries) => this.handleShellJobUpdates(entries))
+  }
+
+  dispose(): void {
+    if (this.disposed) return
+    this.disposed = true
+    this.unsubscribeShells()
+    this.shellJobNotified.clear()
+    this.live.clear()
+    this.jobTracker.emit()
   }
 
   get currentCwd(): string {
@@ -62,6 +73,12 @@ export class SessionManager {
   }
 
   private handleShellJobUpdates(entries: Array<BackgroundShellEntry>): void {
+    if (entries.length > 0) {
+      const runningIds = new Set(entries.map((entry) => entry.id))
+      for (const notifiedId of this.shellJobNotified) {
+        if (!runningIds.has(notifiedId)) this.shellJobNotified.delete(notifiedId)
+      }
+    }
     for (const entry of entries) {
       if (entry.status === 'running' || this.shellJobNotified.has(entry.id)) continue
       this.shellJobNotified.add(entry.id)

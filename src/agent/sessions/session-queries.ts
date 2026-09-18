@@ -4,6 +4,7 @@ import type { Session } from '@agent/sessions/session.ts'
 import type { JobTracker } from '@agent/sessions/session-jobs.ts'
 import { deleteSessionMeta, folderKeyForSession, readSessionMeta, recoverSessionMeta, type SessionMeta, type SessionState } from '@agent/sessions/session-meta.ts'
 import { folderKeyFor, sessionFilePath } from '@agent/sessions/session-paths.ts'
+import { sessionStatsPath } from '@agent/sessions/session-stats-io.ts'
 import { listSessions } from '@agent/sessions/session-store.ts'
 import { options } from '@config/options.ts'
 
@@ -59,10 +60,15 @@ export async function deleteSessionCascade(deps: QueryDeps, id: string): Promise
     if (running) throw new Error(`Session "${nodeId}" is running; stop it before deleting`)
   }
   for (const nodeId of subtree) {
-    live.get(nodeId)?.abort()
+    const liveSession = live.get(nodeId)
+    if (liveSession) {
+      liveSession.abort()
+      await liveSession.close().catch(() => {})
+    }
     live.delete(nodeId)
     jobs.delete(nodeId)
     await rm(sessionFilePath(folderKey, nodeId), { force: true })
+    await rm(sessionStatsPath(folderKey, nodeId), { force: true })
     await deleteSessionMeta(folderKey, nodeId)
     await rm(join(options.app.systemDir, 'sessions', folderKey, nodeId), { recursive: true, force: true }).catch(() => {})
   }
