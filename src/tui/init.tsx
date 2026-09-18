@@ -130,7 +130,6 @@ const startTui = async (options: TuiAppOptions, unguard: (() => void) | undefine
   // native render thread on Linux matches macOS/Windows behavior. Harmless
   // elsewhere: the platform default is already useThread=true there.
   renderer.useThread = true
-
   const bootstrapProviders = async (): Promise<void> => {
     await Promise.all([autoloadLlmProviders(), ensureOAuthTokens()]).catch(() => {})
   }
@@ -198,6 +197,16 @@ const startTui = async (options: TuiAppOptions, unguard: (() => void) | undefine
     logError(error, { scope: 'tui-render' })
     throw error
   }
+  // Picobu runs the renderer in one-shot mode: with no playing timelines,
+  // _isRunning stays false and every repaint is driven by a single
+  // requestRender() call. TextNodeRenderable.requestRender() walks up
+  // `parent?.requestRender()` and silently drops the request when a node is
+  // transiently detached (opentui #1147) — exactly what happens when the
+  // splash→App swap races the spinner's in-flight tick. One dropped request and
+  // no frame is ever scheduled again: frozen splash, live process. Starting the
+  // loop explicitly makes frames self-reschedule at targetFps, independent of
+  // dropped one-shot requests.
+  renderer.start()
   const splashWatchdog = setTimeout(() => {
     if (ready()) return
     let stats: { frameCount?: number; fps?: number } | undefined

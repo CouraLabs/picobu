@@ -178,7 +178,7 @@ export const createSessionStatusData = (props: SessionStatusProps): SessionStatu
       if (!usage) return `0 (0%)`
       const cache = usage.inputTokenDetails?.cacheReadTokens ?? 0
       const total = usage.inputTokens ?? 0
-      const percent = total > 0 ? Math.round((cache / total) * 100) : 0
+      const percent = total > 0 ? ((cache / total) * 100).toFixed(2) : 0
       return `${fmtTokens(cache)} (${percent}%)`
     },
     costValue: () => fmtCostPreciseBare(costTotal()?.total ?? 0),

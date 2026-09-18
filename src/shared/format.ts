@@ -19,11 +19,11 @@ export const relTime = (ms: number): string => {
 export const fmtTokens = (n: number): string => {
   if (n >= 1_000_000) {
     const m = n / 1_000_000
-    return `${m % 1 === 0 ? m : m.toFixed(1)}M`
+    return `${m % 1 === 0 ? m : m.toFixed(2)}M`
   }
   if (n >= 1_000) {
     const k = n / 1_000
-    return `${k % 1 === 0 ? k : k.toFixed(1)}K`
+    return `${k % 1 === 0 ? k : k.toFixed(2)}K`
   }
   return String(n)
 }
