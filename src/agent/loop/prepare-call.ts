@@ -29,7 +29,7 @@ export const createPrepareCall = (deps: PrepareCallDeps): ToolLoopAgentSettings<
       model: resolved.model,
       tools,
       toolOrder: buildToolOrder(Object.keys(tools), (name) => localKindByName.get(name) ?? 'mcp'),
-      activeTools: agentDef.tools.length ? agentDef.tools : undefined,
+      activeTools: agentDef.tools.filter((name) => name in tools),
       instructions: await buildSystem(persistent ? 'persistent' : config.agentId),
       reasoning: config.thinking as AgentReasoning,
       providerOptions: {
