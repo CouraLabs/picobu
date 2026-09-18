@@ -152,14 +152,28 @@ export const SessionPage = (props: SessionPageProps) => {
     setConsoleTitle(title())
   })
 
+  let gitRefreshTimer: ReturnType<typeof setTimeout> | undefined
+  let gitRefreshPending: string | undefined
+  let gitRefreshHasPending = false
   const refreshGit = (dir: string | undefined) => {
-    const nextCwd = dir
-    const nextGit = dir ? getGitInfo(dir) : null
-    batch(() => {
-      setCwd(nextCwd)
-      setGit(nextGit)
-    })
+    gitRefreshPending = dir
+    gitRefreshHasPending = true
+    if (gitRefreshTimer !== undefined) return
+    gitRefreshTimer = setTimeout(() => {
+      gitRefreshTimer = undefined
+      if (!gitRefreshHasPending) return
+      gitRefreshHasPending = false
+      const nextCwd = gitRefreshPending
+      const nextGit = nextCwd ? getGitInfo(nextCwd) : null
+      batch(() => {
+        setCwd(nextCwd)
+        setGit(nextGit)
+      })
+    }, 250)
   }
+  onCleanup(() => {
+    if (gitRefreshTimer !== undefined) clearTimeout(gitRefreshTimer)
+  })
 
   const refreshMcp = (target: Session | undefined) => {
     if (!target) return

@@ -21,7 +21,8 @@ const SubagentMessagesDialog = (props: SubagentMessagesProps) => {
   const load = async () => {
     const live = props.manager.getSession(props.sessionId)
     if (live) {
-      setMessages([...live.messages])
+      const current = messages()
+      if (current.length !== live.messages.length || current.some((m, i) => m !== live.messages[i])) setMessages([...live.messages])
       if (live.title && live.title !== title()) setTitle(live.title)
       return
     }

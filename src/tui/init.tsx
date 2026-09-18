@@ -44,8 +44,9 @@ export async function runTui(options: TuiAppOptions = {}): Promise<void> {
   const unguard = win32InstallCtrlCGuard()
   try {
     await startTui(options, unguard)
-  } finally {
+  } catch (error) {
     unguard?.()
+    throw error
   }
 }
 
