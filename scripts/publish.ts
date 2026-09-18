@@ -10,6 +10,7 @@ export interface PublishOptions {
   skipChecks: boolean
   skipGit: boolean
   assumeYes: boolean
+  otp: string | undefined
 }
 
 export interface InstallScriptStamp {
@@ -18,7 +19,7 @@ export interface InstallScriptStamp {
 }
 
 export const parsePublishArgs = (argv: Array<string>): PublishOptions => {
-  const options: PublishOptions = { kind: 'build', ci: false, skipChecks: false, skipGit: false, assumeYes: false }
+  const options: PublishOptions = { kind: 'build', ci: false, skipChecks: false, skipGit: false, assumeYes: false, otp: undefined }
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]
     if (arg === '--feature' || arg === '--minor' || arg === '-f') {
@@ -38,6 +39,11 @@ export const parsePublishArgs = (argv: Array<string>): PublishOptions => {
       options.skipGit = true
     } else if (arg === '--yes' || arg === '-y') {
       options.assumeYes = true
+    } else if (arg === '--otp') {
+      const value = argv[i + 1]
+      if (!value || value.startsWith('--')) throw new Error('--otp requires a one-time password value')
+      options.otp = value
+      i++
     } else {
       throw new Error(`unknown flag: ${arg}`)
     }
@@ -90,7 +96,7 @@ export const assertPackList = (files: Array<string>, version: string): void => {
   if (leaked.length > 0) throw new Error(`pack output for ${version} leaks source files: ${leaked.join(', ')}`)
 }
 
-const runInherited = (cmd: string[]): void => {
+const runInherited = (cmd: Array<string>): void => {
   const proc = Bun.spawnSync(cmd)
   if (proc.exitCode !== 0) throw new Error(`${cmd.join(' ')} exited with code ${proc.exitCode}`)
 }
@@ -142,17 +148,18 @@ const main = async (): Promise<void> => {
   const bakedVersion = baked.stdout.toString().trim()
   if (baked.exitCode !== 0 || bakedVersion !== next) throw new Error(`baked bundle version ${bakedVersion} does not match ${next}`)
 
+  const publishArgs = options.otp ? ['bun', 'publish', '--access', 'public', '--otp', options.otp] : ['bun', 'publish', '--access', 'public']
   if (options.ci) {
     if (!process.env.NPM_TOKEN) throw new Error('NPM_TOKEN is required in --ci mode')
     const npmrcPath = join(root, '.npmrc')
     writeFileSync(npmrcPath, '//registry.npmjs.org/:_authToken=${NPM_TOKEN}\n')
     try {
-      runInherited(['bun', 'publish', '--access', 'public'])
+      runInherited(publishArgs)
     } finally {
       rmSync(npmrcPath, { force: true })
     }
   } else {
-    runInherited(['bun', 'publish', '--access', 'public'])
+    runInherited(publishArgs)
   }
 
   if (!options.skipGit) {

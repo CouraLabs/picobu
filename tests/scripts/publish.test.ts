@@ -5,7 +5,7 @@ import { assertPackList, normalizeDependencyRange, packListFromOutput, parsePubl
 
 describe('parsePublishArgs', () => {
   test('defaults to a build bump with everything enabled', () => {
-    expect(parsePublishArgs([])).toEqual({ kind: 'build', ci: false, skipChecks: false, skipGit: false, assumeYes: false })
+    expect(parsePublishArgs([])).toEqual({ kind: 'build', ci: false, skipChecks: false, skipGit: false, assumeYes: false, otp: undefined })
   })
 
   test('accepts feature aliases', () => {
@@ -22,7 +22,13 @@ describe('parsePublishArgs', () => {
   })
 
   test('implies assumeYes in ci mode', () => {
-    expect(parsePublishArgs(['--ci', '--skip-checks', '--skip-git'])).toEqual({ kind: 'build', ci: true, skipChecks: true, skipGit: true, assumeYes: true })
+    expect(parsePublishArgs(['--ci', '--skip-checks', '--skip-git'])).toEqual({ kind: 'build', ci: true, skipChecks: true, skipGit: true, assumeYes: true, otp: undefined })
+  })
+
+  test('accepts an --otp value and rejects a missing one', () => {
+    expect(parsePublishArgs(['--otp', '123456']).otp).toBe('123456')
+    expect(() => parsePublishArgs(['--otp'])).toThrow('--otp requires')
+    expect(() => parsePublishArgs(['--otp', '--ci'])).toThrow('--otp requires')
   })
 })
 

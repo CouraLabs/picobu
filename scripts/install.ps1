@@ -4,7 +4,7 @@ $ErrorActionPreference = 'Stop'
 
 $PackageName = '@couralabs/picobu'
 # stamped by scripts/publish.ts — do not edit by hand
-$PicobuVersionDefault = '1.29.1'
+$PicobuVersionDefault = '1.29.0'
 $PuppeteerVersionDefault = '25.10.0'
 $PicobuVersion = if ($env:PICOBU_VERSION) { $env:PICOBU_VERSION } else { $PicobuVersionDefault }
 $PicobuHome = Join-Path $env:USERPROFILE '.picobu'
