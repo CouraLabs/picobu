@@ -13,13 +13,13 @@ export interface JobsDialogProps {
   onOpenSession: (sessionId: string, label: string) => void
 }
 
-const elapsed = (startedAt: number): string => fmtDuration(Math.max(0, Math.floor((Date.now() - startedAt) / 1000)))
+const elapsed = (startedAt: number, now: number): string => fmtDuration(Math.max(0, Math.floor((now - startedAt) / 1000)))
 
-const JobRowView = (props: { job: JobRow; live: boolean; onOpen: () => void; onAbort: () => void }) => (
+const JobRowView = (props: { job: JobRow; now: number; live: boolean; onOpen: () => void; onAbort: () => void }) => (
   <box flexDirection="row" gap={1} flexShrink={0} alignItems="center">
     <text fg={theme().text}>{props.job.subagent}</text>
     <text fg={theme().textMuted}>{props.job.queued ? 'queued' : props.job.state}</text>
-    <text fg={theme().textMuted}>{elapsed(props.job.startedAt)}</text>
+    <text fg={theme().textMuted}>{elapsed(props.job.startedAt, props.now)}</text>
     <box flexDirection="row" gap={1}>
       <Button label="Open" onClick={props.onOpen} />
       <Button label={props.live ? 'Abort' : '—'} onClick={props.onAbort} />
@@ -29,11 +29,11 @@ const JobRowView = (props: { job: JobRow; live: boolean; onOpen: () => void; onA
 
 const truncateCommand = (command: string, max: number): string => (command.length > max ? `${command.slice(0, max - 1)}…` : command)
 
-const ShellJobRowView = (props: { entry: BackgroundShellEntry; live: boolean; onKill: () => void }) => (
+const ShellJobRowView = (props: { entry: BackgroundShellEntry; now: number; live: boolean; onKill: () => void }) => (
   <box flexDirection="row" gap={1} flexShrink={0} alignItems="center">
     <text fg={theme().text}>{truncateCommand(props.entry.command, 40)}</text>
     <text fg={props.live ? theme().warning : theme().textMuted}>{props.entry.status}</text>
-    <text fg={theme().textMuted}>{elapsed(props.entry.startedAt)}</text>
+    <text fg={theme().textMuted}>{elapsed(props.entry.startedAt, props.now)}</text>
     <Show when={props.entry.exitCode !== undefined}>
       <text fg={theme().textMuted}>{`exit ${props.entry.exitCode}`}</text>
     </Show>
@@ -45,15 +45,18 @@ const JobsDialogView = (props: JobsDialogProps) => {
   const dims = useTerminalDims()
   const [jobs, setJobs] = createSignal<Array<JobRow>>(props.manager.jobs().slice(-100))
   const [shells, setShells] = createSignal<Array<BackgroundShellEntry>>(props.manager.shellJobs())
+  const [now, setNow] = createSignal(Date.now())
 
   const dialogHeight = (): number => Math.max(10, Math.min(Math.floor(dims().height * 0.9), dims().height - 2))
 
   onMount(() => {
     const off = props.manager.onJobs((rows) => setJobs(rows.slice(-100)))
     const offShells = props.manager.onShellJobs((entries) => setShells(entries))
+    const ticker = setInterval(() => setNow(Date.now()), 1000)
     onCleanup(() => {
       off()
       offShells()
+      clearInterval(ticker)
     })
   })
 
@@ -71,6 +74,7 @@ const JobsDialogView = (props: JobsDialogProps) => {
             {(job) => (
               <JobRowView
                 job={job}
+                now={now()}
                 live={isLive(job.sessionId)}
                 onOpen={() => props.onOpenSession(job.sessionId, job.subagent)}
                 onAbort={() => {
@@ -86,7 +90,7 @@ const JobsDialogView = (props: JobsDialogProps) => {
       </box>
       <box flexDirection="column" gap={1} flexShrink={0}>
         <For each={shells()} fallback={<text fg={theme().textMuted}>No background shells in this run.</text>}>
-          {(entry) => <ShellJobRowView entry={entry} live={entry.status === 'running'} onKill={() => void props.manager.killShellJob(entry.id)} />}
+          {(entry) => <ShellJobRowView entry={entry} now={now()} live={entry.status === 'running'} onKill={() => void props.manager.killShellJob(entry.id)} />}
         </For>
       </box>
       <Show when={hasRunningShells()}>

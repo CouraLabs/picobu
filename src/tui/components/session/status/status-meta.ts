@@ -156,9 +156,9 @@ export const createSessionStatusData = (props: SessionStatusProps): SessionStatu
   const contextPercent = () => Math.round((contextValue() / modelContextSize()) * 100)
   const contextColor = () => {
     const p = contextPercent()
-    if (p > 10 && p < 40) return theme().success
-    if (p > 40 && p < 70) return theme().warning
-    if (p > 70) return theme().error
+    if (p >= 70) return theme().error
+    if (p >= 40) return theme().warning
+    if (p > 10) return theme().success
     return theme().text
   }
 

@@ -71,11 +71,13 @@ export const SessionMessages = (props: SessionMessagesProps) => {
         {(entry, index) => (
           <Show when={asToolPart(entry().part)} fallback={<MessagePartView role={entry().role} part={entry().part} message={entry().message} onOpen={props.onMessageOpen} />}>
             {(toolPart: () => ToolPartLike) => {
-              const prev = allMessageParts()[index - 1]
-              const afterUserOrReasoning = prev !== undefined && (prev.part.type === 'text' || prev.part.type === 'reasoning')
+              const afterUserOrReasoning = createMemo(() => {
+                const prev = allMessageParts()[index - 1]
+                return prev !== undefined && (prev.part.type === 'text' || prev.part.type === 'reasoning')
+              })
 
               return (
-                <box marginTop={afterUserOrReasoning ? 1 : 0}>
+                <box marginTop={afterUserOrReasoning() ? 1 : 0}>
                   <ToolPart
                     part={toolPart()}
                     partKey={entry().key}

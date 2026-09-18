@@ -19,12 +19,36 @@ export const Marquee = (props: MarqueeProps) => {
   const driver = { phase: 0 }
   const timeline = useTimeline({ autoplay: false, duration: speedMs() * 2, loop: true })
   const chars = createMemo(() => Array.from(merged.content))
-  const overflowCols = createMemo(() => Math.max(0, chars().length - merged.maxWidth))
+  const charCols = (char: string): number => {
+    const code = char.codePointAt(0) ?? 0
+    if (
+      code >= 0x1100 &&
+      (code <= 0x115f ||
+        (code >= 0x2e80 && code <= 0xa4cf) ||
+        (code >= 0xac00 && code <= 0xd7a3) ||
+        (code >= 0xf900 && code <= 0xfaff) ||
+        (code >= 0xff00 && code <= 0xff60) ||
+        (code >= 0xffe0 && code <= 0xffe6) ||
+        (code >= 0x1f300 && code <= 0x1f64f) ||
+        (code >= 0x1f900 && code <= 0x1f9ff) ||
+        (code >= 0x20000 && code <= 0x3fffd))
+    )
+      return 2
+    return 1
+  }
+  const widthOf = createMemo(() => chars().reduce((sum, char) => sum + charCols(char), 0))
+  const overflowCols = createMemo(() => Math.max(0, widthOf() - merged.maxWidth))
   const sliceWindow = (start: number): string => {
     if (overflowCols() === 0) return merged.content
-    return chars()
-      .slice(start, start + merged.maxWidth)
-      .join('')
+    const out: Array<string> = []
+    let acc = 0
+    for (const char of chars()) {
+      const cols = charCols(char)
+      if (acc >= start && acc + cols <= start + merged.maxWidth) out.push(char)
+      acc += cols
+      if (acc >= start + merged.maxWidth) break
+    }
+    return out.join('')
   }
   const [visible, setVisible] = createSignal(sliceWindow(0))
 
