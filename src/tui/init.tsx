@@ -124,6 +124,13 @@ const startTui = async (options: TuiAppOptions, unguard: (() => void) | undefine
 
   win32DisableProcessedInput()
 
+  // OpenTUI 0.5.11 forces useThread=false on Linux, driving frames from a JS
+  // timeout loop whose schedule can silently stop repainting after the first
+  // frame ("skipped without a feed" → "failed" clears the timer). Forcing the
+  // native render thread on Linux matches macOS/Windows behavior. Harmless
+  // elsewhere: the platform default is already useThread=true there.
+  renderer.useThread = true
+
   const bootstrapProviders = async (): Promise<void> => {
     await Promise.all([autoloadLlmProviders(), ensureOAuthTokens()]).catch(() => {})
   }
