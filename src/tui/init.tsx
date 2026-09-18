@@ -8,8 +8,9 @@ import type { TerminalCapabilities } from '@opentui/core'
 import { CliRenderEvents, ConsolePosition, createClipboard, createCliRenderer, createHostClipboard, createRendererClipboardAdapter, DebugOverlayCorner, engine } from '@opentui/core'
 import { render } from '@opentui/solid'
 import { resetConsoleTitle, setConsoleTitle } from '@shared/console-title.ts'
-import { initLogger, logError } from '@shared/logger.ts'
+import { flushLogger, getLogPath, initLogger, logError } from '@shared/logger.ts'
 import { divertStderr } from '@shared/quiet-stderr.ts'
+import { withTimeout } from '@shared/with-timeout.ts'
 import { bumpCatalog } from '@states/catalog-state.ts'
 import { theme } from '@states/theme-state.ts'
 import { pushToast } from '@states/toast.state.ts'
@@ -29,6 +30,16 @@ export interface TuiAppOptions {
   debug?: boolean
   sessionId?: string
   cwd?: string
+}
+
+const PROVIDER_BOOTSTRAP_TIMEOUT_MS = 15000
+const PARSER_TIMEOUT_MS = 15000
+const TREE_SITTER_TIMEOUT_MS = 20000
+const SPLASH_WATCHDOG_MS = 30000
+
+interface StartupStageFailure {
+  stage: string
+  error: Error
 }
 
 export async function runTui(options: TuiAppOptions = {}): Promise<void> {
@@ -73,6 +84,8 @@ const startTui = async (options: TuiAppOptions, unguard: (() => void) | undefine
     disableWin32InputMode?.()
     disableWin32InputMode = undefined
   }
+  let loudFailure: string | undefined
+  let splashWatchdog: ReturnType<typeof setTimeout> | undefined
   const renderer = await createCliRenderer({
     exitOnCtrlC: false,
     exitSignals: rendererExitSignals,
@@ -107,6 +120,10 @@ const startTui = async (options: TuiAppOptions, unguard: (() => void) | undefine
       } catch {}
       clipboardService.dispose()
       resetConsoleTitle()
+      if (loudFailure !== undefined) {
+        process.stderr.write(`picobu: ${loudFailure}\nSee ${getLogPath() ?? appOptions.app.systemDir} for details.\n`)
+        process.exit(1)
+      }
       const exit = takeExitStatus()
       console.log(
         closeMessage(exit?.sessionId ?? 'sessionId', theme(), {
@@ -120,7 +137,24 @@ const startTui = async (options: TuiAppOptions, unguard: (() => void) | undefine
       )
       process.exit(0)
     },
+  }).catch((error: unknown) => {
+    restoreStderr()
+    throw error
   })
+
+  const failLoudStartup = (reason: string, context: Record<string, unknown>): never => {
+    if (splashWatchdog !== undefined) clearTimeout(splashWatchdog)
+    logError(new Error(reason), { scope: 'tui-watchdog', ...context })
+    flushLogger()
+    loudFailure = reason
+    try {
+      renderer.destroy()
+    } catch {
+      restoreStderr()
+      process.stderr.write(`picobu: ${reason}\nSee ${getLogPath() ?? appOptions.app.systemDir} for details.\n`)
+    }
+    process.exit(1)
+  }
 
   win32DisableProcessedInput()
 
@@ -129,11 +163,16 @@ const startTui = async (options: TuiAppOptions, unguard: (() => void) | undefine
   // frame ("skipped without a feed" → "failed" clears the timer). Forcing the
   // native render thread on Linux matches macOS/Windows behavior. Harmless
   // elsewhere: the platform default is already useThread=true there.
-  renderer.useThread = true
-  const bootstrapProviders = async (): Promise<void> => {
-    await Promise.all([autoloadLlmProviders(), ensureOAuthTokens()]).catch(() => {})
+  try {
+    renderer.useThread = true
+  } catch (error) {
+    logError(error, { scope: 'render-thread' })
   }
-  await bootstrapProviders()
+  const bootstrapProviders = async (): Promise<void> => {
+    await withTimeout(Promise.all([autoloadLlmProviders(), ensureOAuthTokens()]), PROVIDER_BOOTSTRAP_TIMEOUT_MS, 'provider bootstrap').catch((error) => {
+      logError(error, { scope: 'provider-bootstrap' })
+    })
+  }
 
   const clipboardService = createClipboard({ host: createHostClipboard(), terminal: createRendererClipboardAdapter(renderer) })
   setClipboardService(clipboardService)
@@ -195,6 +234,7 @@ const startTui = async (options: TuiAppOptions, unguard: (() => void) | undefine
     )
   } catch (error) {
     logError(error, { scope: 'tui-render' })
+    restoreStderr()
     throw error
   }
   // Picobu runs the renderer in one-shot mode: with no playing timelines,
@@ -206,21 +246,41 @@ const startTui = async (options: TuiAppOptions, unguard: (() => void) | undefine
   // no frame is ever scheduled again: frozen splash, live process. Starting the
   // loop explicitly makes frames self-reschedule at targetFps, independent of
   // dropped one-shot requests.
-  renderer.start()
-  const splashWatchdog = setTimeout(() => {
+  try {
+    renderer.start()
+  } catch (error) {
+    failLoudStartup(`the render loop failed to start: ${error instanceof Error ? error.message : String(error)}`, {
+      platform: process.platform,
+      arch: process.arch,
+      bunVersion: Bun.version,
+    })
+  }
+  let pendingStages: Array<string> = []
+  const trackStage = async (stage: string, task: Promise<unknown>): Promise<StartupStageFailure | undefined> => {
+    pendingStages = [...pendingStages, stage]
+    try {
+      await task
+      return undefined
+    } catch (error) {
+      return { stage, error: error instanceof Error ? error : new Error(String(error)) }
+    } finally {
+      pendingStages = pendingStages.filter((entry) => entry !== stage)
+    }
+  }
+  splashWatchdog = setTimeout(() => {
     if (ready()) return
     let stats: { frameCount?: number; fps?: number } | undefined
     try {
       stats = renderer.getStats() as { frameCount?: number; fps?: number }
     } catch {}
-    const watchError = new Error(`splash watchdog: the TUI did not leave the splash screen after 15s (frames=${stats?.frameCount}, fps=${stats?.fps})`)
-    logError(watchError, {
-      scope: 'tui-watchdog',
+    const pending = pendingStages.length > 0 ? pendingStages.join(', ') : 'none — the event loop may be blocked'
+    failLoudStartup(`startup stalled on the splash screen (pending: ${pending}; frames: ${stats?.frameCount ?? 'unknown'}; fps: ${stats?.fps ?? 'unknown'})`, {
       platform: process.platform,
       arch: process.arch,
       bunVersion: Bun.version,
       frames: stats?.frameCount,
       fps: stats?.fps,
+      pendingStages,
       term: process.env.TERM,
       termProgram: process.env.TERM_PROGRAM,
       colorTerm: process.env.COLORTERM,
@@ -228,17 +288,20 @@ const startTui = async (options: TuiAppOptions, unguard: (() => void) | undefine
       tmux: process.env.TMUX !== undefined,
       ssh: process.env.SSH_CONNECTION !== undefined,
     })
-  }, 15000)
+  }, SPLASH_WATCHDOG_MS)
   splashWatchdog.unref()
-  await registerParsers().catch((error) => {
-    logError(error, { scope: 'parser-registration' })
-    console.error('picobu: parser registration failed, code blocks will render unstyled:', error)
-  })
-  await getSharedTreeSitterClient().catch((error) => {
-    logError(error, { scope: 'tree-sitter-init' })
-    console.error('picobu: tree-sitter init failed, code blocks will render unstyled:', error)
-  })
+  const failures = await Promise.all([
+    trackStage('providers', bootstrapProviders()),
+    trackStage('parsers', withTimeout(registerParsers(), PARSER_TIMEOUT_MS, 'parser registration')),
+    trackStage('tree-sitter', withTimeout(getSharedTreeSitterClient(), TREE_SITTER_TIMEOUT_MS, 'tree-sitter init')),
+  ])
+  if (splashWatchdog !== undefined) clearTimeout(splashWatchdog)
   setReady(true)
+  for (const failure of failures) {
+    if (!failure) continue
+    logError(failure.error, { scope: failure.stage })
+    if (failure.stage !== 'providers') pushToast(`${failure.stage} failed — code blocks will render unstyled`, 'warning')
+  }
 }
 if (import.meta.main) {
   const sessionFlag = process.argv.indexOf('--session')

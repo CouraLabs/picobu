@@ -67,6 +67,7 @@ export const parseModelsResponse = (payload: unknown, provider?: ProviderRef): A
 export const fetchModels = async (url: string, apiKey: string, provider?: ProviderRef): Promise<Array<ProviderModelOptions>> => {
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${apiKey}` },
+    signal: AbortSignal.timeout(15_000),
   })
   if (!res.ok) {
     throw new Error(`Fetching models from ${url} failed: ${res.status} ${res.statusText}`)

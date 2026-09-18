@@ -1,6 +1,12 @@
 import { filterAvailableModels, isExperimentalModelsEnabled } from '@agent/model/model-availability.ts'
 import type { ProviderModelOptions, ProviderModelReasoningEffort, ProviderModelStatus } from '@config/options.ts'
 import { Models, type Model as ModelsDevModel, type Provider as ModelsDevProvider } from '@opencode-ai/models'
+import { withTimeout } from '@shared/with-timeout.ts'
+
+const LIVE_CATALOG_TIMEOUT_MS = 12_000
+
+const liveProviders = (): Promise<Record<string, ModelsDevProvider>> =>
+  withTimeout(Models.make().providers() as Promise<Record<string, ModelsDevProvider>>, LIVE_CATALOG_TIMEOUT_MS, 'models.dev catalog')
 
 let warnedLiveCatalog = false
 const warnLiveCatalogFailure = (scope: string, error: unknown): void => {
@@ -11,8 +17,7 @@ const warnLiveCatalogFailure = (scope: string, error: unknown): void => {
 
 export const fetchModelsDevProvider = async (apiKeyEnv: string): Promise<ModelsDevProvider | undefined> => {
   try {
-    const client = Models.make()
-    const providers = await client.providers()
+    const providers = await liveProviders()
     const match = Object.values(providers).find((provider) => provider.env?.includes(apiKeyEnv) ?? false)
     if (match) return match as ModelsDevProvider
   } catch (error) {
@@ -24,8 +29,7 @@ export const fetchModelsDevProvider = async (apiKeyEnv: string): Promise<ModelsD
 
 export const fetchModelsDevProviderById = async (providerId: string): Promise<ModelsDevProvider | undefined> => {
   try {
-    const client = Models.make()
-    const providers = await client.providers()
+    const providers = await liveProviders()
     const match = (providers as Record<string, ModelsDevProvider>)[providerId]
     if (match) return match
   } catch (error) {
@@ -37,8 +41,7 @@ export const fetchModelsDevProviderById = async (providerId: string): Promise<Mo
 
 export const listAllModelsDevProviders = async (): Promise<Array<ModelsDevProvider>> => {
   try {
-    const client = Models.make()
-    const providers = await client.providers()
+    const providers = await liveProviders()
     const values = Object.values(providers)
     if (values.length > 0) return values as Array<ModelsDevProvider>
   } catch (error) {
