@@ -80,6 +80,15 @@ describe('write BOM preservation', () => {
     const out = await createWriteTool().handler({ path: 'd.txt', contents: 'one' }, { experimental_sandbox: sb(dir) })
     expect(out.diff).toContain('+one')
   })
+  test('write result preview truncates by lines, not characters', async () => {
+    const longLine = 'x'.repeat(20_000)
+    const under = await createWriteTool().handler({ path: 'u.txt', contents: `a\n${longLine}` }, { experimental_sandbox: sb(dir) })
+    expect(under.content).toBe(`a\n${longLine}`)
+    const manyLines = Array.from({ length: 600 }, (_, i) => `line ${i}`)
+    const over = await createWriteTool().handler({ path: 'o.txt', contents: manyLines.join('\n') }, { experimental_sandbox: sb(dir) })
+    expect(over.content).toBe(`${manyLines.slice(0, 500).join('\n')}\n…[truncated]`)
+    expect(await Bun.file(join(dir, 'o.txt')).text()).toBe(manyLines.join('\n'))
+  })
 })
 
 describe('read upgrades', () => {

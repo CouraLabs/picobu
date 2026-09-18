@@ -11,7 +11,7 @@ export const WriteToolArgsSchema = z.object({
   path: z.string().min(1),
   contents: z.string(),
 })
-const CONTENT_PREVIEW_MAX_CHARS = 8_000
+const CONTENT_PREVIEW_MAX_LINES = 500
 export interface WriteToolResult {
   message: string
   content: string
@@ -57,8 +57,9 @@ export const createWriteTool = (checkpointsPath?: string) => {
         if (checkpoints) {
           await checkpoints.record({ tool: 'write', path: resolvedPath, before: beforeRaw, after: finalContents })
         }
-        const lines = (args.contents.match(/\n/g) ?? []).length + 1
-        const content = args.contents.length > CONTENT_PREVIEW_MAX_CHARS ? `${args.contents.slice(0, CONTENT_PREVIEW_MAX_CHARS)}\n…[truncated]` : args.contents
+        const contentLines = args.contents.split('\n')
+        const lines = contentLines.length
+        const content = lines > CONTENT_PREVIEW_MAX_LINES ? `${contentLines.slice(0, CONTENT_PREVIEW_MAX_LINES).join('\n')}\n…[truncated]` : args.contents
         const diff = beforeRaw === null ? diffForFile(resolvedPath, '', next.text) : diffForFile(resolvedPath, splitBom(beforeRaw).text, next.text)
         return {
           message: `Wrote ${args.path} (${lines} lines)`,
