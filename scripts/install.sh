@@ -1,14 +1,20 @@
 #!/usr/bin/env bash
-# picobu installer: clones the repo, installs deps, and compiles a standalone
-# binary to ~/.picobu/bin/picobu. Rerunning updates via a fresh re-clone.
+# picobu installer: installs Bun when missing, then installs the published
+# @couralabs/picobu npm package globally via `bun add -g`. Rerunning updates
+# to the pinned version (override with PICOBU_VERSION=latest).
 set -euo pipefail
 
-REPO_URL="https://github.com/CouraLabs/picobu.git"
+PACKAGE_NAME='@couralabs/picobu'
+# stamped by scripts/publish.ts — do not edit by hand
+PICOBU_VERSION_DEFAULT="1.29.0"
+PUPPETEER_VERSION_DEFAULT="25.10.0"
+PICOBU_VERSION="${PICOBU_VERSION:-$PICOBU_VERSION_DEFAULT}"
 PICOBU_HOME="$HOME/.picobu"
-SOURCE_DIR="$PICOBU_HOME/source"
-CLONE_DIR="$SOURCE_DIR/picobu"
-BIN_DIR="$PICOBU_HOME/bin"
-BIN_PATH="$BIN_DIR/picobu"
+LEGACY_BIN="$PICOBU_HOME/bin/picobu"
+LEGACY_PATH_LINE='export PATH="$HOME/.picobu/bin:$PATH"'
+LEGACY_FISH_LINE='fish_add_path "$HOME/.picobu/bin"'
+BUN_BIN="${BUN_INSTALL:-$HOME/.bun}/bin"
+PUPPETEER_CACHE="${PUPPETEER_CACHE_DIR:-$HOME/.cache/puppeteer}"
 
 if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
   DIM=$'\033[2m'
@@ -28,11 +34,6 @@ ok()   { printf '%s\n' "  ${GREEN}✓${NC} $*"; }
 note() { printf '%s\n' "  ${DIM}${*}${NC}"; }
 dump() { while IFS= read -r line; do printf '%s\n' "${DIM}  |${NC} ${line}"; done; }
 
-command -v git >/dev/null 2>&1 || fail "git is required. Install it with one of:
-  winget install --id Git.Git        (Windows)
-  brew install git                   (macOS)
-  sudo apt-get install git           (Debian/Ubuntu)"
-
 ensure_bun() {
   if command -v bun >/dev/null 2>&1; then
     run "Bun $(bun --version)"
@@ -50,100 +51,99 @@ ensure_bun() {
   run "Bun $(bun --version)"
 }
 
+remove_legacy_path() {
+  local rc="$1" line="$2"
+  [ -f "$rc" ] || return 0
+  local tmp
+  tmp="$(mktemp)"
+  grep -vF "$line" "$rc" >"$tmp" || true
+  if ! cmp -s "$rc" "$tmp"; then
+    cat "$tmp" >"$rc"
+    ok "removed legacy PATH entry from $rc"
+  fi
+  rm -f "$tmp"
+}
+
 printf '%s\n' ""
-printf '%s\n' "${DIM}Installing${NC} picobu ${DIM}→${NC} $BIN_PATH"
+printf '%s\n' "${DIM}Installing${NC} picobu ${DIM}→${NC} global bun package $PACKAGE_NAME@$PICOBU_VERSION"
 printf '%s\n' ""
 
 ensure_bun
 
-run "Preparing $PICOBU_HOME"
-mkdir -p "$SOURCE_DIR" "$BIN_DIR"
+remove_legacy_path "$HOME/.zshrc" "$LEGACY_PATH_LINE"
+remove_legacy_path "$HOME/.bash_profile" "$LEGACY_PATH_LINE"
+remove_legacy_path "$HOME/.bashrc" "$LEGACY_PATH_LINE"
+remove_legacy_path "$HOME/.config/fish/config.fish" "$LEGACY_FISH_LINE"
 
-if [ -d "$CLONE_DIR" ]; then
-  run "Removing previous clone"
-  rm -rf "$CLONE_DIR"
+if [ -f "$LEGACY_BIN" ]; then
+  rm -f "$LEGACY_BIN"
+  ok "removed legacy compiled binary"
 fi
 
-run "Cloning $REPO_URL"
-git clone -q --depth 1 "$REPO_URL" "$CLONE_DIR" || fail "git clone failed"
-cd "$CLONE_DIR"
-
-PICOBU_VERSION="$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' package.json | head -1)"
-[ -n "$PICOBU_VERSION" ] || fail "could not read version from package.json"
-
-run "Installing dependencies"
+run "Installing $PACKAGE_NAME@$PICOBU_VERSION"
 INSTALL_OUT="$(mktemp)"
-if ! bun install --os="*" --cpu="*" --no-cache --no-save --trust >"$INSTALL_OUT" 2>&1; then
+if ! bun add -g "$PACKAGE_NAME@$PICOBU_VERSION" --trust >"$INSTALL_OUT" 2>&1; then
   dump <"$INSTALL_OUT"
   rm -f "$INSTALL_OUT"
-  fail "bun install failed"
+  fail "bun add -g failed"
 fi
-PKG_COUNT="$(grep -o '[0-9]* packages installed' "$INSTALL_OUT" | head -1 | cut -d' ' -f1)"
 rm -f "$INSTALL_OUT"
-if [ -n "$PKG_COUNT" ]; then
-  ok "Dependencies installed ($PKG_COUNT packages)"
-else
-  ok "Dependencies installed"
-fi
+ok "Package installed"
 
-run "Compiling binary"
-BUILD_OUT="$(mktemp)"
-if ! bun scripts/build.ts --out-dir "$BIN_DIR" --quiet >"$BUILD_OUT" 2>&1; then
-  dump <"$BUILD_OUT"
-  rm -f "$BUILD_OUT"
-  fail "compile failed"
+export PATH="$BUN_BIN:$PATH"
+CLI_PATH="$(command -v picobu || true)"
+if [ -z "$CLI_PATH" ] && [ -x "$BUN_BIN/picobu" ]; then
+  CLI_PATH="$BUN_BIN/picobu"
 fi
-rm -f "$BUILD_OUT"
-[ -f "$BIN_PATH" ] || fail "compile did not produce $BIN_PATH"
-chmod +x "$BIN_PATH"
-ok "Binary compiled ($BIN_PATH, $(du -h "$BIN_PATH" | cut -f1))"
+if [ -z "$CLI_PATH" ]; then
+  fail "picobu was installed but is not on PATH. Add it with:
+  export PATH=\"$BUN_BIN:\$PATH\""
+fi
 
 run "Smoke test (--version)"
 SMOKE_DIR="$(mktemp -d)"
-if ! (cd "$SMOKE_DIR" && "$BIN_PATH" --version >/dev/null 2>&1); then
+if ! (cd "$SMOKE_DIR" && "$CLI_PATH" --version >/dev/null 2>&1); then
   rm -rf "$SMOKE_DIR"
-  fail "smoke test failed: $BIN_PATH --version did not run cleanly"
+  fail "smoke test failed: picobu --version did not run cleanly"
 fi
 rm -rf "$SMOKE_DIR"
-ok "picobu $("$BIN_PATH" --version 2>/dev/null | head -1) runs cleanly"
+PICOBU_VERSION="$("$CLI_PATH" --version 2>/dev/null | head -1)"
+ok "picobu $PICOBU_VERSION installed"
 
-# PATH wiring: append to the rc of the login shell, guarded against duplicates.
-PICOBU_PATH_LINE='export PATH="$HOME/.picobu/bin:$PATH"'
-append_line_to_rc() {
-  local rc="$1" line="$2"
-  if [ ! -f "$rc" ]; then
-    return 1
-  fi
-  if grep -qsF "$line" "$rc"; then
-    ok "PATH already configured in $rc"
-    return 0
-  fi
-  printf '\n%s\n' "$line" >>"$rc"
-  ok "PATH updated in $rc"
-  return 0
-}
-
-export PATH="$BIN_DIR:$PATH"
-RC_DONE=0
-case "$(basename "${SHELL:-}")" in
-  zsh)
-    append_line_to_rc "$HOME/.zshrc" "$PICOBU_PATH_LINE" && RC_DONE=1
-    ;;
-  bash)
-    if [ "$(uname -s)" = "Darwin" ]; then
-      append_line_to_rc "$HOME/.bash_profile" "$PICOBU_PATH_LINE" || append_line_to_rc "$HOME/.bashrc" "$PICOBU_PATH_LINE"
-      RC_DONE=1
-    else
-      append_line_to_rc "$HOME/.bashrc" "$PICOBU_PATH_LINE" && RC_DONE=1
+# PATH wiring for buns not installed via bun.sh (brew, npm): their users have
+# no ~/.bun/bin rc entry, but `bun add -g` always shims into $BUN_BIN.
+ensure_bun_bin_on_path() {
+  case ":$PATH:" in
+    *":$BUN_BIN:"*) return 0 ;;
+  esac
+  local line="export PATH=\"$BUN_BIN:\$PATH\""
+  local rc
+  for rc in "$HOME/.zshrc" "$HOME/.bashrc" "$HOME/.bash_profile"; do
+    [ -f "$rc" ] || continue
+    if grep -qsF "$line" "$rc"; then
+      export PATH="$BUN_BIN:$PATH"
+      return 0
     fi
-    ;;
-  fish)
-    append_line_to_rc "$HOME/.config/fish/config.fish" 'fish_add_path "$HOME/.picobu/bin"' && RC_DONE=1
-    ;;
-esac
-if [ "$RC_DONE" -eq 0 ]; then
-  note "could not detect a supported shell rc; add this to your shell config:"
-  note "  export PATH=\"\$HOME/.picobu/bin:\$PATH\""
+  done
+  for rc in "$HOME/.zshrc" "$HOME/.bashrc" "$HOME/.bash_profile"; do
+    if [ -f "$rc" ]; then
+      printf '\n%s\n' "export PATH=\"$BUN_BIN:\$PATH\"" >>"$rc"
+      ok "PATH updated in $rc"
+      export PATH="$BUN_BIN:$PATH"
+      return 0
+    fi
+  done
+  note "could not wire PATH automatically; add this to your shell config:"
+  note "  export PATH=\"$BUN_BIN:\$PATH\""
+}
+ensure_bun_bin_on_path
+
+if [ ! -d "$PUPPETEER_CACHE" ] || [ -z "$(ls -A "$PUPPETEER_CACHE" 2>/dev/null || true)" ]; then
+  run "Provisioning Chrome for the web tool"
+  if ! bunx "puppeteer@$PUPPETEER_VERSION_DEFAULT" browsers install chrome >/dev/null 2>&1; then
+    fail "chrome provisioning failed (puppeteer browsers install chrome)"
+  fi
+  ok "Chrome provisioned"
 fi
 
 printf '%s\n' ""
@@ -151,11 +151,13 @@ printf '%s\n' "${DIM}┌╦═══╦┐┌═╤╦╤═┐┌╦═══�
 printf '%s\n' "${DIM}│╠═══╩┘  │║│  │║     │║   ║││╠══╩╗┐│║   ║│${NC}"
 printf '%s\n' "${DIM}└╩     └═╧╩╧═┘└╩═══╩┘└╩═══╩┘└╩═══╩┘└╩═══╩┘${NC}"
 printf '%s\n' ""
-printf '%s\n' "  picobu ${PICOBU_VERSION} installed"
+printf '%s\n' "  picobu $PICOBU_VERSION installed"
 printf '%s\n' ""
 printf '%s\n' "  cd <project>"
 printf '%s\n' "  picobu"
 printf '%s\n' ""
-note "open a new shell or run: export PATH=\"\$HOME/.picobu/bin:\$PATH\""
-note "rerun this installer to update picobu (fresh re-clone + recompile)"
+note "open a new shell if picobu is not found"
+note "update with: bun update -g $PACKAGE_NAME"
+note "or rerun this installer (pins $PICOBU_VERSION; PICOBU_VERSION=latest tracks the newest release)"
+note "uninstall: curl -fsSL https://raw.githubusercontent.com/CouraLabs/picobu/refs/heads/master/scripts/uninstall.sh | bash"
 printf '%s\n' ""

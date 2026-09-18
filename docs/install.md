@@ -15,31 +15,33 @@ bun install
 bun dev
 ```
 
-## Compiled install
+## npm install
 
-Requires `git`; installs `bun` automatically when missing; tracks the default branch (`master`); writes `~/.picobu/bin/picobu` and wires `PATH` for the current shell.
+Installs Bun when missing, then installs the published `@couralabs/picobu` package globally via `bun add -g`; the `picobu` shim lands in `~/.bun/bin` (`%USERPROFILE%\.bun\bin` on Windows), which the installer wires onto your PATH when needed.
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/CouraLabs/picobu/refs/heads/master/scripts/install.sh | bash
 ```
 
-On Windows (PowerShell), writes `%USERPROFILE%\.picobu\bin\picobu.exe` and prepends it to the user `PATH`:
+On Windows (PowerShell):
 
 ```powershell
 powershell -c "irm https://raw.githubusercontent.com/CouraLabs/picobu/refs/heads/master/scripts/install.ps1|iex"
 ```
 
-`webfetch`/`websearch` need the Puppeteer Chrome downloaded during `bun install`, so keep that step even for compiled installs.
+The installers pin the release they shipped with; set `PICOBU_VERSION=latest` to track the newest release. Updates: `bun update -g @couralabs/picobu`. One-shot without installing: `bunx @couralabs/picobu`.
+
+The web tools (`webfetch`/`websearch`) need Puppeteer's Chrome; the installers provision it automatically (skipped when the shared cache in `~/.cache/puppeteer` is already populated), and `bun install` handles it for source installs.
 
 ## Uninstall
 
-Deletes `~/.picobu` entirely — executable, sessions, settings, and OAuth credentials:
+Removes the global `@couralabs/picobu` package, then deletes `~/.picobu` entirely — sessions, settings, and OAuth credentials — and strips any legacy `~/.picobu/bin` PATH entry:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/CouraLabs/picobu/refs/heads/master/scripts/uninstall.sh | bash
 ```
 
-Or from a clone: `scripts/uninstall.sh` (`scripts/uninstall.ps1` on Windows).
+Or from a clone: `scripts/uninstall.sh` (`scripts/uninstall.ps1` on Windows). The Puppeteer Chrome cache is shared with other tools and is left in place.
 
 ## Verifying a checkout
 
@@ -53,7 +55,10 @@ Smoke tests need a real model configured in `~/.picobu/options.json`: `bun run s
 
 ## Troubleshooting installs
 
-The compiled binary is built hermetically (`bun run build` → `scripts/build.ts`): the OpenTUI Solid transform is applied at build time via `@opentui/solid/bun-plugin`, and the executable does not autoload `bunfig.toml` (`autoloadBunfig: false`).
+- **`picobu: command not found` after the installer finishes** — the shim lives in `~/.bun/bin`; open a new shell or add `export PATH="$HOME/.bun/bin:$PATH"` to your shell rc.
+- **`bun add -g` fails with a registry error** — check your network/proxy; retry the installer.
+
+The compiled-binary path (`bun run build` → `scripts/build.ts`) still exists for source checkouts: the OpenTUI Solid transform is applied at build time via `@opentui/solid/bun-plugin`, and the executable does not autoload `bunfig.toml` (`autoloadBunfig: false`).
 
 - **`error: preload not found "@opentui/solid/preload"` on launch** — the binary predates the hermetic build, or you are running `bun` against a `bunfig.toml` (project or `~/.bunfig.toml`) with a `preload` line that cannot resolve outside the clone. Reinstall with the current installer; if it persists, remove the `preload` entry from the global bunfig.
 - **App starts but the TUI never appears** (log shows `Orphan text error` / `unhandledRejection` with no UI) — binaries built before the hermetic build compiled Solid TSX with the wrong JSX transform. Rebuild via the current installer; `scripts/build.ts` now applies the correct transform explicitly.

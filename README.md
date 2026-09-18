@@ -36,6 +36,7 @@ Picobu aims at that bar: the session facade, CLI, and `~/.picobu/options.json` a
 Requirements:
 
 - [Bun](https://bun.sh) ≥ 1.x
+- [git](https://git-scm.com) is no longer required for the npm install path
 - A terminal font with current programmer-glyph coverage (e.g. an up-to-date Source Code Pro, JetBrains Mono, or equivalent Nerd Fonts coverage) — the TUI status icons assume it
 - A model: API key (any `@opencode-ai/models` provider `env` var, e.g. `HYPER_API_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GITHUB_TOKEN`, `GOOGLE_API_KEY`, `XAI_API_KEY`, `OPENROUTER_API_KEY`) or an OAuth login (see [docs/configuration/providers.md](docs/configuration/providers.md))
 
@@ -48,27 +49,41 @@ bun install
 bun dev
 ```
 
-Compiled install (requires `git`; installs `bun` automatically when missing; tracks the default branch (`master`); writes `~/.picobu/bin/picobu` and wires `PATH` for the current shell):
+Install with [Bun](https://bun.sh) from npm (puts `picobu` on your PATH; installs `bun` and provisions Chrome for the web tool when missing):
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/CouraLabs/picobu/refs/heads/master/scripts/install.sh | bash
 ```
 
-On Windows (PowerShell, writes `%USERPROFILE%\.picobu\bin\picobu.exe` and prepends it to the user `PATH`):
+On Windows (PowerShell):
 
 ```powershell
 powershell -c "irm https://raw.githubusercontent.com/CouraLabs/picobu/refs/heads/master/scripts/install.ps1|iex"
 ```
 
-`webfetch`/`websearch` need the Puppeteer Chrome downloaded during `bun install`, so keep that step even for compiled installs.
+Without installing anything (`bun` runs the published package directly):
 
-Uninstall deletes `~/.picobu` entirely — executable, sessions, settings, and OAuth credentials:
+```sh
+bunx @couralabs/picobu
+```
+
+Or install/update/remove the global package yourself:
+
+```sh
+bun add -g @couralabs/picobu     # install
+bun update -g @couralabs/picobu  # update
+bun remove -g @couralabs/picobu  # remove
+```
+
+The installers pin the release they shipped with; set `PICOBU_VERSION=latest` to track the newest release. Sessions, settings and credentials still live in `~/.picobu`.
+
+Uninstall (removes the global package, the data directory `~/.picobu`, and any legacy `~/.picobu/bin` PATH entry):
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/CouraLabs/picobu/refs/heads/master/scripts/uninstall.sh | bash
 ```
 
-Or from a clone: `scripts/uninstall.sh` (`scripts/uninstall.ps1` on Windows).
+The web tools (`webfetch`/`websearch`) need Puppeteer's Chrome; the installers provision it automatically, and `bun install` handles it for source installs.
 
 Install troubleshooting, verification, and smoke-test notes live in [docs/install.md](docs/install.md).
 

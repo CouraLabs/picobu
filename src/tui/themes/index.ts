@@ -1,4 +1,4 @@
-import { RGBA, SyntaxStyle, type TerminalColors } from '@opentui/core'
+import { RGBA, SyntaxStyle } from '@opentui/core'
 import aura from '@tui/themes/assets/aura.json' with { type: 'json' }
 import ayu from '@tui/themes/assets/ayu.json' with { type: 'json' }
 import ayuLight from '@tui/themes/assets/ayu-light.json' with { type: 'json' }

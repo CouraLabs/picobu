@@ -1,12 +1,42 @@
 {
-  "name": "picobu",
+  "name": "@couralabs/picobu",
   "version": "1.29.0",
-  "module": "src/cli.ts",
+  "description": "Headless autonomous coding agent core — TUI, CLI, WhatsApp and MCP integrations on the Vercel AI SDK",
+  "license": "MIT",
+  "module": "dist/cli.js",
   "type": "module",
-  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/CouraLabs/picobu.git"
+  },
+  "homepage": "https://github.com/CouraLabs/picobu#readme",
+  "bugs": {
+    "url": "https://github.com/CouraLabs/picobu/issues"
+  },
+  "keywords": [
+    "agent",
+    "ai",
+    "cli",
+    "coding-agent",
+    "tui",
+    "mcp",
+    "whatsapp"
+  ],
+  "engines": {
+    "bun": ">=1.3.0"
+  },
+  "bin": {
+    "picobu": "./bin/picobu.mjs"
+  },
+  "files": [
+    "bin",
+    "dist"
+  ],
   "scripts": {
     "dev": "env -u BUN_INSPECT -u BUN_INSPECT_NOTIFY -u BUN_INSPECT_CONNECT_TO bun run src/cli.ts",
     "build": "bun scripts/build.ts",
+    "build:npm": "bun scripts/build-npm.ts",
+    "release": "bun scripts/publish.ts",
     "tsc": "tsc -noEmit",
     "test": "AGENT=1 bun test tests",
     "lint": "biome check src tests --max-diagnostics 900",
@@ -21,10 +51,6 @@
     "@types/bun": "^1.4.1",
     "@types/node": "^26.4.1",
     "@types/turndown": "^5.0.6"
-  },
-  "peerDependencies": {
-    "typescript": "^5",
-    "solid-js": "1.9.12"
   },
   "dependencies": {
     "@ai-sdk/amazon-bedrock": "^5.0.82",
@@ -59,7 +85,17 @@
     "opentui-spinner": "^0.0.7",
     "pino": "^10.3.1",
     "puppeteer": "^25.10.0",
+    "solid-js": "1.9.12",
     "turndown": "^7.2.4",
+    "web-tree-sitter": "0.25.10",
     "zod": "^4.5.4"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "peerDependenciesMeta": {
+    "typescript": {
+      "optional": true
+    }
   }
 }

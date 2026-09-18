@@ -1,4 +1,4 @@
-import { mkdir, readdir, rm, stat, writeFile } from 'node:fs/promises'
+import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { options } from '@config/options.ts'
 
@@ -7,8 +7,6 @@ export const TOOL_OUTPUT_TRUNCATION_SUFFIX = '\n…[truncated at 50000 chars —
 
 export const MAX_TOOL_OUTPUT_LINES = 2000
 export const MAX_TOOL_OUTPUT_BYTES = 50 * 1024
-const TRUNCATION_RETENTION_MS = 7 * 24 * 60 * 60 * 1000
-
 const truncateText = (text: string): string => (text.length > MAX_TOOL_OUTPUT_CHARS ? `${text.slice(0, MAX_TOOL_OUTPUT_CHARS)}${TOOL_OUTPUT_TRUNCATION_SUFFIX}` : text)
 
 export const truncateToolOutput = (output: unknown): unknown => {
