@@ -249,6 +249,8 @@ export const truncateLines = (text: string, max: number = EXPANDED_MAX_LINES): {
   return { text: [...lines.slice(0, max), `… +${lines.length - max} more`].join('\n'), remaining: lines.length - max }
 }
 
+export const detailClipWidth = (width: number, running: boolean, nameLength: number): number => Math.max(8, width - 6 - (running ? 2 : 0) - nameLength)
+
 export const toolOutputText = (name: string, output: unknown): string | undefined => {
   if (output === undefined || output === null) return undefined
   const args = typeof output === 'object' ? (output as Record<string, unknown>) : undefined

@@ -2,6 +2,7 @@ import { createAgent } from '@agent/agents/create-agent.ts'
 import type { AgentCategory, AgentType } from '@agent/agents/types.ts'
 import { listModels } from '@agent/model/resolver.ts'
 import { askMarkdown } from '@agent/prompts/ask.ts'
+import { brainstormMarkdown } from '@agent/prompts/brainstorm.ts'
 import { coderMarkdown } from '@agent/prompts/coder.ts'
 import { persistentMarkdown } from '@agent/prompts/persistent.ts'
 import { planMarkdown } from '@agent/prompts/plan.ts'
@@ -9,6 +10,7 @@ import { type ModelRoleId, options, type ProviderModelReasoningEffort, resolveMo
 
 export const AGENTS: Record<string, AgentType> = {
   ask: createAgent(askMarkdown),
+  brainstorm: createAgent(brainstormMarkdown),
   coder: createAgent(coderMarkdown),
   'plan-code': createAgent(planMarkdown),
   persistent: createAgent(persistentMarkdown),
@@ -16,6 +18,7 @@ export const AGENTS: Record<string, AgentType> = {
 
 export const DEFAULT_AGENT_ROLE: Record<string, ModelRoleId> = {
   ask: 'flash',
+  brainstorm: 'heavy',
   coder: 'flash',
   'plan-code': 'heavy',
 }

@@ -29,7 +29,7 @@ export interface SessionStatusProps {
   provider?: { id: string; name?: string; detail?: string }
   statsStatus?: Pick<LoopStats, 'finishReason' | 'warnings' | 'headers' | 'endpoints'> & { rawUsage?: LanguageModelUsage['raw'] }
   statsPerformance?: LoopStats['performance']
-  statsMetrics?: Pick<LoopStats, 'total'> & { stepCount: number }
+  statsMetrics?: LoopStats
 }
 
 export interface MessageStats {
@@ -148,11 +148,11 @@ export interface SessionStatusData {
 
 export const createSessionStatusData = (props: SessionStatusProps): SessionStatusData => {
   const activity = () => getActivity(props.messages, props.streaming)
-  const metricsTotal = () => props.statsMetrics?.total
+  const metricsTotal = () => props.statsMetrics
   const costTotal = () => metricsTotal()?.cost
   const performance = () => props.statsPerformance
   const modelContextSize = () => getModelContextSize(props.modelKey)
-  const contextValue = () => props.statsMetrics?.total.usage.totalTokens ?? 0
+  const contextValue = () => props.statsMetrics?.usage.totalTokens ?? 0
   const contextPercent = () => Math.round((contextValue() / modelContextSize()) * 100)
   const contextColor = () => {
     const p = contextPercent()

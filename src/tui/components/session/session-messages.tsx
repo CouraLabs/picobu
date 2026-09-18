@@ -4,7 +4,7 @@ import { theme } from '@states/theme-state.ts'
 import { MessagePartView } from '@tui/components/session/message-part.tsx'
 import { type ToolFlowResponse, ToolPart } from '@tui/components/session/tools/tool-part.tsx'
 import { asToolPart, isToolPart, type ToolPartLike } from '@tui/components/session/tools/tool-summary.ts'
-import { createMemo, For, Index, Show } from 'solid-js'
+import { createMemo, Index, Show } from 'solid-js'
 
 export interface SessionMessagesProps {
   messages: Array<LoopMessage>
@@ -17,79 +17,37 @@ export interface SessionMessagesProps {
 
 type MessagePart = LoopMessage['parts'][number]
 
-const renderablePart = (part: MessagePart): boolean => part.type === 'text' || part.type === 'reasoning' || isToolPart(part)
-
-const partKey = (message: LoopMessage, part: MessagePart, originalIndex: number): string => {
-  const id = (part as { id?: unknown }).id
-  if (typeof id === 'string' && id.length > 0) return id
-  const toolCallId = (part as { toolCallId?: unknown }).toolCallId
-  if (typeof toolCallId === 'string' && toolCallId.length > 0) return `${message.id}:${toolCallId}`
-  return `${message.id}:${originalIndex}`
-}
-
-interface MessagePartRow {
+interface RenderPart {
   role: LoopMessage['role']
   part: MessagePart
   message: LoopMessage
   key: string
   isLastMessage: boolean
-  prevIsTextOrReasoning: boolean
-}
-
-const MessagePartsGroup = (props: {
-  message: () => LoopMessage
-  isLast: () => boolean
-  prevMessageLastPart: () => MessagePart | undefined
-  onFlowResponse?: (response: ToolFlowResponse) => void | Promise<void>
-  onMessageOpen?: (message: LoopMessage) => void
-  onOpenSubSession?: (sessionId: string, label: string) => void
-  manager?: SessionManager
-}) => {
-  const rows = createMemo<Array<MessagePartRow>>(() => {
-    const message = props.message()
-    const role = message.role
-    const isLastMessage = props.isLast()
-    const parts = message.parts
-    const out: Array<MessagePartRow> = []
-    for (const [originalIndex, part] of parts.entries()) {
-      if (!renderablePart(part)) continue
-      const prev = originalIndex > 0 ? parts[originalIndex - 1] : props.prevMessageLastPart()
-      out.push({
-        role,
-        part,
-        message,
-        key: partKey(message, part, originalIndex),
-        isLastMessage,
-        prevIsTextOrReasoning: prev !== undefined && (prev.type === 'text' || prev.type === 'reasoning'),
-      })
-    }
-    return out
-  })
-
-  return (
-    <For each={rows()}>
-      {(row) => (
-        <Show when={asToolPart(row.part)} fallback={<MessagePartView role={row.role} part={row.part} message={row.message} onOpen={props.onMessageOpen} />}>
-          {(toolPart: () => ToolPartLike) => (
-            <box marginTop={row.prevIsTextOrReasoning ? 1 : 0}>
-              <ToolPart part={toolPart()} partKey={row.key} isLastMessage={row.isLastMessage} onFlowResponse={props.onFlowResponse} onOpenSubSession={props.onOpenSubSession} manager={props.manager} />
-            </box>
-          )}
-        </Show>
-      )}
-    </For>
-  )
 }
 
 export const SessionMessages = (props: SessionMessagesProps) => {
-  const lastPartOf = (message: LoopMessage | undefined): MessagePart | undefined => {
-    if (!message) return undefined
-    for (let i = message.parts.length - 1; i >= 0; i--) {
-      const part = message.parts[i]
-      if (part && renderablePart(part)) return part
-    }
-    return undefined
-  }
+  const allMessageParts = createMemo<Array<RenderPart>>(() => {
+    const list = props.messages
+    const last = list.length > 0 ? list[list.length - 1] : undefined
+    const lastId = last?.id
+    return list.flatMap((m) =>
+      m.parts.flatMap((part, originalIndex) => {
+        if (part.type !== 'text' && part.type !== 'reasoning' && !isToolPart(part)) return []
+        const id = (part as { id?: unknown }).id
+        const toolCallId = (part as { toolCallId?: unknown }).toolCallId
+        const key = typeof id === 'string' && id.length > 0 ? id : typeof toolCallId === 'string' && toolCallId.length > 0 ? `${m.id}:${toolCallId}` : `${m.id}:${originalIndex}`
+        return [
+          {
+            part,
+            role: m.role,
+            message: m,
+            key,
+            isLastMessage: m.id === lastId,
+          },
+        ]
+      }),
+    )
+  })
 
   return (
     <scrollbox
@@ -109,17 +67,29 @@ export const SessionMessages = (props: SessionMessagesProps) => {
           backgroundColor: theme().background,
         },
       }}>
-      <Index each={props.messages}>
-        {(message, index) => (
-          <MessagePartsGroup
-            message={message}
-            isLast={() => props.messages[props.messages.length - 1]?.id === message().id}
-            prevMessageLastPart={() => lastPartOf(props.messages[index - 1])}
-            onFlowResponse={props.onFlowResponse}
-            onMessageOpen={props.onMessageOpen}
-            onOpenSubSession={props.onOpenSubSession}
-            manager={props.manager}
-          />
+      <Index each={allMessageParts()}>
+        {(entry, index) => (
+          <Show when={asToolPart(entry().part)} fallback={<MessagePartView role={entry().role} part={entry().part} message={entry().message} onOpen={props.onMessageOpen} />}>
+            {(toolPart: () => ToolPartLike) => {
+              const afterUserOrReasoning = createMemo(() => {
+                const prev = allMessageParts()[index - 1]
+                return prev !== undefined && (prev.part.type === 'text' || prev.part.type === 'reasoning')
+              })
+
+              return (
+                <box marginTop={afterUserOrReasoning() ? 1 : 0}>
+                  <ToolPart
+                    part={toolPart()}
+                    partKey={entry().key}
+                    isLastMessage={entry().isLastMessage}
+                    onFlowResponse={props.onFlowResponse}
+                    onOpenSubSession={props.onOpenSubSession}
+                    manager={props.manager}
+                  />
+                </box>
+              )
+            }}
+          </Show>
         )}
       </Index>
     </scrollbox>

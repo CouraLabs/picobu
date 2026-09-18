@@ -97,6 +97,7 @@ const startTui = async (options: TuiAppOptions, unguard: (() => void) | undefine
     memorySnapshotInterval: debug ? 3000 : 0,
     backgroundColor: theme().background,
     onDestroy: () => {
+      console.log('')
       cleanupInputModes()
       restoreStderr()
       win32FlushInputBuffer()
@@ -112,6 +113,8 @@ const startTui = async (options: TuiAppOptions, unguard: (() => void) | undefine
           messageCount: exit?.messageCount ?? 0,
           inputTokens: exit?.inputTokens ?? 0,
           outputTokens: exit?.outputTokens ?? 0,
+          contextSize: exit?.contextSize ?? 0,
+          contextUsage: exit?.contextUsage ?? 0,
           cost: exit?.cost ?? 0,
         }),
       )

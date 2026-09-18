@@ -54,20 +54,22 @@ describe('toStatsState', () => {
       finishReason: 'stop',
       stepCount: 2,
       usage: usage({ raw: raw }),
-      total: { usage: usage(), cost: { input: 0.1, output: 0.2, cache: 0, total: 0.3 } },
+      cost: { input: 0.1, output: 0.2, cache: 0, total: 0.3 },
     })
     const state = toStatsState(stats)
     expect(state.status).toEqual({ finishReason: 'stop', warnings: warnings, headers: headers, endpoints: endpoints, rawUsage: raw })
     expect(state.performance).toBe(performance)
-    expect(state.metrics).toEqual({ total: stats.total, stepCount: 2 })
+    expect(state.metrics?.cost).toEqual(stats.cost)
   })
 
-  test('falls back to zero when stepCount is missing', () => {
+  test('passes stats through as metrics without a stepCount fallback', () => {
     const stats = statsWith({
       usage: usage(),
       performance: { timeToFirstOutputMs: 0, outputTokensPerSecond: 0 } as NonNullable<LoopStats['performance']>,
     })
-    expect(toStatsState(stats).metrics?.stepCount).toBe(0)
+    const state = toStatsState(stats)
+    expect(state.metrics).toBe(stats)
+    expect(state.metrics?.stepCount).toBeUndefined()
   })
 
   test('omits rawUsage when there is no last step', () => {

@@ -1,9 +1,10 @@
 import { describe, expect, test } from 'bun:test'
-import { RGBA, type TerminalColors } from '@opentui/core'
+import { defaultTextareaKeyBindings, RGBA } from '@opentui/core'
 import { EXTENSION_LANGUAGE, filetypeFromPath } from '../../src/tui/components/diff.tsx'
 import { nextHistoryIndex } from '../../src/tui/components/session/session-prompt.tsx'
 import {
   asToolPart,
+  detailClipWidth,
   diffStats,
   flowOutputMessage,
   flowOutputStatus,
@@ -24,6 +25,7 @@ import {
   toolProgress,
   toolStateView,
 } from '../../src/tui/components/session/tools/tool-summary.ts'
+import { COMMENT_TEXTAREA_KEY_BINDINGS } from '../../src/tui/components/shared/textarea-keybindings.ts'
 import { deliversEvent } from '../../src/tui/hooks/keyboard-provider.tsx'
 import { icons } from '../../src/tui/themes/icons.ts'
 import { allThemes, hasTheme, isTheme, resolveTheme, type ThemeJson, tint } from '../../src/tui/themes/index.ts'
@@ -340,6 +342,33 @@ describe('keyboard event delivery', () => {
   })
 })
 
+describe('detailClipWidth', () => {
+  test('reserves the spinner column only while running', () => {
+    expect(detailClipWidth(80, false, 4)).toBe(70)
+    expect(detailClipWidth(80, true, 4)).toBe(68)
+  })
+  test('never drops below the eight column floor', () => {
+    expect(detailClipWidth(10, false, 40)).toBe(8)
+  })
+})
+
+describe('comment textarea keybindings', () => {
+  const bindingKey = (binding: { name: string; ctrl?: boolean; shift?: boolean; meta?: boolean; super?: boolean }): string =>
+    [binding.name, binding.ctrl ? 1 : 0, binding.shift ? 1 : 0, binding.meta ? 1 : 0, binding.super ? 1 : 0].join(':')
+
+  test('overrides the textarea defaults: enter submits, shift+enter and linefeed newline', () => {
+    const resolved = new Map<string, string>()
+    for (const binding of defaultTextareaKeyBindings) resolved.set(bindingKey(binding), binding.action)
+    for (const binding of COMMENT_TEXTAREA_KEY_BINDINGS) resolved.set(bindingKey(binding), binding.action)
+    expect(resolved.get('return:0:0:0:0')).toBe('submit')
+    expect(resolved.get('kpenter:0:0:0:0')).toBe('submit')
+    expect(resolved.get('linefeed:0:0:0:0')).toBe('newline')
+    expect(resolved.get('return:0:1:0:0')).toBe('newline')
+    expect(resolved.get('kpenter:0:1:0:0')).toBe('newline')
+    expect(resolved.get('return:0:0:1:0')).toBe('submit')
+  })
+})
+
 describe('icons', () => {
   test('map is non-empty with non-blank glyphs', () => {
     const entries = Object.entries(icons)
@@ -423,19 +452,6 @@ describe('resolveTheme', () => {
 })
 
 describe('theme color helpers', () => {
-  const palette = (): TerminalColors['palette'] => Array(16).fill('#000000') as TerminalColors['palette']
-  const colors = (bg: string): TerminalColors => ({
-    palette: palette(),
-    defaultForeground: '#ffffff',
-    defaultBackground: bg as TerminalColors['defaultBackground'],
-    cursorColor: '#ffffff',
-    mouseForeground: '#ffffff',
-    mouseBackground: '#000000',
-    tekForeground: '#ffffff',
-    tekBackground: '#000000',
-    highlightBackground: '#333333',
-    highlightForeground: '#ffffff',
-  })
   test('tint blends toward overlay', () => {
     const gray = tint(RGBA.fromHex('#000000'), RGBA.fromHex('#ffffff'), 0.5)
     expect(gray.r).toBe(128 / 255)

@@ -52,7 +52,7 @@ export const FlowStaticView = (props: FlowViewProps) => {
   return (
     <box flexDirection="column" paddingLeft={1}>
       <box flexDirection="row" gap={1} flexWrap="wrap">
-        <ToolStatusIcon running={running()} color={color()} icon={view().icon} />
+        <ToolStatusIcon running={running()} color={color()} />
         <text fg={color()} flexShrink={0}>
           {name()}
         </text>

@@ -9,15 +9,10 @@ export interface StatsStatusState {
   rawUsage: LanguageModelUsage['raw'] | undefined
 }
 
-export interface StatsMetricsState {
-  total: LoopStats['total']
-  stepCount: number
-}
-
 export interface StatsSyncState {
   status: StatsStatusState | undefined
   performance: LoopStats['performance']
-  metrics: StatsMetricsState | undefined
+  metrics: LoopStats | undefined
 }
 
 export const shouldSyncStats = (ownerId: string | undefined, liveId: string | undefined, activeId: string | undefined): boolean => {
@@ -37,6 +32,6 @@ export const toStatsState = (stats: LoopStats | undefined): StatsSyncState => {
       rawUsage: stats.usage?.raw,
     },
     performance: stats.performance,
-    metrics: { total: stats.total, stepCount: stats.stepCount ?? 0 },
+    metrics: stats,
   }
 }

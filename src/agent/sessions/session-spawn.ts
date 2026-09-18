@@ -79,7 +79,7 @@ export async function spawnSubSession(
     const childStats = child?.stats
     if (!childStats || costRolledUp) return
     costRolledUp = true
-    ctx.live.get(parentId)?.addExternalCost(childStats.total.cost)
+    ctx.live.get(parentId)?.addExternalCost(childStats.cost)
   }
   try {
     if (!nested) {
@@ -134,7 +134,7 @@ export async function spawnSubSession(
       rollUpCost()
       ctx.jobs.patch(sessionId, {
         state: 'finished',
-        ...(childStats ? { stats: { usage: childStats.total.usage, cost: childStats.total.cost, stepCount: childStats.stepCount ?? 0 } } : {}),
+        ...(childStats ? { stats: { usage: childStats.usage, cost: childStats.cost, stepCount: childStats.stepCount ?? 0 } } : {}),
       })
       return {
         sessionId,
@@ -149,7 +149,7 @@ export async function spawnSubSession(
     const childStats = child?.stats
     ctx.jobs.patch(sessionId, {
       state: 'error',
-      ...(childStats ? { stats: { usage: childStats.total.usage, cost: childStats.total.cost, stepCount: childStats.stepCount ?? 0 } } : {}),
+      ...(childStats ? { stats: { usage: childStats.usage, cost: childStats.cost, stepCount: childStats.stepCount ?? 0 } } : {}),
     })
     throw error
   } finally {

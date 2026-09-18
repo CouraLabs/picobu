@@ -333,48 +333,6 @@ export const SessionPrompt = (props: SessionPromptProps) => {
     textareaRef?.gotoBufferEnd()
   }
 
-  const cycleBackward = () => {
-    const items = history()
-    if (navIndex() === -1) {
-      if (items.length === 0) return
-      const current = textareaRef?.plainText ?? ''
-      if (current.trim().length > 0) saveDraft(current, merged.historyProjectKey)
-      draftStash = current
-      const next = items[items.length - 1] ?? ''
-      textareaRef?.setText(next)
-      batch(() => {
-        setNavIndex(items.length - 1)
-        setText(next)
-      })
-    } else if (navIndex() <= 0) {
-      textareaRef?.setText(draftStash)
-      batch(() => {
-        setNavIndex(-1)
-        setText(draftStash)
-      })
-    } else {
-      const idx = navIndex() - 1
-      const next = items[idx] ?? ''
-      textareaRef?.setText(next)
-      batch(() => {
-        setNavIndex(idx)
-        setText(next)
-      })
-    }
-    textareaRef?.gotoBufferEnd()
-  }
-
-  useAppKeyboard((key) => {
-    if (key.name !== 'up' && key.name !== 'down') return
-    if (key.ctrl || key.meta || key.super) return
-    if (commandOpen()) return
-    if (!textareaRef?.focused) return
-    key.preventDefault()
-    key.stopPropagation()
-    if (key.name === 'up') cycleBackward()
-    else cycleForward()
-  })
-
   useAppKeyboard((key) => {
     if (key.name !== 'tab' || key.shift) return
     if (key.ctrl || key.meta || key.super) return
@@ -608,7 +566,7 @@ export const SessionPrompt = (props: SessionPromptProps) => {
             </scrollbox>
             <box flexShrink={0} paddingX={1}>
               <text fg={theme().textMuted}>
-                {highlight() + 1}/{filteredItems().length} — arrows to navigate, TAB to complete or cycle history
+                {highlight() + 1}/{filteredItems().length} — arrows to navigate, TAB to complete
               </text>
             </box>
           </box>

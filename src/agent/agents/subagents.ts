@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { createAgent, NO_TOOLS } from '@agent/agents/create-agent.ts'
 import type { AgentType } from '@agent/agents/types.ts'
 import { parseMarkdownFile } from '@agent/markdown/markdown-parser.ts'
+import { debuggerSubagentMarkdown } from '@agent/subagent/debugger.ts'
 import { executorSubagentMarkdown } from '@agent/subagent/executor.ts'
 import { explorerSubagentMarkdown } from '@agent/subagent/explorer.ts'
 import { reviewerSubAgent } from '@agent/subagent/reviewer.ts'
@@ -22,12 +23,15 @@ export const SUBAGENT_DEPTH_CAP = 3
 
 export const SUBAGENT_RULES = `## Subagent Rules
 - You are a subagent with no user interaction: never ask, wait, or submit plans. Resolve ambiguity yourself and state assumptions.
-- Finish with a self-contained summary as your last text message: what you did, found/changed, and what the caller should know. Never end on a bare tool call.`
+- Context isolation: work only from the prompt you were given. You have no access to the caller's session history — do not ask for or assume it.
+- Finish with a self-contained summary as your last text message: what you did, found/changed, and what the caller should know. Never end on a bare tool call.
+- Report contract: lead with a status line — DONE, DONE_WITH_CONCERNS, NEEDS_CONTEXT, or BLOCKED — followed by what changed and the evidence (commands run, results observed). A claim of success without evidence is not a report.`
 
 export const BUILT_IN_SUBAGENTS: Record<string, AgentType> = {
   executor: createAgent(executorSubagentMarkdown),
   explorer: createAgent(explorerSubagentMarkdown),
   reviewer: createAgent(reviewerSubAgent),
+  debugger: createAgent(debuggerSubagentMarkdown),
 }
 
 const subagentsDir = (cwd: string): string => join(cwd, '.agents', 'agents')

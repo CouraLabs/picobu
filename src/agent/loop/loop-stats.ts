@@ -19,12 +19,9 @@ export interface LoopStats {
   headers: Record<string, string> | undefined
   finishReason: FinishReason | undefined
   endpoints: Record<string, unknown> | undefined
-  usage?: LanguageModelUsage
+  usage: LanguageModelUsage
   stepCount?: number
-  total: {
-    usage: LanguageModelUsage
-    cost: LoopStepCost
-  }
+  cost: LoopStepCost
   tokenTotals?: { inputTokens: number; outputTokens: number }
 }
 
@@ -67,12 +64,9 @@ export const createLoopStatsStore = (getBilling: () => ProviderModelBilling | un
     headers: undefined,
     finishReason: undefined,
     endpoints: undefined,
-    usage: undefined,
+    usage: emptyUsage(),
     stepCount: 0,
-    total: {
-      usage: emptyUsage(),
-      cost: zeroCost(),
-    },
+    cost: zeroCost(),
   })
 
   const listeners = new Set<(stats: LoopStats) => void>()
@@ -97,11 +91,15 @@ export const createLoopStatsStore = (getBilling: () => ProviderModelBilling | un
         performance: step.performance,
         warnings: step.warnings,
         headers: step.response?.headers,
-        usage: step.usage,
-        total: {
-          usage: step.usage,
-          cost: addCosts(st.total.cost, calcStepCost(event.usage, getBilling())),
+        usage: {
+          ...step.usage,
+          outputTokens: (st.usage?.outputTokens ?? 0) + (step.usage?.outputTokens ?? 0),
+          outputTokenDetails: {
+            reasoningTokens: (st.usage?.outputTokenDetails?.reasoningTokens ?? 0) + (step.usage?.outputTokenDetails?.reasoningTokens ?? 0),
+            textTokens: (st.usage?.outputTokenDetails?.textTokens ?? 0) + (step.usage?.outputTokenDetails?.textTokens ?? 0),
+          },
         },
+        cost: addCosts(st.cost, calcStepCost(event.usage, getBilling())),
       }))
       notify()
     },
@@ -119,10 +117,7 @@ export const createLoopStatsStore = (getBilling: () => ProviderModelBilling | un
     addExternal: (cost) => {
       setStats((st) => ({
         ...st,
-        total: {
-          usage: st.total.usage,
-          cost: addCosts(st.total.cost, cost),
-        },
+        cost: addCosts(st.cost, cost),
       }))
       notify()
     },
@@ -148,7 +143,7 @@ export const createLoopStatsStore = (getBilling: () => ProviderModelBilling | un
         stepCount: cloned.stepCount ?? (cloned.usage ? 1 : 0),
         usage: cloned.usage,
         tokenTotals: cloned.tokenTotals,
-        total: cloned.total,
+        cost: cloned.cost,
       }))
       notify()
     },

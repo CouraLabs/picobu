@@ -40,7 +40,7 @@ export const isLoopStats = (value: unknown): value is LoopStats => {
   if (!isRecord(value)) return false
   if (value.lastStep !== undefined && !isStep(value.lastStep)) return false
   if (value.stepCount !== undefined && !isFiniteNumber(value.stepCount)) return false
-  if (!isUsageAndCost(value.total)) return false
+  if (!isUsageAndCost(value)) return false
   if (value.finishReason !== undefined && typeof value.finishReason !== 'string') return false
   return true
 }

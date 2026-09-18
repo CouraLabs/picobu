@@ -124,7 +124,7 @@ describe('subagents', () => {
     expect(SUBAGENT_DEPTH_CAP).toBe(3)
     expect(SUBAGENT_RULES.length).toBeGreaterThan(0)
     expect(SUBAGENT_RULES).toContain('subagent')
-    expect(Object.keys(BUILT_IN_SUBAGENTS).sort()).toEqual(['executor', 'explorer', 'reviewer'])
+    expect(Object.keys(BUILT_IN_SUBAGENTS).sort()).toEqual(['debugger', 'executor', 'explorer', 'reviewer'])
   })
   test('listSubagents reads custom files with none and star sentinels', async () => {
     const root = await makeTempRoot()
@@ -409,8 +409,8 @@ describe('agent prompt texts', () => {
     expect(coderMarkdown).toContain('in parallel')
   })
   test('plan and ask tool lists include spawn', () => {
-    expect(planMarkdown).toContain('tools: read, grep, glob, repo_map, skill, rule, ask, plan-write, plan-exit, spawn')
-    expect(askMarkdown).toContain('tools: read, grep, glob, repo_map, skill, rule, websearch, webfetch, ask, spawn')
+    expect(planMarkdown).toContain('tools: read, grep, glob, repo-map, skill, rule, ask, plan-write, plan-exit, spawn')
+    expect(askMarkdown).toContain('tools: read, grep, glob, repo-map, skill, rule, websearch, webfetch, ask, spawn')
   })
   test('summarizer prompt carries markers', () => {
     expect(summarizerPrompt).toContain('Summarize')

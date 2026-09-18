@@ -78,7 +78,7 @@ export const SpawnView = (props: { part: ToolPartLike; onOpen?: (sessionId: stri
         open()
       }}>
       <box flexDirection="row" gap={1} flexWrap="no-wrap" alignItems="center">
-        <ToolStatusIcon running={running()} color={color()} icon={view().icon} />
+        <ToolStatusIcon running={running()} color={color()} />
         <text fg={color()} flexShrink={0}>
           {subagent()}
         </text>

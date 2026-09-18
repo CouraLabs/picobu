@@ -52,7 +52,7 @@ export interface SessionPageProps {
   visible: boolean
 }
 
-const AGENT_CYCLE = ['ask', 'coder', 'plan-code']
+const AGENT_CYCLE = ['ask', 'brainstorm', 'plan-code', 'coder']
 
 const showError = (error: unknown, sessionId?: string) => {
   logError(error, { scope: 'session-page', ...(sessionId ? { sessionId } : {}) })
@@ -135,7 +135,7 @@ export const SessionPage = (props: SessionPageProps) => {
   const [commandExitNonce, setCommandExitNonce] = createSignal(0)
   const [statsStatus, setStatsStatus] = createSignal<StatsStatusState | undefined>(undefined)
   const [statsPerformance, setStatsPerformance] = createSignal<LoopStats['performance']>(undefined)
-  const [statsMetrics, setStatsMetrics] = createSignal<(Pick<LoopStats, 'total'> & { stepCount: number }) | undefined>(undefined)
+  const [statsMetrics, setStatsMetrics] = createSignal<LoopStats | undefined>(undefined)
   const sessionMgr = new SessionManager()
   const [sandboxOn, setSandboxOn] = createSignal(sessionMgr.sandboxEnabled)
   const [bgJobs, setBgJobs] = createSignal(sessionMgr.runningShellJobCount())
@@ -696,11 +696,11 @@ export const SessionPage = (props: SessionPageProps) => {
         ? {
             sessionId: target.id,
             messageCount: target.messages.length,
-            inputTokens: target.stats?.total.usage?.inputTokenDetails.noCacheTokens,
-            outputTokens: target.stats?.total.usage.outputTokens,
-            contextUsage: target.stats?.total.usage.totalTokens,
+            inputTokens: target.stats?.usage?.inputTokenDetails.noCacheTokens,
+            outputTokens: target.stats?.usage.outputTokens,
+            contextUsage: target.stats?.usage.totalTokens,
             contextSize: getModelContextSize(modelKey()),
-            cost: target.stats?.total.cost.total,
+            cost: target.stats?.cost.total,
           }
         : undefined,
     )

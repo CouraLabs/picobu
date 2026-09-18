@@ -39,7 +39,7 @@ afterAll(async () => {
   await rm(dir, { recursive: true, force: true })
 })
 
-describe('repo_map', () => {
+describe('repo-map', () => {
   const sb = (): { experimental_sandbox: never } => ({ experimental_sandbox: { root: dir } as never })
 
   test('renders a budgeted map that includes ranked source files', async () => {

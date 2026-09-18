@@ -9,6 +9,7 @@ Be concise and direct: lead with the result, skip filler and pleasantries. Expan
 - System Shell: {APP_SHELL}
 # System Guidelines
 - Act on repo context instead of asking for confirmation.
+- If a listed skill or rule matches the task, load it with its tool before acting — skills and rules define how to work, not just what to build.
 - Resolve ambiguity from conventions and reasonable defaults; escalate only on materially different tradeoffs.
 - Mark unobserved claims [INFERENCE].
 - Reply in the user's language, regardless of code or prompt language.`
@@ -30,11 +31,17 @@ export interface GenerateSystemMessageParams {
 }
 
 const MAX_DESC_CHARS = 150
+const MAX_SUBAGENT_DESC_CHARS = 240
 const MAX_APPENDIX_CHARS = 2000
 
 const shortDesc = (value: string): string => {
   const oneLine = value.replace(/\s+/g, ' ').trim()
   return oneLine.length > MAX_DESC_CHARS ? `${oneLine.slice(0, MAX_DESC_CHARS - 1)}…` : oneLine
+}
+
+const subagentDesc = (value: string): string => {
+  const oneLine = value.replace(/\s+/g, ' ').trim()
+  return oneLine.length > MAX_SUBAGENT_DESC_CHARS ? `${oneLine.slice(0, MAX_SUBAGENT_DESC_CHARS - 1)}…` : oneLine
 }
 
 export function buildSkillsSection(skills: Array<{ name: string; description: string }>): string {
@@ -46,7 +53,7 @@ export function buildSubagentsSection(subagents: Array<{ name: string; descripti
     `Call \`spawn\` with the exact name and a self-contained prompt (subagents can't ask questions).` +
       (maxAgents > 0 ? ` Up to ${maxAgents} in parallel.` : ' Spawning is disabled (maxAgents is 0).'),
     '',
-    ...subagents.map((s) => `- ${s.name}: ${shortDesc(s.description)}`),
+    ...subagents.map((s) => `- ${s.name}: ${subagentDesc(s.description)}`),
   ].join('\n')
 }
 

@@ -2,6 +2,7 @@ import type { TextareaRenderable } from '@opentui/core'
 import { clip } from '@shared/format.ts'
 import { theme } from '@states/theme-state.ts'
 import { Button } from '@tui/components/button.tsx'
+import { COMMENT_TEXTAREA_KEY_BINDINGS } from '@tui/components/shared/textarea-keybindings.ts'
 import { icons } from '@tui/themes/icons.ts'
 import { createComputed, createSignal, For, on, Show } from 'solid-js'
 import type { AskQuestionView } from './tool-summary.ts'
@@ -229,6 +230,14 @@ export const AskForm = (props: AskFormProps) => {
                     textColor={theme().text}
                     cursorColor={theme().accent}
                     backgroundColor={theme().backgroundElement}
+                    keyBindings={COMMENT_TEXTAREA_KEY_BINDINGS}
+                    onSubmit={() => {
+                      const ref = commentRefs[questionIndex()]
+                      if (ref && !ref.isDestroyed) {
+                        setComment(questionIndex(), ref.plainText)
+                        ref.blur()
+                      }
+                    }}
                     onContentChange={() => {
                       const ref = commentRefs[questionIndex()]
                       if (ref && !ref.isDestroyed) setComment(questionIndex(), ref.plainText)

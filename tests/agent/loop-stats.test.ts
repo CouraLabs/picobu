@@ -35,11 +35,11 @@ describe('createLoopStatsStore', () => {
   test('starts empty with zero totals', () => {
     const store = createLoopStatsStore(() => ({ input: 1, output: 1 }))
     const stats = store.get()
-    expect(stats.usage).toBeUndefined()
+    expect(stats.usage.totalTokens).toBe(0)
     expect(stats.finishReason).toBeUndefined()
     expect(stats.tokenTotals).toBeUndefined()
-    expect(stats.total.cost).toEqual({ input: 0, output: 0, cache: 0, total: 0 })
-    expect(stats.total.usage.inputTokens).toBe(0)
+    expect(stats.cost).toEqual({ input: 0, output: 0, cache: 0, total: 0 })
+    expect(stats.usage.inputTokens).toBe(0)
   })
   test('step end replaces the last step and refreshes root fields', () => {
     const store = createLoopStatsStore(() => ({ input: 1_000_000, output: 0 }))
@@ -48,8 +48,8 @@ describe('createLoopStatsStore', () => {
     const stats = store.get()
     expect(stats.usage?.inputTokens).toBe(20)
     expect(stats.headers).toEqual({ 'x-second': '2' })
-    expect(stats.total.usage.inputTokens).toBe(20)
-    expect(stats.total.cost.input).toBeCloseTo(30, 9)
+    expect(stats.usage.inputTokens).toBe(20)
+    expect(stats.cost.input).toBeCloseTo(30, 9)
     expect(stats.performance?.stepTimeMs).toBe(20)
   })
   test('step count accumulates across steps', () => {
@@ -58,6 +58,19 @@ describe('createLoopStatsStore', () => {
     store.handleStepEnd(stepEnd(20))
     expect(store.get().stepCount).toBe(2)
   })
+  test('step end accumulates output tokens across steps while input stays last-step', () => {
+    const store = createLoopStatsStore(() => undefined)
+    const first = { ...stepEnd(10), usage: usageOf(10, 4) }
+    first.usage.outputTokenDetails = { textTokens: 3, reasoningTokens: 1 }
+    const second = { ...stepEnd(20), usage: usageOf(20, 6) }
+    second.usage.outputTokenDetails = { textTokens: 4, reasoningTokens: 2 }
+    store.handleStepEnd(first)
+    store.handleStepEnd(second)
+    const stats = store.get()
+    expect(stats.usage.inputTokens).toBe(20)
+    expect(stats.usage.outputTokens).toBe(10)
+    expect(stats.usage.outputTokenDetails).toEqual({ textTokens: 7, reasoningTokens: 3 })
+  })
   test('end sets token totals from the end usage while usage and cost stay step-based', () => {
     const store = createLoopStatsStore(() => ({ input: 1_000_000, output: 0 }))
     store.handleStepEnd(stepEnd(10))
@@ -65,8 +78,8 @@ describe('createLoopStatsStore', () => {
     store.handleEnd(end(150, 7))
     const stats = store.get()
     expect(stats.tokenTotals).toEqual({ inputTokens: 150, outputTokens: 7 })
-    expect(stats.total.usage.inputTokens).toBe(20)
-    expect(stats.total.cost.input).toBeCloseTo(30, 9)
+    expect(stats.usage.inputTokens).toBe(20)
+    expect(stats.cost.input).toBeCloseTo(30, 9)
     expect(stats.finishReason).toBe('stop')
     expect(stats.headers).toEqual({ 'x-second': '2' })
   })
@@ -108,8 +121,8 @@ describe('createLoopStatsStore', () => {
     const stats = second.get()
     expect(stats.stepCount).toBe(2)
     expect(stats.usage?.inputTokens).toBe(20)
-    expect(stats.total.usage.inputTokens).toBe(20)
-    expect(stats.total.cost.input).toBeCloseTo(30, 9)
+    expect(stats.usage.inputTokens).toBe(20)
+    expect(stats.cost.input).toBeCloseTo(30, 9)
   })
   test('snapshots isolate usage objects from later mutation', () => {
     const store = createLoopStatsStore(() => undefined)
@@ -120,7 +133,7 @@ describe('createLoopStatsStore', () => {
     if (snap.usage) snap.usage.inputTokens = 888
     const fresh = store.get()
     expect(fresh.usage?.inputTokens).toBe(5)
-    expect(fresh.total.usage.inputTokens).toBe(5)
+    expect(fresh.usage.inputTokens).toBe(5)
   })
   test('restore falls back to one step for the count when stepCount is absent', () => {
     const store = createLoopStatsStore(() => undefined)
@@ -154,13 +167,13 @@ describe('createLoopStatsStore', () => {
   test('addExternal adds cost without touching usage and keeps accumulating', () => {
     const store = createLoopStatsStore(() => ({ input: 1_000_000, output: 0 }))
     store.handleStepEnd(stepEnd(10))
-    const before = store.get().total.usage
+    const before = store.get().usage
     store.addExternal({ input: 0.5, output: 0.25, cache: 0.25, total: 1 })
     const stats = store.get()
-    expect(stats.total.usage).toEqual(before)
-    expect(stats.total.cost).toEqual({ input: 10.5, output: 0.25, cache: 0.25, total: 11 })
+    expect(stats.usage).toEqual(before)
+    expect(stats.cost).toEqual({ input: 10.5, output: 0.25, cache: 0.25, total: 11 })
     store.handleStepEnd(stepEnd(20))
-    expect(store.get().total.cost.input).toBeCloseTo(30.5, 9)
+    expect(store.get().cost.input).toBeCloseTo(30.5, 9)
   })
   test('addExternal notifies listeners', () => {
     const store = createLoopStatsStore(() => undefined)
@@ -170,7 +183,7 @@ describe('createLoopStatsStore', () => {
     })
     store.addExternal({ input: 1, output: 1, cache: 0, total: 2 })
     expect(seen).toHaveLength(1)
-    expect(seen[0]?.total.cost.total).toBe(2)
+    expect(seen[0]?.cost.total).toBe(2)
     unsubscribe()
   })
   test('endpoint values merge and notify listeners', () => {

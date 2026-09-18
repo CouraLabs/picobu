@@ -2,6 +2,7 @@ import type { LoopMessage } from '@agent/loop/create-loop.ts'
 import { dialogStatus } from '@states/dialog.state.ts'
 import { theme } from '@states/theme-state.ts'
 import { ReasoningPart } from '@tui/components/session/reasoning-part.tsx'
+import { icons } from '@tui/themes/icons.ts'
 import { getSharedTreeSitterClientSync } from '@wrappers/treesitter-wrapper.ts'
 import { isReasoningUIPart } from 'ai'
 import { createMemo, createSignal, Show } from 'solid-js'
@@ -57,8 +58,13 @@ export const MessagePartView = (props: MessagePartViewProps) => {
     <Show
       when={props.role !== 'user'}
       fallback={
-        <box marginTop={1} backgroundColor={hovered() ? theme().backgroundElement : undefined} paddingLeft={1} {...hoverProps}>
-          <markdown syntaxStyle={theme().syntax} treeSitterClient={getSharedTreeSitterClientSync()} conceal content={partContent(props.part)} />
+        <box marginTop={1} marginLeft={1} columnGap={1} flexDirection="row" backgroundColor={hovered() ? theme().backgroundPanel : theme().backgroundElement} padding={1} {...hoverProps}>
+          <text fg={theme().accent} flexShrink={0} selectable={false}>
+            {icons.promptBig}
+          </text>
+          <box flexGrow={1} flexShrink={1} minWidth={0}>
+            <markdown syntaxStyle={theme().syntax} treeSitterClient={getSharedTreeSitterClientSync()} conceal content={partContent(props.part)} />
+          </box>
         </box>
       }>
       <Show

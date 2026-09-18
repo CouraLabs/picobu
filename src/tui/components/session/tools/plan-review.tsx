@@ -3,6 +3,7 @@ import { clip } from '@shared/format.ts'
 import { theme } from '@states/theme-state.ts'
 import { pushToast } from '@states/toast.state.ts'
 import { Button } from '@tui/components/button.tsx'
+import { COMMENT_TEXTAREA_KEY_BINDINGS } from '@tui/components/shared/textarea-keybindings.ts'
 import { getClipboardService } from '@tui/hooks/clipboard.state.ts'
 import { useAppKeyboard } from '@tui/hooks/keyboard-provider.tsx'
 import { icons } from '@tui/themes/icons.ts'
@@ -201,6 +202,15 @@ export const PlanReview = (props: PlanReviewProps) => {
                         textColor={theme().accent}
                         cursorColor={theme().textMuted}
                         backgroundColor={theme().backgroundElement}
+                        keyBindings={COMMENT_TEXTAREA_KEY_BINDINGS}
+                        onSubmit={() => {
+                          const ref = lineRefs[index()]
+                          if (ref && !ref.isDestroyed) {
+                            setLineComment(index(), ref.plainText)
+                            ref.blur()
+                          }
+                          setOpenLine(undefined)
+                        }}
                         onContentChange={() => {
                           const ref = lineRefs[index()]
                           if (ref && !ref.isDestroyed) setLineComment(index(), ref.plainText)
@@ -229,6 +239,10 @@ export const PlanReview = (props: PlanReviewProps) => {
             cursorColor={theme().accent}
             backgroundColor={theme().backgroundElement}
             maxHeight={4}
+            keyBindings={COMMENT_TEXTAREA_KEY_BINDINGS}
+            onSubmit={() => {
+              if (overallRef && !overallRef.isDestroyed) overallRef.blur()
+            }}
             onContentChange={() => {
               if (readonly()) return
               if (overallRef && !overallRef.isDestroyed) setOverall(overallRef.plainText)

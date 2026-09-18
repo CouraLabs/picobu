@@ -15,6 +15,7 @@ import { PlanReview, type PlanVerdict } from './plan-review.tsx'
 import { SpawnView } from './spawn-view.tsx'
 import { TodoList } from './todo-list.tsx'
 import {
+  detailClipWidth,
   EXPANDED_MAX_LINES,
   flowOutputMessage,
   flowOutputStatus,
@@ -167,10 +168,7 @@ export const ToolPart = (props: ToolPartProps) => {
     const detail = [summary(), runningProgress() ?? outputPreview()].filter((part) => typeof part === 'string' && part.length > 0).join(' · ')
     return detail
   })
-  const clipToWidth = (line: string): string => {
-    const max = Math.max(8, dims().width - 6 - (running() ? 2 : view().icon.length) - name().length)
-    return clip(line, max)
-  }
+  const clipToWidth = (line: string): string => clip(line, detailClipWidth(dims().width, running(), name().length))
 
   const toolCallId = () => props.part.toolCallId ?? ''
 
@@ -188,7 +186,7 @@ export const ToolPart = (props: ToolPartProps) => {
               event.stopPropagation()
               toggle()
             }}>
-            <ToolStatusIcon running={running()} color={color()} icon={view().icon} />
+            <ToolStatusIcon running={running()} color={color()} />
             <text fg={color()} flexShrink={0} attributes={hovered() && hasExpandableContent() ? TextAttributes.BOLD : undefined} selectable={false}>
               {name()}
             </text>
@@ -213,7 +211,7 @@ export const ToolPart = (props: ToolPartProps) => {
             event.stopPropagation()
             toggle()
           }}>
-          <ToolStatusIcon running={running()} color={color()} icon={view().icon} />
+          <ToolStatusIcon running={running()} color={color()} />
           <text fg={color()} flexShrink={0} attributes={hovered() && hasExpandableContent() ? TextAttributes.BOLD : undefined}>
             {name()}
           </text>
