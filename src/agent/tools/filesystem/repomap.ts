@@ -355,7 +355,7 @@ const renderMap = (ranked: Array<RankedFile>, root: string, maxChars: number): s
 }
 
 export const repoMapTool = {
-  name: 'repo_map',
+  name: 'repo-map',
   description:
     'Structural map of the repository: top files ranked by relevance with their key symbols (functions, classes, types) extracted via tree-sitter, capped to a token budget. Use it to orient in an unfamiliar codebase before grep/read; pass focus to boost files you already care about.',
   parameters: RepoMapArgsSchema,
