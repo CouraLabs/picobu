@@ -191,6 +191,29 @@ const startTui = async (options: TuiAppOptions, unguard: (() => void) | undefine
     logError(error, { scope: 'tui-render' })
     throw error
   }
+  const splashWatchdog = setTimeout(() => {
+    if (ready()) return
+    let stats: { frameCount?: number; fps?: number } | undefined
+    try {
+      stats = renderer.getStats() as { frameCount?: number; fps?: number }
+    } catch {}
+    const watchError = new Error(`splash watchdog: the TUI did not leave the splash screen after 15s (frames=${stats?.frameCount}, fps=${stats?.fps})`)
+    logError(watchError, {
+      scope: 'tui-watchdog',
+      platform: process.platform,
+      arch: process.arch,
+      bunVersion: Bun.version,
+      frames: stats?.frameCount,
+      fps: stats?.fps,
+      term: process.env.TERM,
+      termProgram: process.env.TERM_PROGRAM,
+      colorTerm: process.env.COLORTERM,
+      wtSession: process.env.WT_SESSION,
+      tmux: process.env.TMUX !== undefined,
+      ssh: process.env.SSH_CONNECTION !== undefined,
+    })
+  }, 15000)
+  splashWatchdog.unref()
   await registerParsers().catch((error) => {
     logError(error, { scope: 'parser-registration' })
     console.error('picobu: parser registration failed, code blocks will render unstyled:', error)
