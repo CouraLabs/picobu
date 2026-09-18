@@ -49,7 +49,7 @@ export const getGitInfo = (cwd: string): GitInfo | null => {
   const numstat = run(cwd, ['diff', 'HEAD', '--numstat']) ?? ''
   const { additions, deletions } = parseNumstat(numstat)
   const info: GitInfo = { branch: branchRaw, additions, deletions }
-  cache.set(cwd, info ? { at: now, info } : { at: now, info })
+  cache.set(cwd, { at: now, info })
   if (cache.size > 32) {
     const oldest = cache.keys().next().value
     if (oldest !== undefined) cache.delete(oldest)

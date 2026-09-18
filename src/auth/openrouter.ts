@@ -100,6 +100,15 @@ async function loginOpenRouter(interaction: AuthInteraction): Promise<OAuthCrede
       rejectCredential(new Error('OpenRouter login timed out'))
     }
   }, LOGIN_TIMEOUT_MS)
+  const onAbort = () => {
+    if (!settled) {
+      settled = true
+      rejectCredential(new Error('Login cancelled'))
+    }
+    server.close()
+  }
+  interaction.signal.addEventListener('abort', onAbort, { once: true })
+  if (interaction.signal.aborted) onAbort()
   const authorizeUrl = new URL(AUTHORIZE_URL)
   authorizeUrl.search = new URLSearchParams({ callback_url: callbackUrl, code_challenge: challenge, code_challenge_method: 'S256' }).toString()
   try {
@@ -109,6 +118,7 @@ async function loginOpenRouter(interaction: AuthInteraction): Promise<OAuthCrede
     return credential
   } finally {
     clearTimeout(timeout)
+    interaction.signal.removeEventListener('abort', onAbort)
     server.close()
   }
 }

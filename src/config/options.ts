@@ -200,6 +200,52 @@ export function resolveModelRole(harness: HarnessOptions | undefined, role: Mode
   else if (role === 'heavyThinkingLevel') thinking = modelRoles?.heavyThinkingLevel ?? 'high'
   return { modelKey, thinking }
 }
+const normalizeProviders = (value: unknown): Array<ProviderOptions> => {
+  if (value === undefined) return []
+  if (!Array.isArray(value)) throw new Error(`options.json: "providers" must be an array, got ${typeof value}`)
+  const out: Array<ProviderOptions> = []
+  for (const [index, entry] of value.entries()) {
+    const provider = entry as ProviderOptions | null | undefined
+    if (!provider || typeof provider !== 'object') {
+      console.warn(`options.json: ignoring providers[${index}] — not an object`)
+      continue
+    }
+    if (typeof provider.id !== 'string' || provider.id.trim().length === 0) {
+      console.warn(`options.json: ignoring providers[${index}] — missing "id"`)
+      continue
+    }
+    if (!Array.isArray(provider.models)) {
+      console.warn(`options.json: ignoring provider "${provider.id}" — "models" must be an array`)
+      continue
+    }
+    out.push(provider)
+  }
+  return out
+}
+const normalizeHarness = (value: unknown): HarnessOptions => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
+  const harness = value as HarnessOptions
+  const normalized: HarnessOptions = {}
+  if (harness.defaultModel !== undefined) {
+    if (typeof harness.defaultModel !== 'string' || harness.defaultModel.trim().length === 0) {
+      throw new Error('options.json: "harness.defaultModel" must be a non-empty string like "<providerId>/<modelId>"')
+    }
+    normalized.defaultModel = harness.defaultModel
+  }
+  if (harness.maxAgents !== undefined) {
+    if (typeof harness.maxAgents !== 'number' || !Number.isFinite(harness.maxAgents) || harness.maxAgents < 1) {
+      throw new Error('options.json: "harness.maxAgents" must be a number >= 1')
+    }
+    normalized.maxAgents = Math.floor(harness.maxAgents)
+  }
+  if (harness.modelRoles !== undefined) {
+    if (!harness.modelRoles || typeof harness.modelRoles !== 'object' || Array.isArray(harness.modelRoles)) {
+      throw new Error('options.json: "harness.modelRoles" must be an object')
+    }
+    normalized.modelRoles = harness.modelRoles
+  }
+  return normalized
+}
 export const DEFAULT_THEME_PREFS: ThemePrefs = { key: 'picobu', variant: 'dark' }
 const normalizeMaxMessages = (value: unknown): number => {
   if (typeof value !== 'number' || !Number.isFinite(value)) return DEFAULT_TUI_OPTIONS.maxMessages
@@ -222,11 +268,11 @@ export const loadOptions = async (): Promise<Options> => {
   const externalOpts = await readExternalOptions()
   return {
     ...globals,
-    providers: externalOpts.providers ?? [],
+    providers: normalizeProviders(externalOpts.providers),
     statusLine: normalizeStatusLines(externalOpts.statusLine ?? []),
     sessionStatusLayout: normalizeSessionStatusLayout(externalOpts.sessionStatusLayout),
     sessionHeaderLayout: normalizeSessionHeaderLayout(externalOpts.sessionHeaderLayout),
-    harness: (externalOpts.harness ?? {}) as HarnessOptions,
+    harness: normalizeHarness(externalOpts.harness),
     tui: resolveTui(externalOpts),
     web: { ...DEFAULT_WEB_OPTIONS, ...externalOpts.web },
     whatsapp: { ...DEFAULT_WHATSAPP_OPTIONS, ...externalOpts.whatsapp },

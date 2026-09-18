@@ -119,6 +119,12 @@ async function loginSnowflake(interaction: AuthInteraction, options?: AuthLoginO
   })
   const url = `https://${account}.snowflakecomputing.com/oauth/authorize?${params.toString()}`
   const timeout = setTimeout(() => rejectCode(new Error('Snowflake login timed out')), TIMEOUT_MS)
+  const onAbort = () => {
+    rejectCode(new Error('Login cancelled'))
+    server.close()
+  }
+  interaction.signal.addEventListener('abort', onAbort, { once: true })
+  if (interaction.signal.aborted) onAbort()
   try {
     interaction.notify({ type: 'auth_url', url, instructions: 'Complete Snowflake sign-in in your browser to finish.' })
     const code = await codePromise
@@ -127,6 +133,7 @@ async function loginSnowflake(interaction: AuthInteraction, options?: AuthLoginO
     return { type: 'oauth', access: tokens.access_token, refresh: tokens.refresh_token, expires: Date.now() + (tokens.expires_in ?? 600) * 1000, accountId: account }
   } finally {
     clearTimeout(timeout)
+    interaction.signal.removeEventListener('abort', onAbort)
     server.close()
   }
 }

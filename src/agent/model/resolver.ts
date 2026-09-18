@@ -41,6 +41,16 @@ export const resolveApiKey = (apiKey?: string): string | undefined => {
   return apiKey.startsWith('env:') ? process.env[apiKey.slice(4)] : apiKey
 }
 
+const resolveProviderHeader = (providerId: string, key: string, value: string): string => {
+  if (!value.startsWith('env:')) return value
+  const name = value.slice(4)
+  const resolved = process.env[name]
+  if (resolved === undefined || resolved.length === 0) {
+    throw new Error(`Provider "${providerId}" header "${key}" references unset environment variable "${name}"`)
+  }
+  return resolved
+}
+
 export const resolveAuth = (provider: ProviderOptions): { apiKey?: string; baseUrl?: string } => {
   const ref = provider.apiKey
   if (!ref?.startsWith('auth:')) return { apiKey: resolveApiKey(ref) }
@@ -171,7 +181,10 @@ export const createModelInstance = (provider: ProviderOptions, modelId: string, 
 
 export const headersForProvider = (provider: ProviderOptions, opts?: { sessionId?: string }): Record<string, string> | undefined => {
   const base = headersForProviderId(provider.id, provider.headers)
-  const headers: Record<string, string> = { ...(base ?? {}) }
+  const headers: Record<string, string> = {}
+  for (const [key, value] of Object.entries(base ?? {})) {
+    headers[key] = resolveProviderHeader(provider.id, key, value)
+  }
   if (provider.id === 'github-copilot') return { ...COPILOT_HEADERS, ...headers }
   if (isOpencodeGoProvider(provider)) {
     if (!headers['User-Agent']) headers['User-Agent'] = `picobu/${getVersion()}`

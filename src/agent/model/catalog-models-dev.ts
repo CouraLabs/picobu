@@ -2,13 +2,22 @@ import { filterAvailableModels, isExperimentalModelsEnabled } from '@agent/model
 import type { ProviderModelOptions, ProviderModelReasoningEffort, ProviderModelStatus } from '@config/options.ts'
 import { Models, type Model as ModelsDevModel, type Provider as ModelsDevProvider } from '@opencode-ai/models'
 
+let warnedLiveCatalog = false
+const warnLiveCatalogFailure = (scope: string, error: unknown): void => {
+  if (warnedLiveCatalog) return
+  warnedLiveCatalog = true
+  console.warn(`models.dev catalog unreachable (${scope}); using the bundled snapshot: ${error instanceof Error ? error.message : String(error)}`)
+}
+
 export const fetchModelsDevProvider = async (apiKeyEnv: string): Promise<ModelsDevProvider | undefined> => {
   try {
     const client = Models.make()
     const providers = await client.providers()
     const match = Object.values(providers).find((provider) => provider.env?.includes(apiKeyEnv) ?? false)
     if (match) return match as ModelsDevProvider
-  } catch {}
+  } catch (error) {
+    warnLiveCatalogFailure('providers()', error)
+  }
   const snapshot = await import('@opencode-ai/models/snapshot')
   return Object.values(snapshot.providers).find((provider) => (provider as ModelsDevProvider).env?.includes(apiKeyEnv) ?? false) as ModelsDevProvider | undefined
 }
@@ -19,7 +28,9 @@ export const fetchModelsDevProviderById = async (providerId: string): Promise<Mo
     const providers = await client.providers()
     const match = (providers as Record<string, ModelsDevProvider>)[providerId]
     if (match) return match
-  } catch {}
+  } catch (error) {
+    warnLiveCatalogFailure(`provider "${providerId}"`, error)
+  }
   const snapshot = await import('@opencode-ai/models/snapshot')
   return (snapshot.providers as Record<string, ModelsDevProvider>)[providerId]
 }
@@ -30,7 +41,9 @@ export const listAllModelsDevProviders = async (): Promise<Array<ModelsDevProvid
     const providers = await client.providers()
     const values = Object.values(providers)
     if (values.length > 0) return values as Array<ModelsDevProvider>
-  } catch {}
+  } catch (error) {
+    warnLiveCatalogFailure('providers()', error)
+  }
   const snapshot = await import('@opencode-ai/models/snapshot')
   return Object.values(snapshot.providers) as Array<ModelsDevProvider>
 }

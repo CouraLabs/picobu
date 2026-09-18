@@ -11,7 +11,6 @@ const AUTHORIZE_URL = 'https://claude.ai/oauth/authorize'
 const TOKEN_URL = 'https://platform.claude.com/v1/oauth/token'
 const CALLBACK_PORT = 53692
 const CALLBACK_PATH = '/callback'
-const REDIRECT_URI = `http://localhost:${CALLBACK_PORT}${CALLBACK_PATH}`
 const SCOPES = 'org:create_api_key user:profile user:inference user:sessions:claude_code user:mcp_servers ' + 'user:file_upload'
 const callbackHost = (): string => process.env.PICOBU_OAUTH_CALLBACK_HOST || '127.0.0.1'
 const LOGIN_TIMEOUT_MS = 15 * 60 * 1000
@@ -31,6 +30,7 @@ const withTimeout = async <TValue>(promise: Promise<TValue>, ms: number, message
 }
 interface CallbackServerInfo {
   server: Server
+  port: number
   cancelWait: () => void
   waitForCode: () => Promise<{ code: string } | null>
 }
@@ -82,17 +82,31 @@ function startCallbackServer(expectedState: string): Promise<CallbackServerInfo>
         res.end('Internal error')
       }
     })
-    server.on('error', (err) => {
-      reject(err)
-    })
-    server.listen(CALLBACK_PORT, callbackHost(), () => {
+    let fallback = false
+    const finish = (port: number): void => {
       resolve({
         server,
+        port,
         cancelWait: () => {
           settleWait?.(null)
         },
         waitForCode: () => waitForCodePromise,
       })
+    }
+    server.on('error', (err) => {
+      if (fallback) {
+        reject(err)
+        return
+      }
+      fallback = true
+      server.listen(0, callbackHost(), () => {
+        const address = server.address()
+        finish(typeof address === 'object' && address !== null ? address.port : 0)
+      })
+    })
+    server.listen(CALLBACK_PORT, callbackHost(), () => {
+      fallback = true
+      finish(CALLBACK_PORT)
     })
   })
 }
@@ -176,6 +190,7 @@ async function loginAnthropic(interaction: AuthInteraction): Promise<OAuthCreden
   const { verifier, challenge } = await generatePKCE()
   const oauthState = createOAuthState()
   const server = await startCallbackServer(oauthState)
+  const redirectUri = `http://localhost:${server.port}${CALLBACK_PATH}`
   const onAbort = () => server.cancelWait()
   interaction.signal.addEventListener('abort', onAbort, { once: true })
   if (interaction.signal.aborted) onAbort()
@@ -184,7 +199,7 @@ async function loginAnthropic(interaction: AuthInteraction): Promise<OAuthCreden
       code: 'true',
       client_id: CLIENT_ID,
       response_type: 'code',
-      redirect_uri: REDIRECT_URI,
+      redirect_uri: redirectUri,
       scope: SCOPES,
       code_challenge: challenge,
       code_challenge_method: 'S256',
@@ -198,7 +213,7 @@ async function loginAnthropic(interaction: AuthInteraction): Promise<OAuthCreden
     const result = await withTimeout(server.waitForCode(), LOGIN_TIMEOUT_MS, 'Login timed out — please try again')
     if (!result?.code) throw new Error('Login cancelled')
     interaction.notify({ type: 'progress', message: 'Exchanging authorization code for tokens…' })
-    return exchangeAuthorizationCode(result.code, oauthState, verifier, REDIRECT_URI, interaction.signal)
+    return exchangeAuthorizationCode(result.code, oauthState, verifier, redirectUri, interaction.signal)
   } finally {
     interaction.signal.removeEventListener('abort', onAbort)
     server.server.close()

@@ -53,6 +53,13 @@ async function loginDigitalOcean(interaction: AuthInteraction): Promise<OAuthCre
   const server = Bun.serve({
     port: PORT,
     hostname: '127.0.0.1',
+    error(serveError) {
+      if (pending) {
+        pending = false
+        rejectToken(new Error(`DigitalOcean login failed to bind port ${PORT}: ${serveError instanceof Error ? serveError.message : String(serveError)}`))
+      }
+      return new Response('error', { status: 500 })
+    },
     async fetch(request) {
       try {
         const url = new URL(request.url)
@@ -88,9 +95,6 @@ async function loginDigitalOcean(interaction: AuthInteraction): Promise<OAuthCre
         return new Response('Internal error', { status: 500 })
       }
     },
-    error() {
-      return new Response('error', { status: 500 })
-    },
   })
   const timeout = setTimeout(
     () => {
@@ -101,6 +105,15 @@ async function loginDigitalOcean(interaction: AuthInteraction): Promise<OAuthCre
     },
     5 * 60 * 1000,
   )
+  const onAbort = () => {
+    if (pending) {
+      pending = false
+      rejectToken(new Error('Login cancelled'))
+    }
+    server.stop()
+  }
+  interaction.signal.addEventListener('abort', onAbort, { once: true })
+  if (interaction.signal.aborted) onAbort()
   try {
     const params = new URLSearchParams({ response_type: 'token', client_id: CLIENT_ID, redirect_uri: redirectUri(), scope: SCOPES, state })
     const url = `${AUTHORIZE_URL}?${params.toString()}`
@@ -109,6 +122,7 @@ async function loginDigitalOcean(interaction: AuthInteraction): Promise<OAuthCre
     return { type: 'oauth', access: token.access, refresh: token.access, expires: token.expires }
   } finally {
     clearTimeout(timeout)
+    interaction.signal.removeEventListener('abort', onAbort)
     server.stop()
   }
 }

@@ -118,6 +118,7 @@ async function refreshAccessToken(refreshToken: string, signal: AbortSignal): Pr
   return readTokenResponse(response, 'refresh')
 }
 interface CallbackServerInfo {
+  port: number
   close: () => void
   cancelWait: () => void
   waitForCode: () => Promise<{ code: string } | null>
@@ -175,18 +176,32 @@ function startLocalOAuthServer(state: string): Promise<CallbackServerInfo> {
     }
   })
   return new Promise((resolve, reject) => {
+    let fallback = false
+    const finish = (port: number): void => {
+      resolve({
+        port,
+        close: () => server.close(),
+        cancelWait: () => {
+          settleWait?.(null)
+        },
+        waitForCode: () => waitForCodePromise,
+      })
+    }
     server
       .listen(CALLBACK_PORT, callbackHost(), () => {
-        resolve({
-          close: () => server.close(),
-          cancelWait: () => {
-            settleWait?.(null)
-          },
-          waitForCode: () => waitForCodePromise,
-        })
+        fallback = true
+        finish(CALLBACK_PORT)
       })
       .on('error', (err) => {
-        reject(err)
+        if (fallback) {
+          reject(err)
+          return
+        }
+        fallback = true
+        server.listen(0, callbackHost(), () => {
+          const address = server.address()
+          finish(typeof address === 'object' && address !== null ? address.port : 0)
+        })
       })
   })
 }
@@ -203,13 +218,12 @@ function credentialsFromToken(token: OAuthToken): OAuthCredential {
     accountId,
   }
 }
-async function createAuthorizationFlow(): Promise<{ verifier: string; state: string; url: string }> {
+async function createAuthorizationFlow(redirectUri: string, state: string): Promise<{ verifier: string; url: string }> {
   const { verifier, challenge } = await generatePKCE()
-  const state = createState()
   const url = new URL(AUTHORIZE_URL)
   url.searchParams.set('response_type', 'code')
   url.searchParams.set('client_id', CLIENT_ID)
-  url.searchParams.set('redirect_uri', REDIRECT_URI)
+  url.searchParams.set('redirect_uri', redirectUri)
   url.searchParams.set('scope', SCOPE)
   url.searchParams.set('code_challenge', challenge)
   url.searchParams.set('code_challenge_method', 'S256')
@@ -217,13 +231,15 @@ async function createAuthorizationFlow(): Promise<{ verifier: string; state: str
   url.searchParams.set('id_token_add_organizations', 'true')
   url.searchParams.set('codex_cli_simplified_flow', 'true')
   url.searchParams.set('originator', 'picobu')
-  return { verifier, state, url: url.toString() }
+  return { verifier, url: url.toString() }
 }
 async function loginOpenAI(interaction: AuthInteraction, options?: AuthLoginOptions): Promise<OAuthCredential> {
   const mode = options?.extra?.method?.trim().toLowerCase() || options?.enterpriseDomain?.trim().toLowerCase()
   if (mode === 'headless' || mode === 'device' || mode === 'device_code') return loginOpenAIDeviceCode(interaction)
-  const { verifier, state, url } = await createAuthorizationFlow()
+  const state = createState()
   const server = await startLocalOAuthServer(state)
+  const redirectUri = `http://localhost:${server.port}/auth/callback`
+  const { verifier, url } = await createAuthorizationFlow(redirectUri, state)
   const onAbort = () => server.cancelWait()
   interaction.signal.addEventListener('abort', onAbort, { once: true })
   if (interaction.signal.aborted) onAbort()
@@ -236,7 +252,7 @@ async function loginOpenAI(interaction: AuthInteraction, options?: AuthLoginOpti
     const result = await withTimeout(server.waitForCode(), LOGIN_TIMEOUT_MS, 'Login timed out — please try again')
     if (!result?.code) throw new Error('Login cancelled')
     interaction.notify({ type: 'progress', message: 'Exchanging authorization code for tokens…' })
-    return credentialsFromToken(await exchangeAuthorizationCode(result.code, verifier, interaction.signal))
+    return credentialsFromToken(await exchangeAuthorizationCode(result.code, verifier, interaction.signal, redirectUri))
   } finally {
     interaction.signal.removeEventListener('abort', onAbort)
     server.close()
