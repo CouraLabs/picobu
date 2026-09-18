@@ -3,6 +3,7 @@ import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { HarnessOptions, ModelRoleId, Options, OptionsExternal, ProviderModelReasoningEffort } from '../../src/config/options.ts'
 import { MAX_STATUS_LINE_ITEMS, normalizeStatusLine, normalizeStatusLines, selectStatusLineItems } from '../../src/config/provider-status-line.ts'
+import { DEFAULT_SESSION_HEADER_LAYOUT, DEFAULT_SESSION_STATUS_LAYOUT } from '../../src/config/session-layout.ts'
 
 export const mockSystemDirBase = mkdtempSync(join(tmpdir(), 'picobu-test-options-'))
 
@@ -28,6 +29,8 @@ const baseOptions = (): Options => ({
   },
   providers: [],
   statusLine: [],
+  sessionStatusLayout: { ...DEFAULT_SESSION_STATUS_LAYOUT, lines: DEFAULT_SESSION_STATUS_LAYOUT.lines.map((line) => [...line]) },
+  sessionHeaderLayout: { ...DEFAULT_SESSION_HEADER_LAYOUT, lines: DEFAULT_SESSION_HEADER_LAYOUT.lines.map((line) => [...line]) },
   harness: {},
   tui: { theme: { ...MOCK_THEME_PREFS }, maxMessages: MOCK_TUI_DEFAULTS.maxMessages },
   web: { ...MOCK_WEB_DEFAULTS },
@@ -64,9 +67,13 @@ const normalizeMockStaleTimeout = (value: unknown): number => {
   return Math.max(5000, Math.floor(value))
 }
 
-export const mockUpdateSettings = async (patch: Partial<Pick<OptionsExternal, 'providers' | 'statusLine' | 'harness' | 'tui' | 'web' | 'whatsapp' | 'mcp' | 'watchdog'>>): Promise<Options> => {
+export const mockUpdateSettings = async (
+  patch: Partial<Pick<OptionsExternal, 'providers' | 'statusLine' | 'sessionStatusLayout' | 'sessionHeaderLayout' | 'harness' | 'tui' | 'web' | 'whatsapp' | 'mcp' | 'watchdog'>>,
+): Promise<Options> => {
   if (patch.providers !== undefined) mockOptions.providers = patch.providers
   if (patch.statusLine !== undefined) mockOptions.statusLine = patch.statusLine
+  if (patch.sessionStatusLayout !== undefined) mockOptions.sessionStatusLayout = patch.sessionStatusLayout as Options['sessionStatusLayout']
+  if (patch.sessionHeaderLayout !== undefined) mockOptions.sessionHeaderLayout = patch.sessionHeaderLayout as Options['sessionHeaderLayout']
   mockOptions.harness = {
     ...mockOptions.harness,
     ...patch.harness,

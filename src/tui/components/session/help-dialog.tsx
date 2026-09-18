@@ -39,11 +39,13 @@ const mouseEvents: Array<{ keys: string; what: string }> = [
 ]
 
 const footerLines: Array<string> = [
-  'The footer under the prompt shows the session at a glance. Token and cost segments always show `0`.',
+  'The footer under the prompt and the session header are fully configurable.',
+  'Token and cost segments always show `0`.',
   '',
-  '- **Agent row**: agent, model, thinking level, finish reason or live activity (`Prompting`, `Reasoning`, `Tooling`, `Delegating`, `Answering`), session title.',
-  '- **Metrics row**: `⧖` time to first output, `↯` output tokens/sec, `⯿` tool execution time, `↑` input `0`, `↓` output `0`, `⛁` cache `0 (0%)`, `$` cost `0`.',
-  '- **Session row**: message count (`u`ser / `a`ssistant), tool calls, MCP connections, queue state.',
+  '- Use `/session-status-view` to edit the status bar: lines, items, column/row gaps.',
+  '- Use `/session-header-view` to edit the header: workspace (folder + git), context, notification.',
+  '- In the dialog: arrows move the cursor, `enter` picks up / drops an item, `del` moves it to Unused, `esc` closes.',
+  '- Defaults: agent, model, thinking effort, run state, spinner, session title; TTFT/TPS, input, output, cache, cost; sandbox, messages, tools, queue, jobs; provider items.',
 ]
 
 export const HelpDialog = () => {

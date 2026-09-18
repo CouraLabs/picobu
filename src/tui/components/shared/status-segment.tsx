@@ -8,6 +8,7 @@ export interface StatusSegmentProps {
   labelColor?: string | RGBA
   value: string
   valueColor?: string | RGBA
+  selectable?: boolean
 }
 
 export const StatusSegment = (props: StatusSegmentProps) => (
@@ -24,6 +25,8 @@ export const StatusSegment = (props: StatusSegmentProps) => (
         </text>
       </Show>
     </box>
-    <text fg={props.valueColor ?? theme().text}>{props.value}</text>
+    <text fg={props.valueColor ?? theme().text} selectable={props.selectable === undefined ? undefined : props.selectable}>
+      {props.value}
+    </text>
   </box>
 )

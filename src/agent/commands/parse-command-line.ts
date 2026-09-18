@@ -1,6 +1,6 @@
 import type { Command } from '@agent/commands/types.ts'
 
-export type SystemCommandName = 'q' | 'models' | 'fork' | 'summarize' | 'compact' | 'roles' | 'cd' | 'new' | 'reload' | 'export'
+export type SystemCommandName = 'q' | 'models' | 'fork' | 'summarize' | 'compact' | 'roles' | 'cd' | 'new' | 'reload' | 'export' | 'session-status-view' | 'session-header-view'
 
 export interface SystemCommandDef {
   name: SystemCommandName
@@ -20,6 +20,8 @@ export const SYSTEM_COMMANDS: Array<SystemCommandDef> = [
   { name: 'new', aliases: ['clear', 'cls'], description: 'Start a new session', usage: '/new' },
   { name: 'reload', aliases: [], description: 'Reload skills, workflows, rules, agents, prompts and MCP from disk', usage: '/reload' },
   { name: 'export', aliases: [], description: 'Export current session to HTML', usage: '/export [out.html]' },
+  { name: 'session-status-view', aliases: ['session-status', 'status-view'], description: 'Configure the session status bar layout', usage: '/session-status-view' },
+  { name: 'session-header-view', aliases: ['session-header', 'header-view'], description: 'Configure the session header layout', usage: '/session-header-view' },
 ]
 
 export const toKebab = (value: string): string =>

@@ -14,6 +14,7 @@ import { SessionHeader } from '../../src/tui/components/session/session-header.t
 import { SessionMessages } from '../../src/tui/components/session/session-messages.tsx'
 import { SessionPrompt } from '../../src/tui/components/session/session-prompt.tsx'
 import { SessionStatus } from '../../src/tui/components/session/session-status.tsx'
+import { openStatusLayoutDialog } from '../../src/tui/components/session/status-layout-dialog.tsx'
 import { AskForm } from '../../src/tui/components/session/tools/ask-form.tsx'
 import { PlanReview } from '../../src/tui/components/session/tools/plan-review.tsx'
 import { TodoList } from '../../src/tui/components/session/tools/todo-list.tsx'
@@ -78,6 +79,7 @@ describe('tui module surface', () => {
     }
     expect(typeof openMessageActions).toBe('function')
     expect(typeof messageText).toBe('function')
+    expect(typeof openStatusLayoutDialog).toBe('function')
     expect(typeof runTui).toBe('function')
   })
 })

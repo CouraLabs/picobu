@@ -1,3 +1,5 @@
+export { HeaderItemView, type HeaderRenderContext, headerItemHasContent } from './header-items.tsx'
+export { getProviderStatusExtras, type ProviderStatusExtra } from './provider-extras.ts'
 export type { ActivityKind } from './status-activity.ts'
 export {
   ACTIVITY_LABELS,
@@ -5,6 +7,8 @@ export {
   getFinishColor,
   getFinishReason,
 } from './status-activity.ts'
+export { StatusItemView, type StatusRenderContext, statusItemHasContent } from './status-items.tsx'
+export { HeaderLine, StatusLines } from './status-lines.tsx'
 export {
   createSessionStatusData,
   getAgentColor,
@@ -21,4 +25,3 @@ export {
   type SessionStatusData,
   type SessionStatusProps,
 } from './status-meta.ts'
-export { SessionProviderStatus, type SessionProviderStatusInfo } from './status-provider.tsx'

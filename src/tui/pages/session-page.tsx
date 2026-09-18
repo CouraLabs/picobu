@@ -34,7 +34,9 @@ import { SessionMessages } from '@tui/components/session/session-messages.tsx'
 import { type AttachedFile, type EditRequest, type PromptMode, type PromptPayload, SessionPrompt } from '@tui/components/session/session-prompt.tsx'
 import { SessionQueue } from '@tui/components/session/session-queue.tsx'
 import { SessionStatus, THINKING_LEVELS } from '@tui/components/session/session-status.tsx'
+import type { SessionStatusProps } from '@tui/components/session/status/session-status-data.ts'
 import { getModelContextSize } from '@tui/components/session/status/status-meta.ts'
+import { openStatusLayoutDialog } from '@tui/components/session/status-layout-dialog.tsx'
 import { openSubagentMessages } from '@tui/components/session/subagent-dialog.tsx'
 import type { ToolFlowResponse } from '@tui/components/session/tools/tool-part.tsx'
 import { setExitStatus } from '@tui/hooks/exit-status.ts'
@@ -336,6 +338,27 @@ export const SessionPage = (props: SessionPageProps) => {
       />
     ))
   }
+
+  const statusProps = (): SessionStatusProps => ({
+    agentId: agentId(),
+    modelKey: modelKey(),
+    thinking: thinking(),
+    title: title(),
+    cwd: cwd(),
+    git: git(),
+    messages: messages(),
+    streaming: isStreaming(),
+    queueDepth: queueDepth(),
+    mode: mode(),
+    waiting: waiting() || answering(),
+    mcp: mcp(),
+    sandbox: sandboxOn(),
+    bgJobs: bgJobs(),
+    provider: modelKey() ? { id: modelKey()?.split('/')[0] ?? '' } : undefined,
+    statsStatus: statsStatus(),
+    statsPerformance: statsPerformance(),
+    statsMetrics: statsMetrics(),
+  })
 
   const cancelPendingFlow = async () => {
     const msgs = messages()
@@ -902,6 +925,12 @@ export const SessionPage = (props: SessionPageProps) => {
         }
         break
       }
+      case 'session-status-view':
+        openStatusLayoutDialog({ surface: 'status', getStatusProps: statusProps, onModelOpen: openModelDialog })
+        break
+      case 'session-header-view':
+        openStatusLayoutDialog({ surface: 'header', getStatusProps: statusProps })
+        break
     }
   }
 

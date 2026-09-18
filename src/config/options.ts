@@ -1,6 +1,7 @@
 import { mkdirSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { normalizeStatusLines, type ProviderStatusEntry } from '@config/provider-status-line.ts'
+import { normalizeSessionHeaderLayout, normalizeSessionStatusLayout, type SessionHeaderLayout, type SessionStatusLayout } from '@config/session-layout.ts'
 import { DEFAULT_MCP_OPTIONS, type McpOptions } from '@integrations/mcp/config.ts'
 import { acquireLock } from '@shared/lock.ts'
 import { detectShell } from '@shared/shell.ts'
@@ -39,6 +40,18 @@ export type {
   ProviderStatusLineStepRawItem,
 } from '@config/provider-status-line.ts'
 export { MAX_STATUS_LINE_ITEMS, normalizeStatusLine, normalizeStatusLineItems, normalizeStatusLines, selectStatusLineItems } from '@config/provider-status-line.ts'
+export {
+  DEFAULT_SESSION_HEADER_LAYOUT,
+  DEFAULT_SESSION_STATUS_LAYOUT,
+  normalizeSessionHeaderLayout,
+  normalizeSessionStatusLayout,
+  type SessionHeaderItem,
+  type SessionHeaderLayout,
+  type SessionLayoutConfig,
+  type SessionLayoutLines,
+  type SessionStatusItem,
+  type SessionStatusLayout,
+} from '@config/session-layout.ts'
 export interface ProviderOptions {
   id: string
   name: string
@@ -116,6 +129,8 @@ export const DEFAULT_WEB_OPTIONS: WebServerOptions = {
 export interface OptionsExternal {
   providers?: Array<ProviderOptions>
   statusLine?: Array<ProviderStatusEntry>
+  sessionStatusLayout?: unknown
+  sessionHeaderLayout?: unknown
   harness?: HarnessOptionsInput
   theme?: ThemePrefs
   tui?: TuiOptionsInput
@@ -138,6 +153,8 @@ export interface GlobalOptions {
 export type Options = GlobalOptions & {
   providers: Array<ProviderOptions>
   statusLine: Array<ProviderStatusEntry>
+  sessionStatusLayout: SessionStatusLayout
+  sessionHeaderLayout: SessionHeaderLayout
   harness: HarnessOptions
   tui: TuiOptions
   web: WebServerOptions
@@ -206,6 +223,8 @@ export const loadOptions = async (): Promise<Options> => {
     ...globals,
     providers: externalOpts.providers ?? [],
     statusLine: normalizeStatusLines(externalOpts.statusLine ?? []),
+    sessionStatusLayout: normalizeSessionStatusLayout(externalOpts.sessionStatusLayout),
+    sessionHeaderLayout: normalizeSessionHeaderLayout(externalOpts.sessionHeaderLayout),
     harness: (externalOpts.harness ?? {}) as HarnessOptions,
     tui: resolveTui(externalOpts),
     web: { ...DEFAULT_WEB_OPTIONS, ...externalOpts.web },
@@ -266,6 +285,8 @@ async function readExternalOptions(): Promise<OptionsExternal> {
     }
     const seeded: OptionsExternal = {
       ...externalOpts,
+      sessionStatusLayout: normalizeSessionStatusLayout(externalOpts.sessionStatusLayout),
+      sessionHeaderLayout: normalizeSessionHeaderLayout(externalOpts.sessionHeaderLayout),
       tui: {
         ...externalOpts.tui,
         theme: externalOpts.tui?.theme ?? DEFAULT_THEME_PREFS,
@@ -285,7 +306,9 @@ async function readExternalOptions(): Promise<OptionsExternal> {
     lock.release()
   }
 }
-export const updateSettings = async (patch: Partial<Pick<OptionsExternal, 'providers' | 'statusLine' | 'harness' | 'tui' | 'web' | 'whatsapp' | 'mcp' | 'watchdog'>>): Promise<Options> => {
+export const updateSettings = async (
+  patch: Partial<Pick<OptionsExternal, 'providers' | 'statusLine' | 'sessionStatusLayout' | 'sessionHeaderLayout' | 'harness' | 'tui' | 'web' | 'whatsapp' | 'mcp' | 'watchdog'>>,
+): Promise<Options> => {
   const systemDir = globals.app.systemDir
   mkdirSync(systemDir, { recursive: true })
   const externalOptsPath = `${systemDir}/options.json`
