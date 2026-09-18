@@ -1,5 +1,6 @@
-import { isAbsolute, relative, resolve } from 'node:path'
+import { resolve } from 'node:path'
 import { startBackgroundShell } from '@agent/tools/filesystem/background-shell.ts'
+import { isInsideBase } from '@agent/tools/filesystem/paths.ts'
 import { killProcessTree, sandboxRoot, shellSpec } from '@agent/tools/sandbox.ts'
 import type { ToolExecuteOptions } from '@agent/tools/toolset.ts'
 import { MAX_TOOL_OUTPUT_BYTES, MAX_TOOL_OUTPUT_LINES, tailText, writeFullToolOutput } from '@agent/tools/truncate-output.ts'
@@ -172,8 +173,7 @@ export function createShellTool(ctx: { sessionId?: string; allowBackground?: boo
         const sandboxRootPath = sandboxRoot(toolOptions?.experimental_sandbox) ?? process.cwd()
         if (args.cwd) {
           const cwdPath = resolve(sandboxRootPath, args.cwd)
-          const rel = relative(sandboxRootPath, cwdPath)
-          if (rel !== '' && (rel === '..' || rel.startsWith('../') || isAbsolute(rel))) {
+          if (!isInsideBase(sandboxRootPath, cwdPath)) {
             throw new Error(`Working directory escapes allowed root: ${args.cwd}`)
           }
         }
@@ -209,8 +209,7 @@ export function createShellTool(ctx: { sessionId?: string; allowBackground?: boo
       } else {
         const base = process.cwd()
         const cwd = args.cwd ? resolve(base, args.cwd) : base
-        const rel = relative(base, cwd)
-        if (rel !== '' && (rel === '..' || rel.startsWith('../') || isAbsolute(rel))) {
+        if (!isInsideBase(base, cwd)) {
           throw new Error(`Working directory escapes allowed root: ${args.cwd}`)
         }
         const proc = Bun.spawn({

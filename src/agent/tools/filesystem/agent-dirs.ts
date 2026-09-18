@@ -1,5 +1,6 @@
 import { stat } from 'node:fs/promises'
-import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path'
+import { basename, dirname, join, resolve } from 'node:path'
+import { isInsideBase } from '@agent/tools/filesystem/paths.ts'
 import { options } from '@config/options.ts'
 
 const AGENT_SUBDIRS = ['skills', 'workflows', 'prompts', 'commands', 'rules']
@@ -24,8 +25,7 @@ export const agentDirsUnder = async (base: string): Promise<Array<string>> => {
     const dir = resolve(candidate)
     if (seen.has(dir)) continue
     seen.add(dir)
-    const rel = relative(root, dir)
-    if (!rel || rel === '..' || rel.startsWith('../') || isAbsolute(rel)) continue
+    if (!isInsideBase(root, dir)) continue
     if (!(await dirExists(dir))) continue
     out.push(dir)
   }
@@ -37,8 +37,7 @@ export const insideAgentDir = (path: string): boolean => {
   for (;;) {
     if (basename(dir) === '.agents') return true
     for (const sub of systemSubdirs) {
-      const rel = relative(sub, dir)
-      if (rel !== '..' && !rel.startsWith('../') && !isAbsolute(rel)) return true
+      if (isInsideBase(sub, dir)) return true
     }
     const parent = dirname(dir)
     if (parent === dir) return false

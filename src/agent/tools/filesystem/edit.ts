@@ -1,6 +1,6 @@
-import { isAbsolute, relative, resolve } from 'node:path'
 import { CheckpointStore } from '@agent/sessions/checkpoints.ts'
 import { joinBom, splitBom } from '@agent/tools/filesystem/bom.ts'
+import { resolveInsideBase } from '@agent/tools/filesystem/paths.ts'
 import { convertToLineEnding, detectLineEnding, diffForFile, normalizeLineEndings, replaceText } from '@agent/tools/filesystem/replacers.ts'
 import { sandboxRoot } from '@agent/tools/sandbox.ts'
 import type { ToolExecuteOptions } from '@agent/tools/toolset.ts'
@@ -20,16 +20,6 @@ export const EditToolOutputSchema = z.object({
   message: z.string(),
   diff: z.string(),
 })
-const resolveInsideBase = (base: string | undefined, userPath: string): string => {
-  const resolved = resolve(base ?? process.cwd(), userPath)
-  if (!base) return resolved
-  const normalizedBase = resolve(base)
-  const rel = relative(normalizedBase, resolved)
-  if (rel !== '' && (rel === '..' || rel.startsWith('../') || isAbsolute(rel))) {
-    throw new Error(`Path escapes working directory: ${userPath}`)
-  }
-  return resolved
-}
 export const createEditTool = (checkpointsPath?: string) => {
   const checkpoints = checkpointsPath ? new CheckpointStore(checkpointsPath) : undefined
   return {
@@ -40,7 +30,7 @@ export const createEditTool = (checkpointsPath?: string) => {
     handler: async (args: z.infer<typeof EditToolArgsSchema>, toolOptions?: ToolExecuteOptions): Promise<EditToolResult> => {
       if (!args.path) throw new Error('edit requires a non-empty path')
       const base = sandboxRoot(toolOptions?.experimental_sandbox)
-      const path = resolveInsideBase(base, args.path)
+      const path = await resolveInsideBase(base, args.path)
       return withLock(path, async () => {
         const file = Bun.file(path)
         const exists = await file.exists()

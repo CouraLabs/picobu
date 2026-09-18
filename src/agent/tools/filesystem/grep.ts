@@ -1,5 +1,6 @@
-import { isAbsolute, relative, resolve } from 'node:path'
+import { resolve } from 'node:path'
 import { agentDirsUnder, insideAgentDir } from '@agent/tools/filesystem/agent-dirs.ts'
+import { isInsideBase } from '@agent/tools/filesystem/paths.ts'
 import { resolveRgPath } from '@agent/tools/filesystem/rg.ts'
 import { type LocalSandboxSession, sandboxRoot } from '@agent/tools/sandbox.ts'
 import type { ToolExecuteOptions } from '@agent/tools/toolset.ts'
@@ -47,8 +48,7 @@ export const grepTool = {
     const root = sandbox ?? process.cwd()
     const searchPath = args.path ? resolve(root, args.path) : root
     if (sandbox) {
-      const rel = relative(resolve(sandbox), resolve(searchPath))
-      if (rel !== '' && (rel === '..' || rel.startsWith('../') || isAbsolute(rel))) {
+      if (!isInsideBase(resolve(sandbox), resolve(searchPath))) {
         throw new Error(`Path escapes working directory: ${args.path}`)
       }
     }

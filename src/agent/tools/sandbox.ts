@@ -1,5 +1,6 @@
 import { mkdir } from 'node:fs/promises'
-import { dirname, isAbsolute, relative, resolve, sep } from 'node:path'
+import { dirname, isAbsolute, resolve } from 'node:path'
+import { isInsideBase } from '@agent/tools/filesystem/paths.ts'
 import type { Experimental_SandboxProcess, Experimental_SandboxSession } from 'ai'
 
 type SandboxProcessOptions = Parameters<Experimental_SandboxSession['run']>[0]
@@ -48,10 +49,7 @@ export const killProcessTree = (proc: Bun.Subprocess): void => {
 export function createLocalSandboxSession(root: string, shellLabel: string): LocalSandboxSession {
   const spec = shellSpec(shellLabel)
   const normalizedRoot = resolve(root)
-  const isInsideRoot = (candidate: string): boolean => {
-    const rel = relative(normalizedRoot, candidate)
-    return rel === '' || (rel !== '..' && !rel.startsWith(`..${sep}`) && !isAbsolute(rel))
-  }
+  const isInsideRoot = (candidate: string): boolean => isInsideBase(normalizedRoot, candidate)
   const resolveInRoot = (p: string | undefined): string => {
     if (!p) return normalizedRoot
     if (isAbsolute(p)) {

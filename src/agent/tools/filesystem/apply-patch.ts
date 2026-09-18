@@ -1,7 +1,8 @@
 import { mkdir, rm } from 'node:fs/promises'
-import { dirname, isAbsolute, relative, resolve } from 'node:path'
+import { dirname } from 'node:path'
 import { CheckpointStore } from '@agent/sessions/checkpoints.ts'
 import { joinBom, splitBom } from '@agent/tools/filesystem/bom.ts'
+import { resolveInsideBase } from '@agent/tools/filesystem/paths.ts'
 import { diffForFile } from '@agent/tools/filesystem/replacers.ts'
 import { sandboxRoot } from '@agent/tools/sandbox.ts'
 import type { ToolExecuteOptions } from '@agent/tools/toolset.ts'
@@ -78,17 +79,6 @@ const applyHunks = (oldText: string, hunks: Array<StructuredHunk>, display: stri
   return out.join('\n')
 }
 
-const resolveInsideBase = (base: string | undefined, userPath: string): string => {
-  const resolved = resolve(base ?? process.cwd(), userPath)
-  if (!base) return resolved
-  const normalizedBase = resolve(base)
-  const rel = relative(normalizedBase, resolved)
-  if (rel !== '' && (rel === '..' || rel.startsWith('../') || isAbsolute(rel))) {
-    throw new Error(`Path escapes working directory: ${userPath}`)
-  }
-  return resolved
-}
-
 export const createApplyPatchTool = (checkpointsPath?: string) => {
   const checkpoints = checkpointsPath ? new CheckpointStore(checkpointsPath) : undefined
   return {
@@ -115,7 +105,7 @@ export const createApplyPatchTool = (checkpointsPath?: string) => {
         const isDelete = newName === '/dev/null'
         const display = isDelete ? oldName : newName
         if (!display || display === '/dev/null') throw new Error('apply_patch verification failed: patch is missing a file path')
-        const resolved = resolveInsideBase(base, display)
+        const resolved = await resolveInsideBase(base, display)
         const existing = isAdd
           ? null
           : await Bun.file(resolved)

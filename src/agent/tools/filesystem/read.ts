@@ -1,5 +1,6 @@
 import { readdir, stat } from 'node:fs/promises'
-import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path'
+import { basename, dirname, join } from 'node:path'
+import { resolveInsideBase } from '@agent/tools/filesystem/paths.ts'
 import { sandboxRoot } from '@agent/tools/sandbox.ts'
 import type { ToolExecuteOptions } from '@agent/tools/toolset.ts'
 import { headText, MAX_TOOL_OUTPUT_BYTES, MAX_TOOL_OUTPUT_LINES } from '@agent/tools/truncate-output.ts'
@@ -52,16 +53,6 @@ const BINARY_EXTENSIONS = new Set([
 ])
 const IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg', '.ico'])
 const PDF_EXTENSION = '.pdf'
-const resolveInsideBase = (base: string | undefined, userPath: string): string => {
-  const resolved = resolve(base ?? process.cwd(), userPath)
-  if (!base) return resolved
-  const normalizedBase = resolve(base)
-  const rel = relative(normalizedBase, resolved)
-  if (rel !== '' && (rel === '..' || rel.startsWith('../') || isAbsolute(rel))) {
-    throw new Error(`Path escapes working directory: ${userPath}`)
-  }
-  return resolved
-}
 const cutLongLine = (line: string): string => (line.length > MAX_LINE_LENGTH ? `${line.slice(0, MAX_LINE_LENGTH)}${MAX_LINE_SUFFIX}` : line)
 const sliceLines = (text: string, skip?: number, limit?: number): string => {
   const lines = text.split(/\r?\n/)
@@ -106,7 +97,7 @@ export const readTool = {
   handler: async (args: z.infer<typeof ReadToolArgsSchema>, toolOptions?: ToolExecuteOptions): Promise<z.infer<typeof ReadToolOutputSchema>> => {
     if (!args.path) throw new Error('read requires a non-empty path')
     const base = sandboxRoot(toolOptions?.experimental_sandbox)
-    const path = resolveInsideBase(base, args.path)
+    const path = await resolveInsideBase(base, args.path)
     return withLock(path, async () => {
       let info: Awaited<ReturnType<typeof stat>> | undefined
       try {

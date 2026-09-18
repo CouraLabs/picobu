@@ -1,5 +1,5 @@
 import { readdir, stat } from 'node:fs/promises'
-import { extname, relative, resolve } from 'node:path'
+import { extname, isAbsolute, relative, resolve, sep } from 'node:path'
 import { insideAgentDir } from '@agent/tools/filesystem/agent-dirs.ts'
 import { resolveRgPath } from '@agent/tools/filesystem/rg.ts'
 import { sandboxRoot } from '@agent/tools/sandbox.ts'
@@ -366,8 +366,8 @@ export const repoMapTool = {
     const root = sandbox ?? process.cwd()
     const searchPath = args.path ? resolve(root, args.path) : root
     if (args.path) {
-      const rel = relative(resolve(root), resolve(searchPath)).split('\\').join('/')
-      if (rel === '..' || rel.startsWith('../')) throw new Error(`Path escapes working directory: ${args.path}`)
+      const rel = relative(resolve(root), resolve(searchPath))
+      if (rel === '..' || rel.startsWith(`..${sep}`) || isAbsolute(rel)) throw new Error(`Path escapes working directory: ${args.path}`)
     }
     const info = await stat(searchPath).catch(() => undefined)
     if (!info?.isDirectory()) throw new Error(`Not a directory: ${searchPath}`)

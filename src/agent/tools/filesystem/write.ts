@@ -1,7 +1,8 @@
 import { mkdir } from 'node:fs/promises'
-import { dirname, isAbsolute, relative, resolve } from 'node:path'
+import { dirname } from 'node:path'
 import { CheckpointStore } from '@agent/sessions/checkpoints.ts'
 import { fileHasBom, joinBom, splitBom } from '@agent/tools/filesystem/bom.ts'
+import { resolveInsideBase } from '@agent/tools/filesystem/paths.ts'
 import { diffForFile } from '@agent/tools/filesystem/replacers.ts'
 import { sandboxRoot } from '@agent/tools/sandbox.ts'
 import type { ToolExecuteOptions } from '@agent/tools/toolset.ts'
@@ -22,16 +23,6 @@ export const WriteToolOutputSchema = z.object({
   content: z.string(),
   diff: z.string().optional(),
 })
-const resolveInsideBase = (base: string | undefined, userPath: string): string => {
-  const resolved = resolve(base ?? process.cwd(), userPath)
-  if (!base) return resolved
-  const normalizedBase = resolve(base)
-  const rel = relative(normalizedBase, resolved)
-  if (rel !== '' && (rel === '..' || rel.startsWith('../') || isAbsolute(rel))) {
-    throw new Error(`Path escapes working directory: ${userPath}`)
-  }
-  return resolved
-}
 export const createWriteTool = (checkpointsPath?: string) => {
   const checkpoints = checkpointsPath ? new CheckpointStore(checkpointsPath) : undefined
   return {
@@ -43,7 +34,7 @@ export const createWriteTool = (checkpointsPath?: string) => {
     handler: async (args: z.infer<typeof WriteToolArgsSchema>, toolOptions?: ToolExecuteOptions): Promise<WriteToolResult> => {
       if (!args.path) throw new Error('write requires a non-empty path')
       const base = sandboxRoot(toolOptions?.experimental_sandbox)
-      const resolvedPath = resolveInsideBase(base, args.path)
+      const resolvedPath = await resolveInsideBase(base, args.path)
       return withLock(resolvedPath, async () => {
         await mkdir(dirname(resolvedPath), { recursive: true })
         const file = Bun.file(resolvedPath)
