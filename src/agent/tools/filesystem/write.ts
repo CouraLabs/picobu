@@ -27,7 +27,8 @@ export const createWriteTool = (checkpointsPath?: string) => {
   const checkpoints = checkpointsPath ? new CheckpointStore(checkpointsPath) : undefined
   return {
     name: 'write',
-    description: 'Write the "contents" to a file at "path", it can create files and parent directories as needed, existing files get "cotents" appended',
+    description:
+      'Write the "contents" to a file at "path", creating it and any parent directories as needed. Existing files are fully replaced (not appended) — include the complete desired file contents.',
     parameters: WriteToolArgsSchema,
     output: WriteToolOutputSchema,
     skipPermission: true,

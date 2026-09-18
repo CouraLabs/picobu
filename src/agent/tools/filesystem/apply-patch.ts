@@ -1,12 +1,11 @@
 import { mkdir, rm } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import { CheckpointStore } from '@agent/sessions/checkpoints.ts'
-import { joinBom, splitBom } from '@agent/tools/filesystem/bom.ts'
+import { joinBom, readFileWithBom, splitBom } from '@agent/tools/filesystem/bom.ts'
 import { resolveInsideBase } from '@agent/tools/filesystem/paths.ts'
 import { diffForFile } from '@agent/tools/filesystem/replacers.ts'
 import { sandboxRoot } from '@agent/tools/sandbox.ts'
 import type { ToolExecuteOptions } from '@agent/tools/toolset.ts'
-import { withLock } from '@shared/lock.ts'
 import { parsePatch } from 'diff'
 import z from 'zod'
 
@@ -106,19 +105,15 @@ export const createApplyPatchTool = (checkpointsPath?: string) => {
         const display = isDelete ? oldName : newName
         if (!display || display === '/dev/null') throw new Error('apply_patch verification failed: patch is missing a file path')
         const resolved = await resolveInsideBase(base, display)
-        const existing = isAdd
-          ? null
-          : await Bun.file(resolved)
-              .text()
-              .catch(() => null)
-        if (!isAdd && existing === null) throw new Error(`apply_patch verification failed: file to update not found: ${display}`)
-        const source = isAdd ? { bom: false, text: '' } : splitBom(existing as string)
+        const existing = isAdd ? null : await readFileWithBom(resolved).catch(() => null)
+        if (!isAdd && (existing === null || !existing.exists)) throw new Error(`apply_patch verification failed: file to update not found: ${display}`)
+        const source = isAdd || existing === null ? { bom: false, text: '' } : { bom: existing.bom, text: existing.text }
         const applied = applyHunks(source.text, file.hunks as Array<StructuredHunk>, display)
         const next = splitBom(applied)
         planned.push({
           resolved,
           display,
-          oldContent: isAdd ? '' : (existing as string),
+          oldContent: isAdd || existing === null ? '' : joinBom(existing.text, existing.bom),
           newContent: joinBom(next.text, source.bom || next.bom),
           type: isAdd ? 'add' : isDelete ? 'delete' : 'update',
           bom: source.bom || next.bom,
@@ -131,23 +126,35 @@ export const createApplyPatchTool = (checkpointsPath?: string) => {
         diffs.push(diffForFile(change.resolved, before, after))
       }
       const ordered = [...planned].sort((a, b) => (a.resolved < b.resolved ? -1 : 1))
-      for (const change of ordered) {
-        await withLock(change.resolved, async () => {
+      const written: Array<(typeof ordered)[number]> = []
+      try {
+        for (const change of ordered) {
           if (change.type === 'delete') {
             await rm(change.resolved, { force: true })
           } else {
             await mkdir(dirname(change.resolved), { recursive: true })
             await Bun.write(change.resolved, change.newContent)
           }
-          if (checkpoints) {
-            await checkpoints.record({
-              tool: 'write',
-              path: change.resolved,
-              before: change.type === 'add' ? null : change.oldContent,
-              after: change.type === 'delete' ? null : change.newContent,
-            })
-          }
-        })
+          written.push(change)
+        }
+      } catch (error) {
+        for (const change of [...written].reverse()) {
+          try {
+            if (change.type === 'add') await rm(change.resolved, { force: true })
+            else await Bun.write(change.resolved, change.oldContent)
+          } catch {}
+        }
+        throw new Error(`apply_patch failed mid-apply and rolled back written files: ${error instanceof Error ? error.message : String(error)}`)
+      }
+      for (const change of ordered) {
+        if (checkpoints) {
+          await checkpoints.record({
+            tool: 'write',
+            path: change.resolved,
+            before: change.type === 'add' ? null : change.oldContent,
+            after: change.type === 'delete' ? null : change.newContent,
+          })
+        }
       }
       const summary = ordered.map((change) => `${change.type === 'add' ? 'A' : change.type === 'delete' ? 'D' : 'M'} ${change.display}`)
       return {

@@ -12,7 +12,7 @@ export const GlobToolArgsSchema = z.object({
 })
 async function runArgv(argv: Array<string>, cwd: string, toolOptions?: ToolExecuteOptions) {
   const sandbox = toolOptions?.experimental_sandbox as LocalSandboxSession | undefined
-  if (sandbox && typeof sandbox.exec === 'function') return sandbox.exec(argv, { cwd })
+  if (sandbox && typeof sandbox.exec === 'function') return sandbox.exec(argv, { cwd, abortSignal: toolOptions?.abortSignal })
   const proc = Bun.spawn({
     cmd: argv,
     cwd,

@@ -20,6 +20,8 @@ const PROGRESS_INTERVAL_MS = 300
 const PROGRESS_TAIL_LINES = 10
 const PROGRESS_LINE_MAX = 160
 const DRAIN_GRACE_MS = 500
+const SHELL_BUFFER_MAX_BYTES = 2 * 1024 * 1024
+const SHELL_BUFFER_TRIM_BYTES = 512 * 1024
 interface Child {
   stdout: ReadableStream<Uint8Array>
   stderr: ReadableStream<Uint8Array>
@@ -49,6 +51,39 @@ const spillCombined = async (label: string, exit: number | null, stdout: string,
   if (Buffer.byteLength(combined, 'utf-8') <= MAX_TOOL_OUTPUT_BYTES) return undefined
   return writeFullToolOutput(combined)
 }
+class BoundedBuffer {
+  private parts: Array<string> = []
+  private bytes = 0
+  private droppedBytes = 0
+  private headMarked = false
+  push(text: string): void {
+    const size = Buffer.byteLength(text, 'utf-8')
+    this.parts.push(text)
+    this.bytes += size
+    if (this.bytes <= SHELL_BUFFER_MAX_BYTES) return
+    this.droppedBytes += this.trim(SHELL_BUFFER_MAX_BYTES - SHELL_BUFFER_TRIM_BYTES)
+    if (!this.headMarked) {
+      this.headMarked = true
+      this.parts.unshift('[…earlier output dropped to bound memory; full output in the spilled log when truncated…]')
+    }
+  }
+  private trim(keepBytes: number): number {
+    let removed = 0
+    while (this.bytes - removed > keepBytes && this.parts.length > 0) {
+      const first = this.parts[0] as string
+      removed += Buffer.byteLength(first, 'utf-8')
+      this.parts.shift()
+    }
+    this.bytes -= removed
+    return removed
+  }
+  join(): string {
+    return this.parts.join('')
+  }
+  cut(): boolean {
+    return this.droppedBytes > 0
+  }
+}
 const runStreaming = async function* (label: string, child: Child, toolOptions: ToolExecuteOptions | undefined, timeoutSeconds: number): AsyncGenerator<ShellToolChunk> {
   let aborted = false
   let timedOut = false
@@ -61,8 +96,8 @@ const runStreaming = async function* (label: string, child: Child, toolOptions: 
     timedOut = true
     child.kill()
   }, timeoutSeconds * 1000)
-  const outParts: Array<string> = []
-  const errParts: Array<string> = []
+  const outParts = new BoundedBuffer()
+  const errParts = new BoundedBuffer()
   const tailLines: Array<string> = []
   let tailPending = ''
   let lastProgress = ''
@@ -116,11 +151,11 @@ const runStreaming = async function* (label: string, child: Child, toolOptions: 
     await Promise.race([drained, Bun.sleep(DRAIN_GRACE_MS)])
     resolveCancel('cancel')
     await drained.catch(() => {})
-    const stdout = outParts.join('')
-    const stderr = errParts.join('')
+    const stdout = outParts.join()
+    const stderr = errParts.join()
     if (timedOut) {
       const tail = tailText(stdout, MAX_TOOL_OUTPUT_LINES, MAX_TOOL_OUTPUT_BYTES)
-      const spilled = tail.cut || Buffer.byteLength(stdout, 'utf-8') > MAX_TOOL_OUTPUT_BYTES ? await spillCombined(label, null, stdout, stderr) : undefined
+      const spilled = tail.cut || outParts.cut() || errParts.cut() ? await spillCombined(label, null, stdout, stderr) : undefined
       throw new Error(
         `command \`${label}\` timed out after ${timeoutSeconds}s and was killed\n` +
           (stderr.trim() ? `stderr:\n${tailText(stderr, MAX_TOOL_OUTPUT_LINES, MAX_TOOL_OUTPUT_BYTES).text.trim()}\n` : '') +
@@ -135,7 +170,7 @@ const runStreaming = async function* (label: string, child: Child, toolOptions: 
     if (exitCode !== 0) {
       const outTail = tailText(stdout, MAX_TOOL_OUTPUT_LINES, MAX_TOOL_OUTPUT_BYTES)
       const errTail = tailText(stderr, MAX_TOOL_OUTPUT_LINES, MAX_TOOL_OUTPUT_BYTES)
-      const spilled = outTail.cut || errTail.cut ? await spillCombined(label, exitCode ?? null, stdout, stderr) : undefined
+      const spilled = outTail.cut || errTail.cut || outParts.cut() || errParts.cut() ? await spillCombined(label, exitCode ?? null, stdout, stderr) : undefined
       const spillNote = spilled ? `...output truncated...\n\nFull output saved to: ${spilled}\n\n` : ''
       throw new Error(
         `command \`${label}\` exited ${exitCode}\n${errTail.text.trim() ? `stderr:\n${errTail.text.trim()}\n` : ''}${stdout.trim() ? `stdout:\n${spillNote}${outTail.text.trim()}` : ''}\n\n<shell_metadata>\nexit: ${exitCode}\n</shell_metadata>`,

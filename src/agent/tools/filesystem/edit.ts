@@ -1,5 +1,5 @@
 import { CheckpointStore } from '@agent/sessions/checkpoints.ts'
-import { joinBom, splitBom } from '@agent/tools/filesystem/bom.ts'
+import { joinBom, readFileWithBom, splitBom } from '@agent/tools/filesystem/bom.ts'
 import { resolveInsideBase } from '@agent/tools/filesystem/paths.ts'
 import { convertToLineEnding, detectLineEnding, diffForFile, normalizeLineEndings, replaceText } from '@agent/tools/filesystem/replacers.ts'
 import { sandboxRoot } from '@agent/tools/sandbox.ts'
@@ -46,8 +46,8 @@ export const createEditTool = (checkpointsPath?: string) => {
           }
         }
         if (!exists) throw new Error(`File not found: ${path}`)
-        const raw = await file.text()
-        const source = splitBom(raw)
+        const read = await readFileWithBom(path)
+        const source = { bom: read.bom, text: read.text }
         const ending = detectLineEnding(source.text)
         const content = normalizeLineEndings(source.text)
         const oldNormalized = normalizeLineEndings(args.oldString)
@@ -57,7 +57,7 @@ export const createEditTool = (checkpointsPath?: string) => {
         const desiredBom = source.bom || splitBom(args.newString).bom
         await Bun.write(path, joinBom(updated, desiredBom))
         if (checkpoints) {
-          await checkpoints.record({ tool: 'edit', path, before: raw, after: joinBom(updated, desiredBom) })
+          await checkpoints.record({ tool: 'edit', path, before: joinBom(source.text, source.bom), after: joinBom(updated, desiredBom) })
         }
         const occurrences = (args.replaceAll ?? false) ? 'all occurrences' : 'single occurrence'
         return {

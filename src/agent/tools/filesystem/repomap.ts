@@ -245,16 +245,23 @@ const isAgentDirPath = (path: string): boolean => {
   }
 }
 
+const DISCOVER_TIMEOUT_MS = 30_000
+
 const discoverFiles = async (searchPath: string): Promise<Array<string>> => {
   const rgPath = await resolveRgPath()
   const args = [rgPath, '--files', ...(isAgentDirPath(searchPath) ? ['--hidden', '--no-ignore-vcs'] : []), '--', searchPath]
   const proc = Bun.spawn({ cmd: args, cwd: process.cwd(), stdout: 'pipe', stderr: 'pipe' })
-  const [stdout, exitCode] = await Promise.all([new Response(proc.stdout).text(), proc.exited])
-  if (exitCode === 0 || exitCode === 1) {
-    return stdout
-      .split('\n')
-      .map((line) => line.trim())
-      .filter(Boolean)
+  const timeout = setTimeout(() => proc.kill(9), DISCOVER_TIMEOUT_MS)
+  try {
+    const [stdout, exitCode] = await Promise.all([new Response(proc.stdout).text(), proc.exited])
+    if (exitCode === 0 || exitCode === 1) {
+      return stdout
+        .split('\n')
+        .map((line) => line.trim())
+        .filter(Boolean)
+    }
+  } finally {
+    clearTimeout(timeout)
   }
   const entries: Array<string> = []
   const walk = async (dir: string, depth: number): Promise<void> => {

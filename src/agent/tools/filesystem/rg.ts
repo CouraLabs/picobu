@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs'
-import { chmod, rename } from 'node:fs/promises'
+import { chmod, rename, rm } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 
@@ -32,9 +32,14 @@ const materializeBundledRg = async (bundledPath: string): Promise<string> => {
   const binDir = join(systemDir, 'bin')
   const dest = join(binDir, rgBinary)
   const tmp = `${dest}.tmp-${process.pid}`
-  await Bun.write(tmp, Bun.file(bundledPath))
-  await chmod(tmp, 0o755)
-  await rename(tmp, dest)
+  try {
+    await Bun.write(tmp, Bun.file(bundledPath))
+    await chmod(tmp, 0o755)
+    await rename(tmp, dest)
+  } catch (error) {
+    await rm(tmp, { force: true }).catch(() => {})
+    throw error
+  }
   return dest
 }
 

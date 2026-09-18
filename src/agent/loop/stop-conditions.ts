@@ -8,7 +8,7 @@ export const hasValidToolCall =
   }
 
 export const buildStopWhen = (options: { subagent: boolean; persistent: boolean }) => {
-  if (options.persistent) return [isStepCount(1000), hasValidToolCall('ask', 'plan-write', 'plan-exit')]
-  const blocking: Array<string> = options.subagent ? [] : ['ask', 'plan-write', 'plan-exit']
-  return blocking.length ? [isStepCount(1000), hasValidToolCall(...blocking)] : [isStepCount(100)]
+  const blockingTools = ['ask', 'plan-write', 'plan-exit']
+  if (options.persistent) return [isStepCount(100), hasValidToolCall(...blockingTools)]
+  return blockingTools.length ? [hasValidToolCall(...blockingTools)] : []
 }

@@ -53,7 +53,15 @@ const BINARY_EXTENSIONS = new Set([
 ])
 const IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg', '.ico'])
 const PDF_EXTENSION = '.pdf'
-const cutLongLine = (line: string): string => (line.length > MAX_LINE_LENGTH ? `${line.slice(0, MAX_LINE_LENGTH)}${MAX_LINE_SUFFIX}` : line)
+const cutLongLine = (line: string): string => {
+  if (line.length <= MAX_LINE_LENGTH) return line
+  let end = MAX_LINE_LENGTH
+  const low = line.codePointAt(end - 1) ?? 0
+  const high = end >= 2 ? (line.codePointAt(end - 2) ?? 0) : 0
+  const splitsSurrogate = low >= 0xdc00 && low <= 0xdfff && high >= 0xd800 && high <= 0xdbff
+  if (splitsSurrogate) end -= 1
+  return `${line.slice(0, end)}${MAX_LINE_SUFFIX}`
+}
 const sliceLines = (text: string, skip?: number, limit?: number): string => {
   const lines = text.split(/\r?\n/)
   const begin = (skip ?? 0) + 1
@@ -64,7 +72,8 @@ const sliceLines = (text: string, skip?: number, limit?: number): string => {
     .join('\n')
 }
 const isBinarySample = (path: string, sample: Uint8Array): boolean => {
-  const ext = path.slice(path.lastIndexOf('.')).toLowerCase()
+  const dot = path.lastIndexOf('.')
+  const ext = dot >= 0 ? path.slice(dot).toLowerCase() : ''
   if (BINARY_EXTENSIONS.has(ext)) return true
   if (sample.length === 0) return false
   let nonPrintable = 0

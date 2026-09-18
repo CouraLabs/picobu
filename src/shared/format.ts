@@ -1,6 +1,10 @@
 export const clip = (value: string, max: number): string => {
   if (max <= 0) return ''
-  return value.length <= max ? value : `${value.slice(0, max - 1)}…`
+  if (value.length <= max) return value
+  let end = max - 1
+  const low = value.codePointAt(end - 1)
+  if (low !== undefined && low >= 0xd800 && low <= 0xdbff && end >= 2) end -= 1
+  return `${value.slice(0, end)}…`
 }
 
 export const relTime = (ms: number): string => {

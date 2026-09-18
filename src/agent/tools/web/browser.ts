@@ -126,14 +126,50 @@ const isPrivateHostname = (hostname: string): boolean => {
   return false
 }
 
+const expandIpv6 = (h: string): string | null => {
+  let body = h
+  let prefixGroups: Array<string> = []
+  if (body.startsWith('::ffff:')) {
+    prefixGroups = ['0', '0', '0', '0', '0', 'ffff']
+    body = body.slice('::ffff:'.length)
+  } else if (body === '::') {
+    return '0000:0000:0000:0000:0000:0000:0000:0000'
+  }
+  const groups = body.split(':')
+  if (body.includes('::')) {
+    const doubleIndex = groups.indexOf('')
+    if (doubleIndex === -1) return null
+    const before = groups.slice(0, doubleIndex).filter(Boolean)
+    const after = groups.slice(doubleIndex + 1).filter(Boolean)
+    const missing = 8 - prefixGroups.length - before.length - after.length
+    if (missing < 0) return null
+    const filled = [...prefixGroups, ...before, ...Array<string>(missing).fill('0'), ...after]
+    if (filled.length !== 8) return null
+    return filled.map((g) => g.padStart(4, '0')).join(':')
+  }
+  const filled = [...prefixGroups, ...groups]
+  if (filled.length !== 8) return null
+  return filled.map((g) => g.padStart(4, '0')).join(':')
+}
+
 const isPrivateIPv6 = (h: string): boolean => {
-  const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/.exec(h)
+  const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/i.exec(h)
   if (mapped) return isPrivateHostname(mapped[1] as string)
-  const first = h.split(':')[0] ?? ''
-  const value = Number.parseInt(first, 16)
-  if (Number.isNaN(value)) return false
-  if ((value & 0xfe00) === 0xfc00) return true
-  if ((value & 0xffc0) === 0xfe80) return true
+  const expanded = expandIpv6(h.toLowerCase())
+  if (!expanded) return true
+  const groups = expanded.split(':')
+  if (groups.every((g) => Number.parseInt(g, 16) === 0)) return true
+  if (groups.slice(0, 5).every((g) => Number.parseInt(g, 16) === 0) && (groups[5] === 'ffff' || groups[5] === '0002')) {
+    const v4 = groups.slice(6).map((g) => Number.parseInt(g, 16))
+    if (v4.length === 2 && v4.every((n) => Number.isInteger(n) && n >= 0 && n <= 255)) {
+      return isPrivateHostname(`${v4[0]}.${v4[1]}`)
+    }
+    return true
+  }
+  const first = Number.parseInt(groups[0] as string, 16)
+  if (Number.isNaN(first)) return true
+  if ((first & 0xfe00) === 0xfc00) return true
+  if ((first & 0xffc0) === 0xfe80) return true
   return false
 }
 

@@ -1,3 +1,4 @@
+import type { ToolExecuteOptions } from '@agent/tools/toolset.ts'
 import { assertSafeUrl, renderPage } from '@agent/tools/web/browser.ts'
 import { extractTextFromHtml, htmlToMarkdown } from '@agent/tools/web/html-to-markdown.ts'
 import z from 'zod'
@@ -41,13 +42,20 @@ const looksLikeJsShell = (body: string): boolean => {
   return /just a moment|cf-challenge|__NEXT_DATA__|id="root"[^>]*><\/div>|enable javascript/i.test(trimmed) && htmlToMarkdown(trimmed).length < 200
 }
 
-const fetchDirect = async (url: string, format: 'text' | 'markdown' | 'html', timeoutMs: number): Promise<{ url: string; contentType: string; content: string } | undefined> => {
+const fetchDirect = async (
+  url: string,
+  format: 'text' | 'markdown' | 'html',
+  timeoutMs: number,
+  abortSignal?: AbortSignal,
+): Promise<{ url: string; contentType: string; content: string } | undefined> => {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
+  const onAbort = () => controller.abort()
+  abortSignal?.addEventListener('abort', onAbort, { once: true })
   try {
     const response = await fetch(url, {
       headers: { 'user-agent': USER_AGENT, accept: acceptForFormat(format), 'accept-language': 'en-US,en;q=0.9' },
-      signal: controller.signal,
+      signal: abortSignal ? AbortSignal.any([controller.signal, abortSignal]) : controller.signal,
       redirect: 'follow',
     })
     if (!response.ok) {
@@ -75,24 +83,28 @@ const fetchDirect = async (url: string, format: 'text' | 'markdown' | 'html', ti
     return undefined
   } finally {
     clearTimeout(timer)
+    abortSignal?.removeEventListener('abort', onAbort)
   }
 }
 
 export async function fetchAsMarkdown(
   url: string,
-  opts: { timeout?: number; allowPrivate?: boolean; format?: 'text' | 'markdown' | 'html'; useBrowser?: boolean } = {},
+  opts: { timeout?: number; allowPrivate?: boolean; format?: 'text' | 'markdown' | 'html'; useBrowser?: boolean; signal?: AbortSignal } = {},
 ): Promise<z.infer<typeof WebfetchToolOutputSchema>> {
+  opts.signal?.throwIfAborted()
   assertSafeUrl(url, opts.allowPrivate ?? false)
   const format = opts.format ?? 'markdown'
   const timeoutMs = Math.min((opts.timeout ?? DEFAULT_TIMEOUT_MS / 1000) * 1000, 120_000)
   if (!opts.useBrowser) {
-    const direct = await fetchDirect(url, format, timeoutMs).catch(() => undefined)
+    const direct = await fetchDirect(url, format, timeoutMs, opts.signal).catch(() => undefined)
     if (direct) return direct
   }
+  opts.signal?.throwIfAborted()
   let rendered: Awaited<ReturnType<typeof renderPage>>
   try {
     rendered = await renderPage(url, { timeout: timeoutMs, allowPrivate: opts.allowPrivate })
   } catch (error) {
+    if (opts.signal?.aborted) throw new Error('Fetch aborted')
     throw new Error(`Failed to fetch ${url}: ${error instanceof Error ? error.message : String(error)}`)
   }
   if (rendered.status >= 400) throw new Error(`Request to ${rendered.url} failed with HTTP ${rendered.status}`)
@@ -109,9 +121,9 @@ export const webfetchTool = {
   parameters: WebfetchToolArgsSchema,
   output: WebfetchStreamChunkSchema,
   kind: 'external' as const,
-  handler: async function* (args: z.infer<typeof WebfetchToolArgsSchema>): AsyncGenerator<z.infer<typeof WebfetchStreamChunkSchema>> {
+  handler: async function* (args: z.infer<typeof WebfetchToolArgsSchema>, toolOptions?: ToolExecuteOptions): AsyncGenerator<z.infer<typeof WebfetchStreamChunkSchema>> {
     yield { progress: 'Fetching URL…' }
-    const result = await fetchAsMarkdown(args.url, { format: args.format ?? 'markdown', timeout: args.timeout, useBrowser: args.useBrowser })
+    const result = await fetchAsMarkdown(args.url, { format: args.format ?? 'markdown', timeout: args.timeout, useBrowser: args.useBrowser, signal: toolOptions?.abortSignal })
     yield result
   },
 }

@@ -1,3 +1,4 @@
+import type { ToolExecuteOptions } from '@agent/tools/toolset.ts'
 import { renderPage } from '@agent/tools/web/browser.ts'
 import { htmlToMarkdown } from '@agent/tools/web/html-to-markdown.ts'
 import { fetchAsMarkdown } from '@agent/tools/web/webfetch.ts'
@@ -87,7 +88,11 @@ export const websearchTool = {
   parameters: WebsearchToolArgsSchema,
   output: WebsearchStreamChunkSchema,
   kind: 'external' as const,
-  handler: async function* (args: z.infer<typeof WebsearchToolArgsSchema>): AsyncGenerator<z.infer<typeof WebsearchStreamChunkSchema>> {
+  handler: async function* (args: z.infer<typeof WebsearchToolArgsSchema>, toolOptions?: ToolExecuteOptions): AsyncGenerator<z.infer<typeof WebsearchStreamChunkSchema>> {
+    const abortSignal = toolOptions?.abortSignal
+    const checkAborted = (): void => {
+      if (abortSignal?.aborted) throw new Error('Web search aborted')
+    }
     const seen = new Set<string>()
     const results: Array<z.infer<typeof WebsearchResultSchema>> = []
     const snapshot = () => results.map((r) => ({ ...r }))
@@ -97,6 +102,7 @@ export const websearchTool = {
     let pages = 0
     yield { progress: `Searching "${args.query}"…` }
     for (let page = 0; page < args.deepness; page++) {
+      checkAborted()
       const searchUrl = new URL(SEARCH_ENDPOINT)
       searchUrl.searchParams.set('q', args.query)
       if (offset !== null) searchUrl.searchParams.set('s', String(offset))
@@ -144,7 +150,7 @@ export const websearchTool = {
       const slot: Slot = { promise: Promise.resolve(), done: false }
       slot.promise = (async () => {
         try {
-          result.content = (await fetchAsMarkdown(result.url, { timeout: FETCH_TIMEOUT_MS })).content
+          result.content = (await fetchAsMarkdown(result.url, { timeout: FETCH_TIMEOUT_MS, signal: abortSignal })).content
         } catch (error) {
           result.content = null
           result.error = error instanceof Error ? error.message : String(error)
@@ -164,14 +170,17 @@ export const websearchTool = {
       if (slots.length >= FETCH_CONCURRENCY) {
         await Promise.race(slots.map((s) => s.promise))
         reapSettled()
+        checkAborted()
         yield { progress: `Fetched ${completed} of ${total} pages`, results: snapshot() }
       }
+      checkAborted()
       yield { progress: `Fetching page ${i + 1} of ${total} (${hostOf(result.url)})…`, results: snapshot() }
       slots.push(launch(result))
     }
     while (slots.length > 0) {
       await Promise.race(slots.map((s) => s.promise))
       reapSettled()
+      checkAborted()
       yield { progress: `Fetched ${completed} of ${total} pages`, results: snapshot() }
     }
     yield { query: args.query, results }

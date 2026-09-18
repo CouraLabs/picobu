@@ -2,7 +2,7 @@ import { resolve } from 'node:path'
 import { agentDirsUnder, insideAgentDir } from '@agent/tools/filesystem/agent-dirs.ts'
 import { isInsideBase } from '@agent/tools/filesystem/paths.ts'
 import { resolveRgPath } from '@agent/tools/filesystem/rg.ts'
-import { type LocalSandboxSession, sandboxRoot } from '@agent/tools/sandbox.ts'
+import { killProcessTree, type LocalSandboxSession, sandboxRoot } from '@agent/tools/sandbox.ts'
 import type { ToolExecuteOptions } from '@agent/tools/toolset.ts'
 import { detectFiletype } from '@shared/filetype.ts'
 import z from 'zod'
@@ -18,18 +18,26 @@ export const GrepToolArgsSchema = z.object({
   limit: z.number().int().min(1).max(1000).optional(),
 })
 async function runArgv(argv: Array<string>, cwd: string, toolOptions?: ToolExecuteOptions) {
+  const abortSignal = toolOptions?.abortSignal
   const sandbox = toolOptions?.experimental_sandbox as LocalSandboxSession | undefined
-  if (sandbox && typeof sandbox.exec === 'function') return sandbox.exec(argv, { cwd })
+  if (sandbox && typeof sandbox.exec === 'function') return sandbox.exec(argv, { cwd, abortSignal })
   const proc = Bun.spawn({
     cmd: argv,
     cwd,
     stdout: 'pipe',
     stderr: 'pipe',
   })
-  const stdout = await new Response(proc.stdout).text()
-  const stderr = await new Response(proc.stderr).text()
-  const exitCode = await proc.exited
-  return { exitCode, stdout, stderr }
+  if (abortSignal?.aborted) killProcessTree(proc)
+  const onAbort = () => killProcessTree(proc)
+  abortSignal?.addEventListener('abort', onAbort, { once: true })
+  try {
+    const stdout = await new Response(proc.stdout).text()
+    const stderr = await new Response(proc.stderr).text()
+    const exitCode = await proc.exited
+    return { exitCode, stdout, stderr }
+  } finally {
+    abortSignal?.removeEventListener('abort', onAbort)
+  }
 }
 export const grepTool = {
   name: 'grep',
