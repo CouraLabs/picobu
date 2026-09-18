@@ -178,7 +178,8 @@ const main = async (): Promise<void> => {
     runInherited(['git', 'add', '-A'])
     runInherited(['git', 'commit', '-m', `chore: release v${next}`])
     runInherited(['git', 'tag', `v${next}`])
-    runInherited(['git', 'push', '--follow-tags'])
+    runInherited(['git', 'push'])
+    runInherited(['git', 'push', 'origin', `v${next}`])
   }
 
   console.log(`released @couralabs/picobu@${next}`)
