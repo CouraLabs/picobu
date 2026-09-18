@@ -3,6 +3,7 @@ import { createServer } from 'node:http'
 import { pollOAuthDeviceCodeFlow } from '@auth/device-code.ts'
 import { oauthErrorHtml, oauthSuccessHtml } from '@auth/oauth-pages.ts'
 import { generatePKCE } from '@auth/pkce.ts'
+import { describeTokenPayload } from '@auth/redact.ts'
 import type { AuthInteraction, AuthLoginOptions, OAuthAuth, OAuthCredential } from '@auth/types.ts'
 
 const CLIENT_ID = 'app_EMoamEEZ73f0CkXaXp7hrann'
@@ -80,7 +81,7 @@ async function readTokenResponse(response: Response, operation: TokenOperation):
     expires_in?: number
   } | null
   if (!json?.access_token || !json.refresh_token || typeof json.expires_in !== 'number') {
-    throw new Error(`OpenAI token ${operation} response missing fields: ${JSON.stringify(json)}`)
+    throw new Error(`OpenAI token ${operation} response missing fields: ${describeTokenPayload(json)}`)
   }
   return {
     access: json.access_token,

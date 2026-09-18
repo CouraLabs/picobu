@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto'
 import { createServer, type Server } from 'node:http'
 import { oauthErrorHtml, oauthSuccessHtml } from '@auth/oauth-pages.ts'
 import { generatePKCE } from '@auth/pkce.ts'
+import { describeTokenPayload, redactTokenBody } from '@auth/redact.ts'
 import type { AuthInteraction, OAuthAuth, OAuthCredential } from '@auth/types.ts'
 
 const decode = (s: string): string => atob(s)
@@ -115,7 +116,7 @@ async function postJson(url: string, body: Record<string, string | number>, sign
   })
   const responseBody = await response.text()
   if (!response.ok) {
-    throw new Error(`HTTP request failed. status=${response.status}; url=${url}; body=${responseBody}`)
+    throw new Error(`HTTP request failed. status=${response.status}; url=${url}; body=${redactTokenBody(responseBody)}`)
   }
   return responseBody
 }
@@ -124,10 +125,10 @@ interface AnthropicToken {
   refresh_token: string
   expires_in: number
 }
-const validateAnthropicToken = (json: unknown, url: string, body: string): AnthropicToken => {
+const validateAnthropicToken = (json: unknown, url: string): AnthropicToken => {
   const record = json as { access_token?: unknown; refresh_token?: unknown; expires_in?: unknown } | null
   if (!record || typeof record.access_token !== 'string' || typeof record.refresh_token !== 'string' || typeof record.expires_in !== 'number') {
-    throw new Error(`Token response missing fields. url=${url}; body=${body}`)
+    throw new Error(`Token response missing fields. url=${url}; payload=${describeTokenPayload(record)}`)
   }
   return { access_token: record.access_token, refresh_token: record.refresh_token, expires_in: record.expires_in }
 }
@@ -151,9 +152,9 @@ async function exchangeAuthorizationCode(code: string, state: string, verifier: 
   }
   let tokenData: AnthropicToken
   try {
-    tokenData = validateAnthropicToken(JSON.parse(responseBody), TOKEN_URL, responseBody)
+    tokenData = validateAnthropicToken(JSON.parse(responseBody), TOKEN_URL)
   } catch (error) {
-    throw new Error(`Token exchange returned invalid payload. url=${TOKEN_URL}; body=${responseBody}; details=${formatErrorDetails(error)}`)
+    throw new Error(`Token exchange returned invalid payload. url=${TOKEN_URL}; body=${redactTokenBody(responseBody)}; details=${formatErrorDetails(error)}`)
   }
   return {
     type: 'oauth',
@@ -163,7 +164,7 @@ async function exchangeAuthorizationCode(code: string, state: string, verifier: 
   }
 }
 const tokenFromPayload = (data: unknown): OAuthCredential => {
-  const token = validateAnthropicToken(data, TOKEN_URL, JSON.stringify(data))
+  const token = validateAnthropicToken(data, TOKEN_URL)
   return {
     type: 'oauth',
     refresh: token.refresh_token,
@@ -214,12 +215,12 @@ async function refreshAnthropicToken(refreshToken: string, signal: AbortSignal):
   try {
     data = JSON.parse(responseBody)
   } catch (error) {
-    throw new Error(`Anthropic token refresh returned invalid JSON. url=${TOKEN_URL}; body=${responseBody}; details=${formatErrorDetails(error)}`)
+    throw new Error(`Anthropic token refresh returned invalid JSON. url=${TOKEN_URL}; body=${redactTokenBody(responseBody)}; details=${formatErrorDetails(error)}`)
   }
   try {
     return tokenFromPayload(data)
   } catch (error) {
-    throw new Error(`Anthropic token refresh response missing fields. url=${TOKEN_URL}; body=${responseBody}; details=${formatErrorDetails(error)}`)
+    throw new Error(`Anthropic token refresh response missing fields. url=${TOKEN_URL}; body=${redactTokenBody(responseBody)}; details=${formatErrorDetails(error)}`)
   }
 }
 export const anthropicOAuth: OAuthAuth = {
