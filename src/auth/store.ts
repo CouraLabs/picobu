@@ -1,10 +1,12 @@
-import { chmodSync, mkdirSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { chmodSync, readdirSync, rmSync } from 'node:fs'
+import { basename, dirname, join } from 'node:path'
 import type { OAuthCredential } from '@auth/types.ts'
 import { options } from '@config/options.ts'
+import { atomicWriteFile } from '@shared/atomic-write.ts'
 import { acquireLock } from '@shared/lock.ts'
 export type AuthFile = Record<string, OAuthCredential>
 const DEFAULT_PATH = join(options.app.systemDir, 'auth.json')
+const MAX_CORRUPT_BACKUPS = 3
 let authFilePath = DEFAULT_PATH
 let cache: AuthFile | null = null
 export const initAuthFilePath = (path: string): void => {
@@ -15,6 +17,16 @@ export const resetAuthCache = (): void => {
   cache = null
 }
 export const authFilePathOf = (): string => authFilePath
+const pruneCorruptBackups = (): void => {
+  try {
+    const prefix = `${basename(authFilePath)}.corrupt-`
+    const stale = readdirSync(dirname(authFilePath))
+      .filter((name) => name.startsWith(prefix))
+      .sort()
+      .slice(0, -MAX_CORRUPT_BACKUPS)
+    for (const name of stale) rmSync(join(dirname(authFilePath), name), { force: true })
+  } catch {}
+}
 export const readAuthFile = async (path: string): Promise<AuthFile> => {
   try {
     const file = Bun.file(path)
@@ -25,7 +37,8 @@ export const readAuthFile = async (path: string): Promise<AuthFile> => {
   } catch {
     try {
       const raw = await Bun.file(path).text()
-      await Bun.write(`${path}.corrupt-${Date.now()}`, raw)
+      await Bun.write(`${path}.corrupt-${Date.now()}`, raw, { mode: 0o600 })
+      pruneCorruptBackups()
     } catch {}
     return {}
   }
@@ -42,8 +55,7 @@ const persist = async (mutate: (current: AuthFile) => AuthFile | null): Promise<
     const current = await readAuthFile(authFilePath)
     const updated = mutate(current)
     if (updated === null) return null
-    mkdirSync(dirname(authFilePath), { recursive: true })
-    await Bun.write(authFilePath, JSON.stringify(updated, null, 2))
+    await atomicWriteFile(authFilePath, JSON.stringify(updated, null, 2), 0o600)
     try {
       chmodSync(authFilePath, 0o600)
     } catch {}

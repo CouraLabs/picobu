@@ -3,6 +3,7 @@ import { homedir } from 'node:os'
 import { normalizeStatusLines, type ProviderStatusEntry } from '@config/provider-status-line.ts'
 import { normalizeSessionHeaderLayout, normalizeSessionStatusLayout, type SessionHeaderLayout, type SessionStatusLayout } from '@config/session-layout.ts'
 import { DEFAULT_MCP_OPTIONS, type McpOptions } from '@integrations/mcp/config.ts'
+import { atomicWriteFile } from '@shared/atomic-write.ts'
 import { acquireLock } from '@shared/lock.ts'
 import { detectShell } from '@shared/shell.ts'
 export interface ProviderModelBilling {
@@ -299,7 +300,7 @@ async function readExternalOptions(): Promise<OptionsExternal> {
       watchdog: { ...DEFAULT_WATCHDOG_OPTIONS, ...externalOpts.watchdog },
     }
     if (stableStringify(seeded) !== stableStringify(externalOpts)) {
-      await Bun.write(externalOptsPath, JSON.stringify(seeded, null, 2))
+      await atomicWriteFile(externalOptsPath, JSON.stringify(seeded, null, 2))
     }
     return seeded
   } finally {
@@ -361,7 +362,7 @@ export const updateSettings = async (
       } as WatchdogOptions,
     }
     delete next.theme
-    await Bun.write(externalOptsPath, JSON.stringify(next, null, 2))
+    await atomicWriteFile(externalOptsPath, JSON.stringify(next, null, 2))
     return loadOptions()
   } finally {
     lock.release()
