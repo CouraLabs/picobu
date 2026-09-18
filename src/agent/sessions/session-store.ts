@@ -145,16 +145,23 @@ export class SessionSaver {
       if (currentIds.has(id)) continue
       this.lastWritten.delete(id)
       const line = JSON.stringify({ id, tombstone: true })
-      enqueue(() => withLock(this.filePath, () => appendFile(this.filePath, `${line}\n`)))
+      enqueue(async () => {
+        await withLock(this.filePath, () => appendFile(this.filePath, `${line}\n`))
+      })
     }
     for (const m of messages) {
       if (isStreamingMessage(m)) continue
       const json = JSON.stringify({ id: m.id, role: m.role, metadata: m.metadata, parts: m.parts })
       const digest = digestOf(json)
       if (this.lastWritten.get(m.id) === digest) continue
+      this.lastWritten.set(m.id, digest)
       enqueue(async () => {
-        await withLock(this.filePath, () => upsertLine(this.filePath, json))
-        this.lastWritten.set(m.id, digest)
+        try {
+          await withLock(this.filePath, () => upsertLine(this.filePath, json))
+        } catch (error) {
+          if (this.lastWritten.get(m.id) === digest) this.lastWritten.delete(m.id)
+          throw error
+        }
       })
     }
     return Promise.all(tasks).then(() => {})
@@ -183,7 +190,14 @@ async function upsertLine(filePath: string, json: string): Promise<void> {
   try {
     content = await readFile(filePath, 'utf8')
   } catch {}
-  const lines = content.split('\n').filter((raw) => raw.trim())
+  const lines = content.split('\n').filter((raw) => {
+    if (!raw.trim()) return false
+    try {
+      return !isTombstone(JSON.parse(raw))
+    } catch {
+      return true
+    }
+  })
   const existing = lines.map(lineId).lastIndexOf(id)
   if (existing === -1) {
     lines.push(json)

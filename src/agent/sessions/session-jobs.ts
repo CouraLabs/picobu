@@ -65,10 +65,13 @@ export class JobTracker {
       return
     }
     await new Promise<void>((release) => this.slotQueue.push(release))
-    this.active += 1
   }
   releaseSlot(): void {
+    const next = this.slotQueue.shift()
+    if (next) {
+      next()
+      return
+    }
     if (this.active > 0) this.active -= 1
-    this.slotQueue.shift()?.()
   }
 }
