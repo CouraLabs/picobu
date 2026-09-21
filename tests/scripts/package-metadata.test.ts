@@ -39,7 +39,8 @@ describe('package publish metadata', () => {
     expect(pkg.peerDependenciesMeta?.typescript?.optional).toBe(true)
   })
 
-  test('release script is wired', () => {
+  test('build and release scripts are wired', () => {
+    expect(pkg.scripts?.build).toBe('bun scripts/build.ts')
     expect(pkg.scripts?.release).toBe('bun scripts/publish.ts')
   })
 

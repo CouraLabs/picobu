@@ -21,6 +21,7 @@ const main = async (): Promise<void> => {
   writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`)
   console.log(`version ${current} -> ${next}`)
 
+  runStep(['bun', 'scripts/build.ts'], 'build')
   runStep(['bun', 'publish', '--access', 'public', '--cpu=*', '--os=*'], 'bun publish')
 
   console.log(`released @couralabs/picobu@${next}`)
