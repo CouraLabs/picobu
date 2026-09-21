@@ -6,7 +6,7 @@ set -euo pipefail
 
 PACKAGE_NAME='@couralabs/picobu'
 # stamped by scripts/publish.ts — do not edit by hand
-PICOBU_VERSION_DEFAULT="1.30.4"
+PICOBU_VERSION_DEFAULT="1.30.5"
 PUPPETEER_VERSION_DEFAULT="25.10.0"
 PICOBU_VERSION="${PICOBU_VERSION:-$PICOBU_VERSION_DEFAULT}"
 PICOBU_HOME="$HOME/.picobu"

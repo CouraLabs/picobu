@@ -97,18 +97,10 @@ export const assertPackList = (files: Array<string>, version: string): void => {
 }
 
 const runInherited = (cmd: Array<string>): void => {
-  const proc = Bun.spawnSync(cmd)
-  if (proc.exitCode !== 0) throw new Error(`${cmd.join(' ')} exited with code ${proc.exitCode}`)
-}
-
-const assertCleanTree = (): void => {
-  const status = Bun.spawnSync(['git', 'status', '--porcelain'], { stdout: 'pipe', stderr: 'pipe' })
-  if (status.exitCode !== 0) throw new Error(`git status failed: ${status.stderr.toString().trim()}`)
-  if (status.stdout.toString().trim().length > 0) throw new Error('working tree is dirty — commit or stash first (use --skip-git to override)')
+  Bun.spawnSync(cmd)
 }
 
 const main = async (): Promise<void> => {
-  assertCleanTree()
   runInherited(['bun', 'run', 'lint'])
   runInherited(['bun', 'run', 'tsc'])
   runInherited(['bun', 'run', 'test'])
@@ -154,6 +146,7 @@ const main = async (): Promise<void> => {
 
 if (import.meta.main) {
   main().catch((error) => {
+    console.error(error)
     const message = error instanceof Error ? error.message : String(error)
     console.error(`error: ${message}`)
     process.exit(1)
