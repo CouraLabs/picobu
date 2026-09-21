@@ -42,7 +42,7 @@ import type { ToolFlowResponse } from '@tui/components/session/tools/tool-part.t
 import { setExitStatus } from '@tui/hooks/exit-status.ts'
 import { useAppKeyboard } from '@tui/hooks/keyboard-provider.tsx'
 import { requestAppReload, setLastSessionId } from '@tui/hooks/reload-bus.ts'
-import { DOUBLE_PRESS_WINDOW_MS, isCycleEffortKey, isExitKey, isJobsKey, isModelKey, isSandboxKey, isSteerKey } from '@tui/keybindings.ts'
+import { DOUBLE_PRESS_WINDOW_MS, isCycleEffortKey, isExitKey, isJobsKey, isModelKey, isRepeatKey, isSandboxKey, isSteerKey } from '@tui/keybindings.ts'
 import type { CreateUIMessage } from 'ai'
 import { batch, createEffect, createSignal, getOwner, onCleanup, onMount, runWithOwner } from 'solid-js'
 import { type StatsStatusState, shouldSyncStats, toStatsState } from './session-stats-sync.ts'
@@ -425,109 +425,108 @@ export const SessionPage = (props: SessionPageProps) => {
     }
   }
 
-  useAppKeyboard(
-    (key) => {
-      if (dialogStatus().status === 'open') return
-      const target = session()
-      if (!target) return
+  useAppKeyboard((key) => {
+    if (isRepeatKey(key)) return
+    if (dialogStatus().status === 'open') return
+    const target = session()
+    if (!target) return
 
-      if (key.name === 'escape') {
-        if (commandOpen()) {
-          setCommandExitNonce((n) => n + 1)
-          lastEsc = 0
-          return
-        }
-        const now = Date.now()
-        if (now - lastEsc < DOUBLE_PRESS_WINDOW_MS) {
-          lastEsc = 0
-          key.preventDefault()
-          void interruptStack()
-        } else {
-          lastEsc = now
-        }
+    if (key.name === 'escape') {
+      if (commandOpen()) {
+        setCommandExitNonce((n) => n + 1)
+        lastEsc = 0
         return
       }
-      if (isSteerKey(key)) {
+      const now = Date.now()
+      if (now - lastEsc < DOUBLE_PRESS_WINDOW_MS) {
+        lastEsc = 0
         key.preventDefault()
-        setMode((m) => (m === 'steer' ? 'normal' : 'steer'))
-        return
+        void interruptStack()
+      } else {
+        lastEsc = now
+        pushToast('Press ESC again to stop the run', 'warning')
       }
-      if (isExitKey(key)) {
-        key.preventDefault()
-        const now = Date.now()
-        if (now - lastCtrlD < DOUBLE_PRESS_WINDOW_MS) {
-          lastCtrlD = 0
-          void quitApp()
-        } else {
-          lastCtrlD = now
-          pushToast('Press ⌃D (or F10) again to exit!', 'warning')
-        }
-        return
+      return
+    }
+    if (isSteerKey(key)) {
+      key.preventDefault()
+      setMode((m) => (m === 'steer' ? 'normal' : 'steer'))
+      return
+    }
+    if (isExitKey(key)) {
+      key.preventDefault()
+      const now = Date.now()
+      if (now - lastCtrlD < DOUBLE_PRESS_WINDOW_MS) {
+        lastCtrlD = 0
+        void quitApp()
+      } else {
+        lastCtrlD = now
+        pushToast('Press ⌃D (or F10) again to exit!', 'warning')
       }
-      if (isJobsKey(key)) {
-        key.preventDefault()
-        key.stopPropagation()
-        openJobsDialog({
-          manager: sessionMgr,
-          onOpenSession: (id, label) => openSubagentMessages({ manager: sessionMgr, sessionId: id, label }),
+      return
+    }
+    if (isJobsKey(key)) {
+      key.preventDefault()
+      key.stopPropagation()
+      openJobsDialog({
+        manager: sessionMgr,
+        onOpenSession: (id, label) => openSubagentMessages({ manager: sessionMgr, sessionId: id, label }),
+      })
+      return
+    }
+    if (key.name === 'tab' && key.shift) {
+      if (commandOpen()) return
+      key.preventDefault()
+      try {
+        const current = AGENT_CYCLE.indexOf(agentId() ?? target.config.agentId)
+        const candidate = AGENT_CYCLE[(current + 1) % AGENT_CYCLE.length] ?? AGENT_CYCLE[0]
+        if (candidate === undefined) throw new Error('No agents configured')
+        const next = candidate
+        const previous = agentId() ?? target.config.agentId
+        const previousModel = modelKey() ?? target.config.modelKey
+        target.switchAgent(next)
+        setAgentId(next)
+        batch(() => {
+          setModelKey(target.config.modelKey)
+          setThinking(target.config.thinking)
         })
-        return
+        if (previous !== next) pushToast(`Agent changed from ${previous} to ${next}`, 'info')
+        if (previousModel !== target.config.modelKey) pushToast(`Model switched to ${target.config.modelKey} (agent ${next})`, 'info')
+      } catch (error) {
+        showError(error)
       }
-      if (key.name === 'tab' && key.shift) {
-        if (commandOpen()) return
-        key.preventDefault()
-        try {
-          const current = AGENT_CYCLE.indexOf(agentId() ?? target.config.agentId)
-          const candidate = AGENT_CYCLE[(current + 1) % AGENT_CYCLE.length] ?? AGENT_CYCLE[0]
-          if (candidate === undefined) throw new Error('No agents configured')
-          const next = candidate
-          const previous = agentId() ?? target.config.agentId
-          const previousModel = modelKey() ?? target.config.modelKey
-          target.switchAgent(next)
-          setAgentId(next)
-          batch(() => {
-            setModelKey(target.config.modelKey)
-            setThinking(target.config.thinking)
-          })
-          if (previous !== next) pushToast(`Agent changed from ${previous} to ${next}`, 'info')
-          if (previousModel !== target.config.modelKey) pushToast(`Model switched to ${target.config.modelKey} (agent ${next})`, 'info')
-        } catch (error) {
-          showError(error)
-        }
-        return
+      return
+    }
+    if (isCycleEffortKey(key)) {
+      key.preventDefault()
+      try {
+        const current = THINKING_LEVELS.indexOf(thinking() as (typeof THINKING_LEVELS)[number])
+        const len = THINKING_LEVELS.length
+        const candidate = THINKING_LEVELS[current < 0 ? len - 1 : (current - 1 + len) % len] ?? THINKING_LEVELS[0]
+        if (candidate === undefined) throw new Error('No thinking levels configured')
+        const next = candidate
+        target.switchThinking(next)
+        setThinking(next)
+      } catch (error) {
+        showError(error)
       }
-      if (isCycleEffortKey(key)) {
-        key.preventDefault()
-        try {
-          const current = THINKING_LEVELS.indexOf(thinking() as (typeof THINKING_LEVELS)[number])
-          const len = THINKING_LEVELS.length
-          const candidate = THINKING_LEVELS[current < 0 ? len - 1 : (current - 1 + len) % len] ?? THINKING_LEVELS[0]
-          if (candidate === undefined) throw new Error('No thinking levels configured')
-          const next = candidate
-          target.switchThinking(next)
-          setThinking(next)
-        } catch (error) {
-          showError(error)
-        }
-        return
-      }
-      if (isSandboxKey(key)) {
-        key.preventDefault()
-        key.stopPropagation()
-        const next = !sessionMgr.sandboxEnabled
-        sessionMgr.setSandbox(next)
-        setSandboxOn(next)
-        pushToast(next ? 'Sandbox enabled — takes effect on next run' : 'Sandbox disabled — takes effect on next run', next ? 'success' : 'warning')
-        return
-      }
-      if (isModelKey(key)) {
-        key.preventDefault()
-        key.stopPropagation()
-        openModelDialog()
-      }
-    },
-    { release: true },
-  )
+      return
+    }
+    if (isSandboxKey(key)) {
+      key.preventDefault()
+      key.stopPropagation()
+      const next = !sessionMgr.sandboxEnabled
+      sessionMgr.setSandbox(next)
+      setSandboxOn(next)
+      pushToast(next ? 'Sandbox enabled — takes effect on next run' : 'Sandbox disabled — takes effect on next run', next ? 'success' : 'warning')
+      return
+    }
+    if (isModelKey(key)) {
+      key.preventDefault()
+      key.stopPropagation()
+      openModelDialog()
+    }
+  })
 
   onMount(() => {
     void openSession(activeId())

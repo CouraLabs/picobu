@@ -8,6 +8,7 @@ import {
   isHelpKey,
   isJobsKey,
   isModelKey,
+  isRepeatKey,
   isSelectAllKey,
   isSteerKey,
   type KeyLike,
@@ -16,8 +17,18 @@ import {
 const key = (overrides: Partial<KeyLike> & { name: string }): KeyLike => ({ ctrl: false, meta: false, super: false, ...overrides })
 
 describe('double-press window', () => {
-  test('is 200ms', () => {
-    expect(DOUBLE_PRESS_WINDOW_MS).toBe(200)
+  test('is 600ms', () => {
+    expect(DOUBLE_PRESS_WINDOW_MS).toBe(600)
+  })
+})
+
+describe('repeat guard', () => {
+  test('ignores kitty repeats and repeated-flag presses, passes plain presses', () => {
+    expect(isRepeatKey(key({ name: 'u', ctrl: true, eventType: 'repeat' }))).toBe(true)
+    expect(isRepeatKey(key({ name: 'u', ctrl: true, repeated: true }))).toBe(true)
+    expect(isRepeatKey(key({ name: 'u', ctrl: true, eventType: 'press' }))).toBe(false)
+    expect(isRepeatKey(key({ name: 'u', ctrl: true, eventType: 'release' }))).toBe(false)
+    expect(isRepeatKey(key({ name: 'escape', eventType: 'repeat' }))).toBe(true)
   })
 })
 
@@ -41,13 +52,15 @@ describe('shortcut chords', () => {
     expect(isSteerKey(key({ name: 'w', ctrl: true, meta: true }))).toBe(false)
     expect(isCycleEffortKey(key({ name: 'e', ctrl: true, meta: true }))).toBe(false)
   })
-  test('model fires on ctrl+u, ctrl+shift+u, alt+u on windows, and f2', () => {
+  test('model fires on ctrl+u, ctrl+o, ctrl+shift+u, alt+u on windows, and f2', () => {
     expect(isModelKey(key({ name: 'u', ctrl: true }))).toBe(true)
+    expect(isModelKey(key({ name: 'o', ctrl: true }))).toBe(true)
     expect(isModelKey(key({ name: 'u', ctrl: true, shift: true }))).toBe(true)
+    expect(isModelKey(key({ name: 'o', ctrl: true, shift: true }))).toBe(true)
     expect(isModelKey(key({ name: 'u', meta: true }), 'win32')).toBe(true)
+    expect(isModelKey(key({ name: 'o', meta: true }), 'win32')).toBe(true)
     expect(isModelKey(key({ name: 'f2' }))).toBe(true)
     expect(isModelKey(key({ name: 'm', ctrl: true }))).toBe(false)
-    expect(isModelKey(key({ name: 'o', ctrl: true }))).toBe(false)
     expect(isModelKey(key({ name: 'return', ctrl: true }))).toBe(false)
   })
   test('jobs fires on ctrl+k, ctrl+shift+k, alt+k on windows, and f3', () => {
@@ -89,6 +102,7 @@ describe('shortcut chords', () => {
   })
   test('claimed chords cover release-acted keys and tab in any shift state', () => {
     expect(isClaimedChord(key({ name: 'u', ctrl: true }))).toBe(true)
+    expect(isClaimedChord(key({ name: 'o', ctrl: true }))).toBe(true)
     expect(isClaimedChord(key({ name: 'k', ctrl: true }))).toBe(true)
     expect(isClaimedChord(key({ name: 'w', ctrl: true }))).toBe(true)
     expect(isClaimedChord(key({ name: 'e', ctrl: true }))).toBe(true)

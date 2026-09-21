@@ -10,7 +10,7 @@ import { getClipboardService } from '@tui/hooks/clipboard.state.ts'
 import { useAppKeyboard } from '@tui/hooks/keyboard-provider.tsx'
 import { usePromptFocus } from '@tui/hooks/prompt-focus.ts'
 import { useTerminalDims } from '@tui/hooks/terminal-dims.tsx'
-import { isCopyKey, isSelectAllKey } from '@tui/keybindings.ts'
+import { isCopyKey, isRepeatKey, isSelectAllKey } from '@tui/keybindings.ts'
 import { icons } from '@tui/themes/icons.ts'
 import { batch, createEffect, createMemo, createSignal, For, mergeProps, on, onCleanup, onMount, Show } from 'solid-js'
 
@@ -343,16 +343,14 @@ export const SessionPrompt = (props: SessionPromptProps) => {
     cycleForward()
   })
 
-  useAppKeyboard(
-    (key) => {
-      if (!isSelectAllKey(key)) return
-      if (!textareaRef?.focused) return
-      key.preventDefault()
-      key.stopPropagation()
-      textareaRef?.selectAll()
-    },
-    { release: true },
-  )
+  useAppKeyboard((key) => {
+    if (isRepeatKey(key)) return
+    if (!isSelectAllKey(key)) return
+    if (!textareaRef?.focused) return
+    key.preventDefault()
+    key.stopPropagation()
+    textareaRef?.selectAll()
+  })
 
   const tokenPreview = createMemo(() => tokenizeCommandLine(text()))
 
@@ -449,17 +447,15 @@ export const SessionPrompt = (props: SessionPromptProps) => {
       })
   }
 
-  useAppKeyboard(
-    (key) => {
-      if (!isCopyKey(key)) return
-      if (!textareaRef?.focused) return
-      if (!textareaRef?.hasSelection()) return
-      key.preventDefault()
-      key.stopPropagation()
-      copySelection()
-    },
-    { release: true },
-  )
+  useAppKeyboard((key) => {
+    if (isRepeatKey(key)) return
+    if (!isCopyKey(key)) return
+    if (!textareaRef?.focused) return
+    if (!textareaRef?.hasSelection()) return
+    key.preventDefault()
+    key.stopPropagation()
+    copySelection()
+  })
 
   const handleMouseDown = (e: MouseEvent) => {
     if (!textareaRef) return

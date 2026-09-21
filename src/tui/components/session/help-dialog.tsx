@@ -18,7 +18,7 @@ const shortcuts: Array<{ keys: string; what: string }> = [
   { keys: 'ESC', what: 'Close dialogs' },
   { keys: 'CTRL + C', what: 'Copy selected text' },
   { keys: 'CTRL + V', what: 'Paste into the prompt (handled by the prompt paste support, not a keybinding)' },
-  { keys: 'CTRL + U / F2', what: 'Change model (same chord again closes the dialog)' },
+  { keys: 'CTRL + U / CTRL + O / F2', what: 'Change model (same chord again closes the dialog)' },
   { keys: 'CTRL + K / F3', what: 'Subagent jobs (same chord again closes the dialog)' },
   { keys: 'CTRL + W / F4', what: 'Toggle steer mode (steer never clears the queue)' },
   { keys: 'SHIFT + TAB', what: 'Cycle agent' },

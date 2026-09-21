@@ -5,6 +5,8 @@ export interface KeyLike {
   shift?: boolean
   super?: boolean
   sequence?: string
+  eventType?: string
+  repeated?: boolean
 }
 
 const lowerName = (key: KeyLike): string => key.name.toLowerCase()
@@ -26,12 +28,17 @@ const matchesLetter = (key: KeyLike, letters: Array<string>, platform: string): 
 
 export const hasMod = (key: KeyLike): boolean => key.ctrl || key.meta || (key.super ?? false)
 
+// Key repeats must never re-trigger toggle/double-press actions. Repeats arrive
+// as eventType 'repeat' on kitty terminals, or as press events with the repeated
+// flag on terminals without release reporting, so both forms are ignored.
+export const isRepeatKey = (key: KeyLike): boolean => key.eventType === 'repeat' || key.repeated === true
+
 // Window for double-press chords (exit, esc esc interrupt).
-export const DOUBLE_PRESS_WINDOW_MS = 200
+export const DOUBLE_PRESS_WINDOW_MS = 600
 
 export const isHelpKey = (key: KeyLike): boolean => lowerName(key) === 'f1'
 
-export const isModelKey = (key: KeyLike, platform: string = process.platform): boolean => lowerName(key) === 'f2' || matchesLetter(key, ['u'], platform)
+export const isModelKey = (key: KeyLike, platform: string = process.platform): boolean => lowerName(key) === 'f2' || matchesLetter(key, ['u', 'o'], platform)
 
 export const isJobsKey = (key: KeyLike, platform: string = process.platform): boolean => lowerName(key) === 'f3' || matchesLetter(key, ['k'], platform)
 
@@ -51,9 +58,9 @@ export const isCopyKey = (key: KeyLike): boolean => hasMod(key) && lowerName(key
 
 export const isSelectAllKey = (key: KeyLike): boolean => hasMod(key) && lowerName(key) === 'a'
 
-// Chords whose action runs on key release; a global handler preventDefaults the press
-// so textarea defaults (delete-line, kill-line, line-home, ...) never fire. Tab is
-// included in any shift state so an unhandled press cannot move renderer focus.
+// Chords whose press is claimed globally so textarea defaults (delete-line,
+// kill-line, line-home, ...) never fire. Tab is included in any shift state so
+// an unhandled press cannot move renderer focus.
 export const isClaimedChord = (key: KeyLike, platform: string = process.platform): boolean =>
   isModelKey(key, platform) ||
   isJobsKey(key, platform) ||

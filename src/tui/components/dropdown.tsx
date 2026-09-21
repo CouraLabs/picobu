@@ -6,6 +6,7 @@ import { Marquee } from '@tui/components/marquee.tsx'
 import { useAppKeyboard } from '@tui/hooks/keyboard-provider.tsx'
 import { requestPromptFocus } from '@tui/hooks/prompt-focus.ts'
 import { useTerminalDims } from '@tui/hooks/terminal-dims.tsx'
+import { isRepeatKey } from '@tui/keybindings.ts'
 import { createComputed, createEffect, createMemo, createSignal, For, mergeProps, on } from 'solid-js'
 export interface DropdownOption {
   name: string
@@ -142,18 +143,16 @@ export const DropdownLayer = () => {
     closeDropdown()
     s.onSelect(option, index)
   }
-  useAppKeyboard(
-    (key) => {
-      if (!open()) return
-      if (popupRef && !popupRef.focused && !popupRef.hasFocusedDescendant) return
-      if (key.name === 'escape') {
-        key.preventDefault()
-        key.stopPropagation()
-        closeDropdown()
-      }
-    },
-    { release: true },
-  )
+  useAppKeyboard((key) => {
+    if (!open()) return
+    if (popupRef && !popupRef.focused && !popupRef.hasFocusedDescendant) return
+    if (isRepeatKey(key)) return
+    if (key.name === 'escape') {
+      key.preventDefault()
+      key.stopPropagation()
+      closeDropdown()
+    }
+  })
   useAppKeyboard((key) => {
     if (!open()) return false
     if (popupRef && !popupRef.focused && !popupRef.hasFocusedDescendant) return false

@@ -14,7 +14,7 @@ import { useAppKeyboard } from '@tui/hooks/keyboard-provider.tsx'
 import { getLastSessionId } from '@tui/hooks/reload-bus.ts'
 import { focusedHandlesCopy, hasRendererSelection, rendererCopyText } from '@tui/hooks/selection.ts'
 import { TerminalDimsProvider } from '@tui/hooks/terminal-dims.tsx'
-import { isClaimedChord, isCopyKey, isHelpKey } from '@tui/keybindings.ts'
+import { isClaimedChord, isCopyKey, isHelpKey, isRepeatKey } from '@tui/keybindings.ts'
 import { SessionPage } from '@tui/pages/session-page.tsx'
 import { icons } from '@tui/themes/icons.ts'
 import { createMemo, createSignal } from 'solid-js'
@@ -42,45 +42,42 @@ export const App = (props: { sessionId?: string } = {}) => {
     return true
   }
 
-  // Claims the presses of release-acted chords so textarea defaults (delete-line,
-  // kill-line, line-home, focus cycling on tab) never fire; the real actions run on
-  // release in the handlers below.
+  // Claims the presses of shortcut chords so textarea defaults (delete-line,
+  // kill-line, line-home, focus cycling on tab) never fire. Actions run on the
+  // same press in the handlers below, which are registered after this claim, so
+  // the textarea (a renderable handler) still never sees the key.
   useAppKeyboard((key) => {
     if (dialogStatus().status === 'open') return
     if (isClaimedChord(key)) key.preventDefault()
   })
 
-  useAppKeyboard(
-    (key) => {
-      if (dialogStatus().status === 'open') return
-      if (isCopyKey(key)) {
-        if (focusedHandlesCopy(renderer)) return
-        if (!hasRendererSelection(renderer)) return
-        key.preventDefault()
-        key.stopPropagation()
-        copyRendererSelection()
-        return
-      }
-      if (key.name === 'escape') {
-        if (!hasRendererSelection(renderer)) return
-        key.preventDefault()
-        key.stopPropagation()
-        renderer.clearSelection()
-      }
-    },
-    { release: true },
-  )
-
-  useAppKeyboard(
-    (key) => {
-      if (!isHelpKey(key)) return
-      if (dialogStatus().status === 'open') return
+  useAppKeyboard((key) => {
+    if (isRepeatKey(key)) return
+    if (dialogStatus().status === 'open') return
+    if (isCopyKey(key)) {
+      if (focusedHandlesCopy(renderer)) return
+      if (!hasRendererSelection(renderer)) return
       key.preventDefault()
       key.stopPropagation()
-      openHelpDialog()
-    },
-    { release: true },
-  )
+      copyRendererSelection()
+      return
+    }
+    if (key.name === 'escape') {
+      if (!hasRendererSelection(renderer)) return
+      key.preventDefault()
+      key.stopPropagation()
+      renderer.clearSelection()
+    }
+  })
+
+  useAppKeyboard((key) => {
+    if (isRepeatKey(key)) return
+    if (!isHelpKey(key)) return
+    if (dialogStatus().status === 'open') return
+    key.preventDefault()
+    key.stopPropagation()
+    openHelpDialog()
+  })
 
   const pages = [{ id: 'app-tab-session', label: 'session' }]
 
