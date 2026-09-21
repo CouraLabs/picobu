@@ -8,7 +8,7 @@ describe('executeBangCommand', () => {
   it('empty command throws with usage message', async () => {
     const tmpDir = await mkdtemp(join(tmpdir(), 'picobu-bang-'))
     try {
-      expect(executeBangCommand('   ', tmpDir)).rejects.toThrow('Usage: !<command>')
+      await expect(executeBangCommand('   ', tmpDir)).rejects.toThrow('Usage: !<command>')
     } finally {
       await rm(tmpDir, { recursive: true, force: true })
     }
