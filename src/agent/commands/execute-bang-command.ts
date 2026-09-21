@@ -31,7 +31,7 @@ export const executeBangCommand = async (command: string, cwd: string, opts?: Ba
     let proc: Bun.Subprocess<'ignore', 'pipe', 'pipe'>
     try {
       proc = Bun.spawn({
-        cmd: [...shellSpec(options.app.shell).cmd, '-c', command],
+        cmd: [...shellSpec(options.app.shell).cmd, command],
         cwd: workingDir,
         stdout: 'pipe',
         stderr: 'pipe',
