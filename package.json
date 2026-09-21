@@ -1,6 +1,6 @@
 {
   "name": "@couralabs/picobu",
-  "version": "1.30.3",
+  "version": "1.30.4",
   "description": "Headless autonomous coding agent core — TUI, CLI, WhatsApp and MCP integrations on the Vercel AI SDK",
   "license": "MIT",
   "module": "dist/cli.js",
