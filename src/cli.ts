@@ -12,10 +12,10 @@ import { options } from '@config/options.ts'
 import { removeMcpCredential, startMcpLogin } from '@integrations/mcp/auth.ts'
 import { getMcpServer } from '@integrations/mcp/discover.ts'
 import { listMcpServers } from '@integrations/mcp/status.ts'
-import { connectToWhatsApp, disconnectFromWhatsApp } from '@integrations/whatsapp/connection.ts'
 import { setConsoleTitle } from '@shared/console-title.ts'
 import { initLogger, logError } from '@shared/logger.ts'
 import { getVersion } from '@shared/version.ts'
+import { withTimeout } from '@shared/with-timeout.ts'
 import { Command } from 'commander'
 
 const program = new Command()
@@ -176,14 +176,12 @@ mcp
     })()
   })
 
-const bootstrap = async (): Promise<void> => {
-  await autoloadLlmProviders()
-
-  await ensureOAuthTokens()
-  if (options.whatsapp.enabled) {
-    connectToWhatsApp().catch((error) => {
-      console.error(`WhatsApp connect failed: ${error instanceof Error ? error.message : String(error)}`)
-    })
+const PROVIDER_BOOTSTRAP_TIMEOUT_MS = 15000
+const bootstrapProviders = async (): Promise<void> => {
+  try {
+    await withTimeout(Promise.all([autoloadLlmProviders(), ensureOAuthTokens()]), PROVIDER_BOOTSTRAP_TIMEOUT_MS, 'provider bootstrap')
+  } catch (error) {
+    logError(error, { scope: 'provider-bootstrap' })
   }
 }
 const loginCommand = program
@@ -299,25 +297,18 @@ program.action((opts: CliActionOptions) => {
         console.error('Cannot combine --server with --session or --cd.')
         process.exit(1)
       }
-      try {
-        await bootstrap()
-      } catch (error) {
-        logError(error, { scope: 'bootstrap-server' })
-        console.error(`Bootstrap failed: ${error instanceof Error ? error.message : String(error)}`)
-        process.exit(1)
-      }
+      await bootstrapProviders()
       setConsoleTitle(undefined)
-      if (!options.whatsapp.enabled) {
-        console.log('picobu headless server ready (no UI attached). WhatsApp disabled — run without flags to open the TUI.')
-        return
-      }
-      console.log('picobu headless server ready (no UI attached). WhatsApp daemon running — run without flags to open the TUI.')
-      const shutdown = (): void => {
-        disconnectFromWhatsApp()
-        process.exit(0)
-      }
-      process.once('SIGINT', shutdown)
-      process.once('SIGTERM', shutdown)
+      console.log('picobu headless server ready (no UI attached). Run without flags to open the TUI.')
+      const keepAlive = setInterval(() => {}, 60_000)
+      await new Promise<void>((resolve) => {
+        const shutdown = (): void => {
+          clearInterval(keepAlive)
+          resolve()
+        }
+        process.once('SIGINT', shutdown)
+        process.once('SIGTERM', shutdown)
+      })
       return
     }
     if (opts.cd !== undefined) {
@@ -328,13 +319,6 @@ program.action((opts: CliActionOptions) => {
         console.error(`Invalid --cd: ${error instanceof Error ? error.message : String(error)}`)
         process.exit(1)
       }
-    }
-    try {
-      await bootstrap()
-    } catch (error) {
-      logError(error, { scope: 'bootstrap-tui' })
-      console.error(`Bootstrap failed: ${error instanceof Error ? error.message : String(error)}`)
-      process.exit(1)
     }
     try {
       const { runTui } = await import('@tui/init.tsx')

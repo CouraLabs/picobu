@@ -14,12 +14,10 @@ import { withTimeout } from '@shared/with-timeout.ts'
 import { bumpCatalog } from '@states/catalog-state.ts'
 import { theme } from '@states/theme-state.ts'
 import { pushToast } from '@states/toast.state.ts'
-import { Splash } from '@tui/components/splash.tsx'
 import { KeyboardProvider, setKeyboardReleasesSupported } from '@tui/hooks/keyboard-provider.tsx'
 import { App } from '@tui/layout/app.tsx'
 import { closeMessage } from '@tui/themes/logo.ts'
 import { getSharedTreeSitterClient, registerParsers } from '@wrappers/treesitter-wrapper.ts'
-import { createSignal, Show } from 'solid-js'
 import { setClipboardService } from './hooks/clipboard.state.ts'
 import { ClipboardProvider } from './hooks/clipboard-provider.tsx'
 import { takeExitStatus } from './hooks/exit-status.ts'
@@ -35,7 +33,6 @@ export interface TuiAppOptions {
 const PROVIDER_BOOTSTRAP_TIMEOUT_MS = 15000
 const PARSER_TIMEOUT_MS = 15000
 const TREE_SITTER_TIMEOUT_MS = 20000
-const SPLASH_WATCHDOG_MS = 30000
 
 interface StartupStageFailure {
   stage: string
@@ -85,7 +82,6 @@ const startTui = async (options: TuiAppOptions, unguard: (() => void) | undefine
     disableWin32InputMode = undefined
   }
   let loudFailure: string | undefined
-  let splashWatchdog: ReturnType<typeof setTimeout> | undefined
   const renderer = await createCliRenderer({
     exitOnCtrlC: false,
     exitSignals: rendererExitSignals,
@@ -143,8 +139,7 @@ const startTui = async (options: TuiAppOptions, unguard: (() => void) | undefine
   })
 
   const failLoudStartup = (reason: string, context: Record<string, unknown>): never => {
-    if (splashWatchdog !== undefined) clearTimeout(splashWatchdog)
-    logError(new Error(reason), { scope: 'tui-watchdog', ...context })
+    logError(new Error(reason), { scope: 'tui-startup', ...context })
     flushLogger()
     loudFailure = reason
     try {
@@ -208,26 +203,18 @@ const startTui = async (options: TuiAppOptions, unguard: (() => void) | undefine
   }
 
   engine.attach(renderer)
-  const [ready, setReady] = createSignal(false)
   onAppReload(async () => {
-    setReady(false)
-    try {
-      await bootstrapProviders()
-      bumpCatalog()
-    } finally {
-      setReady(true)
-    }
+    await bootstrapProviders()
+    bumpCatalog()
   })
   try {
     renderer.setMaxListeners(0)
     await render(
       () => (
         <KeyboardProvider>
-          <Show when={ready()} fallback={<Splash />}>
-            <ClipboardProvider clipboardService={clipboardService}>
-              <App sessionId={options.sessionId} />
-            </ClipboardProvider>
-          </Show>
+          <ClipboardProvider clipboardService={clipboardService}>
+            <App sessionId={options.sessionId} />
+          </ClipboardProvider>
         </KeyboardProvider>
       ),
       renderer,
@@ -237,15 +224,6 @@ const startTui = async (options: TuiAppOptions, unguard: (() => void) | undefine
     restoreStderr()
     throw error
   }
-  // Picobu runs the renderer in one-shot mode: with no playing timelines,
-  // _isRunning stays false and every repaint is driven by a single
-  // requestRender() call. TextNodeRenderable.requestRender() walks up
-  // `parent?.requestRender()` and silently drops the request when a node is
-  // transiently detached (opentui #1147) — exactly what happens when the
-  // splash→App swap races the spinner's in-flight tick. One dropped request and
-  // no frame is ever scheduled again: frozen splash, live process. Starting the
-  // loop explicitly makes frames self-reschedule at targetFps, independent of
-  // dropped one-shot requests.
   try {
     renderer.start()
   } catch (error) {
@@ -255,48 +233,19 @@ const startTui = async (options: TuiAppOptions, unguard: (() => void) | undefine
       bunVersion: Bun.version,
     })
   }
-  let pendingStages: Array<string> = []
   const trackStage = async (stage: string, task: Promise<unknown>): Promise<StartupStageFailure | undefined> => {
-    pendingStages = [...pendingStages, stage]
     try {
       await task
       return undefined
     } catch (error) {
       return { stage, error: error instanceof Error ? error : new Error(String(error)) }
-    } finally {
-      pendingStages = pendingStages.filter((entry) => entry !== stage)
     }
   }
-  splashWatchdog = setTimeout(() => {
-    if (ready()) return
-    let stats: { frameCount?: number; fps?: number } | undefined
-    try {
-      stats = renderer.getStats() as { frameCount?: number; fps?: number }
-    } catch {}
-    const pending = pendingStages.length > 0 ? pendingStages.join(', ') : 'none — the event loop may be blocked'
-    failLoudStartup(`startup stalled on the splash screen (pending: ${pending}; frames: ${stats?.frameCount ?? 'unknown'}; fps: ${stats?.fps ?? 'unknown'})`, {
-      platform: process.platform,
-      arch: process.arch,
-      bunVersion: Bun.version,
-      frames: stats?.frameCount,
-      fps: stats?.fps,
-      pendingStages,
-      term: process.env.TERM,
-      termProgram: process.env.TERM_PROGRAM,
-      colorTerm: process.env.COLORTERM,
-      wtSession: process.env.WT_SESSION,
-      tmux: process.env.TMUX !== undefined,
-      ssh: process.env.SSH_CONNECTION !== undefined,
-    })
-  }, SPLASH_WATCHDOG_MS)
-  splashWatchdog.unref()
   const failures = await Promise.all([
     trackStage('providers', bootstrapProviders()),
     trackStage('parsers', withTimeout(registerParsers(), PARSER_TIMEOUT_MS, 'parser registration')),
     trackStage('tree-sitter', withTimeout(getSharedTreeSitterClient(), TREE_SITTER_TIMEOUT_MS, 'tree-sitter init')),
   ])
-  if (splashWatchdog !== undefined) clearTimeout(splashWatchdog)
-  setReady(true)
   for (const failure of failures) {
     if (!failure) continue
     logError(failure.error, { scope: failure.stage })

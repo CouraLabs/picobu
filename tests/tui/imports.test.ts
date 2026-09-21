@@ -20,7 +20,6 @@ import { PlanReview } from '../../src/tui/components/session/tools/plan-review.t
 import { TodoList } from '../../src/tui/components/session/tools/todo-list.tsx'
 import { ToolPart } from '../../src/tui/components/session/tools/tool-part.tsx'
 import { Spinner } from '../../src/tui/components/spinner.tsx'
-import { Splash } from '../../src/tui/components/splash.tsx'
 import { getClipboardService, setClipboardService } from '../../src/tui/hooks/clipboard.state.ts'
 import { ClipboardProvider } from '../../src/tui/hooks/clipboard-provider.tsx'
 import { runTui } from '../../src/tui/init.tsx'
@@ -58,7 +57,6 @@ describe('tui module surface', () => {
       Dropdown,
       Marquee,
       Spinner,
-      Splash,
       SessionHeader,
       SessionStatus,
       SessionMessages,
