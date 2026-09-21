@@ -87,6 +87,8 @@ export const HelpDialog = () => {
     for (const row of shortcuts) lines.push(`- \`${row.keys}\` — ${row.what}`)
     lines.push('', '## Mouse', '')
     for (const row of mouseEvents) lines.push(`- \`${row.keys}\` — ${row.what}`)
+    lines.push('', '## Input prefixes', '')
+    lines.push('- `! <command>` — Run a shell command in the current session workspace. Output appears in a transient region below the chat and clears on the next prompt. 60s timeout. Files ignored.')
     lines.push('', '## Commands', '')
     const commandRows = [
       ...SYSTEM_COMMANDS.map((c) => `- \`/${c.name}\` — ${c.description}`),
