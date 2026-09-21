@@ -1,6 +1,7 @@
 import { stat } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { buildCommandPrompt } from '@agent/commands/discovery.ts'
+import { executeBangCommand } from '@agent/commands/execute-bang-command.ts'
 import { listCommands } from '@agent/commands/index.ts'
 import { type ParsedCommandLine, parseCommandLine } from '@agent/commands/parse-command-line.ts'
 import type { LoopMessage, LoopStats } from '@agent/loop/create-loop.ts'
@@ -21,6 +22,7 @@ import { setConsoleTitle } from '@shared/console-title.ts'
 import { getGitInfo } from '@shared/git-info.ts'
 import { logError, setLogRunId } from '@shared/logger.ts'
 import { notifyBlocking, notifyCompletion, notifyFailure } from '@shared/notify.ts'
+import { allocBangId, type BangOutput, bangOutput, clearBangOutput, setBangOutput } from '@states/bang-output.state.ts'
 import { bumpCatalog } from '@states/catalog-state.ts'
 import { closeDialog, dialogStatus, openDialog } from '@states/dialog.state.ts'
 import { flushThemeSave, theme } from '@states/theme-state.ts'
@@ -29,6 +31,7 @@ import { openJobsDialog } from '@tui/components/session/jobs-dialog.tsx'
 import { openMessageActions } from '@tui/components/session/message-actions.tsx'
 import { ModelSelect } from '@tui/components/session/model-select.tsx'
 import { openRolesDialog } from '@tui/components/session/roles-dialog.tsx'
+import { SessionBangOutput } from '@tui/components/session/session-bang-output.tsx'
 import { SessionHeader } from '@tui/components/session/session-header.tsx'
 import { SessionMessages } from '@tui/components/session/session-messages.tsx'
 import { type AttachedFile, type EditRequest, type PromptMode, type PromptPayload, SessionPrompt } from '@tui/components/session/session-prompt.tsx'
@@ -437,6 +440,11 @@ export const SessionPage = (props: SessionPageProps) => {
         lastEsc = 0
         return
       }
+      if (bangOutput()) {
+        clearBangOutput()
+        lastEsc = 0
+        return
+      }
       const now = Date.now()
       if (now - lastEsc < DOUBLE_PRESS_WINDOW_MS) {
         lastEsc = 0
@@ -788,6 +796,35 @@ export const SessionPage = (props: SessionPageProps) => {
     syncQueue(target)
   }
 
+  const handleBang = async (line: string, target: Session, files: Array<AttachedFile>) => {
+    const body = line.slice(1).trim()
+    if (body.length === 0) {
+      showError(new Error('Usage: !<command>'))
+      return
+    }
+    if (files.length > 0) pushToast('Files are ignored for shell commands', 'warning')
+    const cwd = target.config.cwd ?? sessionMgr.currentCwd ?? options.app.cwd
+    pushToast(`$ ${body}`, 'info')
+    try {
+      const result = await executeBangCommand(body, cwd)
+      const item: BangOutput = {
+        id: allocBangId(),
+        command: line,
+        cwd,
+        exitCode: result.exitCode,
+        stdout: result.stdout,
+        stderr: result.stderr,
+        truncated: result.truncated,
+        outputPath: result.outputPath,
+        durationMs: result.durationMs,
+        startedAt: Date.now() - result.durationMs,
+      }
+      setBangOutput(item)
+    } catch (error) {
+      showError(error)
+    }
+  }
+
   const dispatchCommand = async (line: string, target: Session, payloadFiles: Array<AttachedFile> = []) => {
     if (payloadFiles.length > 0) pushToast('Files are ignored for slash commands', 'warning')
     let parsed: ParsedCommandLine | null
@@ -948,6 +985,7 @@ export const SessionPage = (props: SessionPageProps) => {
   }
 
   const handlePrompt = async (payload: PromptPayload) => {
+    clearBangOutput()
     const target = session()
     if (!target) {
       showError(new Error('Session is not ready yet, please try again'))
@@ -955,6 +993,10 @@ export const SessionPage = (props: SessionPageProps) => {
     }
     const text = payload.text
     const message = buildMessage(text, payload.files)
+    if (text.startsWith('!')) {
+      await handleBang(text, target, payload.files)
+      return
+    }
     if (text.startsWith('/')) {
       await dispatchCommand(text, target, payload.files)
       return
@@ -1094,6 +1136,7 @@ export const SessionPage = (props: SessionPageProps) => {
           manager={sessionMgr}
         />
         <SessionQueue items={queued()} onRemove={handleRemoveQueued} />
+        <SessionBangOutput />
         <SessionPrompt
           onPrompt={handlePrompt}
           streaming={isStreaming()}
