@@ -14,18 +14,6 @@ export interface NpmBuildOptions {
 
 const root = join(import.meta.dir, '..')
 
-export const npmExternalPackages: Array<string> = [
-  '@opentui/core',
-  '@opentui/solid',
-  '@opentui/solid/*',
-  'solid-js',
-  'solid-js/*',
-  'puppeteer',
-  '@vscode/ripgrep',
-  '@vscode/ripgrep-*',
-  'web-tree-sitter',
-]
-
 export interface RuntimeAssetCopy {
   from: string
   to: string
@@ -72,7 +60,7 @@ export const buildBundle = async (entryPath: string, outDirPath: string): Promis
     target: 'bun',
     minify: true,
     sourcemap: 'none',
-    external: npmExternalPackages,
+    packages: 'bundle',
     entrypoints: [entryPath],
     outdir: outDirPath,
   })

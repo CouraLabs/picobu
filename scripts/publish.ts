@@ -101,31 +101,22 @@ const runInherited = (cmd: Array<string>): void => {
   if (proc.exitCode !== 0) throw new Error(`${cmd.join(' ')} exited with code ${proc.exitCode}`)
 }
 
-const assertCleanTree = (skipGit: boolean): void => {
-  if (skipGit) {
-    console.warn('warning: --skip-git set; skipping the clean-tree check')
-    return
-  }
+const assertCleanTree = (): void => {
   const status = Bun.spawnSync(['git', 'status', '--porcelain'], { stdout: 'pipe', stderr: 'pipe' })
   if (status.exitCode !== 0) throw new Error(`git status failed: ${status.stderr.toString().trim()}`)
   if (status.stdout.toString().trim().length > 0) throw new Error('working tree is dirty — commit or stash first (use --skip-git to override)')
 }
 
 const main = async (): Promise<void> => {
-  const options = parsePublishArgs(process.argv.slice(2))
-
-  assertCleanTree(options.skipGit)
-
-  if (!options.skipChecks) {
-    runInherited(['bun', 'run', 'lint'])
-    runInherited(['bun', 'run', 'tsc'])
-    runInherited(['bun', 'run', 'test'])
-  }
+  assertCleanTree()
+  runInherited(['bun', 'run', 'lint'])
+  runInherited(['bun', 'run', 'tsc'])
+  runInherited(['bun', 'run', 'test'])
 
   const pkgPath = join(root, 'package.json')
   const pkg = JSON.parse(readFileSync(pkgPath, 'utf8')) as { version?: unknown } & Record<string, unknown>
   const current = String(pkg.version ?? '')
-  const next = bumpVersion(current, options.kind)
+  const next = bumpVersion(current, "build")
   pkg.version = next
   writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`)
   console.log(`version ${current} -> ${next}`)
@@ -148,39 +139,14 @@ const main = async (): Promise<void> => {
   const bakedVersion = baked.stdout.toString().trim()
   if (baked.exitCode !== 0 || bakedVersion !== next) throw new Error(`baked bundle version ${bakedVersion} does not match ${next}`)
 
-  const publishArgs = options.otp ? ['bun', 'publish', '--access', 'public', '--otp', options.otp] : ['bun', 'publish', '--access', 'public']
-  if (options.ci) {
-    if (!process.env.NPM_TOKEN) throw new Error('NPM_TOKEN is required in --ci mode')
-    const npmrcPath = join(root, '.npmrc')
-    writeFileSync(npmrcPath, '//registry.npmjs.org/:_authToken=${NPM_TOKEN}\n')
-    try {
-      runInherited(publishArgs)
-    } finally {
-      rmSync(npmrcPath, { force: true })
-    }
-  } else {
-    runInherited(publishArgs)
-  }
-
-  if (!options.skipGit) {
-    if (!options.assumeYes) {
-      if (!process.stdin.isTTY) throw new Error('refusing to push without --yes')
-      const readline = await import('node:readline/promises')
-      const rl = readline.createInterface({ input: process.stdin, output: process.stdout })
-      const answer = (await rl.question(`release: commit, tag and push v${next}? [y/N] `)).trim().toLowerCase()
-      rl.close()
-      if (answer !== 'y' && answer !== 'yes') {
-        console.log('skipping commit, tag and push')
-        console.log(`released @couralabs/picobu@${next} (local only)`)
-        return
-      }
-    }
-    runInherited(['git', 'add', '-A'])
-    runInherited(['git', 'commit', '-m', `chore: release v${next}`])
-    runInherited(['git', 'tag', `v${next}`])
-    runInherited(['git', 'push'])
-    runInherited(['git', 'push', 'origin', `v${next}`])
-  }
+  const publishArgs = ['bun', 'publish', '--access', 'public', '--cpu="*"', ' --os="*"']
+  
+  runInherited(['git', 'add', '-A'])
+  runInherited(['git', 'commit', '-m', `chore: release v${next}`])
+  runInherited(['git', 'tag', `v${next}`])
+  runInherited(['git', 'push'])
+  runInherited(['git', 'push', 'origin', `v${next}`])
+  runInherited(publishArgs)
 
   console.log(`released @couralabs/picobu@${next}`)
   console.log('install: bunx @couralabs/picobu (or bun add -g @couralabs/picobu)')

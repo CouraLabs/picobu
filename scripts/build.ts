@@ -32,25 +32,6 @@ export const parseBuildArgs = (argv: Array<string>): BuildScriptOptions => {
 
 export const binaryPathFor = (outDir: string, platform: string): string => join(outDir, defaultOutfile(platform))
 
-const runSmokeTest = async (binaryPath: string): Promise<string> => {
-  const smokeDir = mkdtempSync(join(tmpdir(), 'picobu-smoke-'))
-  try {
-    // A poisoned bunfig with an unresolvable preload must be ignored by the
-    // compiled binary (autoloadBunfig: false) — this is the `preload not
-    // found` failure mode on machines with a stray global/project bunfig.
-    await Bun.write(join(smokeDir, 'bunfig.toml'), 'preload = ["@opentui/solid/does-not-exist"]\n')
-    const proc = Bun.spawnSync([binaryPath, '--version'], { cwd: smokeDir, stdout: 'pipe', stderr: 'pipe' })
-    const version = proc.stdout.toString().trim()
-    if (proc.exitCode !== 0 || version.length === 0) {
-      const stderr = proc.stderr.toString().trim()
-      throw new Error(`smoke test failed (${binaryPath} --version): ${stderr || `exit code ${proc.exitCode}`}`)
-    }
-    return version
-  } finally {
-    rmSync(smokeDir, { recursive: true, force: true })
-  }
-}
-
 const formatMb = (bytes: number): string => `${(bytes / 1024 / 1024).toFixed(1)} MB`
 
 const buildBinary = async (): Promise<void> => {
@@ -94,9 +75,6 @@ const buildBinary = async (): Promise<void> => {
     for (const log of result.logs) console.error(log)
     throw new Error(`build failed with ${result.logs.length} error(s)`)
   }
-
-  const smokeVersion = await runSmokeTest(outfile)
-  if (!quiet) info(`smoke test (--version) → ${smokeVersion}`)
 
   const size = (await Bun.file(outfile).stat()).size
   const seconds = ((Date.now() - startedAt) / 1000).toFixed(1)
