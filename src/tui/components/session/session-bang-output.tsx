@@ -50,7 +50,7 @@ export const SessionBangOutput = () => {
           <Show when={current().truncated && current().outputPath}>
             <text fg={theme().textMuted}>Full output saved to: {current().outputPath}</text>
           </Show>
-          <text fg={theme().textMuted}>Dismissed automatically on the next prompt</text>
+          <text fg={theme().textMuted}>Press Esc or send a new prompt to dismiss</text>
         </box>
       )}
     </Show>

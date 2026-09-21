@@ -22,7 +22,7 @@ import { setConsoleTitle } from '@shared/console-title.ts'
 import { getGitInfo } from '@shared/git-info.ts'
 import { logError, setLogRunId } from '@shared/logger.ts'
 import { notifyBlocking, notifyCompletion, notifyFailure } from '@shared/notify.ts'
-import { allocBangId, type BangOutput, clearBangOutput, setBangOutput } from '@states/bang-output.state.ts'
+import { allocBangId, type BangOutput, bangOutput, clearBangOutput, setBangOutput } from '@states/bang-output.state.ts'
 import { bumpCatalog } from '@states/catalog-state.ts'
 import { closeDialog, dialogStatus, openDialog } from '@states/dialog.state.ts'
 import { flushThemeSave, theme } from '@states/theme-state.ts'
@@ -437,6 +437,11 @@ export const SessionPage = (props: SessionPageProps) => {
     if (key.name === 'escape') {
       if (commandOpen()) {
         setCommandExitNonce((n) => n + 1)
+        lastEsc = 0
+        return
+      }
+      if (bangOutput()) {
+        clearBangOutput()
         lastEsc = 0
         return
       }
