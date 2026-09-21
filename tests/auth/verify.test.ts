@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { anthropicOAuth } from '../../src/auth/anthropic.ts'
 import { githubCopilotOAuth } from '../../src/auth/github-copilot.ts'
 import { openaiOAuth } from '../../src/auth/openai.ts'
-import { getCredential, initAuthFilePath } from '../../src/auth/store.ts'
+import { getCredential, initAuthFilePath, resetAuthCache } from '../../src/auth/store.ts'
 import type { OAuthAuth, OAuthCredential } from '../../src/auth/types.ts'
 import { confirmReLogin, verifyOAuthCredential } from '../../src/auth/verify.ts'
 import { initLockDir } from '../../src/shared/lock.ts'
@@ -20,6 +20,7 @@ beforeEach(async () => {
 })
 afterEach(async () => {
   globalThis.fetch = realFetch
+  resetAuthCache()
   await rm(dir, { recursive: true, force: true })
 })
 

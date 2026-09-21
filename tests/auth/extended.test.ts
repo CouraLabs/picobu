@@ -267,6 +267,7 @@ describe('authStoreFileRoundTrip', () => {
     initAuthFilePath(filePath)
   })
   afterEach(async () => {
+    resetAuthCache()
     await rm(dir, { recursive: true, force: true })
   })
   test('points at isolated tmp file', () => {

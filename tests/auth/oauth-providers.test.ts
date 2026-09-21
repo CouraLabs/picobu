@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { listModels, resolveModelRef } from '../../src/agent/model/resolver.ts'
 import { listOAuthProviderEntries, listProviders } from '../../src/auth/oauth-providers.ts'
-import { initAuthFilePath, setCredential } from '../../src/auth/store.ts'
+import { initAuthFilePath, resetAuthCache, setCredential } from '../../src/auth/store.ts'
 import type { OAuthCredential } from '../../src/auth/types.ts'
 import { options, type ProviderOptions } from '../../src/config/options.ts'
 import { initLockDir } from '../../src/shared/lock.ts'
@@ -20,6 +20,7 @@ beforeEach(async () => {
 })
 afterEach(async () => {
   options.providers = prevProviders
+  resetAuthCache()
   await rm(dir, { recursive: true, force: true })
 })
 
