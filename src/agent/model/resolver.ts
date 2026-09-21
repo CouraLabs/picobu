@@ -114,12 +114,15 @@ export const createModelInstance = (provider: ProviderOptions, modelId: string, 
   const goBaseUrl = isOpencodeGoProvider(provider) && provider.type !== 'openai-responses' ? opencodeGoBaseUrl(rawBaseUrl) : rawBaseUrl
   const baseUrl = provider.id === 'github-copilot' && npm === '@ai-sdk/anthropic' && goBaseUrl && !goBaseUrl.replace(/\/$/, '').endsWith('/v1') ? `${goBaseUrl.replace(/\/$/, '')}/v1` : goBaseUrl
   const headers = headersForProvider(provider, opts?.sessionId ? { sessionId: opts.sessionId } : undefined)
+  const isCopilot = provider.id === 'github-copilot'
   switch (npm) {
     case '@ai-sdk/anthropic':
+      if (isCopilot) return createAnthropic({ baseURL: baseUrl, authToken: apiKey, headers })(modelId)
       return createAnthropic({ baseURL: baseUrl, apiKey, headers })(modelId)
     case '@ai-sdk/openai':
       if (provider.type === 'openai-responses') return createOpenResponses({ url: baseUrl ?? '', name: provider.name, apiKey, headers })(modelId)
       if (isOpencodeGoProvider(provider)) return createOpenAI({ baseURL: baseUrl, apiKey, headers }).responses(modelId)
+      if (isCopilot) return createOpenAI({ baseURL: baseUrl, apiKey, headers }).responses(modelId)
       return createOpenAI({ baseURL: baseUrl, apiKey, headers })(modelId)
     case '@ai-sdk/google':
       return createGoogleGenerativeAI({ baseURL: baseUrl, apiKey, headers })(modelId)
@@ -156,8 +159,10 @@ export const createModelInstance = (provider: ProviderOptions, modelId: string, 
   }
   switch (provider.type) {
     case 'openai':
+      if (isCopilot) return createOpenAI({ baseURL: baseUrl, apiKey, headers }).responses(modelId)
       return createOpenAI({ baseURL: baseUrl, apiKey, headers })(modelId)
     case 'anthropic':
+      if (isCopilot) return createAnthropic({ baseURL: baseUrl, authToken: apiKey, headers })(modelId)
       return createAnthropic({ baseURL: baseUrl, apiKey, headers })(modelId)
     case 'openai-compatible':
       return createOpenAICompatible({ baseURL: baseUrl ?? '', name: provider.name, apiKey, headers })(modelId)

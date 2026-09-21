@@ -9,6 +9,13 @@ export const runStep = (cmd: Array<string>, label: string): void => {
   if (result.exitCode !== 0) throw new Error(`${label} failed with exit code ${result.exitCode}: ${cmd.join(' ')}`)
 }
 
+export const tagFor = (version: string): string => `v${version}`
+
+export const versionTagExists = (tag: string): boolean => {
+  const result = Bun.spawnSync(['git', 'rev-parse', '-q', '--verify', `refs/tags/${tag}`], { cwd: root, stdio: ['ignore', 'ignore', 'ignore'] })
+  return result.exitCode === 0
+}
+
 const main = async (): Promise<void> => {
   runStep(['bun', 'run', 'tsc'], 'tsc')
   runStep(['bun', 'run', 'test'], 'unit tests')
@@ -23,6 +30,14 @@ const main = async (): Promise<void> => {
 
   runStep(['bun', 'scripts/build.ts'], 'build')
   runStep(['bun', 'publish', '--access', 'public', '--cpu=*', '--os=*'], 'bun publish')
+
+  const tag = tagFor(next)
+  if (versionTagExists(tag)) {
+    console.log(`tag ${tag} already exists, skipping`)
+  } else {
+    runStep(['git', 'tag', tag], 'git tag')
+    runStep(['git', 'push', 'origin', tag], 'git push tag')
+  }
 
   console.log(`released @couralabs/picobu@${next}`)
   console.log('install: bunx @couralabs/picobu (or bun add -g @couralabs/picobu)')

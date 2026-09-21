@@ -95,7 +95,19 @@ export const parseCopilotCatalog = (raw: unknown, allowPolicyFallback: boolean):
 
 export const parseCopilotModelIds = (raw: unknown, allowPolicyFallback: boolean): Array<string> => parseCopilotCatalog(raw, allowPolicyFallback).selectedIds
 
-const isMessagesEndpoint = (item: CopilotRemoteItem): boolean => item.supported_endpoints?.includes('/v1/messages') ?? false
+const normalizedEndpoints = (item: CopilotRemoteItem): Array<string> => (item.supported_endpoints ?? []).map((endpoint) => endpoint.toLowerCase())
+
+const hasMessagesEndpoint = (item: CopilotRemoteItem): boolean => normalizedEndpoints(item).some((endpoint) => endpoint.includes('messages'))
+
+const hasResponsesEndpoint = (item: CopilotRemoteItem): boolean => normalizedEndpoints(item).some((endpoint) => endpoint.includes('responses'))
+
+const hasChatEndpoint = (item: CopilotRemoteItem): boolean => normalizedEndpoints(item).some((endpoint) => endpoint.includes('chat/completions'))
+
+export const copilotModelNpm = (item: CopilotRemoteItem): string => {
+  if (hasMessagesEndpoint(item)) return '@ai-sdk/anthropic'
+  if (hasResponsesEndpoint(item) && !hasChatEndpoint(item)) return '@ai-sdk/openai'
+  return '@ai-sdk/openai-compatible'
+}
 
 export const buildCopilotProviderModel = (remote: CopilotRemoteItem, prev?: ProviderModelOptions): ProviderModelOptions => {
   const supports = remote.capabilities.supports
@@ -128,7 +140,7 @@ export const buildCopilotProviderModel = (remote: CopilotRemoteItem, prev?: Prov
     efforts: liveEfforts ?? prev?.efforts,
     defaultEffort: prev?.defaultEffort,
     billing: liveBilling ?? prev?.billing,
-    npm: isMessagesEndpoint(remote) ? '@ai-sdk/anthropic' : '@ai-sdk/openai-compatible',
+    npm: copilotModelNpm(remote),
   }
 }
 
