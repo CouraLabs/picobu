@@ -2,7 +2,7 @@ import { stat } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { autoloadLlmProviders } from '@agent/model/registry.ts'
 import { stopAllBackgroundShells } from '@agent/tools/filesystem/background-shell.ts'
-import { ensureOAuthTokens } from '@auth/index.ts'
+import { ensureOAuthModels } from '@auth/index.ts'
 import { options as appOptions } from '@config/options.ts'
 import type { TerminalCapabilities } from '@opentui/core'
 import { CliRenderEvents, ConsolePosition, createClipboard, createCliRenderer, createHostClipboard, createRendererClipboardAdapter, DebugOverlayCorner, engine } from '@opentui/core'
@@ -165,7 +165,9 @@ const startTui = async (options: TuiAppOptions, unguard: (() => void) | undefine
     logError(error, { scope: 'render-thread' })
   }
   const bootstrapProviders = async (): Promise<void> => {
-    await withTimeout(Promise.all([autoloadLlmProviders(), ensureOAuthTokens()]), PROVIDER_BOOTSTRAP_TIMEOUT_MS, 'provider bootstrap').catch((error) => {
+    const work = Promise.all([autoloadLlmProviders(), ensureOAuthModels()])
+    work.then(() => bumpCatalog()).catch(() => {})
+    await withTimeout(work, PROVIDER_BOOTSTRAP_TIMEOUT_MS, 'provider bootstrap').catch((error) => {
       logError(error, { scope: 'provider-bootstrap' })
     })
   }
@@ -253,6 +255,7 @@ const startTui = async (options: TuiAppOptions, unguard: (() => void) | undefine
     logError(failure.error, { scope: failure.stage })
     if (failure.stage !== 'providers') pushToast(`${failure.stage} failed — code blocks will render unstyled`, 'warning')
   }
+  bumpCatalog()
 }
 if (import.meta.main) {
   const sessionFlag = process.argv.indexOf('--session')

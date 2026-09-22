@@ -6,7 +6,7 @@ import { ALL_PROMPT_FILES, seedPromptFiles } from '@agent/prompts/prompt-files.t
 import { SessionManager } from '@agent/sessions/session-manager.ts'
 import { folderKeyFor } from '@agent/sessions/session-paths.ts'
 import { WORKFLOW_PROMPT_FILES } from '@agent/workflows/builtin.ts'
-import { ensureOAuthTokens, listOAuthProviders, oauthAuthById, startLogin } from '@auth/index.ts'
+import { ensureOAuthModels, listOAuthProviders, oauthAuthById, startLogin } from '@auth/index.ts'
 import { logoutOAuthProvider, registerOAuthProvider } from '@auth/register.ts'
 import { getCredential, initAuth } from '@auth/store.ts'
 import { confirmReLogin, verifyOAuthCredential } from '@auth/verify.ts'
@@ -181,7 +181,7 @@ mcp
 const PROVIDER_BOOTSTRAP_TIMEOUT_MS = 15000
 const bootstrapProviders = async (): Promise<void> => {
   try {
-    await withTimeout(Promise.all([autoloadLlmProviders(), ensureOAuthTokens()]), PROVIDER_BOOTSTRAP_TIMEOUT_MS, 'provider bootstrap')
+    await withTimeout(Promise.all([autoloadLlmProviders(), ensureOAuthModels()]), PROVIDER_BOOTSTRAP_TIMEOUT_MS, 'provider bootstrap')
   } catch (error) {
     logError(error, { scope: 'provider-bootstrap' })
   }

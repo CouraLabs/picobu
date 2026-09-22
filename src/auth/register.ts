@@ -1,8 +1,8 @@
 import { fetchModelsDevProvider, fetchModelsDevProviderById, modelsFromModelsDev } from '@agent/model/catalog-models-dev.ts'
-import { isModelStatusAvailable } from '@agent/model/model-availability.ts'
 import { getRuntimeApiKeyProviders } from '@agent/model/runtime-providers.ts'
 import { DIGITALOCEAN_INFERENCE_BASE_URL } from '@auth/digitalocean.ts'
 import { KIMI_CODING_BASE_URL } from '@auth/kimi-coding.ts'
+import { type BuiltOAuthModels, buildOAuthModels, fetchLiveOAuthModelIds, oauthProviderHasLiveModels, selectModelsByIds } from '@auth/oauth-models.ts'
 import { removeCredential, setCredential } from '@auth/store.ts'
 import type { OAuthAuth, OAuthCredential } from '@auth/types.ts'
 import { type HarnessOptions, type HarnessOptionsInput, options, type ProviderModelOptions, type ProviderOptions, updateSettings } from '@config/options.ts'
@@ -77,58 +77,57 @@ export const selectCopilotModels = (catalog: ModelsDevProvider, availableModelId
   if (availableModelIds === undefined) return modelsFromModelsDev(catalog)
   return selectModelsByIds(catalog, availableModelIds)
 }
-export const selectModelsByIds = (catalog: ModelsDevProvider, availableModelIds: Array<string> | undefined): Array<ProviderModelOptions> => {
-  if (availableModelIds === undefined) return modelsFromModelsDev(catalog)
-  const ids = availableModelIds
-  if (ids.length === 0) return []
-  const wanted = new Set(ids)
-  const fromCatalog = modelsFromModelsDev(catalog).filter((m) => wanted.has(m.id))
-  const blocked = new Set(
-    Object.values(catalog.models ?? {})
-      .filter((model) => !isModelStatusAvailable(model.status ?? undefined))
-      .map((model) => model.id),
-  )
-  const extras = ids
-    .filter((id) => !fromCatalog.some((m) => m.id === id) && !blocked.has(id))
-    .map(
-      (id): ProviderModelOptions => ({
-        id,
-        name: id,
-        context: 0,
-        output: 0,
-        supports: ['text'],
-      }),
-    )
-  return [...fromCatalog, ...extras]
+export { selectModelsByIds }
+
+export interface CatalogSource {
+  catalogId?: string
+  catalogEnv?: string
 }
-const bareModels = (ids: Array<string>): Array<ProviderModelOptions> =>
-  ids.map(
-    (id): ProviderModelOptions => ({
-      id,
-      name: id,
-      context: 0,
-      output: 0,
-      supports: ['text'],
-    }),
-  )
+const catalogLoaderFor = (meta: CatalogSource | undefined): Promise<ModelsDevProvider | undefined> => {
+  if (meta?.catalogId) return fetchModelsDevProviderById(meta.catalogId).catch(() => undefined)
+  if (meta?.catalogEnv) return fetchModelsDevProvider(meta.catalogEnv).catch(() => undefined)
+  return Promise.resolve(undefined)
+}
+export const oauthProviderCatalogSupported = (id: string): boolean => {
+  if (oauthProviderHasLiveModels(id)) return true
+  const meta = PROVIDER_META[id]
+  return Boolean(meta?.catalogId || meta?.catalogEnv)
+}
+export interface BuiltOAuthCredential extends BuiltOAuthModels {
+  credential: OAuthCredential
+}
+export interface PopulateOAuthModelsOptions {
+  signal?: AbortSignal
+  loadCatalog?: (meta: CatalogSource) => Promise<ModelsDevProvider | undefined>
+}
+export const populateOAuthModels = async (auth: OAuthAuth, credential: OAuthCredential, opts?: PopulateOAuthModelsOptions): Promise<BuiltOAuthCredential> => {
+  const meta = PROVIDER_META[auth.id]
+  let liveIds: Array<string> = []
+  try {
+    liveIds = await fetchLiveOAuthModelIds(auth.id, credential.access, opts?.signal)
+  } catch {
+    liveIds = []
+  }
+  const storedModels = credential.availableModels
+  if (liveIds.length === 0 && storedModels !== undefined && storedModels.length > 0)
+    return { credential, modelIds: credential.availableModelIds ?? storedModels.map((model) => model.id), models: storedModels }
+  const catalog = await (opts?.loadCatalog ?? catalogLoaderFor)({ ...(meta?.catalogId ? { catalogId: meta.catalogId } : {}), ...(meta?.catalogEnv ? { catalogEnv: meta.catalogEnv } : {}) })
+  const ids = liveIds.length > 0 ? liveIds : (credential.availableModelIds ?? [])
+  const built = buildOAuthModels(auth.id, ids, catalog)
+  if (built.modelIds.length === 0) return { credential, modelIds: [], models: [] }
+  const next: OAuthCredential = { ...credential, availableModelIds: built.modelIds, availableModels: built.models }
+  await setCredential(auth.id, next)
+  return { credential: next, modelIds: built.modelIds, models: built.models }
+}
 export const pickDefaultModel = (models: Array<ProviderModelOptions>): string | undefined => (models.find((m) => m.reasoning === true) ?? models[0])?.id
 export const registerOAuthProvider = async (auth: OAuthAuth, credential: OAuthCredential): Promise<void> => {
   const meta = PROVIDER_META[auth.id]
   if (!meta) throw new Error(`No registration metadata for OAuth provider "${auth.id}"`)
   await setCredential(auth.id, credential)
-  let modelsForDefault: Array<ProviderModelOptions> = credential.availableModels ?? []
-  if (modelsForDefault.length === 0 && credential.availableModelIds !== undefined) {
-    const catalog = meta.catalogId ? await fetchModelsDevProviderById(meta.catalogId) : meta.catalogEnv ? await fetchModelsDevProvider(meta.catalogEnv) : undefined
-    if (catalog) modelsForDefault = selectModelsByIds(catalog, credential.availableModelIds)
-    else if (credential.availableModelIds.length > 0) modelsForDefault = bareModels(credential.availableModelIds)
-  }
-  if (modelsForDefault.length === 0) {
-    const catalog = meta.catalogId ? await fetchModelsDevProviderById(meta.catalogId).catch(() => undefined) : undefined
-    if (catalog) modelsForDefault = modelsFromModelsDev(catalog)
-  }
-  if (modelsForDefault.length === 0) throw new Error(`Could not load ${auth.name} models from the models.dev catalog`)
+  const populated = await populateOAuthModels(auth, credential)
+  if (populated.modelIds.length === 0) throw new Error(`Could not load ${auth.name} models from the models.dev catalog`)
   if (options.harness?.defaultModel) return
-  const defaultModelKey = `${auth.id}/${pickDefaultModel(modelsForDefault)}`
+  const defaultModelKey = `${auth.id}/${pickDefaultModel(populated.models)}`
   const next = await updateSettings({
     harness: { ...options.harness, defaultModel: defaultModelKey },
   })

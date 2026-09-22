@@ -2,10 +2,12 @@ import { getAgent } from '@agent/agents/registry.ts'
 import type { LoopMessage, LoopStats } from '@agent/loop/create-loop.ts'
 import { resolveModelRef } from '@agent/model/resolver.ts'
 import type { TodoItem } from '@agent/tools/flow/todo.ts'
+import { listProviders } from '@auth/oauth-providers.ts'
 import { options, type ProviderModelReasoningEffort } from '@config/options.ts'
 import { RGBA } from '@opentui/core'
 import { fmtCostPreciseBare, fmtMs, fmtTokens, fmtTps } from '@shared/format.ts'
 import { collapseHome } from '@shared/path.ts'
+import { catalogVersion } from '@states/catalog-state.ts'
 import { theme } from '@states/theme-state.ts'
 import { isToolPart, latestTodoItems } from '@tui/components/session/tools/tool-summary.ts'
 import type { LanguageModelUsage } from 'ai'
@@ -58,13 +60,27 @@ export const getAgentColor = (agentId: string | undefined): string | RGBA => {
   }
 }
 
+const fallbackModelLabel = (modelKey: string): string => {
+  const slash = modelKey.indexOf('/')
+  if (slash <= 0) return modelKey
+  const providerId = modelKey.slice(0, slash)
+  const modelId = modelKey.slice(slash + 1)
+  try {
+    const provider = listProviders().find((entry) => entry.id === providerId)
+    const meta = provider?.models.find((model) => model.id === modelId)
+    return `${provider?.name ?? providerId} ${meta?.name ?? modelId}`
+  } catch {
+    return `${providerId} ${modelId}`
+  }
+}
+
 export const getModelLabel = (modelKey: string | undefined): string => {
   if (!modelKey) return '–'
   try {
     const ref = resolveModelRef(modelKey)
     return `${ref.provider.name ?? ref.provider.id} ${ref.modelMeta?.name ?? ref.modelId}`
   } catch {
-    return modelKey
+    return fallbackModelLabel(modelKey)
   }
 }
 
@@ -152,7 +168,11 @@ export const createSessionStatusData = (props: SessionStatusProps): SessionStatu
   const metricsTotal = () => props.statsMetrics
   const costTotal = () => metricsTotal()?.cost
   const performance = () => props.statsPerformance
-  const modelContextSize = () => getModelContextSize(props.modelKey)
+  const catalog = () => catalogVersion()
+  const modelContextSize = () => {
+    catalog()
+    return getModelContextSize(props.modelKey)
+  }
   const contextValue = () => props.statsMetrics?.usage.totalTokens ?? 0
   const contextPercent = () => Math.round((contextValue() / modelContextSize()) * 100)
   const contextColor = () => {
@@ -167,7 +187,10 @@ export const createSessionStatusData = (props: SessionStatusProps): SessionStatu
     activity,
     agentName: () => getAgentName(props.agentId),
     agentColor: () => getAgentColor(props.agentId),
-    modelLabel: () => getModelLabel(props.modelKey),
+    modelLabel: () => {
+      catalog()
+      return getModelLabel(props.modelKey)
+    },
     inputLabel: () => fmtTokens(metricsTotal()?.usage?.inputTokens ?? 0),
     outputLabel: () => fmtTokens(metricsTotal()?.usage.outputTokens ?? 0),
     contextValue,

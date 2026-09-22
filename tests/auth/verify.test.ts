@@ -109,16 +109,17 @@ describe('verifyOAuthCredential', () => {
       expect(result.modelCount).toBe(1)
     }
   })
-  test('reports failure on unauthorized catalog', async () => {
+  test('falls back to the catalog when the live models endpoint is unauthorized', async () => {
     mockFetchFailure(401, 'unauthorized')
     const result = await verifyOAuthCredential(openaiOAuth, credentialForAccess('bad-access'))
-    expect(result.ok).toBe(false)
-    if (!result.ok) expect(result.error).toContain('401')
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.modelIds.length).toBeGreaterThan(0)
   })
-  test('reports failure on empty catalog', async () => {
+  test('falls back to the catalog when the live models endpoint returns no ids', async () => {
     mockFetchJson({ data: [] })
     const result = await verifyOAuthCredential(anthropicOAuth, credentialForAccess('access-3'))
-    expect(result).toEqual({ ok: false, error: 'models catalog was empty' })
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.modelIds.length).toBeGreaterThan(0)
   })
   test('reports ok for provider without catalog check when ids stored', async () => {
     const unknown: OAuthAuth = {

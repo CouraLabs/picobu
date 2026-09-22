@@ -126,7 +126,7 @@ export const AskForm = (props: AskFormProps) => {
       <Show
         when={!readonly()}
         fallback={
-          <box flexDirection="column" gap={1}>
+          <box flexDirection="column" rowGap={1}>
             <Show
               when={wasDismissed()}
               fallback={
@@ -167,7 +167,7 @@ export const AskForm = (props: AskFormProps) => {
             </Show>
           </box>
         }>
-        <box flexDirection="row" gap={1} flexWrap="wrap">
+        <box flexDirection="row" columnGap={1} flexWrap="wrap">
           <For each={props.questions}>
             {(question, index) => (
               <box height={1} paddingX={1} flexShrink={0} backgroundColor={tabBackground(index())} onMouseUp={() => setActive(index())}>
@@ -192,14 +192,14 @@ export const AskForm = (props: AskFormProps) => {
                     return (
                       <box
                         flexDirection="row"
-                        gap={1}
+                        columnGap={1}
                         onMouseUp={() => toggle(questionIndex(), option.answer)}
                         onMouseOver={() => hover(questionIndex(), option.answer, true)}
                         onMouseOut={() => hover(questionIndex(), option.answer, false)}>
                         <text flexShrink={0} fg={checked() ? theme().success : theme().textMuted}>
                           {question.type === 'single' ? (checked() ? `(${icons.circle})` : `( )`) : checked() ? `[${icons.cross}]` : `[ ]`}
                         </text>
-                        <box flexDirection="row" gap={1} flexShrink={1} flexWrap="wrap" minWidth={0}>
+                        <box flexDirection="row" columnGap={1} flexShrink={1} flexWrap="wrap" minWidth={0}>
                           <text fg={hovered().answer === option.answer && hovered().index === questionIndex() ? theme().accent : theme().text}>{option.answer}</text>
                           <Show when={option.answerDescription}>
                             <text fg={theme().textMuted}>— {option.answerDescription}</text>
@@ -249,7 +249,7 @@ export const AskForm = (props: AskFormProps) => {
           )}
         </For>
         <Show when={isLastTab()}>
-          <box flexDirection="column" marginTop={1} gap={1}>
+          <box flexDirection="column" marginTop={1} rowGap={1}>
             <For each={props.questions}>
               {(question, index) => (
                 <box flexDirection="column">
@@ -272,7 +272,7 @@ export const AskForm = (props: AskFormProps) => {
             </For>
           </box>
         </Show>
-        <box flexDirection="row" gap={1} marginTop={1} flexWrap="wrap">
+        <box flexDirection="row" columnGap={1} marginTop={1} flexWrap="wrap">
           <Show when={isLastTab() && allAnswered()}>
             <Button label={`${icons.send} Confirm answers`} isActive onClick={confirm} />
           </Show>

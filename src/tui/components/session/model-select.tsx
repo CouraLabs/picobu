@@ -1,5 +1,5 @@
 import { listProviders } from '@auth/oauth-providers.ts'
-import type { InputRenderable, ScrollBoxRenderable } from '@opentui/core'
+import { type InputRenderable, type ScrollBoxRenderable, TextAttributes } from '@opentui/core'
 import { theme } from '@states/theme-state.ts'
 import { useAppKeyboard } from '@tui/hooks/keyboard-provider.tsx'
 import { useTerminalDims } from '@tui/hooks/terminal-dims.tsx'
@@ -154,22 +154,40 @@ export const ModelSelect = (props: ModelSelectProps) => {
               </box>
               <For each={group.entries}>
                 {(entry) => (
-                  <box flexDirection="row" gap={1} height={1} flexShrink={0} paddingLeft={1} paddingRight={1} backgroundColor={clampedHighlight() === entry.flatIndex ? theme().textMuted : undefined}>
+                  <box
+                    flexDirection="row"
+                    columnGap={1}
+                    height={1}
+                    flexShrink={0}
+                    paddingLeft={1}
+                    paddingRight={1}
+                    backgroundColor={clampedHighlight() === entry.flatIndex ? theme().backgroundElement : undefined}>
                     <Show
                       when={entry.row.key === props.currentModelKey}
                       fallback={
-                        <text fg={theme().backgroundPanel} selectable={false}>
-                          {' '}
-                        </text>
+                        <Show
+                          when={clampedHighlight() === entry.flatIndex}
+                          fallback={
+                            <text fg={theme().backgroundPanel} selectable={false}>
+                              {' '}
+                            </text>
+                          }>
+                          <text fg={theme().text} selectable={false}>
+                            {icons.play}
+                          </text>
+                        </Show>
                       }>
                       <text fg={theme().success} selectable={false}>
                         {icons.success}
                       </text>
                     </Show>
-                    <text fg={entry.row.key === props.currentModelKey ? theme().success : theme().text} selectable={false}>
+                    <text
+                      fg={entry.row.key === props.currentModelKey ? theme().success : theme().text}
+                      selectable={false}
+                      attributes={clampedHighlight() === entry.flatIndex ? TextAttributes.BOLD : undefined}>
                       {entry.row.model}
                     </text>
-                    <text fg={theme().textMuted} selectable={false}>
+                    <text fg={theme().textMuted} selectable={false} attributes={clampedHighlight() === entry.flatIndex ? TextAttributes.BOLD : undefined}>
                       {`· I/O ${entry.row.input} ${entry.row.output} · R/W ${entry.row.cacheRead} ${entry.row.cacheWrite}`}
                     </text>
                   </box>

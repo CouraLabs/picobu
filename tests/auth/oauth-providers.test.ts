@@ -77,6 +77,30 @@ describe('listProviders', () => {
     expect(providers[0]?.models.map((model) => model.id)).toEqual(['m1'])
     expect(providers[0]?.apiKey).toBe('auth:github-copilot')
   })
+  test('shows openai models once the credential carries ids', async () => {
+    await setCredential('openai', {
+      type: 'oauth',
+      access: 'a',
+      refresh: 'r',
+      expires: Date.now() + 3600000,
+      availableModelIds: ['gpt-5.5'],
+      availableModels: [{ id: 'gpt-5.5', name: 'GPT-5.5', context: 400000, output: 128000, supports: ['text'] }],
+    })
+    expect(listProviders().map((provider) => provider.id)).toContain('openai')
+    expect(listModels().map((model) => model.key)).toEqual(['openai/gpt-5.5'])
+  })
+  test('shows anthropic models once the credential carries ids', async () => {
+    await setCredential('anthropic', {
+      type: 'oauth',
+      access: 'a',
+      refresh: 'r',
+      expires: Date.now() + 3600000,
+      availableModelIds: ['claude-opus-4-6'],
+      availableModels: [{ id: 'claude-opus-4-6', name: 'Claude Opus 4.6', context: 200000, output: 64000, supports: ['text'] }],
+    })
+    expect(listProviders().map((provider) => provider.id)).toContain('anthropic')
+    expect(listModels().map((model) => model.key)).toEqual(['anthropic/claude-opus-4-6'])
+  })
   test('hides unavailable models and drops emptied providers', async () => {
     options.providers = [
       {
