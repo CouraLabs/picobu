@@ -292,10 +292,7 @@ export const summarizeToolOutput = (name: string, output: unknown, errorText?: s
     }
     case 'edit': {
       const diff = args && typeof args.diff === 'string' ? args.diff : undefined
-      if (diff === undefined) {
-        const files = args && Array.isArray(args.files) ? args.files : undefined
-        return files ? `${files.length} file(s)` : undefined
-      }
+      if (diff === undefined) return undefined
       const stats = diffStats(diff)
       return `${stats.added}+ ${stats.removed}−`
     }

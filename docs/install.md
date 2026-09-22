@@ -51,7 +51,7 @@ bun run tsc
 bun test tests/<dir>/<file>.test.ts
 ```
 
-Smoke tests need a real model configured in `~/.picobu/options.json`: `bun run src/dev/smoke.ts`. Unit tests need no real keys (fake model keys, tmp dirs).
+Smoke tests need a real model configured in `~/.picobu/options.json`. Unit tests need no real keys (fake model keys, tmp dirs).
 
 ## Troubleshooting installs
 
