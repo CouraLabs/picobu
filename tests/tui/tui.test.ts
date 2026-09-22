@@ -344,8 +344,8 @@ describe('keyboard event delivery', () => {
 
 describe('detailClipWidth', () => {
   test('reserves the spinner column only while running', () => {
-    expect(detailClipWidth(80, false, 4)).toBe(70)
-    expect(detailClipWidth(80, true, 4)).toBe(68)
+    expect(detailClipWidth(80, false, 4)).toBe(68)
+    expect(detailClipWidth(80, true, 4)).toBe(66)
   })
   test('never drops below the eight column floor', () => {
     expect(detailClipWidth(10, false, 40)).toBe(8)

@@ -179,7 +179,7 @@ export const ToolPart = (props: ToolPartProps) => {
         fallback={
           <box
             flexDirection="row"
-            gap={1}
+            columnGap={1}
             onMouseOver={() => setHovered(true)}
             onMouseOut={() => setHovered(false)}
             onMouseUp={(event) => {
@@ -203,7 +203,7 @@ export const ToolPart = (props: ToolPartProps) => {
         }>
         <box
           flexDirection="row"
-          gap={1}
+          columnGap={1}
           flexWrap="wrap"
           onMouseOver={() => setHovered(true)}
           onMouseOut={() => setHovered(false)}
