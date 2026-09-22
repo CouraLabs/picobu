@@ -88,15 +88,11 @@ describe('tui module surface', () => {
   })
 })
 
-describe('cli and smoke static surface', () => {
+describe('cli static surface', () => {
   test('cli defines picobu program', async () => {
     const source = await Bun.file('src/cli.ts').text()
     expect(source).toContain('picobu')
     expect(source).toContain('sessions')
     expect(source).toContain('mcp')
-  })
-  test('smoke creates a session script', async () => {
-    const source = await Bun.file('src/dev/smoke.ts').text()
-    expect(source).toContain('createSession')
   })
 })

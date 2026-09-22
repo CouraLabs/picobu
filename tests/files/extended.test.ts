@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
-import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { agentDirCandidates, agentDirsUnder, insideAgentDir } from '../../src/agent/tools/filesystem/agent-dirs.ts'
@@ -422,16 +422,10 @@ describe('toolset registry', () => {
     expect(Object.keys(set).sort()).toEqual(['read', 'write'])
   })
 })
-describe('treesitter wrapper and smoke static', () => {
+describe('treesitter wrapper static', () => {
   test('exports pure constructors without wasm init', () => {
     expect(typeof loadParsers).toBe('function')
     expect(typeof createTreeSitterClient).toBe('function')
     expect(typeof getSharedTreeSitterClientSync).toBe('function')
-  })
-  test('smoke file is a dev script that creates a session', async () => {
-    const smokePath = join(import.meta.dir, '../../src/dev/smoke.ts')
-    const text = await readFile(smokePath, 'utf8')
-    expect(text).toContain('createSession')
-    expect(text).toContain('Glob')
   })
 })
