@@ -2,8 +2,10 @@
 import { stat } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { autoloadLlmProviders } from '@agent/model/registry.ts'
+import { ALL_PROMPT_FILES, seedPromptFiles } from '@agent/prompts/prompt-files.ts'
 import { SessionManager } from '@agent/sessions/session-manager.ts'
 import { folderKeyFor } from '@agent/sessions/session-paths.ts'
+import { WORKFLOW_PROMPT_FILES } from '@agent/workflows/builtin.ts'
 import { ensureOAuthTokens, listOAuthProviders, oauthAuthById, startLogin } from '@auth/index.ts'
 import { logoutOAuthProvider, registerOAuthProvider } from '@auth/register.ts'
 import { getCredential, initAuth } from '@auth/store.ts'
@@ -286,6 +288,11 @@ const openWorkspace = async (folder: string): Promise<void> => {
 program.action((opts: CliActionOptions) => {
   void (async () => {
     initLogger({ runId: typeof opts.session === 'string' && opts.session ? opts.session : `pid-${process.pid}`, systemDir: options.app.systemDir })
+    try {
+      seedPromptFiles([...ALL_PROMPT_FILES, ...Object.values(WORKFLOW_PROMPT_FILES)])
+    } catch (error) {
+      logError(error, { scope: 'seed-prompts' })
+    }
     if (opts.clearPromptsHistory) {
       const { clearPromptHistory } = await import('@agent/sessions/prompt-history.ts')
       const cleared = clearPromptHistory()

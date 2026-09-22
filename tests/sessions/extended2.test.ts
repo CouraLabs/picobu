@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
+import { readFileSync } from 'node:fs'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -16,12 +17,13 @@ import { folderKeyFor } from '../../src/agent/sessions/session-paths.ts'
 import { deleteSessionCascade, listSessionsFor, listSessionTree } from '../../src/agent/sessions/session-queries.ts'
 import { spawnSubSession } from '../../src/agent/sessions/session-spawn.ts'
 import { listSessions, loadSession, writeSessionFile } from '../../src/agent/sessions/session-store.ts'
-import { executorSubagentMarkdown } from '../../src/agent/subagent/executor.ts'
-import { explorerSubagentMarkdown } from '../../src/agent/subagent/explorer.ts'
-import { reviewerSubAgent } from '../../src/agent/subagent/reviewer.ts'
 import { options } from '../../src/config/options.ts'
 import { initLockDir } from '../../src/shared/lock.ts'
 import { fileToken, nextFileSeq, parseTokenSeqs, retainReferencedFiles } from '../../src/tui/components/session/session-prompt.tsx'
+
+const executorSubagentMarkdown = readFileSync(new URL('../../src/agent/prompts/executor.md', import.meta.url), 'utf8')
+const explorerSubagentMarkdown = readFileSync(new URL('../../src/agent/prompts/explorer.md', import.meta.url), 'utf8')
+const reviewerSubAgent = readFileSync(new URL('../../src/agent/prompts/reviewer.md', import.meta.url), 'utf8')
 
 const originalSystemDir = options.app.systemDir
 function userMessage(id: string, text: string): UIMessage {

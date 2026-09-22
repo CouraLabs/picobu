@@ -1,19 +1,15 @@
 import { createAgent } from '@agent/agents/create-agent.ts'
 import type { AgentCategory, AgentType } from '@agent/agents/types.ts'
 import { listModels } from '@agent/model/resolver.ts'
-import { askMarkdown } from '@agent/prompts/ask.ts'
-import { brainstormMarkdown } from '@agent/prompts/brainstorm.ts'
-import { coderMarkdown } from '@agent/prompts/coder.ts'
-import { persistentMarkdown } from '@agent/prompts/persistent.ts'
-import { planMarkdown } from '@agent/prompts/plan.ts'
+import { AGENT_PROMPT_FILES, readPromptMarkdown } from '@agent/prompts/prompt-files.ts'
 import { type ModelRoleId, options, type ProviderModelReasoningEffort, resolveModelRole } from '@config/options.ts'
 
 export const AGENTS: Record<string, AgentType> = {
-  ask: createAgent(askMarkdown),
-  brainstorm: createAgent(brainstormMarkdown),
-  coder: createAgent(coderMarkdown),
-  'plan-code': createAgent(planMarkdown),
-  persistent: createAgent(persistentMarkdown),
+  ask: createAgent(readPromptMarkdown(AGENT_PROMPT_FILES.ask)),
+  brainstorm: createAgent(readPromptMarkdown(AGENT_PROMPT_FILES.brainstorm)),
+  coder: createAgent(readPromptMarkdown(AGENT_PROMPT_FILES.coder)),
+  'plan-code': createAgent(readPromptMarkdown(AGENT_PROMPT_FILES.plan)),
+  persistent: createAgent(readPromptMarkdown(AGENT_PROMPT_FILES.persistent)),
 }
 
 export const DEFAULT_AGENT_ROLE: Record<string, ModelRoleId> = {

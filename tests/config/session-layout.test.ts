@@ -27,7 +27,7 @@ import {
 const DEFAULT_STATUS_LINES: SessionStatusLayout['lines'] = [
   ['agent', 'separator', 'model', 'separator', 'effort', 'separator', 'run-state', 'separator', 'loading', 'session-title'],
   ['ttft', 'tps', 'separator', 'input', 'output', 'cache', 'cost'],
-  ['sandbox', 'separator', 'msgs', 'tools', 'separator', 'queue', 'separator', 'jobs'],
+  ['sandbox', 'separator', 'msgs', 'tools', 'separator', 'queue', 'separator', 'jobs', 'separator', 'todo'],
   ['provider-items'],
 ]
 
@@ -38,7 +38,7 @@ describe('defaults', () => {
     expect(DEFAULT_SESSION_STATUS_LAYOUT.rowGap).toBe(0)
   })
   test('header default is a single flat line', () => {
-    expect(DEFAULT_SESSION_HEADER_LAYOUT.lines).toEqual([['workspace', 'separator', 'context', 'separator', 'notification']])
+    expect(DEFAULT_SESSION_HEADER_LAYOUT.lines).toEqual([['workspace', 'notification', 'context']])
     expect(DEFAULT_SESSION_HEADER_LAYOUT.columnGap).toBe(1)
     expect(DEFAULT_SESSION_HEADER_LAYOUT.rowGap).toBe(0)
   })

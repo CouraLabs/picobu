@@ -1,4 +1,4 @@
-export const debuggerSubagentMarkdown = `---
+---
 name: Debugger
 description: Systematic debugging agent: root-causes a failure before fixing it. Use for test failures, bugs, or unexpected behavior.
 tools: read, grep, glob, shell, edit, write
@@ -33,4 +33,3 @@ Never end on a tool call.
 
 Input:
 <SPAWN_PROMPT>
-`
