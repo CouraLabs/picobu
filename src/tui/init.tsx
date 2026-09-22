@@ -15,6 +15,7 @@ import { bumpCatalog } from '@states/catalog-state.ts'
 import { theme } from '@states/theme-state.ts'
 import { pushToast } from '@states/toast.state.ts'
 import { KeyboardProvider, setKeyboardReleasesSupported } from '@tui/hooks/keyboard-provider.tsx'
+import { startUpdateCheck } from '@tui/hooks/update-check.ts'
 import { App } from '@tui/layout/app.tsx'
 import { closeMessage } from '@tui/themes/logo.ts'
 import { getSharedTreeSitterClient, registerParsers } from '@wrappers/treesitter-wrapper.ts'
@@ -233,6 +234,7 @@ const startTui = async (options: TuiAppOptions, unguard: (() => void) | undefine
       bunVersion: Bun.version,
     })
   }
+  startUpdateCheck()
   const trackStage = async (stage: string, task: Promise<unknown>): Promise<StartupStageFailure | undefined> => {
     try {
       await task
