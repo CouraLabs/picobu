@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
+import { afterEach, beforeEach, describe, expect, spyOn, test } from 'bun:test'
 import { spawnSync } from 'node:child_process'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { mkdtemp, rm } from 'node:fs/promises'
@@ -159,6 +159,22 @@ describe('mcp manager snapshot without connecting', () => {
 describe('mcp auth redirect', () => {
   test('uses localhost callback with default port', () => {
     expect(MCP_REDIRECT_URL).toBe('http://localhost:19888/callback')
+  })
+  test('prints the authorization URL instead of opening a browser', async () => {
+    const logs: Array<string> = []
+    const logSpy = spyOn(console, 'log').mockImplementation((...args: Array<unknown>) => {
+      logs.push(args.map((arg) => String(arg)).join(' '))
+    })
+    const spawnSpy = spyOn(Bun, 'spawn')
+    const { provider } = createMcpAuthProvider({ id: 'srv', type: 'http', url: 'https://api.example.com/mcp' })
+    const redirect = provider.redirectToAuthorization
+    if (!redirect) throw new Error('missing redirectToAuthorization')
+    await redirect(new URL('https://api.example.com/auth?x=1'))
+    logSpy.mockRestore()
+    spawnSpy.mockRestore()
+    expect(logs.some((line) => line.includes('https://api.example.com/auth?x=1'))).toBe(true)
+    expect(logs.some((line) => line.includes('Open this URL in your browser'))).toBe(true)
+    expect(spawnSpy).not.toHaveBeenCalled()
   })
   test('allows same origin authorization server', () => {
     const { provider } = createMcpAuthProvider({ id: 't', type: 'http', url: 'https://api.example.com/mcp' })

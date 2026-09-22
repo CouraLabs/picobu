@@ -3,7 +3,6 @@ import { auth, type OAuthClientInformation, type OAuthClientMetadata, type OAuth
 import { options } from '@config/options.ts'
 import type { McpServerOptions } from '@integrations/mcp/config.ts'
 import { acquireLock } from '@shared/lock.ts'
-import { openInBrowser } from '@shared/open-url.ts'
 
 const REFRESH_GRACE_MS = 5 * 60 * 1000
 
@@ -139,7 +138,7 @@ export const createMcpAuthProvider = (server: McpServerOptions): { provider: OAu
     },
     async redirectToAuthorization(authorizationUrl) {
       lastAuthorizationUrl = authorizationUrl
-      openInBrowser(authorizationUrl.toString())
+      console.log(`Open this URL in your browser to authorize MCP server "${serverId}":\n${authorizationUrl}`)
     },
     async saveCodeVerifier(codeVerifier) {
       verifier = codeVerifier
@@ -196,7 +195,6 @@ export const startMcpLogin = async (server: McpServerOptions): Promise<void> => 
   }
   const authorizationUrl = lastAuthorizationUrl()
   if (!authorizationUrl) throw new Error(`MCP login for "${server.id}" produced no authorization URL`)
-  console.log(`Open this URL to authorize ${server.id}:\n${authorizationUrl}`)
   const callback = await waitForCallback()
   const second = await auth(provider, {
     serverUrl,
