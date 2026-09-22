@@ -79,7 +79,7 @@ export const App = (props: { sessionId?: string } = {}) => {
     openHelpDialog()
   })
 
-  const pages = [{ id: 'app-tab-session', label: 'session' }]
+  const pages = [{ id: 'app-tab-session', label: 'Coding' }]
 
   const isSession = createMemo(() => page() === 'app-tab-session')
 

@@ -3,10 +3,7 @@ import { join } from 'node:path'
 import { createAgent, NO_TOOLS } from '@agent/agents/create-agent.ts'
 import type { AgentType } from '@agent/agents/types.ts'
 import { parseMarkdownFile } from '@agent/markdown/markdown-parser.ts'
-import { debuggerSubagentMarkdown } from '@agent/subagent/debugger.ts'
-import { executorSubagentMarkdown } from '@agent/subagent/executor.ts'
-import { explorerSubagentMarkdown } from '@agent/subagent/explorer.ts'
-import { reviewerSubAgent } from '@agent/subagent/reviewer.ts'
+import { readPromptMarkdown, SUBAGENT_PROMPT_FILES } from '@agent/prompts/prompt-files.ts'
 import { options } from '@config/options.ts'
 
 export const INTERACTIVE_FLOW_TOOLS: ReadonlyArray<string> = ['ask', 'plan-write', 'plan-exit']
@@ -28,10 +25,10 @@ export const SUBAGENT_RULES = `## Subagent Rules
 - Report contract: lead with a status line — DONE, DONE_WITH_CONCERNS, NEEDS_CONTEXT, or BLOCKED — followed by what changed and the evidence (commands run, results observed). A claim of success without evidence is not a report.`
 
 export const BUILT_IN_SUBAGENTS: Record<string, AgentType> = {
-  executor: createAgent(executorSubagentMarkdown),
-  explorer: createAgent(explorerSubagentMarkdown),
-  reviewer: createAgent(reviewerSubAgent),
-  debugger: createAgent(debuggerSubagentMarkdown),
+  executor: createAgent(readPromptMarkdown(SUBAGENT_PROMPT_FILES.executor)),
+  explorer: createAgent(readPromptMarkdown(SUBAGENT_PROMPT_FILES.explorer)),
+  reviewer: createAgent(readPromptMarkdown(SUBAGENT_PROMPT_FILES.reviewer)),
+  debugger: createAgent(readPromptMarkdown(SUBAGENT_PROMPT_FILES.debugger)),
 }
 
 const subagentsDir = (cwd: string): string => join(cwd, '.agents', 'agents')

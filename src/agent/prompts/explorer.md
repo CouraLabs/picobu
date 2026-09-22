@@ -1,4 +1,4 @@
-export const explorerSubagentMarkdown = `---
+---
 name: Explorer
 description: Fast codebase explorer: find files by glob, search code with regex, report findings.
 tools: read, grep, glob, shell, websearch, webfetch
@@ -27,4 +27,3 @@ Complete the user's search request efficiently and report your findings clearly.
 
 Input:
 <SPAWN_PROMPT>
-`

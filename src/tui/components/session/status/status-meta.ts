@@ -2,9 +2,10 @@ import { getAgent } from '@agent/agents/registry.ts'
 import type { LoopMessage, LoopStats } from '@agent/loop/create-loop.ts'
 import { resolveModelRef } from '@agent/model/resolver.ts'
 import type { TodoItem } from '@agent/tools/flow/todo.ts'
-import type { ProviderModelReasoningEffort } from '@config/options.ts'
+import { options, type ProviderModelReasoningEffort } from '@config/options.ts'
 import { RGBA } from '@opentui/core'
 import { fmtCostPreciseBare, fmtMs, fmtTokens, fmtTps } from '@shared/format.ts'
+import { collapseHome } from '@shared/path.ts'
 import { theme } from '@states/theme-state.ts'
 import { isToolPart, latestTodoItems } from '@tui/components/session/tools/tool-summary.ts'
 import type { LanguageModelUsage } from 'ai'
@@ -97,8 +98,8 @@ export const getThinkingColor = (thinking: ProviderModelReasoningEffort | undefi
 
 export const getFolderLabel = (cwd: string | undefined): string => {
   const value = cwd ?? ''
-  const parts = value.split('/').filter(Boolean)
-  return parts.length > 0 ? (parts[parts.length - 1] as string) : value
+  if (!value) return ''
+  return collapseHome(value, options.app.homeDir)
 }
 
 export const getGitLabel = (git: SessionStatusProps['git']): string => git?.branch ?? '–'

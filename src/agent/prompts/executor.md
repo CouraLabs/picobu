@@ -1,4 +1,4 @@
-export const executorSubagentMarkdown = `---
+---
 name: Executor
 description: Single-task implementer for disciplined execution of one task with TDD and a status report. Dispatch sequentially; the caller reviews between tasks.
 tools: read, grep, glob, write, edit, apply_patch, shell, websearch, webfetch
@@ -30,4 +30,3 @@ Never end on a tool call.
 
 Input:
 <SPAWN_PROMPT>
-`
