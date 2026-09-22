@@ -7,7 +7,7 @@ An agent is a system prompt plus a tool allow-list, running on the `flash` model
 | Agent | Role | Tools |
 | --- | --- | --- |
 | `ask` | Fast Q&A; cannot edit files or execute anything | `read`, `grep`, `glob`, `repo-map`, `skill`, `rule`, `websearch`, `webfetch`, `ask`, `spawn` |
-| `coder` | Default coding loop: edit, run, verify | `read`, `write`, `edit`, `apply_patch`, `glob`, `grep`, `repo-map`, `shell`, `task_output`, `task_stop`, `ask`, `todo`, `skill`, `rule`, `spawn`, `websearch`, `webfetch` |
+| `coder` | Default coding loop: edit, run, verify | `read`, `write`, `edit`, `glob`, `grep`, `repo-map`, `shell`, `task_output`, `task_stop`, `ask`, `todo`, `skill`, `rule`, `spawn`, `websearch`, `webfetch` |
 | `plan-code` (display name **Plan**) | Deep planning + implementation handoff; no code edits until the plan is approved | `read`, `grep`, `glob`, `repo-map`, `skill`, `rule`, `ask`, `plan-write`, `plan-exit`, `spawn` |
 | `persistent` | Fresh, stateless runs per prompt; ships with the WhatsApp integration | `wwp-msg`, `wwp-today`, `rule` |
 

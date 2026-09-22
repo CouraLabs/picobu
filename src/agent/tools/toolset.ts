@@ -1,4 +1,3 @@
-import { createApplyPatchTool } from '@agent/tools/filesystem/apply-patch.ts'
 import { createEditTool } from '@agent/tools/filesystem/edit.ts'
 import { globTool } from '@agent/tools/filesystem/glob.ts'
 import { grepTool } from '@agent/tools/filesystem/grep.ts'
@@ -47,7 +46,6 @@ export function buildToolSet(ctx: ToolSetContext = {}) {
     wrapTool(readTool),
     wrapTool(createWriteTool(ctx.checkpointsPath)),
     wrapTool(createEditTool(ctx.checkpointsPath)),
-    wrapTool(createApplyPatchTool(ctx.checkpointsPath)),
     wrapTool(globTool),
     wrapTool(grepTool),
     wrapTool(repoMapTool),

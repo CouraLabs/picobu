@@ -4,7 +4,6 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { JobTracker } from '../../src/agent/sessions/session-jobs.ts'
 import { spawnSubSession } from '../../src/agent/sessions/session-spawn.ts'
-import { createApplyPatchTool } from '../../src/agent/tools/filesystem/apply-patch.ts'
 import { createEditTool } from '../../src/agent/tools/filesystem/edit.ts'
 import { globTool } from '../../src/agent/tools/filesystem/glob.ts'
 import { grepTool } from '../../src/agent/tools/filesystem/grep.ts'
@@ -131,13 +130,13 @@ describe('grep include and glob validation', () => {
   test('grep include filters by file glob', async () => {
     await Bun.write(join(dir, 'keep.ts'), 'needle here')
     await Bun.write(join(dir, 'skip.md'), 'needle here')
-    const res = await grepTool.handler({ pattern: 'needle', include: '*.ts' }, { experimental_sandbox: sb(dir) })
+    const res = await grepTool.handler({ pattern: 'needle', path: '.', include: '*.ts' }, { experimental_sandbox: sb(dir) })
     expect(res.content).toContain('keep.ts')
     expect(res.content).not.toContain('skip.md')
   })
   test('glob rejects file paths', async () => {
     await Bun.write(join(dir, 'plain.txt'), 'x')
-    await expect(globTool.handler({ pattern: '**/*.txt', cwd: 'plain.txt' }, { experimental_sandbox: sb(dir) })).rejects.toThrow('must be a directory')
+    await expect(globTool.handler({ pattern: '**/*.txt', path: 'plain.txt' }, { experimental_sandbox: sb(dir) })).rejects.toThrow('must be a directory')
   })
 })
 
@@ -214,38 +213,6 @@ describe('spawn args', () => {
         { parentId: 'p', subagent: 'explorer', prompt: 'go', depth: 0, taskId: 'nope' },
       ),
     ).rejects.toThrow('Unknown taskId')
-  })
-})
-
-describe('apply_patch', () => {
-  test('updates a file via unified diff', async () => {
-    await Bun.write(join(dir, 'target.txt'), 'line1\nline2\nline3\n')
-    const tool = createApplyPatchTool()
-    const patch = '--- a/target.txt\n+++ b/target.txt\n@@ -1,3 +1,3 @@\n line1\n-line2\n+LINE2\n line3\n'
-    const res = await tool.handler({ patch }, { experimental_sandbox: sb(dir) })
-    expect(res.files).toEqual(['target.txt'])
-    expect(await Bun.file(join(dir, 'target.txt')).text()).toBe('line1\nLINE2\nline3\n')
-  })
-  test('adds and deletes files atomically', async () => {
-    await Bun.write(join(dir, 'gone.txt'), 'bye\n')
-    const tool = createApplyPatchTool()
-    const patch = '--- /dev/null\n+++ b/fresh.txt\n@@ -0,0 +1 @@\n+hello\n--- a/gone.txt\n+++ /dev/null\n@@ -1 +0,0 @@\n-bye\n'
-    const res = await tool.handler({ patch }, { experimental_sandbox: sb(dir) })
-    expect(res.files).toContain('fresh.txt')
-    expect(await Bun.file(join(dir, 'fresh.txt')).text()).toBe('hello\n')
-    expect(await Bun.file(join(dir, 'gone.txt')).exists()).toBe(false)
-  })
-  test('bad hunks fail verification without writing', async () => {
-    await Bun.write(join(dir, 'safe.txt'), 'untouched\n')
-    const tool = createApplyPatchTool()
-    const patch = '--- a/safe.txt\n+++ b/safe.txt\n@@ -1 +1 @@\n-expected-context\n+replacement\n'
-    await expect(tool.handler({ patch }, { experimental_sandbox: sb(dir) })).rejects.toThrow('verification failed')
-    expect(await Bun.file(join(dir, 'safe.txt')).text()).toBe('untouched\n')
-  })
-  test('escape outside root is rejected', async () => {
-    const tool = createApplyPatchTool()
-    const patch = '--- /dev/null\n+++ b/../evil.txt\n@@ -0,0 +1 @@\n+x\n'
-    await expect(tool.handler({ patch }, { experimental_sandbox: sb(dir) })).rejects.toThrow('escapes')
   })
 })
 

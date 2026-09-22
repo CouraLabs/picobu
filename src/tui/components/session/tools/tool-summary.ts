@@ -178,11 +178,6 @@ export const summarizeToolInput = (name: string, input: unknown): string => {
     case 'write':
     case 'edit':
       return field('path') ?? '?'
-    case 'apply_patch': {
-      const files = args.files
-      if (Array.isArray(files)) return `${files.length} file(s)`
-      return 'patch'
-    }
     case 'glob':
     case 'grep':
       return field('pattern') ?? '?'
@@ -295,8 +290,7 @@ export const summarizeToolOutput = (name: string, output: unknown, errorText?: s
       const stats = diffStats(diff)
       return `${stats.added}+ ${stats.removed}−`
     }
-    case 'edit':
-    case 'apply_patch': {
+    case 'edit': {
       const diff = args && typeof args.diff === 'string' ? args.diff : undefined
       if (diff === undefined) {
         const files = args && Array.isArray(args.files) ? args.files : undefined

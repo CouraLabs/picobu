@@ -7,7 +7,7 @@ import { createEditTool } from '../../src/agent/tools/filesystem/edit.ts'
 import { GlobToolArgsSchema, globTool } from '../../src/agent/tools/filesystem/glob.ts'
 import { GrepToolArgsSchema, grepTool } from '../../src/agent/tools/filesystem/grep.ts'
 import { ReadToolArgsSchema, readTool } from '../../src/agent/tools/filesystem/read.ts'
-import { createShellTool, ShellToolArgsSchema, ShellToolOutputSchema } from '../../src/agent/tools/filesystem/shell.ts'
+import { createShellTool, progressClipWidth, ShellToolArgsSchema, ShellToolOutputSchema, truncateLine } from '../../src/agent/tools/filesystem/shell.ts'
 import { createWriteTool, WriteToolArgsSchema } from '../../src/agent/tools/filesystem/write.ts'
 import { createLocalSandboxSession, sandboxRoot, shellSpec } from '../../src/agent/tools/sandbox.ts'
 import { buildToolSet } from '../../src/agent/tools/toolset.ts'
@@ -100,42 +100,45 @@ describe('glob and grep', () => {
   afterEach(async () => {
     await rm(dir, { recursive: true, force: true })
   })
-  test('glob schema requires pattern', () => {
-    expect(GlobToolArgsSchema.safeParse({ pattern: '**/*.txt' }).success).toBe(true)
-    expect(GlobToolArgsSchema.safeParse({}).success).toBe(false)
+  test('glob schema requires pattern and path', () => {
+    expect(GlobToolArgsSchema.safeParse({ pattern: '**/*.txt', path: '.' }).success).toBe(true)
+    expect(GlobToolArgsSchema.safeParse({ pattern: '**/*.txt' }).success).toBe(false)
+    expect(GlobToolArgsSchema.safeParse({ path: '.' }).success).toBe(false)
+    expect(GlobToolArgsSchema.safeParse({ pattern: '**/*.txt', path: '' }).success).toBe(false)
   })
   test('glob finds txt files in tmp dir', async () => {
     const signal = new AbortController().signal
-    const out = await globTool.handler({ pattern: '**/*.txt' }, { experimental_sandbox: { root: dir } as never, abortSignal: signal })
+    const out = await globTool.handler({ pattern: '**/*.txt', path: '.' }, { experimental_sandbox: { root: dir } as never, abortSignal: signal })
     const lines = out.split('\n').filter(Boolean)
     expect(lines).toContain('a.txt')
     expect(lines).toContain(join('sub', 'c.txt'))
     expect(lines).not.toContain('b.md')
   })
-  test('grep schema requires non-empty pattern', () => {
-    expect(GrepToolArgsSchema.safeParse({ pattern: 'hello' }).success).toBe(true)
-    expect(GrepToolArgsSchema.safeParse({ pattern: '' }).success).toBe(false)
+  test('grep schema requires non-empty pattern and path', () => {
+    expect(GrepToolArgsSchema.safeParse({ pattern: 'hello', path: '.' }).success).toBe(true)
+    expect(GrepToolArgsSchema.safeParse({ pattern: 'hello' }).success).toBe(false)
+    expect(GrepToolArgsSchema.safeParse({ pattern: '', path: '.' }).success).toBe(false)
     expect(GrepToolArgsSchema.safeParse({}).success).toBe(false)
   })
   test('grep finds matches in tmp dir', async () => {
     const signal = new AbortController().signal
-    const res = await grepTool.handler({ pattern: 'hello' }, { experimental_sandbox: { root: dir } as never, abortSignal: signal })
+    const res = await grepTool.handler({ pattern: 'hello', path: '.' }, { experimental_sandbox: { root: dir } as never, abortSignal: signal })
     expect(res.content).toContain('hello world')
     expect(res.content).toContain('hello again')
     expect(res.filetype).toBe('text')
   })
   test('grep reports no matches', async () => {
-    const res = await grepTool.handler({ pattern: 'zzz-no-such-token-zzz' }, { experimental_sandbox: { root: dir } as never })
+    const res = await grepTool.handler({ pattern: 'zzz-no-such-token-zzz', path: '.' }, { experimental_sandbox: { root: dir } as never })
     expect(res.content).toContain('No matches')
   })
   test('grep caps output at limit with footer', async () => {
     for (let i = 0; i < 10; i++) await Bun.write(join(dir, `m${i}.txt`), 'hello match')
-    const res = await grepTool.handler({ pattern: 'hello', limit: 2 }, { experimental_sandbox: { root: dir } as never })
+    const res = await grepTool.handler({ pattern: 'hello', path: '.', limit: 2 }, { experimental_sandbox: { root: dir } as never })
     expect(res.content).toContain('Results truncated to 2')
   })
   test('glob caps output at limit with footer', async () => {
     for (let i = 0; i < 10; i++) await Bun.write(join(dir, `g${i}.txt`), 'x')
-    const out = await globTool.handler({ pattern: '**/*.txt', limit: 3 }, { experimental_sandbox: { root: dir } as never })
+    const out = await globTool.handler({ pattern: '**/*.txt', path: '.', limit: 3 }, { experimental_sandbox: { root: dir } as never })
     const lines = out.split('\n').filter(Boolean)
     expect(lines.length).toBe(4)
     expect(out).toContain('Results truncated to 3')
@@ -146,10 +149,10 @@ describe('glob and grep', () => {
     await mkdir(join(dir, 'ignored-dir'), { recursive: true })
     await Bun.write(join(dir, 'ignored-dir', 'inner.txt'), 'hello inner')
     await Bun.$`git init -q`.cwd(dir).quiet()
-    const res = await grepTool.handler({ pattern: 'hello' }, { experimental_sandbox: { root: dir } as never })
+    const res = await grepTool.handler({ pattern: 'hello', path: '.' }, { experimental_sandbox: { root: dir } as never })
     expect(res.content).not.toContain('ignored.txt')
     expect(res.content).not.toContain('inner.txt')
-    const out = await globTool.handler({ pattern: '**/*.txt' }, { experimental_sandbox: { root: dir } as never })
+    const out = await globTool.handler({ pattern: '**/*.txt', path: '.' }, { experimental_sandbox: { root: dir } as never })
     expect(out).not.toContain('ignored.txt')
     expect(out).not.toContain('inner.txt')
   })
@@ -169,6 +172,18 @@ describe('shell tool', () => {
     expect(ShellToolArgsSchema.safeParse({}).success).toBe(false)
     expect(ShellToolArgsSchema.safeParse({ command: 'echo hi', timeout: 0 }).success).toBe(false)
     expect(ShellToolArgsSchema.safeParse({ command: 'echo hi', timeout: 601 }).success).toBe(false)
+  })
+  test('progress clip width follows terminal columns', () => {
+    expect(progressClipWidth(120)).toBe(114)
+    expect(progressClipWidth(200)).toBe(194)
+    expect(progressClipWidth(undefined)).toBe(120)
+    expect(progressClipWidth(0)).toBe(120)
+    expect(progressClipWidth(10)).toBe(20)
+  })
+  test('truncateLine clips to max with an ellipsis', () => {
+    expect(truncateLine('x'.repeat(200), 114)).toHaveLength(114)
+    expect(truncateLine('x'.repeat(200), 114).endsWith('…')).toBe(true)
+    expect(truncateLine('short', 114)).toBe('short')
   })
   test('output schema accepts string and progress', () => {
     expect(ShellToolOutputSchema.safeParse('hi').success).toBe(true)
@@ -370,7 +385,7 @@ describe('toolset registry', () => {
     const names = buildToolSet({})
       .getTools()
       .map((t) => t.name)
-    for (const want of ['read', 'write', 'edit', 'apply_patch', 'glob', 'grep', 'shell', 'skill', 'rule']) {
+    for (const want of ['read', 'write', 'edit', 'glob', 'grep', 'shell', 'skill', 'rule']) {
       expect(names).toContain(want)
     }
     expect(names).not.toContain('ask')
