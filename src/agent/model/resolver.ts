@@ -1,3 +1,4 @@
+import { withResponsesFallback } from '@agent/model/openai-fallback.ts'
 import { headersForProviderId } from '@agent/model/providers/index.ts'
 import { createAmazonBedrock } from '@ai-sdk/amazon-bedrock'
 import { createAnthropic } from '@ai-sdk/anthropic'
@@ -14,6 +15,7 @@ import { createOpenResponses } from '@ai-sdk/open-responses'
 import { createOpenAI } from '@ai-sdk/openai'
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import { createPerplexity } from '@ai-sdk/perplexity'
+import type { LanguageModelV4 } from '@ai-sdk/provider'
 import { createTogetherAI } from '@ai-sdk/togetherai'
 import { createVercel } from '@ai-sdk/vercel'
 import { createXai } from '@ai-sdk/xai'
@@ -115,15 +117,22 @@ export const createModelInstance = (provider: ProviderOptions, modelId: string, 
   const baseUrl = provider.id === 'github-copilot' && npm === '@ai-sdk/anthropic' && goBaseUrl && !goBaseUrl.replace(/\/$/, '').endsWith('/v1') ? `${goBaseUrl.replace(/\/$/, '')}/v1` : goBaseUrl
   const headers = headersForProvider(provider, opts?.sessionId ? { sessionId: opts.sessionId } : undefined)
   const isCopilot = provider.id === 'github-copilot'
+  const createOpenAIModel = (mode: 'responses' | 'chat'): LanguageModelV4 => {
+    const instance = createOpenAI({ baseURL: baseUrl, apiKey, headers })
+    if (mode === 'responses') return instance.responses(modelId)
+    return withResponsesFallback(instance(modelId), () => instance.chat(modelId), {
+      onFallback: () => console.error('picobu: OpenAI key is missing the api.responses.write scope; falling back to the Chat Completions API.'),
+    })
+  }
   switch (npm) {
     case '@ai-sdk/anthropic':
       if (isCopilot) return createAnthropic({ baseURL: baseUrl, authToken: apiKey, headers })(modelId)
       return createAnthropic({ baseURL: baseUrl, apiKey, headers })(modelId)
     case '@ai-sdk/openai':
       if (provider.type === 'openai-responses') return createOpenResponses({ url: baseUrl ?? '', name: provider.name, apiKey, headers })(modelId)
-      if (isOpencodeGoProvider(provider)) return createOpenAI({ baseURL: baseUrl, apiKey, headers }).responses(modelId)
-      if (isCopilot) return createOpenAI({ baseURL: baseUrl, apiKey, headers }).responses(modelId)
-      return createOpenAI({ baseURL: baseUrl, apiKey, headers })(modelId)
+      if (isOpencodeGoProvider(provider)) return createOpenAIModel('responses')
+      if (isCopilot) return createOpenAIModel('responses')
+      return createOpenAIModel('chat')
     case '@ai-sdk/google':
       return createGoogleGenerativeAI({ baseURL: baseUrl, apiKey, headers })(modelId)
     case '@ai-sdk/google-vertex':
@@ -159,8 +168,8 @@ export const createModelInstance = (provider: ProviderOptions, modelId: string, 
   }
   switch (provider.type) {
     case 'openai':
-      if (isCopilot) return createOpenAI({ baseURL: baseUrl, apiKey, headers }).responses(modelId)
-      return createOpenAI({ baseURL: baseUrl, apiKey, headers })(modelId)
+      if (isCopilot) return createOpenAIModel('responses')
+      return createOpenAIModel('chat')
     case 'anthropic':
       if (isCopilot) return createAnthropic({ baseURL: baseUrl, authToken: apiKey, headers })(modelId)
       return createAnthropic({ baseURL: baseUrl, apiKey, headers })(modelId)
