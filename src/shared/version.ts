@@ -23,6 +23,15 @@ export const bumpVersion = (current: string, kind: VersionKind): string => {
   return `1.${parsed.minor}.${parsed.patch + 1}`
 }
 
+export const compareVersions = (a: string, b: string): number => {
+  const left = parseVersion(a)
+  const right = parseVersion(b)
+  if (left.major !== right.major) return left.major < right.major ? -1 : 1
+  if (left.minor !== right.minor) return left.minor < right.minor ? -1 : 1
+  if (left.patch !== right.patch) return left.patch < right.patch ? -1 : 1
+  return 0
+}
+
 export const getVersion = (): string => {
   if (cached) return cached
   const parsed = parseVersion(String((pkg as { version?: unknown }).version ?? ''))

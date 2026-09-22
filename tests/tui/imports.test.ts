@@ -20,8 +20,10 @@ import { PlanReview } from '../../src/tui/components/session/tools/plan-review.t
 import { TodoList } from '../../src/tui/components/session/tools/todo-list.tsx'
 import { ToolPart } from '../../src/tui/components/session/tools/tool-part.tsx'
 import { Spinner } from '../../src/tui/components/spinner.tsx'
+import { openUpdateDialog, UpdateDialog } from '../../src/tui/components/update-dialog.tsx'
 import { getClipboardService, setClipboardService } from '../../src/tui/hooks/clipboard.state.ts'
 import { ClipboardProvider } from '../../src/tui/hooks/clipboard-provider.tsx'
+import { maybePromptForUpdate, startUpdateCheck } from '../../src/tui/hooks/update-check.ts'
 import { runTui } from '../../src/tui/init.tsx'
 import { App } from '../../src/tui/layout/app.tsx'
 import { Tab } from '../../src/tui/layout/tab.tsx'
@@ -72,12 +74,16 @@ describe('tui module surface', () => {
       App,
       SessionPage,
       ClipboardProvider,
+      UpdateDialog,
     ]) {
       expect(typeof component).toBe('function')
     }
     expect(typeof openMessageActions).toBe('function')
     expect(typeof messageText).toBe('function')
     expect(typeof openStatusLayoutDialog).toBe('function')
+    expect(typeof openUpdateDialog).toBe('function')
+    expect(typeof maybePromptForUpdate).toBe('function')
+    expect(typeof startUpdateCheck).toBe('function')
     expect(typeof runTui).toBe('function')
   })
 })
