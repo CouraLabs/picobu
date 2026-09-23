@@ -10,7 +10,7 @@ export interface ToolStatusIconProps {
 export const ToolStatusIcon = (props: ToolStatusIconProps) => (
   <Show when={props.running}>
     <box flexShrink={0}>
-      <spinner name="toggle3" color={props.color} />
+      <spinner name="arc" color={props.color} />
     </box>
   </Show>
 )

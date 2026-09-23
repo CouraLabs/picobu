@@ -400,7 +400,7 @@ describe('toolset registry', () => {
       const names = buildToolSet({ todoFilePath: join(dir, 'todos.json'), sessionId: 's1', spawn: { manager: fake as never, parentId: 'p', depth: 0 } })
         .getTools()
         .map((t) => t.name)
-      for (const want of ['todo', 'ask', 'plan-exit', 'plan-write', 'spawn']) {
+      for (const want of ['todo', 'ask', 'grill-exit', 'plan-exit', 'plan-write', 'spawn']) {
         expect(names).toContain(want)
       }
     } finally {
@@ -415,6 +415,7 @@ describe('toolset registry', () => {
     expect(names).not.toContain('ask')
     expect(names).not.toContain('plan-write')
     expect(names).not.toContain('plan-exit')
+    expect(names).not.toContain('grill-exit')
     expect(names).toContain('spawn')
   })
   test('getToolSet returns keyed entries', () => {

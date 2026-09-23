@@ -6,7 +6,7 @@ import { type ModelRoleId, options, type ProviderModelReasoningEffort, resolveMo
 
 export const AGENTS: Record<string, AgentType> = {
   ask: createAgent(readPromptMarkdown(AGENT_PROMPT_FILES.ask)),
-  brainstorm: createAgent(readPromptMarkdown(AGENT_PROMPT_FILES.brainstorm)),
+  grill: createAgent(readPromptMarkdown(AGENT_PROMPT_FILES.grill)),
   coder: createAgent(readPromptMarkdown(AGENT_PROMPT_FILES.coder)),
   'plan-code': createAgent(readPromptMarkdown(AGENT_PROMPT_FILES.plan)),
   persistent: createAgent(readPromptMarkdown(AGENT_PROMPT_FILES.persistent)),
@@ -14,7 +14,7 @@ export const AGENTS: Record<string, AgentType> = {
 
 export const DEFAULT_AGENT_ROLE: Record<string, ModelRoleId> = {
   ask: 'flash',
-  brainstorm: 'heavy',
+  grill: 'heavy',
   coder: 'flash',
   'plan-code': 'heavy',
 }

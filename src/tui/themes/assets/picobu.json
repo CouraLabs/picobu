@@ -8,39 +8,41 @@
     "picobuFunction": "#FFC799",
     "picobuString": "#99FFE4",
     "picobuNumber": "#FFC799",
-    "picobuError": "#FF8080",
-    "picobuWarning": "#FFC799",
-    "picobuSuccess": "#99FFE4",
+    "picobuError": "#F38BA8",
+    "picobuWarning": "#F9E2AF",
+    "picobuSuccess": "#A6E3A1",
+    "picobuInfo": "#89B4FA",
+    "picobuAccent": "#C9A9FF",
     "picobuMuted": "#A0A0A0"
   },
   "theme": {
     "primary": {
-      "dark": "#FFC799",
+      "dark": "picobuFunction",
       "light": "#C7461A"
     },
     "secondary": {
-      "dark": "#99FFE4",
+      "dark": "picobuString",
       "light": "#12806A"
     },
     "accent": {
-      "dark": "#FFC799",
-      "light": "#C7461A"
+      "dark": "picobuAccent",
+      "light": "#7C4DFF"
     },
     "error": {
       "dark": "picobuError",
-      "light": "#C84242"
+      "light": "#C62828"
     },
     "warning": {
       "dark": "picobuWarning",
-      "light": "#C7461A"
+      "light": "#B26A00"
     },
     "success": {
       "dark": "picobuSuccess",
-      "light": "#12806A"
+      "light": "#2E7D32"
     },
     "info": {
-      "dark": "#FFC799",
-      "light": "#C7461A"
+      "dark": "picobuInfo",
+      "light": "#1565C0"
     },
     "text": {
       "dark": "picobuFg",
@@ -67,8 +69,8 @@
       "light": "#D0D0D0"
     },
     "borderActive": {
-      "dark": "#FFC799",
-      "light": "#C7461A"
+      "dark": "picobuAccent",
+      "light": "#7C4DFF"
     },
     "borderSubtle": {
       "dark": "#222222",

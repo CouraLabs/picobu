@@ -5,6 +5,7 @@
 import { testRender } from "@opentui/solid"
 import { AskForm } from "@tui/components/session/tools/ask-form.tsx"
 import { PlanReview } from "@tui/components/session/tools/plan-review.tsx"
+import { KeyboardProvider } from "@tui/hooks/keyboard-provider.tsx"
 
 const question = {
   title: "Task",
@@ -34,6 +35,16 @@ const check = (label: string, frame: string, needles: string[]) => {
     console.log(`PASS: ${label}`)
   }
 }
+const countOccurrences = (frame: string, needle: string): number => frame.split(needle).length - 1
+const checkCount = (label: string, frame: string, needle: string, expected: number) => {
+  const found = countOccurrences(frame, needle)
+  if (found !== expected) {
+    failed = true
+    console.log(`FAIL: ${label} (want ${expected}x "${needle}", got ${found}x)`)
+  } else {
+    console.log(`PASS: ${label}`)
+  }
+}
 
 const askFrame = await renderFrame(() => (
   <AskForm
@@ -48,15 +59,43 @@ const askFrame = await renderFrame(() => (
 check("answered ask echo", askFrame, ["Task: Build a new feature", "second line"])
 
 const planFrame = await renderFrame(() => (
-  <PlanReview
-    plan={"step one\nstep two"}
-    status="approved"
-    outputMessage={"looks good\nship it"}
+  <KeyboardProvider>
+    <PlanReview
+      plan={"step one\nstep two"}
+      status="approved"
+      outputMessage={"looks good\nship it"}
+      interactive={false}
+      onVerdict={() => {}}
+      onCancel={() => {}}
+    />
+  </KeyboardProvider>
+))
+check("approved plan echo", planFrame, ["Approved", "looks good", "ship it"])
+
+const planDupeFrame = await renderFrame(() => (
+  <KeyboardProvider>
+    <PlanReview
+      plan={"step one\nstep two"}
+      status="approved"
+      outputMessage={"Approved"}
+      interactive={false}
+      onVerdict={() => {}}
+      onCancel={() => {}}
+    />
+  </KeyboardProvider>
+))
+checkCount("approved plan verdict is not duplicated", planDupeFrame, "Approved", 1)
+
+const askDupeFrame = await renderFrame(() => (
+  <AskForm
+    questions={[question]}
+    status="answered"
+    outputMessage={"Task: Build a new feature"}
     interactive={false}
-    onVerdict={() => {}}
+    onConfirm={() => {}}
     onCancel={() => {}}
   />
 ))
-check("approved plan echo", planFrame, ["Approved", "looks good", "ship it"])
+checkCount("answered ask echoes its message exactly once", askDupeFrame, "Task: Build a new feature", 1)
 
 process.exit(failed ? 1 : 0)

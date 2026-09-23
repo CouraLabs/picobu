@@ -8,9 +8,9 @@ import { StatusSegment } from '@tui/components/shared/status-segment.tsx'
 import { StatusSeparator } from '@tui/components/shared/status-separator.tsx'
 import { Tooltip } from '@tui/components/tooltip.tsx'
 import { icons } from '@tui/themes/icons.ts'
-import { createSignal, For, Show } from 'solid-js'
+import { createMemo, createSignal, For, Show } from 'solid-js'
 import type { ProviderStatusExtra } from './provider-extras.ts'
-import type { ActivityKind, SessionStatusData, SessionStatusProps } from './session-status-data.ts'
+import { type ActivityKind, isLoadingAdjacentToAgent, pickLoadingVerb, type SessionStatusData, type SessionStatusProps } from './session-status-data.ts'
 
 const activityIcon = (activity: ActivityKind | undefined): string => {
   switch (activity) {
@@ -73,7 +73,20 @@ const RunStateItem = (props: { ctx: StatusRenderContext }) => (
   </text>
 )
 
-const LoadingItem = () => <spinner name="dotsCircle" color={theme().accent} />
+const LoadingItem = (props: { ctx: StatusRenderContext; adjacentToAgent: boolean }) => {
+  const verb = createMemo(() => {
+    props.ctx.status.statsMetrics?.stepCount
+    return pickLoadingVerb()
+  })
+  return (
+    <box flexDirection="row" columnGap={1} flexShrink={0} flexWrap="wrap">
+      <Show when={props.adjacentToAgent}>
+        <text fg={props.ctx.data.agentColor()}>{`is ${verb()}`}</text>
+      </Show>
+      <spinner name="point" color={theme().accent} />
+    </box>
+  )
+}
 
 const SessionTitleItem = (props: { ctx: StatusRenderContext }) => (
   <text fg={theme().text} flexShrink={1}>
@@ -157,7 +170,7 @@ const ProviderItemsItem = (props: { ctx: StatusRenderContext }) => (
   </box>
 )
 
-export const StatusItemView = (props: { item: SessionStatusItem; ctx: StatusRenderContext }) => (
+export const StatusItemView = (props: { item: SessionStatusItem; ctx: StatusRenderContext; previousItem?: SessionStatusItem }) => (
   <box flexDirection="row" flexShrink={0} flexWrap="wrap">
     <Show when={props.item === 'agent'}>
       <AgentItem ctx={props.ctx} />
@@ -172,7 +185,7 @@ export const StatusItemView = (props: { item: SessionStatusItem; ctx: StatusRend
       <RunStateItem ctx={props.ctx} />
     </Show>
     <Show when={props.item === 'loading' && props.ctx.status.streaming}>
-      <LoadingItem />
+      <LoadingItem ctx={props.ctx} adjacentToAgent={isLoadingAdjacentToAgent(props.previousItem)} />
     </Show>
     <Show when={props.item === 'session-title' && (props.ctx.status.title || props.ctx.status.streaming)}>
       <Show when={props.ctx.status.title}>

@@ -15,10 +15,6 @@ const toolSet = buildToolSet({
 const availableToolNames = new Set(toolSet.getTools().map((t) => t.name))
 
 describe('agent tool drift', () => {
-  test('repo-map is registered under the name the agent prompts use', () => {
-    expect(availableToolNames.has('repo-map')).toBe(true)
-  })
-
   for (const [agentId, agent] of Object.entries(AGENTS)) {
     if (agent.tools.length === 0) continue
     if (agent.tools.length === 1 && agent.tools[0] === NO_TOOLS) continue

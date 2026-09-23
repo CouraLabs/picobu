@@ -1,3 +1,5 @@
+import type { LoopMessage } from '@agent/loop/create-loop.ts'
+import { isCompactionMarker } from '@agent/sessions/session-compact.ts'
 import type { UIMessage } from 'ai'
 
 const KEEP_TOOL_STATES = new Set(['output-available', 'output-error', 'output-denied', 'approval-responded'])
@@ -109,6 +111,68 @@ export function settleStreamingParts<M extends UIMessage>(messages: Array<M>): A
     return { ...m, parts } as M
   })
   return changed ? out : messages
+}
+
+export interface PromptAttachment {
+  mediaType: string
+  filename?: string
+  url: string
+}
+
+export interface UserPromptSnapshot {
+  text: string
+  files: Array<PromptAttachment>
+}
+
+export interface RevertPlan {
+  cut: number
+  isUser: boolean
+}
+
+export function messageTextParts(message: UIMessage): string {
+  return (message.parts ?? [])
+    .filter((p): p is { type: 'text'; text: string } => (p as { type?: unknown }).type === 'text' && typeof (p as { text?: unknown }).text === 'string')
+    .map((p) => p.text)
+    .join('\n')
+}
+
+export function messageFileParts(message: UIMessage): Array<PromptAttachment> {
+  const out: Array<PromptAttachment> = []
+  for (const raw of message.parts ?? []) {
+    const part = raw as { type?: unknown; mediaType?: unknown; filename?: unknown; url?: unknown }
+    if (part.type !== 'file') continue
+    if (typeof part.mediaType !== 'string' || typeof part.url !== 'string') continue
+    out.push({
+      mediaType: part.mediaType,
+      ...(typeof part.filename === 'string' ? { filename: part.filename } : {}),
+      url: part.url,
+    })
+  }
+  return out
+}
+
+export function extractUserPrompt(message: UIMessage): UserPromptSnapshot {
+  return { text: messageTextParts(message), files: messageFileParts(message) }
+}
+
+export function cacheUserPrompts<M extends UIMessage>(messages: Array<M>, cache: Map<string, UserPromptSnapshot>): void {
+  for (const message of messages) {
+    if (message.role !== 'user') continue
+    if (typeof message.id !== 'string' || message.id.length === 0) continue
+    if (cache.has(message.id)) continue
+    const snapshot = extractUserPrompt(message)
+    if (snapshot.files.length === 0) continue
+    cache.set(message.id, snapshot)
+  }
+}
+
+export function planRevert<M extends UIMessage>(messages: Array<M>, messageId: string): RevertPlan | undefined {
+  const index = messages.findIndex((m) => m.id === messageId)
+  if (index < 0) return undefined
+  const target = messages[index]
+  if (!target) return undefined
+  const isUser = target.role === 'user' && !isCompactionMarker(target as LoopMessage)
+  return { cut: isUser ? index : index + 1, isUser }
 }
 
 export function stripAnalysedImages<M extends UIMessage>(messages: Array<M>): Array<M> {

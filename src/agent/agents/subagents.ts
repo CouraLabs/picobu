@@ -6,7 +6,7 @@ import { parseMarkdownFile } from '@agent/markdown/markdown-parser.ts'
 import { readPromptMarkdown, SUBAGENT_PROMPT_FILES } from '@agent/prompts/prompt-files.ts'
 import { options } from '@config/options.ts'
 
-export const INTERACTIVE_FLOW_TOOLS: ReadonlyArray<string> = ['ask', 'plan-write', 'plan-exit']
+export const INTERACTIVE_FLOW_TOOLS: ReadonlyArray<string> = ['ask', 'plan-write', 'plan-exit', 'grill-exit']
 
 export const WRITE_CAPABLE_TOOLS: ReadonlyArray<string> = ['write', 'edit']
 

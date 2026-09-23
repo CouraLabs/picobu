@@ -10,7 +10,7 @@ export { THINKING_LEVELS }
 export const SessionStatus = (props: SessionStatusProps & { onModelOpen?: () => void }) => {
   const data = createSessionStatusData(props)
   return (
-    <box flexDirection="column" flexShrink={0} border={['left', 'right']} borderColor={theme().border} paddingX={1}>
+    <box flexDirection="column" flexShrink={0} paddingX={1}>
       <StatusLines layout={statusLayout()} ctx={{ status: props, data, providerExtras: () => getProviderStatusExtras(props), onModelOpen: props.onModelOpen, selectable: true }} />
     </box>
   )

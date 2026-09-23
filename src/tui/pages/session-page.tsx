@@ -9,7 +9,7 @@ import { generateSessionTitle } from '@agent/prompts/session-title.ts'
 import { closePromptHistory, projectKeyFor } from '@agent/sessions/prompt-history.ts'
 import type { QueuedPrompt, Session } from '@agent/sessions/session.ts'
 import { SessionManager } from '@agent/sessions/session-manager.ts'
-import { lastAssistantText } from '@agent/sessions/session-messages.ts'
+import { lastAssistantText, type PromptAttachment } from '@agent/sessions/session-messages.ts'
 import { isWaiting } from '@agent/sessions/session-meta.ts'
 import { createSessionWatchdog } from '@agent/sessions/session-watchdog.ts'
 import { stopAllBackgroundShells } from '@agent/tools/filesystem/background-shell.ts'
@@ -55,7 +55,7 @@ export interface SessionPageProps {
   visible: boolean
 }
 
-const AGENT_CYCLE = ['ask', 'brainstorm', 'plan-code', 'coder']
+const AGENT_CYCLE = ['ask', 'grill', 'plan-code', 'coder']
 
 const showError = (error: unknown, sessionId?: string) => {
   logError(error, { scope: 'session-page', ...(sessionId ? { sessionId } : {}) })
@@ -152,7 +152,7 @@ export const SessionPage = (props: SessionPageProps) => {
   const titleGenerationPending = new Set<string>()
 
   createEffect(() => {
-    setConsoleTitle(title())
+    setConsoleTitle(options.app.name, activeId(), title())
   })
 
   let gitRefreshTimer: ReturnType<typeof setTimeout> | undefined
@@ -257,14 +257,16 @@ export const SessionPage = (props: SessionPageProps) => {
     }
   }
 
-  const attachedFromQueued = (item: QueuedPrompt): Array<AttachedFile> => {
+  const attachedFromPrompt = (key: string, text: string, files: Array<PromptAttachment>): Array<AttachedFile> => {
     const seqs: Array<number> = []
-    for (const match of item.text.matchAll(/\[(\d+) ([^\s\]]+) ([^\]]+)\]/g)) seqs.push(Number(match[1]))
-    return item.files.map((f, index) => {
+    for (const match of text.matchAll(/\[(\d+) ([^\s\]]+) ([^\]]+)\]/g)) seqs.push(Number(match[1]))
+    return files.map((f, index) => {
       const bytes = bytesFromDataUrl(f.url)
-      return { id: `q-${item.id}-${index}`, seq: seqs[index] ?? -(index + 1), mediaType: f.mediaType, filename: f.filename ?? `queued-${index + 1}`, size: bytes.byteLength, bytes }
+      return { id: `q-${key}-${index}`, seq: seqs[index] ?? -(index + 1), mediaType: f.mediaType, filename: f.filename ?? `queued-${index + 1}`, size: bytes.byteLength, bytes }
     })
   }
+
+  const attachedFromQueued = (item: QueuedPrompt): Array<AttachedFile> => attachedFromPrompt(item.id, item.text, item.files)
 
   const buildMessage = (text: string, files: Array<AttachedFile>): CreateUIMessage<LoopMessage> =>
     ({
@@ -792,8 +794,14 @@ export const SessionPage = (props: SessionPageProps) => {
   const handleRemoveQueued = (id: string) => {
     const target = session()
     if (!target) return
+    const removed = target.queued.find((item) => item.id === id)
     target.removeQueued(id)
     syncQueue(target)
+    if (removed && (removed.text.trim().length > 0 || removed.files.length > 0)) {
+      editNonce += 1
+      setEditRequest({ text: removed.text, files: attachedFromQueued(removed), nonce: editNonce })
+      pushToast('Queued prompt moved back to the prompt for editing', 'info')
+    }
   }
 
   const handleBang = async (line: string, target: Session, files: Array<AttachedFile>) => {
@@ -1072,7 +1080,12 @@ export const SessionPage = (props: SessionPageProps) => {
       return
     }
     try {
-      target.revertToMessage(messageId)
+      const result = target.revertToMessage(messageId)
+      if (result.prompt) {
+        const { text, files } = result.prompt
+        editNonce += 1
+        setEditRequest({ text, files: attachedFromPrompt(messageId, text, files), nonce: editNonce })
+      }
       closeDialog()
     } catch (error) {
       showError(error)

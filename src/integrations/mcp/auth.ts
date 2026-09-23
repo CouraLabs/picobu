@@ -8,10 +8,11 @@ const REFRESH_GRACE_MS = 5 * 60 * 1000
 
 const CALLBACK_PORT = 19888
 const CALLBACK_PATH = '/callback'
+const CALLBACK_TIMEOUT_MS = 5 * 60 * 1000
 export const MCP_REDIRECT_URL = `http://localhost:${CALLBACK_PORT}${CALLBACK_PATH}`
 
 export interface McpAuthEntry {
-  tokens: OAuthTokens
+  tokens?: OAuthTokens
   expiresAt?: number
   clientInformation?: OAuthClientInformation
 }
@@ -85,9 +86,11 @@ export const removeMcpCredential = async (serverId: string): Promise<boolean> =>
 
 export const isMcpAuthActive = (serverId: string, now = Date.now()): boolean => {
   const entry = getMcpCredential(serverId)
-  if (!entry) return false
+  if (!entry?.tokens?.access_token) return false
   return entry.expiresAt === undefined || entry.expiresAt - REFRESH_GRACE_MS > now
 }
+
+export const usesMcpAuth = (server: McpServerOptions): boolean => server.type !== 'stdio' && (server.auth === true || getMcpCredential(server.id)?.tokens?.access_token !== undefined)
 
 const rootDomain = (host: string): string => host.toLowerCase().split('.').slice(-2).join('.')
 
@@ -129,11 +132,10 @@ export const createMcpAuthProvider = (server: McpServerOptions): { provider: OAu
     },
     async saveClientInformation(clientInformation) {
       const existing = getMcpCredential(serverId)
-      if (!existing?.tokens?.access_token) return
       await setMcpCredential(serverId, {
-        tokens: existing.tokens,
+        tokens: existing?.tokens,
         clientInformation,
-        expiresAt: existing.expiresAt,
+        expiresAt: existing?.expiresAt,
       })
     },
     async redirectToAuthorization(authorizationUrl) {
@@ -181,9 +183,6 @@ export const startMcpLogin = async (server: McpServerOptions): Promise<void> => 
   if (server.type === 'stdio') {
     throw new Error(`MCP server "${server.id}" is a local stdio server — no OAuth login needed`)
   }
-  if (!server.auth) {
-    throw new Error(`MCP server "${server.id}" has no "auth": true — enable it in the config first`)
-  }
   await initMcpAuth()
   const serverUrl = server.url
   if (!serverUrl) throw new Error(`MCP server "${server.id}" requires "url"`)
@@ -195,7 +194,14 @@ export const startMcpLogin = async (server: McpServerOptions): Promise<void> => 
   }
   const authorizationUrl = lastAuthorizationUrl()
   if (!authorizationUrl) throw new Error(`MCP login for "${server.id}" produced no authorization URL`)
-  const callback = await waitForCallback()
+  const callbackServer = startMcpCallbackServer()
+  console.log(`Waiting for the OAuth redirect on ${callbackServer.url} ...`)
+  let callback: CallbackResult
+  try {
+    callback = await callbackServer.result
+  } finally {
+    callbackServer.stop()
+  }
   const second = await auth(provider, {
     serverUrl,
     authorizationCode: callback.code,
@@ -209,8 +215,9 @@ export const startMcpLogin = async (server: McpServerOptions): Promise<void> => 
 }
 
 export const ensureMcpAuth = async (server: McpServerOptions): Promise<void> => {
-  if (!server.auth || server.type === 'stdio') return
+  if (server.type === 'stdio') return
   await initMcpAuth()
+  if (!usesMcpAuth(server)) return
   if (isMcpAuthActive(server.id)) return
   const serverUrl = server.url
   if (!serverUrl) throw new Error(`MCP server "${server.id}" requires "url"`)
@@ -221,38 +228,55 @@ export const ensureMcpAuth = async (server: McpServerOptions): Promise<void> => 
   }
 }
 
-const waitForCallback = (): Promise<CallbackResult> =>
-  new Promise((resolve, reject) => {
-    const timeout = setTimeout(
-      () => {
-        server.stop()
-        reject(new Error(`Timed out waiting for the OAuth redirect on ${MCP_REDIRECT_URL}`))
-      },
-      5 * 60 * 1000,
-    )
-    const server = Bun.serve({
-      port: CALLBACK_PORT,
-      async fetch(request) {
-        const url = new URL(request.url)
-        if (url.pathname !== CALLBACK_PATH) {
-          return new Response('Not found', { status: 404 })
-        }
-        clearTimeout(timeout)
-        server.stop(true)
-        const error = url.searchParams.get('error')
+export interface McpCallbackServer {
+  url: string
+  port: number
+  result: Promise<CallbackResult>
+  stop: (force?: boolean) => void
+}
+
+type CallbackOutcome = { ok: true; value: CallbackResult } | { ok: false; error: Error }
+
+export const startMcpCallbackServer = (config: { port?: number; path?: string; timeoutMs?: number } = {}): McpCallbackServer => {
+  const port = config.port ?? CALLBACK_PORT
+  const path = config.path ?? CALLBACK_PATH
+  const timeoutMs = config.timeoutMs ?? CALLBACK_TIMEOUT_MS
+  let settle: ((outcome: CallbackOutcome) => void) | undefined
+  const result = new Promise<CallbackResult>((resolve, reject) => {
+    settle = (outcome) => (outcome.ok ? resolve(outcome.value) : reject(outcome.error))
+  })
+  let done = false
+  let timeout: ReturnType<typeof setTimeout> | undefined
+  const finish = (outcome: CallbackOutcome): void => {
+    if (done) return
+    done = true
+    if (timeout) clearTimeout(timeout)
+    settle?.(outcome)
+  }
+  let server: ReturnType<typeof Bun.serve>
+  try {
+    server = Bun.serve({
+      port,
+      fetch(request) {
+        const incoming = new URL(request.url)
+        if (incoming.pathname !== path) return new Response('Not found', { status: 404 })
+        const error = incoming.searchParams.get('error')
         if (error) {
-          reject(new Error(`OAuth redirect reported an error: ${error} (${url.searchParams.get('error_description') ?? 'no detail'})`))
+          finish({ ok: false, error: new Error(`OAuth redirect reported an error: ${error} (${incoming.searchParams.get('error_description') ?? 'no detail'})`) })
           return new Response('picobu: MCP login failed — see the terminal.', { status: 400 })
         }
-        const code = url.searchParams.get('code')
+        const code = incoming.searchParams.get('code')
         if (!code) {
-          reject(new Error('OAuth redirect carried no authorization code'))
+          finish({ ok: false, error: new Error('OAuth redirect carried no authorization code') })
           return new Response('picobu: MCP login failed — see the terminal.', { status: 400 })
         }
-        resolve({
-          code,
-          state: url.searchParams.get('state') ?? undefined,
-          issuer: url.searchParams.get('iss') ?? undefined,
+        finish({
+          ok: true,
+          value: {
+            code,
+            state: incoming.searchParams.get('state') ?? undefined,
+            issuer: incoming.searchParams.get('iss') ?? undefined,
+          },
         })
         return new Response('picobu: MCP login complete — you can close this tab.', { status: 200 })
       },
@@ -260,4 +284,20 @@ const waitForCallback = (): Promise<CallbackResult> =>
         return new Response('error', { status: 500 })
       },
     })
-  })
+  } catch (cause) {
+    const detail = cause instanceof Error ? cause.message : String(cause)
+    throw new Error(`Failed to start the MCP OAuth callback server on port ${port}: ${detail}`)
+  }
+  const actualPort = server.port ?? port
+  const url = `http://localhost:${actualPort}${path}`
+  timeout = setTimeout(() => {
+    server.stop(true)
+    finish({ ok: false, error: new Error(`Timed out waiting for the OAuth redirect on ${url}`) })
+  }, timeoutMs)
+  const stop = (force = false): void => {
+    if (timeout) clearTimeout(timeout)
+    done = true
+    server.stop(force)
+  }
+  return { url, port: actualPort, result, stop }
+}

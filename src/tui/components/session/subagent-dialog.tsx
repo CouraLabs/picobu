@@ -3,6 +3,7 @@ import type { SessionManager } from '@agent/sessions/session-manager.ts'
 import { dialogJustClosed, openDialog } from '@states/dialog.state.ts'
 import { theme } from '@states/theme-state.ts'
 import { SessionMessages } from '@tui/components/session/session-messages.tsx'
+import { getModelLabel } from '@tui/components/session/status/status-meta.ts'
 import { useTerminalDims } from '@tui/hooks/terminal-dims.tsx'
 import { createSignal, onCleanup, onMount, Show } from 'solid-js'
 
@@ -16,6 +17,7 @@ const SubagentMessagesDialog = (props: SubagentMessagesProps) => {
   const dims = useTerminalDims()
   const [messages, setMessages] = createSignal<Array<LoopMessage>>([])
   const [title, setTitle] = createSignal<string | undefined>(undefined)
+  const [model, setModel] = createSignal<string | undefined>(undefined)
   let settled = false
 
   const load = async () => {
@@ -24,6 +26,7 @@ const SubagentMessagesDialog = (props: SubagentMessagesProps) => {
       const current = messages()
       if (current.length !== live.messages.length || current.some((m, i) => m !== live.messages[i])) setMessages([...live.messages])
       if (live.title && live.title !== title()) setTitle(live.title)
+      if (live.config.modelKey && live.config.modelKey !== model()) setModel(live.config.modelKey)
       return
     }
     if (settled) return
@@ -34,6 +37,10 @@ const SubagentMessagesDialog = (props: SubagentMessagesProps) => {
     try {
       const stored = await props.manager.getSessionTitle(props.sessionId)
       if (stored) setTitle(stored)
+    } catch {}
+    try {
+      const storedModel = await props.manager.getSessionModel(props.sessionId)
+      if (storedModel) setModel(storedModel)
     } catch {}
     settled = true
   }
@@ -60,6 +67,11 @@ const SubagentMessagesDialog = (props: SubagentMessagesProps) => {
         <text fg={theme().textMuted} flexShrink={0}>
           · {props.sessionId}
         </text>
+        <Show when={model()}>
+          <text fg={theme().textMuted} flexShrink={0}>
+            · {getModelLabel(model())}
+          </text>
+        </Show>
         <Show when={title() && title() !== props.label}>
           <text fg={theme().textMuted} flexShrink={0}>
             · {props.label}

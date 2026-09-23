@@ -1,21 +1,26 @@
 import { getAgent } from '@agent/agents/registry.ts'
+import type { DoomLoopGuard } from '@agent/loop/doom-loop.ts'
 import { buildStopWhen } from '@agent/loop/stop-conditions.ts'
 import { buildToolOrder } from '@agent/loop/tool-order.ts'
 import type { AgentReasoning, LoopCallOptions, LoopConfig } from '@agent/loop/types.ts'
 import { resolveModel } from '@agent/model/resolver.ts'
 import type { AgentTool } from '@agent/tools/toolset.ts'
+import { options as appOptions } from '@config/options.ts'
 import type { McpManager } from '@integrations/mcp/client.ts'
-import type { ToolLoopAgentSettings, ToolSet } from 'ai'
+import type { ModelMessage, ToolLoopAgentSettings, ToolSet } from 'ai'
+
+type PrepareStepArgs = Parameters<NonNullable<ToolLoopAgentSettings<LoopCallOptions, ToolSet, Record<string, unknown>, never>['prepareStep']>>[0]
 
 export interface PrepareCallDeps {
   getConfig: () => LoopConfig
   toolSet: { getTools: (names?: Array<string>) => Array<AgentTool>; getToolSet: (names?: Array<string>) => ToolSet }
   mcp: McpManager
   buildSystem: (agentId: string) => Promise<string>
+  doomLoopGuard: DoomLoopGuard
 }
 
 export const createPrepareCall = (deps: PrepareCallDeps): ToolLoopAgentSettings<LoopCallOptions, ToolSet, Record<string, unknown>, never>['prepareCall'] => {
-  const { getConfig, toolSet, mcp, buildSystem } = deps
+  const { getConfig, toolSet, mcp, buildSystem, doomLoopGuard } = deps
   const localKindByName = new Map(toolSet.getTools().map((t) => [t.name, t.kind]))
   return async ({ options, ...rest }) => {
     const persistent = options?.sessionMode === 'persistent'
@@ -39,14 +44,29 @@ export const createPrepareCall = (deps: PrepareCallDeps): ToolLoopAgentSettings<
       ...(agentDef.topP !== undefined ? { topP: agentDef.topP } : {}),
       ...(agentDef.topK !== undefined ? { topK: agentDef.topK } : {}),
     }
-    const stopWhen = buildStopWhen({ subagent: config.subagent ?? false, persistent: persistent ?? false })
-    if (!persistent) return { ...base, stopWhen }
+    const doomLoopEnabled = appOptions.harness.doomLoop !== false
+    const prepareStep = (args: PrepareStepArgs) => {
+      if (!doomLoopEnabled) return {}
+      const { steer } = doomLoopGuard.observe({
+        texts: args.steps.map((step) => step.text),
+        toolCalls: args.steps.flatMap((step) => step.toolCalls.map((toolCall) => ({ toolName: toolCall.toolName, input: toolCall.input }))),
+      })
+      if (!steer) return {}
+      return { messages: [...args.messages, { role: 'user', content: steer } as ModelMessage] }
+    }
+    const stopWhen = buildStopWhen({
+      subagent: config.subagent ?? false,
+      persistent: persistent ?? false,
+      ...(doomLoopEnabled ? { hasHalted: () => doomLoopGuard.isHalted() } : {}),
+    })
+    if (!persistent) return { ...base, stopWhen, prepareStep }
     const allMessages = Array.isArray(rest.prompt) ? rest.prompt : []
     const persistentIndex = allMessages.map((m) => m.role).lastIndexOf('user')
     return {
       ...base,
       prompt: persistentIndex >= 0 ? allMessages.slice(persistentIndex) : rest.prompt,
       stopWhen,
+      prepareStep,
     }
   }
 }

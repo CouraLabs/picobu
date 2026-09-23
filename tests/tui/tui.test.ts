@@ -9,6 +9,7 @@ import {
   flowOutputMessage,
   flowOutputStatus,
   hasRenderableOutput,
+  isShellTool,
   isTodoTool,
   isToolPart,
   latestTodoItems,
@@ -28,7 +29,7 @@ import {
 import { COMMENT_TEXTAREA_KEY_BINDINGS } from '../../src/tui/components/shared/textarea-keybindings.ts'
 import { deliversEvent } from '../../src/tui/hooks/keyboard-provider.tsx'
 import { icons } from '../../src/tui/themes/icons.ts'
-import { allThemes, hasTheme, isTheme, resolveTheme, type ThemeJson, tint } from '../../src/tui/themes/index.ts'
+import { allThemes, DEFAULT_THEMES, hasTheme, isTheme, resolveTheme, type ThemeJson, tint } from '../../src/tui/themes/index.ts'
 
 const part = (overrides: Partial<ToolPartLike> & Record<string, unknown> = {}): ToolPartLike => ({ type: 'tool-read', ...overrides })
 
@@ -52,6 +53,15 @@ describe('isToolPart/asToolPart', () => {
     expect(asToolPart(p)).toBe(p)
     expect(asToolPart({ type: 'text' })).toBeUndefined()
     expect(asToolPart(null)).toBeUndefined()
+  })
+})
+
+describe('isShellTool', () => {
+  test('matches tool-shell and dynamic-tool named shell', () => {
+    expect(isShellTool({ type: 'tool-shell' })).toBe(true)
+    expect(isShellTool({ type: 'dynamic-tool', toolName: 'shell' })).toBe(true)
+    expect(isShellTool({ type: 'tool-spawn' })).toBe(false)
+    expect(isShellTool({ type: 'dynamic-tool', toolName: 'read' })).toBe(false)
   })
 })
 
@@ -122,6 +132,11 @@ describe('summarizeToolInput', () => {
   })
   test('plan-exit takes no input', () => {
     expect(summarizeToolInput('plan-exit', {})).toBe('')
+  })
+  test('grill-exit takes no input but echoes its handoff message', () => {
+    expect(summarizeToolInput('grill-exit', {})).toBe('')
+    expect(summarizeToolOutput('grill-exit', { switchedTo: 'plan-code', message: 'Design agreed' })).toBe('Design agreed')
+    expect(summarizeToolOutput('grill-exit', {})).toBeUndefined()
   })
   test('todo summarizes the written list', () => {
     expect(summarizeToolInput('todo', { items: [1, 2] })).toBe('2 item(s)')
@@ -448,6 +463,20 @@ describe('resolveTheme', () => {
     expect(resolved.backgroundMenu.r).toBe(resolved.backgroundElement.r)
     expect(resolved.backgroundMenu.g).toBe(resolved.backgroundElement.g)
     expect(resolved.selectedListItemText).toBeDefined()
+  })
+  test('picobu default theme keeps all semantic roles visually distinct', () => {
+    const picobu = DEFAULT_THEMES.picobu
+    if (!picobu) throw new Error('picobu theme missing')
+    const key = (c: RGBA): string => `${c.r},${c.g},${c.b}`
+    for (const variant of ['dark', 'light'] as const) {
+      const t = resolveTheme(picobu, variant)
+      const roles = [t.primary, t.secondary, t.accent, t.success, t.info, t.warning, t.error]
+      expect(new Set(roles.map(key)).size).toBe(7)
+      expect(t.success.g).toBeGreaterThan(t.success.r)
+      expect(t.info.b).toBeGreaterThan(t.info.r)
+      expect(t.error.r).toBeGreaterThan(t.error.g)
+      expect(t.warning.r).toBeGreaterThan(t.warning.b)
+    }
   })
 })
 

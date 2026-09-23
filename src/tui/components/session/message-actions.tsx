@@ -18,6 +18,23 @@ export const messageText = (message: LoopMessage): string =>
     .map((p) => p.text)
     .join('\n')
 
+export type RevertRole = 'user' | 'assistant'
+
+export interface RevertConfirmCopy {
+  title: string
+  body: string
+  confirm: string
+}
+
+export const revertConfirmCopy = (role: RevertRole): RevertConfirmCopy =>
+  role === 'user'
+    ? {
+        title: 'Edit this message?',
+        body: 'Removes this message and every message after it, and returns the text and files to the prompt so you can edit and resend it.',
+        confirm: 'Edit',
+      }
+    : { title: 'Revert to this message?', body: 'Discards every message after this one from the context. This cannot be undone.', confirm: 'Revert' }
+
 const selectWidth = 48
 
 const MessageActionsDialog = (props: MessageActionsProps) => {
@@ -73,16 +90,17 @@ const MessageActionsDialog = (props: MessageActionsProps) => {
   }
 
   const confirmRevert = () => {
+    const copy = revertConfirmCopy(props.message.role === 'user' ? 'user' : 'assistant')
     openDialog(() => (
       <box flexDirection="column" gap={1} padding={1}>
-        <text fg={theme().warning}>Revert to this message?</text>
+        <text fg={theme().warning}>{copy.title}</text>
         <text width={56} fg={theme().text}>
-          Discards every message after this one from the context. This cannot be undone.
+          {copy.body}
         </text>
         <box flexDirection="row" gap={1} justifyContent="flex-end" marginTop={1}>
           <Button label="Cancel" onClick={closeDialog} />
           <Button
-            label="Revert"
+            label={copy.confirm}
             onClick={() => {
               props.onRevert?.(props.message.id)
               closeDialog()

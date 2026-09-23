@@ -1,7 +1,7 @@
 import { createMCPClient, ElicitationRequestSchema, type InitializeResult, type ListToolsResult, type MCPClient, type MCPClientConfig } from '@ai-sdk/mcp'
 import { Experimental_StdioMCPTransport } from '@ai-sdk/mcp/mcp-stdio'
 import { options } from '@config/options.ts'
-import { createMcpAuthProvider, ensureMcpAuth } from '@integrations/mcp/auth.ts'
+import { createMcpAuthProvider, ensureMcpAuth, usesMcpAuth } from '@integrations/mcp/auth.ts'
 import { type McpServerOptions, resolveServerEnv } from '@integrations/mcp/config.ts'
 import { loadMcpConfig } from '@integrations/mcp/discover.ts'
 import { createMcpStderrTarget } from '@integrations/mcp/stderr-sink.ts'
@@ -91,7 +91,7 @@ export const createMcpManager = (opts: { dir?: string; servers?: Array<McpServer
             type: server.type,
             url,
             ...(headers ? { headers } : {}),
-            ...(server.auth ? { authProvider: createMcpAuthProvider(server).provider } : {}),
+            ...(usesMcpAuth(server) ? { authProvider: createMcpAuthProvider(server).provider } : {}),
             redirect: 'follow' as const,
             terminateSessionOnClose: false as const,
             ...(saved?.sessionId ? { initialSessionId: saved.sessionId } : {}),

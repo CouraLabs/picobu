@@ -189,6 +189,17 @@ export class SessionManager {
     }
   }
 
+  async getSessionModel(id: string): Promise<string | undefined> {
+    const live = this.live.get(id)
+    if (live?.config.modelKey) return live.config.modelKey
+    try {
+      const folderKey = await folderKeyForSession(this.cwd, id)
+      return (await readSessionMeta(folderKey, id))?.modelKey
+    } catch {
+      return undefined
+    }
+  }
+
   async changeDirectory(path: string): Promise<Session | undefined> {
     const next = resolve(path)
     const info = await stat(next).catch(() => undefined)

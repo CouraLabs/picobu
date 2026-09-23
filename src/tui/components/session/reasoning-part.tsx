@@ -45,16 +45,14 @@ export const ReasoningPart = (props: ReasoningPartProps) => {
   }
 
   return (
-    <box flexDirection="column" backgroundColor={hovered() ? theme().backgroundElement : undefined}>
+    <box flexDirection="column">
       <box
         flexDirection="row"
-        gap={1}
+        columnGap={1}
         onMouseOver={(event) => {
-          event.stopPropagation()
           setHovered(true)
         }}
         onMouseOut={(event) => {
-          event.stopPropagation()
           setHovered(false)
         }}
         onMouseUp={(event) => {

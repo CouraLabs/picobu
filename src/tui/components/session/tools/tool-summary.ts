@@ -34,13 +34,12 @@ export const rawToolName = (part: ToolPartLike): string => (part.type === DYNAMI
 
 export const isSpawnTool = (part: ToolPartLike): boolean => rawToolName(part).toLowerCase() === 'spawn'
 
+export const isShellTool = (part: ToolPartLike): boolean => rawToolName(part).toLowerCase() === 'shell'
+
 export const isTodoTool = (part: ToolPartLike): boolean => part.type === 'tool-todo' || (part.type === DYNAMIC_TOOL_TYPE && part.toolName === 'todo')
 
 const isTodoItemValue = (value: unknown): value is TodoItem =>
-  typeof value === 'object' &&
-  value !== null &&
-  typeof (value as { title?: unknown }).title === 'string' &&
-  (typeof (value as { done?: unknown }).done === 'boolean' || typeof (value as { status?: unknown }).status === 'string')
+  typeof value === 'object' && value !== null && typeof (value as { title?: unknown }).title === 'string' && typeof (value as { done?: unknown }).done === 'boolean'
 
 export const todoItems = (part: ToolPartLike): Array<TodoItem> | undefined => {
   const input = part.input
@@ -206,6 +205,7 @@ export const summarizeToolInput = (name: string, input: unknown): string => {
       return lines <= 1 ? first : `${first} · ${lines} lines`
     }
     case 'plan-exit':
+    case 'grill-exit':
       return ''
     case 'todo': {
       const items = Array.isArray(args.items) ? args.items : undefined
@@ -325,7 +325,8 @@ export const summarizeToolOutput = (name: string, output: unknown, errorText?: s
       const label = status !== undefined && status !== 'pending' ? `${status} · ` : ''
       return message !== undefined && message.length > 0 ? `${label}${singleLine(message, OUTPUT_PREVIEW_MAX)}` : status ? label.trim() : undefined
     }
-    case 'plan-exit': {
+    case 'plan-exit':
+    case 'grill-exit': {
       const message = args && typeof args.message === 'string' ? args.message : undefined
       return message !== undefined && message.length > 0 ? singleLine(message, OUTPUT_PREVIEW_MAX) : undefined
     }

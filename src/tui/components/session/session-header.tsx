@@ -12,7 +12,7 @@ export const SessionHeader = (props: SessionStatusProps) => {
   const hasContent = () => lineHasVisibleItem(headerLayout().lines[0], (item) => item !== 'separator' && headerItemHasContent(item))
   return (
     <Show when={hasContent()}>
-      <box flexDirection="row" columnGap={1} paddingX={1} border borderColor={theme().border} alignItems="center" flexShrink={0} flexWrap="wrap">
+      <box flexDirection="row" columnGap={1} border={['bottom']} borderColor={theme().border} alignItems="center" flexShrink={0} flexWrap="wrap">
         <HeaderLine layout={headerLayout()} ctx={ctx()} />
       </box>
     </Show>

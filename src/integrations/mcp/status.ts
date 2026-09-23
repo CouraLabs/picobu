@@ -1,5 +1,5 @@
 import { options } from '@config/options.ts'
-import { initMcpAuth, isMcpAuthActive } from '@integrations/mcp/auth.ts'
+import { initMcpAuth, isMcpAuthActive, usesMcpAuth } from '@integrations/mcp/auth.ts'
 import type { McpManager } from '@integrations/mcp/client.ts'
 import { serverTarget } from '@integrations/mcp/config.ts'
 import { loadMcpConfig, loadProjectMcpServers } from '@integrations/mcp/discover.ts'
@@ -34,8 +34,8 @@ export const listMcpServers = async (manager?: McpManager): Promise<Array<McpSer
       target: serverTarget(server),
       source: projectIds.has(server.id) ? 'project' : 'global',
       connected: snapshot?.connected ?? false,
-      authRequired: server.auth === true,
-      authActive: server.auth === true ? isMcpAuthActive(server.id) : false,
+      authRequired: usesMcpAuth(server),
+      authActive: usesMcpAuth(server) && isMcpAuthActive(server.id),
       ...(snapshot?.error ? { error: snapshot.error } : {}),
     } satisfies McpServerInfo
   })

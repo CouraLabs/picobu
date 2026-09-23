@@ -220,7 +220,10 @@ export const SessionPrompt = (props: SessionPromptProps) => {
         setFiles(request.files)
       })
     } else if (request.text.trim().length === 0) {
-      return
+      if (request.files.length === 0) return
+      batch(() => {
+        setFiles([...currentFiles, ...request.files])
+      })
     } else {
       textareaRef?.setText(`${current}\n${request.text}`)
       batch(() => {
@@ -567,7 +570,7 @@ export const SessionPrompt = (props: SessionPromptProps) => {
   return (
     <box flexDirection="column" flexShrink={0}>
       <Show when={commandOpen()}>
-        <box flexDirection="row" gap={0} flexShrink={0} paddingX={1}>
+        <box flexDirection="row" columnGap={0} flexShrink={0} paddingX={1}>
           <For each={tokenPreview()}>{(token) => <text fg={tokenColor(token.kind, token.text)}>{token.text}</text>}</For>
         </box>
         <Show when={filteredItems().length > 0}>
@@ -578,13 +581,13 @@ export const SessionPrompt = (props: SessionPromptProps) => {
                   {(item, index) => (
                     <box
                       flexDirection="row"
-                      gap={1}
+                      columnGap={1}
                       flexShrink={0}
                       paddingX={1}
                       backgroundColor={highlight() === index() ? theme().backgroundElement : undefined}
                       onMouseOver={() => setHighlight(index())}
                       onMouseUp={() => completeItem(index())}>
-                      <box flexDirection="row" gap={1} flexShrink={0}>
+                      <box flexDirection="row" columnGap={1} flexShrink={0}>
                         <text fg={labelColor(item.kind)}>{item.label}</text>
                         <text fg={theme().textMuted}>({item.kind})</text>
                       </box>
@@ -606,10 +609,10 @@ export const SessionPrompt = (props: SessionPromptProps) => {
       </Show>
       <box
         flexDirection="row"
-        gap={1}
+        columnGap={1}
         flexShrink={0}
         paddingX={1}
-        border
+        border={['top', 'bottom']}
         borderStyle={queueMode() || waitingMode() ? 'double' : steeringMode() ? 'heavy' : 'single'}
         borderColor={borderColor()}
         titleColor={titleColor()}

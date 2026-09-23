@@ -74,9 +74,10 @@ describe('createTodoTool', () => {
     expect(onDisk.items).toEqual([])
   })
 
-  test('omitted done defaults to false through the args schema', () => {
-    const parsed = tool().parameters.parse({ items: [{ phase: 'test', title: 'a', prompt: 'p' }] })
-    expect(parsed.items[0]?.done).toBe(false)
+  test('done is required on every item', () => {
+    const parsed = tool().parameters.safeParse({ items: [{ phase: 'test', title: 'a', prompt: 'p' }] })
+    expect(parsed.success).toBe(false)
+    expect(tool().parameters.safeParse({ items: [{ phase: 'test', title: 'a', prompt: 'p', done: true }] }).success).toBe(true)
   })
 
   test('a corrupt todo file is reported instead of silently reset', async () => {

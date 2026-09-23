@@ -1,4 +1,4 @@
-import type { TextareaRenderable } from '@opentui/core'
+import type { InputRenderable, TextareaRenderable } from '@opentui/core'
 import { clip } from '@shared/format.ts'
 import { theme } from '@states/theme-state.ts'
 import { Button } from '@tui/components/button.tsx'
@@ -23,10 +23,12 @@ export const AskForm = (props: AskFormProps) => {
   const [answers, setAnswers] = createSignal<Array<Array<string>>>(props.questions.map(() => []))
   const [hovered, setHovered] = createSignal<{ index: number; answer: string }>({ index: -1, answer: '' })
   const [comments, setComments] = createSignal<Array<string>>(props.questions.map(() => ''))
+  const [freeWrite, setFreeWrite] = createSignal<Array<string>>(props.questions.map(() => ''))
   const [responded, setResponded] = createSignal(false)
   const [dismissed, setDismissed] = createSignal(false)
   const [sending, setSending] = createSignal(false)
   const commentRefs: Array<TextareaRenderable | null> = []
+  const freeWriteRefs: Array<InputRenderable | null> = []
 
   createComputed(
     on(
@@ -35,7 +37,11 @@ export const AskForm = (props: AskFormProps) => {
         if (key === prevKey) return
         setAnswers(props.questions.map(() => []))
         setComments(props.questions.map(() => ''))
+        setFreeWrite(props.questions.map(() => ''))
         commentRefs.forEach((ref) => {
+          if (ref && !ref.isDestroyed) ref.setText('')
+        })
+        freeWriteRefs.forEach((ref) => {
           if (ref && !ref.isDestroyed) ref.setText('')
         })
         setActive(0)
@@ -65,6 +71,11 @@ export const AskForm = (props: AskFormProps) => {
     }
     const next = props.questions[questionIndex]?.type === 'single' ? [answer] : [...current, answer]
     setAnswers((prev) => prev.map((selected, index) => (index !== questionIndex ? selected : next)))
+    if (props.questions[questionIndex]?.type === 'single') {
+      setFreeWrite((prev) => prev.map((text, index) => (index !== questionIndex ? text : '')))
+      const freeRef = freeWriteRefs[questionIndex]
+      if (freeRef && !freeRef.isDestroyed) freeRef.setText('')
+    }
     if (props.questions[questionIndex]?.type === 'single' && next.length > 0) {
       setActive(Math.min(questionIndex + 1, summaryIndex()))
     }
@@ -81,12 +92,29 @@ export const AskForm = (props: AskFormProps) => {
     setComments((prev) => prev.map((comment, index) => (index === questionIndex ? value : comment)))
   }
 
-  const allAnswered = () => props.questions.every((_, index) => (answers()[index] ?? []).length > 0)
+  const setFreeWriteText = (questionIndex: number, value: string) => {
+    if (readonly()) return
+    setFreeWrite((prev) => prev.map((text, index) => (index === questionIndex ? value : text)))
+    if (value.trim().length > 0 && props.questions[questionIndex]?.type === 'single') {
+      setAnswers((prev) => prev.map((selected, index) => (index === questionIndex ? [] : selected)))
+    }
+  }
+
+  const freeWriteText = (questionIndex: number) => (freeWrite()[questionIndex] ?? '').trim()
+
+  const answerText = (questionIndex: number) => {
+    const selected = (answers()[questionIndex] ?? []).join(', ')
+    const own = freeWriteText(questionIndex)
+    if (selected && own) return `${selected}, ${own}`
+    return selected || own
+  }
+
+  const allAnswered = () => props.questions.every((_, index) => (answers()[index] ?? []).length > 0 || freeWriteText(index).length > 0)
 
   const buildAnswersText = (): string =>
     props.questions
       .map((question, index) => {
-        const selected = (answers()[index] ?? []).join(', ') || '(no answer)'
+        const selected = answerText(index) || '(no answer)'
         const comment = comments()[index]?.trim()
         return comment ? `${question.title}: ${selected} — ${comment}` : `${question.title}: ${selected}`
       })
@@ -126,7 +154,7 @@ export const AskForm = (props: AskFormProps) => {
       <Show
         when={!readonly()}
         fallback={
-          <box flexDirection="column" rowGap={1}>
+          <box flexDirection="column" rowGap={0}>
             <Show
               when={wasDismissed()}
               fallback={
@@ -143,7 +171,7 @@ export const AskForm = (props: AskFormProps) => {
                       <For each={props.questions}>
                         {(question, index) => {
                           const comment = comments()[index()]?.trim()
-                          const line = `${icons.success} ${clip(question.title, TAB_MAX_WIDTH)}: ${(answers()[index()] ?? []).join(', ') || '(no answer)'}${comment ? ` · ${comment}` : ''}`
+                          const line = `${icons.success} ${clip(question.title, TAB_MAX_WIDTH)}: ${answerText(index()) || '(no answer)'}${comment ? ` · ${comment}` : ''}`
                           return (
                             <box flexDirection="column">
                               <text fg={theme().textMuted}>{line}</text>
@@ -153,15 +181,17 @@ export const AskForm = (props: AskFormProps) => {
                       </For>
                     </Show>
                   }>
-                  <For each={(props.outputMessage ?? '').split('\n')}>
-                    {(line) => <text fg={isFailureStatus() ? theme().error : theme().textMuted}>{`${isFailureStatus() ? icons.cross : icons.success} ${line}`}</text>}
-                  </For>
+                  <box flexDirection="column" marginTop={1}>
+                    <For each={(props.outputMessage ?? '').split('\n')}>
+                      {(line) => <text fg={isFailureStatus() ? theme().error : theme().textMuted}>{`${isFailureStatus() ? icons.cross : icons.success} ${line}`}</text>}
+                    </For>
+                  </box>
                 </Show>
               }>
               <text fg={theme().warning}>{`${icons.cross} Dismissed without answering.`}</text>
             </Show>
             <Show when={wasDismissed() || responded() || settledTerminal() || settledFailure()} fallback={<text fg={theme().textMuted}>Awaiting answers.</text>}>
-              <Show when={settledFailure()} fallback={<text fg={theme().success}>{wasDismissed() ? 'Dismissed.' : 'Answers sent.'}</text>}>
+              <Show when={settledFailure()} fallback={wasDismissed() ? <text fg={theme().success}>{'Dismissed.'}</text> : null}>
                 <text fg={theme().error}>{`${icons.cross} Failed (${props.status}).`}</text>
               </Show>
             </Show>
@@ -210,6 +240,54 @@ export const AskForm = (props: AskFormProps) => {
                   }}
                 </For>
                 <box
+                  flexDirection="row"
+                  columnGap={1}
+                  onMouseUp={() => {
+                    const ref = freeWriteRefs[questionIndex()]
+                    if (ref && !ref.isDestroyed) ref.focus()
+                  }}>
+                  <text flexShrink={0} fg={freeWriteText(questionIndex()).length > 0 ? theme().success : theme().textMuted}>
+                    {question.type === 'single' ? (freeWriteText(questionIndex()).length > 0 ? `(${icons.circle})` : `( )`) : freeWriteText(questionIndex()).length > 0 ? `[${icons.cross}]` : `[ ]`}
+                  </text>
+                  <text fg={theme().text} flexShrink={1}>
+                    Write your own…
+                  </text>
+                </box>
+                <box
+                  flexGrow={1}
+                  flexShrink={1}
+                  minWidth={0}
+                  onMouseUp={() => {
+                    const ref = freeWriteRefs[questionIndex()]
+                    if (ref && !ref.isDestroyed) ref.focus()
+                  }}>
+                  <input
+                    ref={(r) => {
+                      freeWriteRefs[questionIndex()] = r
+                      const existing = freeWrite()[questionIndex()] ?? ''
+                      if (existing.length > 0 && r.plainText !== existing) r.setText(existing)
+                    }}
+                    placeholder="Write your own answer…"
+                    placeholderColor={theme().textMuted}
+                    textColor={theme().text}
+                    cursorColor={theme().accent}
+                    backgroundColor={theme().backgroundElement}
+                    keyBindings={COMMENT_TEXTAREA_KEY_BINDINGS}
+                    onSubmit={() => {
+                      const ref = freeWriteRefs[questionIndex()]
+                      if (ref && !ref.isDestroyed) {
+                        setFreeWriteText(questionIndex(), ref.plainText)
+                        ref.blur()
+                      }
+                      setActive(Math.min(questionIndex() + 1, summaryIndex()))
+                    }}
+                    onContentChange={() => {
+                      const ref = freeWriteRefs[questionIndex()]
+                      if (ref && !ref.isDestroyed) setFreeWriteText(questionIndex(), ref.plainText)
+                    }}
+                  />
+                </box>
+                <box
                   marginTop={1}
                   flexGrow={1}
                   flexShrink={1}
@@ -256,9 +334,9 @@ export const AskForm = (props: AskFormProps) => {
                   <text fg={theme().textMuted}>
                     {index() + 1}. {clip(question.title, TAB_MAX_WIDTH)}
                   </text>
-                  <text fg={(answers()[index()] ?? []).length > 0 ? theme().text : theme().warning}>
+                  <text fg={answerText(index()).length > 0 ? theme().text : theme().warning}>
                     {'  '}
-                    {(answers()[index()] ?? []).join(', ') || '(no answer)'}
+                    {answerText(index()) || '(no answer)'}
                   </text>
                   <Show when={comments()[index()]?.trim()} keyed>
                     {(comment: string) => (

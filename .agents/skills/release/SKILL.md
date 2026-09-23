@@ -6,7 +6,7 @@ description: 'Cut a new Picobu release: bump version, build, publish to npm, tag
 # Release — versioning, npm publish, and GitHub releases
 
 ## Version model
-- `package.json` `version` is the source of truth: `1.<features>.<build>` (major stays 1).
+- `package.json` `version` is the source of truth: `0.<features>.<build>` (major stays 0, changed manually).
 - Read at runtime via `getVersion()` in `src/shared/version.ts` — never hardcode.
 - Bump: `bun run version:feature` (features +1, build → 0) or `bun run version:bump` (build +1).
 
@@ -38,7 +38,7 @@ gh release view vX.Y.Z
 ```
 
 ## Manual fallback / backfill
-For a tag that was published before releases were automated (e.g. `v1.30.10`, `v1.31.1`):
+For an existing tag whose release is missing:
 ```sh
 gh release create vX.Y.Z --generate-notes --verify-tag
 ```

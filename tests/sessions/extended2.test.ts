@@ -356,6 +356,15 @@ describe('session manager construction', () => {
     const manager = new SessionManager({ cwd: dir, maxAgents: 1 })
     expect(manager.jobs()).toEqual([])
   })
+  test('getSessionModel reads the persisted model for a non-live session', async () => {
+    const manager = new SessionManager({ cwd: dir, maxAgents: 1 })
+    await writeSessionMeta(folderKeyFor(dir), 'sub', { id: 'sub', state: 'finished', cwd: dir, createdAt: 1, updatedAt: 1, modelKey: 'anthropic/claude-haiku' })
+    expect(await manager.getSessionModel('sub')).toBe('anthropic/claude-haiku')
+  })
+  test('getSessionModel is undefined for an unknown session', async () => {
+    const manager = new SessionManager({ cwd: dir, maxAgents: 1 })
+    expect(await manager.getSessionModel('missing')).toBeUndefined()
+  })
 })
 describe('evictLiveSession', () => {
   test('evicts and closes the live session', async () => {

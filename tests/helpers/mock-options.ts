@@ -9,7 +9,7 @@ export const mockSystemDirBase = mkdtempSync(join(tmpdir(), 'picobu-test-options
 
 const MOCK_THEME_PREFS = { key: 'picobu', variant: 'dark' } as const
 
-const MOCK_TUI_DEFAULTS = { maxMessages: 20, checkForUpdates: true } as const
+const MOCK_TUI_DEFAULTS = { maxMessages: 20 } as const
 
 const MOCK_WEB_DEFAULTS = { host: '0.0.0.0', port: 8080 } as const
 
@@ -32,7 +32,7 @@ const baseOptions = (): Options => ({
   sessionStatusLayout: { ...DEFAULT_SESSION_STATUS_LAYOUT, lines: DEFAULT_SESSION_STATUS_LAYOUT.lines.map((line) => [...line]) },
   sessionHeaderLayout: { ...DEFAULT_SESSION_HEADER_LAYOUT, lines: DEFAULT_SESSION_HEADER_LAYOUT.lines.map((line) => [...line]) },
   harness: {},
-  tui: { theme: { ...MOCK_THEME_PREFS }, maxMessages: MOCK_TUI_DEFAULTS.maxMessages, checkForUpdates: MOCK_TUI_DEFAULTS.checkForUpdates },
+  tui: { theme: { ...MOCK_THEME_PREFS }, maxMessages: MOCK_TUI_DEFAULTS.maxMessages },
   web: { ...MOCK_WEB_DEFAULTS },
   whatsapp: { enabled: MOCK_WHATSAPP_DEFAULTS.enabled, allowedNumbers: [] },
   mcp: { servers: {} },
@@ -82,7 +82,6 @@ export const mockUpdateSettings = async (
   mockOptions.tui = {
     theme: patch.tui?.theme ?? mockOptions.tui.theme,
     maxMessages: normalizeMockMaxMessages(patch.tui?.maxMessages ?? mockOptions.tui.maxMessages),
-    checkForUpdates: patch.tui?.checkForUpdates ?? mockOptions.tui.checkForUpdates ?? true,
   }
   mockOptions.web = { ...mockOptions.web, ...patch.web }
   mockOptions.whatsapp = { ...mockOptions.whatsapp, ...patch.whatsapp }
@@ -132,7 +131,7 @@ export const mockOptionsModule = () => ({
   normalizeStatusLines,
   selectStatusLineItems,
   MAX_STATUS_LINE_ITEMS,
-  DEFAULT_TUI_OPTIONS: { maxMessages: MOCK_TUI_DEFAULTS.maxMessages, checkForUpdates: MOCK_TUI_DEFAULTS.checkForUpdates },
+  DEFAULT_TUI_OPTIONS: { maxMessages: MOCK_TUI_DEFAULTS.maxMessages },
   DEFAULT_WATCHDOG_OPTIONS: { ...MOCK_WATCHDOG_DEFAULTS },
   DEFAULT_WHATSAPP_OPTIONS: { enabled: MOCK_WHATSAPP_DEFAULTS.enabled, allowedNumbers: [] as Array<string> },
   DEFAULT_WEB_OPTIONS: { ...MOCK_WEB_DEFAULTS },

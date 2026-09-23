@@ -75,11 +75,13 @@ export interface HarnessOptions {
   defaultModel?: string
   modelRoles?: ModelRoles
   maxAgents?: number
+  doomLoop?: boolean
 }
 export interface HarnessOptionsInput {
   defaultModel?: string
   modelRoles?: ModelRoles
   maxAgents?: number
+  doomLoop?: boolean
 }
 export interface ThemePrefs {
   key: string
@@ -88,16 +90,13 @@ export interface ThemePrefs {
 export interface TuiOptionsInput {
   theme?: ThemePrefs
   maxMessages?: number
-  checkForUpdates?: boolean
 }
 export interface TuiOptions {
   theme: ThemePrefs
   maxMessages: number
-  checkForUpdates: boolean
 }
-export const DEFAULT_TUI_OPTIONS: Pick<Required<TuiOptionsInput>, 'maxMessages' | 'checkForUpdates'> = {
+export const DEFAULT_TUI_OPTIONS: Pick<Required<TuiOptionsInput>, 'maxMessages'> = {
   maxMessages: 20,
-  checkForUpdates: true,
 }
 export interface WatchdogOptionsInput {
   staleTimeoutMs?: number
@@ -247,6 +246,12 @@ const normalizeHarness = (value: unknown): HarnessOptions => {
     }
     normalized.modelRoles = harness.modelRoles
   }
+  if (harness.doomLoop !== undefined) {
+    if (typeof harness.doomLoop !== 'boolean') {
+      throw new Error('options.json: "harness.doomLoop" must be a boolean')
+    }
+    normalized.doomLoop = harness.doomLoop
+  }
   return normalized
 }
 export const DEFAULT_THEME_PREFS: ThemePrefs = { key: 'picobu', variant: 'dark' }
@@ -257,7 +262,6 @@ const normalizeMaxMessages = (value: unknown): number => {
 const resolveTui = (external: OptionsExternal): TuiOptions => ({
   theme: external.tui?.theme ?? external.theme ?? DEFAULT_THEME_PREFS,
   maxMessages: normalizeMaxMessages(external.tui?.maxMessages),
-  checkForUpdates: external.tui?.checkForUpdates !== false,
 })
 const normalizeStaleTimeout = (value: unknown): number => {
   if (typeof value !== 'number' || !Number.isFinite(value)) return DEFAULT_WATCHDOG_OPTIONS.staleTimeoutMs
@@ -342,7 +346,6 @@ async function readExternalOptions(): Promise<OptionsExternal> {
         ...externalOpts.tui,
         theme: externalOpts.tui?.theme ?? DEFAULT_THEME_PREFS,
         maxMessages: normalizeMaxMessages(externalOpts.tui?.maxMessages),
-        checkForUpdates: externalOpts.tui?.checkForUpdates !== false,
       },
       theme: undefined,
       web: { ...DEFAULT_WEB_OPTIONS, ...externalOpts.web },
@@ -389,7 +392,6 @@ export const updateSettings = async (
       tui: {
         theme: patch.tui?.theme ?? current.tui?.theme ?? current.theme,
         maxMessages: normalizeMaxMessages(patch.tui?.maxMessages ?? current.tui?.maxMessages),
-        checkForUpdates: patch.tui?.checkForUpdates ?? current.tui?.checkForUpdates ?? true,
       },
       web: {
         ...DEFAULT_WEB_OPTIONS,

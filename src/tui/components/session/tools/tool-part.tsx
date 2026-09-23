@@ -12,6 +12,7 @@ import { createMemo, createSignal, Show } from 'solid-js'
 import { AskForm } from './ask-form.tsx'
 import { FlowStaticView, type ToolFlowResponse } from './flow-view.tsx'
 import { PlanReview, type PlanVerdict } from './plan-review.tsx'
+import { ShellView } from './shell-view.tsx'
 import { SpawnView } from './spawn-view.tsx'
 import { TodoList } from './todo-list.tsx'
 import {
@@ -20,6 +21,7 @@ import {
   flowOutputMessage,
   flowOutputStatus,
   hasRenderableOutput,
+  isShellTool,
   isSpawnTool,
   isTodoTool,
   isToolRunning,
@@ -80,6 +82,9 @@ const writePath = (part: ToolPartLike): string => {
 export const ToolPart = (props: ToolPartProps) => {
   if (isSpawnTool(props.part)) {
     return <SpawnView part={props.part} onOpen={props.onOpenSubSession} manager={props.manager} />
+  }
+  if (isShellTool(props.part)) {
+    return <ShellView part={props.part} />
   }
   if (isAskTool(props.part)) {
     return <FlowStaticView part={props.part} isLastMessage={props.isLastMessage} flowKind="ask" onFlowResponse={props.onFlowResponse} />
@@ -173,7 +178,7 @@ export const ToolPart = (props: ToolPartProps) => {
   const toolCallId = () => props.part.toolCallId ?? ''
 
   return (
-    <box flexDirection="column" paddingLeft={1} backgroundColor={hovered() ? theme().backgroundElement : undefined}>
+    <box flexDirection="column" backgroundColor={hovered() ? theme().backgroundElement : undefined}>
       <Show
         when={expanded()}
         fallback={

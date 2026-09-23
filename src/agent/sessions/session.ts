@@ -8,7 +8,18 @@ import { listRules, type Rule } from '@agent/rules/rules.ts'
 import { CheckpointStore, checkpointsPath, type UndoResult } from '@agent/sessions/checkpoints.ts'
 import { buildMarker, type CompactionResult, cutForSend, planCompaction } from '@agent/sessions/session-compact.ts'
 import { Chat, type ChatChangeHandler, createHeadlessChatState } from '@agent/sessions/session-headless-chat.ts'
-import { dropUnansweredPrompt, settleAbortedToolParts, stripAnalysedImages, stripUnreplayableReasoning } from '@agent/sessions/session-messages.ts'
+import {
+  cacheUserPrompts,
+  dropUnansweredPrompt,
+  extractUserPrompt,
+  messageFileParts,
+  messageTextParts,
+  planRevert,
+  settleAbortedToolParts,
+  stripAnalysedImages,
+  stripUnreplayableReasoning,
+  type UserPromptSnapshot,
+} from '@agent/sessions/session-messages.ts'
 import { isWaiting, readSessionMeta, type SessionMeta, type SessionState, updateSessionMeta, writeSessionMeta } from '@agent/sessions/session-meta.ts'
 import { folderKeyFor, generateSessionId, sessionFilePath } from '@agent/sessions/session-paths.ts'
 import { readLoopStats, writeLoopStats } from '@agent/sessions/session-stats-io.ts'
@@ -25,6 +36,7 @@ import {
   generateId,
   type LanguageModelUsage,
   readUIMessageStream,
+  type UIMessage,
   type UIMessageChunk,
 } from 'ai'
 
@@ -40,6 +52,9 @@ export interface QueuedPrompt {
   queuedAt: number
   steered: boolean
   files: Array<QueuedFile>
+}
+export interface RevertResult {
+  prompt?: UserPromptSnapshot
 }
 interface PendingPrompt {
   id: string
@@ -98,26 +113,9 @@ const flowOutputStatus = (part: LooseFlowPart): string | undefined => {
 export const toPromptMessage = (prompt: SessionPrompt): CreateUIMessage<LoopMessage> =>
   typeof prompt === 'string' ? ({ parts: [{ type: 'text', text: prompt }] } as CreateUIMessage<LoopMessage>) : prompt
 
-export const queuedTextFromMessage = (message: CreateUIMessage<LoopMessage>): string =>
-  (message.parts ?? [])
-    .filter((p): p is { type: 'text'; text: string } => (p as { type?: unknown }).type === 'text')
-    .map((p) => p.text)
-    .join('\n')
+export const queuedTextFromMessage = (message: CreateUIMessage<LoopMessage>): string => messageTextParts(message as UIMessage)
 
-export const queuedFilesFromMessage = (message: CreateUIMessage<LoopMessage>): Array<QueuedFile> => {
-  const out: Array<QueuedFile> = []
-  for (const raw of message.parts ?? []) {
-    const part = raw as { type?: unknown; mediaType?: unknown; filename?: unknown; url?: unknown }
-    if (part.type !== 'file') continue
-    if (typeof part.mediaType !== 'string' || typeof part.url !== 'string') continue
-    out.push({
-      mediaType: part.mediaType,
-      ...(typeof part.filename === 'string' ? { filename: part.filename } : {}),
-      url: part.url,
-    })
-  }
-  return out
-}
+export const queuedFilesFromMessage = (message: CreateUIMessage<LoopMessage>): Array<QueuedFile> => messageFileParts(message as UIMessage)
 
 export interface Session {
   readonly id: string
@@ -145,7 +143,7 @@ export interface Session {
   setTitle: (title: string) => void
   undo: () => Promise<UndoResult>
   redo: () => Promise<UndoResult>
-  revertToMessage: (messageId: string) => void
+  revertToMessage: (messageId: string) => RevertResult
   sendMessage: Chat['sendMessage']
   regenerate: Chat['regenerate']
   stop: Chat['stop']
@@ -295,6 +293,7 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
   }
 
   const pendingPrompts: Array<PendingPrompt> = []
+  const userAttachments = new Map<string, UserPromptSnapshot>()
   const queueListeners = new Set<(items: Array<QueuedPrompt>) => void>()
   const snapshotQueued = (): Array<QueuedPrompt> =>
     pendingPrompts.map((item) => ({
@@ -313,6 +312,7 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
   let planExitOnce = false
   let resuming = false
   const consumedPlanExits = new Set<string>()
+  const consumedGrillExits = new Set<string>()
   const isRunning = (): boolean => chat.status === 'submitted' || chat.status === 'streaming'
   const abortFailure = (): Error => {
     const failure = new Error('Aborted')
@@ -411,6 +411,7 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
     state: chatState,
     onFinish: (options) => {
       autoCompactedThisTurn = false
+      cacheUserPrompts(chat.messages, userAttachments)
       const wasAborting = aborting
       if (aborting) {
         aborting = false
@@ -427,6 +428,20 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
       for (const id of freshExits) consumedPlanExits.add(id)
       if (freshExits.length > 0) {
         applyAgentOverride('coder')
+        resuming = true
+        planExitOnce = true
+      }
+      const freshGrillExits = (finished.parts ?? [])
+        .map((p) => p as LooseFlowPart)
+        .filter((p) => flowToolPartName(p) === 'grill-exit' && p.state === 'output-available')
+        .filter((p) => typeof p.toolCallId === 'string' && !consumedGrillExits.has(p.toolCallId))
+      for (const part of freshGrillExits) {
+        if (typeof part.toolCallId === 'string') consumedGrillExits.add(part.toolCallId)
+      }
+      if (freshGrillExits.length > 0) {
+        const part = freshGrillExits[0]
+        const switchedTo = part && typeof (part.output as { switchedTo?: unknown } | undefined)?.switchedTo === 'string' ? (part.output as { switchedTo: string }).switchedTo : 'plan-code'
+        applyAgentOverride(switchedTo)
         resuming = true
         planExitOnce = true
       }
@@ -557,9 +572,15 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
     },
     revertToMessage: (messageId) => {
       assertNotRunning('revert')
-      const index = chat.messages.findIndex((m) => m.id === messageId)
-      if (index < 0) throw new Error(`Unknown message "${messageId}"`)
-      chat.messages = chat.messages.slice(0, index + 1)
+      const plan = planRevert(chat.messages, messageId)
+      if (!plan) throw new Error(`Unknown message "${messageId}"`)
+      const target = chat.messages[plan.isUser ? plan.cut : plan.cut - 1]
+      if (!target) throw new Error(`Unknown message "${messageId}"`)
+      const prompt = plan.isUser ? (userAttachments.get(messageId) ?? extractUserPrompt(target)) : undefined
+      const removed = chat.messages.slice(plan.cut)
+      chat.messages = chat.messages.slice(0, plan.cut)
+      for (const message of removed) userAttachments.delete(message.id)
+      return prompt ? { prompt } : {}
     },
     sendMessage: ((message, requestOptions) => {
       if (message !== undefined && (resuming || isWaiting(chat.messages))) {

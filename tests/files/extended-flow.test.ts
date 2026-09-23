@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { AskToolArgsSchema, createAskTool } from '../../src/agent/tools/flow/ask.ts'
+import { createGrillExitTool, GrillExitToolArgsSchema } from '../../src/agent/tools/flow/grill-exit.ts'
 import { createPlanExitTool, PlanExitToolArgsSchema } from '../../src/agent/tools/flow/plan-exit.ts'
 import { createPlanWriteTool, PlanWriteToolArgsSchema } from '../../src/agent/tools/flow/plan-write.ts'
 import { createRuleTool, RuleToolArgsSchema } from '../../src/agent/tools/flow/rule.ts'
@@ -47,6 +48,17 @@ describe('plan tools', () => {
     const out = createPlanExitTool().handler()
     expect(out.switchedTo).toBe('coder')
     expect(out.message).toContain('Plan approved')
+  })
+  test('grill-exit defaults to plan and hands off to coder when confident', () => {
+    expect(GrillExitToolArgsSchema.safeParse({}).success).toBe(true)
+    expect(GrillExitToolArgsSchema.safeParse({ target: 'plan' }).success).toBe(true)
+    expect(GrillExitToolArgsSchema.safeParse({ target: 'coder' }).success).toBe(true)
+    expect(GrillExitToolArgsSchema.safeParse({ target: 'nope' }).success).toBe(false)
+    expect(GrillExitToolArgsSchema.parse({}).target).toBe('plan')
+    expect(createGrillExitTool().handler({ target: 'plan' }).switchedTo).toBe('plan-code')
+    const coder = createGrillExitTool().handler({ target: 'coder' })
+    expect(coder.switchedTo).toBe('coder')
+    expect(coder.message).toContain('Coder')
   })
 })
 describe('skill and rule tools with tmp', () => {

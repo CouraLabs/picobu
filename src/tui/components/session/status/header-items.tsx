@@ -17,7 +17,7 @@ export interface HeaderRenderContext {
 
 const WorkspaceItem = (props: { ctx: HeaderRenderContext }) => (
   <box flexDirection="row" columnGap={1} flexShrink={0} flexWrap="wrap">
-    <StatusSegment icon={icons.folderOpen} value={props.ctx.data.folderLabel()} valueColor={theme().accent} selectable={props.ctx.selectable} />
+    <StatusSegment value={props.ctx.data.folderLabel()} valueColor={theme().accent} selectable={props.ctx.selectable} />
     <Show when={props.ctx.status.git}>
       <StatusSegment icon={icons.gitBranch} value={props.ctx.data.gitLabel()} valueColor={theme().secondary} selectable={props.ctx.selectable} />
       <box flexDirection="row" columnGap={1} flexShrink={0} flexWrap="wrap">

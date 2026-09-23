@@ -2,7 +2,7 @@
 import { stat } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { autoloadLlmProviders } from '@agent/model/registry.ts'
-import { ALL_PROMPT_FILES, seedPromptFiles } from '@agent/prompts/prompt-files.ts'
+import { ALL_PROMPT_FILES, overwritePromptFiles } from '@agent/prompts/prompt-files.ts'
 import { SessionManager } from '@agent/sessions/session-manager.ts'
 import { folderKeyFor } from '@agent/sessions/session-paths.ts'
 import { WORKFLOW_PROMPT_FILES } from '@agent/workflows/builtin.ts'
@@ -29,6 +29,7 @@ program
   .option('--session [id]', 'open the TUI resuming a session')
   .option('--cd <folder>', 'open the TUI with <folder> as cwd/workspace')
   .option('--clear-prompts-history', 'clear all prompt history and drafts, then exit')
+  .option('--off-load', 'overwrite the bundled agent/subagent/workflow prompt markdowns under ~/.picobu, then exit')
 program.addHelpText(
   'after',
   () => `
@@ -151,7 +152,7 @@ mcp.action(() => {
 })
 mcp
   .command('login')
-  .description('run the OAuth login flow for an MCP server (auth: true in config)')
+  .description('run the OAuth login flow for an MCP server')
   .argument('<serverId>', 'configured MCP server id')
   .action((serverId: string) => {
     void (async () => {
@@ -273,6 +274,7 @@ interface CliActionOptions {
   session?: string | boolean
   cd?: string
   clearPromptsHistory?: boolean
+  offLoad?: boolean
 }
 const resolveWorkspace = async (folder: string): Promise<string> => {
   const next = resolve(folder)
@@ -288,10 +290,21 @@ const openWorkspace = async (folder: string): Promise<void> => {
 program.action((opts: CliActionOptions) => {
   void (async () => {
     initLogger({ runId: typeof opts.session === 'string' && opts.session ? opts.session : `pid-${process.pid}`, systemDir: options.app.systemDir })
-    try {
-      seedPromptFiles([...ALL_PROMPT_FILES, ...Object.values(WORKFLOW_PROMPT_FILES)])
-    } catch (error) {
-      logError(error, { scope: 'seed-prompts' })
+    if (opts.offLoad) {
+      const { createInterface } = await import('node:readline/promises')
+      const rl = createInterface({ input: process.stdin, output: process.stdout })
+      const dir = options.app.systemDir
+      console.log(`This will overwrite the prompt markdowns under ${dir} (agents/ and workflows/).`)
+      const answer = (await rl.question('Proceed? [y/N] ')).trim().toLowerCase()
+      rl.close()
+      if (answer !== 'y') {
+        console.log('Aborted. No files were changed.')
+        process.exit(0)
+      }
+      const written = overwritePromptFiles([...ALL_PROMPT_FILES, ...Object.values(WORKFLOW_PROMPT_FILES)])
+      for (const file of written) console.log(`wrote ${file}`)
+      console.log(`Off-loaded ${written.length} prompt file(s) to ${dir}.`)
+      process.exit(0)
     }
     if (opts.clearPromptsHistory) {
       const { clearPromptHistory } = await import('@agent/sessions/prompt-history.ts')
@@ -305,7 +318,7 @@ program.action((opts: CliActionOptions) => {
         process.exit(1)
       }
       await bootstrapProviders()
-      setConsoleTitle(undefined)
+      setConsoleTitle(options.app.name)
       console.log('picobu headless server ready (no UI attached). Run without flags to open the TUI.')
       const keepAlive = setInterval(() => {}, 60_000)
       await new Promise<void>((resolve) => {

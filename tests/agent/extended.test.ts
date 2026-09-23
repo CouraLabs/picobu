@@ -411,8 +411,8 @@ describe('agent prompt texts', () => {
     expect(coderMarkdown).toContain('in parallel')
   })
   test('plan and ask tool lists include spawn', () => {
-    expect(planMarkdown).toContain('tools: read, grep, glob, repo-map, skill, rule, ask, plan-write, plan-exit, spawn')
-    expect(askMarkdown).toContain('tools: read, grep, glob, repo-map, skill, rule, websearch, webfetch, ask, spawn')
+    expect(planMarkdown).toContain('tools: read, grep, glob, skill, rule, ask, plan-write, plan-exit, spawn')
+    expect(askMarkdown).toContain('tools: read, grep, glob, skill, rule, websearch, webfetch, ask, spawn')
   })
   test('summarizer prompt carries markers', () => {
     expect(summarizerPrompt).toContain('Summarize')

@@ -21,4 +21,4 @@
 - Keep under 2000 chars; top wins the cut.
 
 ## Versioning
-- `package.json` `version` is the source of truth: `1.<features>.<build>`. Read via `getVersion()` in `src/shared/version.ts`; never hardcode. Bump: `bun run version:bump` (build +1) or `version:feature` (features +1, build resets).
+- `package.json` `version` is the source of truth: `0.<features>.<build>` (major stays 0, changed manually). Read via `getVersion()` in `src/shared/version.ts`; never hardcode. Bump: `bun run version:bump` (build +1) or `version:feature` (features +1, build resets).

@@ -360,6 +360,13 @@ const StatusLayoutDialog = (props: { surface: LayoutSurface; getStatusProps: () 
                 <For each={rendered()}>
                   {(entry) => {
                     const location = () => ({ line: lineIndex(), index: entry.index })
+                    const previousItem = (): SessionStatusItem | undefined => {
+                      const list = rendered()
+                      const pos = list.findIndex((candidate) => candidate.index === entry.index)
+                      if (pos <= 0) return undefined
+                      const prev = list[pos - 1]
+                      return prev ? (prev.item as SessionStatusItem) : undefined
+                    }
                     const isCursor = () => zone() === 'lines' && cursor().line === location().line && cursor().index === location().index
                     const isCarried = () => {
                       const carried = carrying()
@@ -368,7 +375,7 @@ const StatusLayoutDialog = (props: { surface: LayoutSurface; getStatusProps: () 
                     return (
                       <box flexShrink={0} backgroundColor={boxBackground(isCursor(), isCarried())}>
                         <Show when={props.surface === 'status'} fallback={<HeaderItemView item={entry.item as SessionHeaderItem} ctx={ctx() as HeaderRenderContext} />}>
-                          <StatusItemView item={entry.item as SessionStatusItem} ctx={ctx() as StatusRenderContext} />
+                          <StatusItemView item={entry.item as SessionStatusItem} ctx={ctx() as StatusRenderContext} previousItem={previousItem()} />
                         </Show>
                       </box>
                     )

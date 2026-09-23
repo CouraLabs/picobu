@@ -169,22 +169,22 @@ describe('shell spill and metadata', () => {
   })
 })
 
-describe('todo status and priority', () => {
-  test('in_progress is not counted done', async () => {
+describe('todo priority and done', () => {
+  test('done false is not counted done and priority is persisted', async () => {
     const tool = createTodoTool(join(dir, 'todos.json'))
-    const result = await tool.handler({ items: [{ phase: 'p', title: 'a', prompt: 'x', status: 'in_progress', priority: 'high', done: false }] })
+    const result = await tool.handler({ items: [{ phase: 'p', title: 'a', prompt: 'x', priority: 'high', done: false }] })
     expect(result.done).toBe(0)
     expect(result.total).toBe(1)
     const onDisk = JSON.parse(await readFile(join(dir, 'todos.json'), 'utf8'))
-    expect(onDisk.items[0].status).toBe('in_progress')
+    expect(onDisk.items[0].done).toBe(false)
     expect(onDisk.items[0].priority).toBe('high')
   })
-  test('legacy done files migrate to status', async () => {
+  test('legacy files still read', async () => {
     await Bun.write(join(dir, 'legacy.json'), JSON.stringify({ items: [{ phase: 'p', title: 'a', prompt: 'x', done: true }] }))
     const tool = createTodoTool(join(dir, 'legacy.json'))
     const result = await tool.handler({ items: [{ phase: 'p', title: 'a', prompt: 'x', done: true }] })
     expect(result.done).toBe(1)
-    expect(normalizeTodoItem({ phase: 'p', title: 'a', prompt: 'x', done: true }).status).toBe('completed')
+    expect(normalizeTodoItem({ phase: 'p', title: 'a', prompt: 'x', done: true }).done).toBe(true)
   })
 })
 

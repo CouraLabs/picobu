@@ -10,12 +10,12 @@ export interface PromptFileEntry {
   bundledUrl: URL
 }
 
-export type AgentPromptId = 'ask' | 'brainstorm' | 'coder' | 'plan' | 'persistent'
+export type AgentPromptId = 'ask' | 'grill' | 'coder' | 'plan' | 'persistent'
 export type SubagentPromptId = 'executor' | 'explorer' | 'reviewer' | 'debugger'
 
 export const AGENT_PROMPT_FILES: Record<AgentPromptId, PromptFileEntry> = {
   ask: { kind: 'agents', filename: 'ask.md', bundledUrl: new URL('./ask.md', import.meta.url) },
-  brainstorm: { kind: 'agents', filename: 'brainstorm.md', bundledUrl: new URL('./brainstorm.md', import.meta.url) },
+  grill: { kind: 'agents', filename: 'grill.md', bundledUrl: new URL('./grill.md', import.meta.url) },
   coder: { kind: 'agents', filename: 'coder.md', bundledUrl: new URL('./coder.md', import.meta.url) },
   plan: { kind: 'agents', filename: 'plan.md', bundledUrl: new URL('./plan.md', import.meta.url) },
   persistent: { kind: 'agents', filename: 'persistent.md', bundledUrl: new URL('./persistent.md', import.meta.url) },
@@ -49,6 +49,21 @@ export const seedPromptFiles = (entries: Array<PromptFileEntry>): Array<string> 
       written.push(target)
     } catch (error) {
       console.error(`picobu: failed to seed prompt ${entry.filename}:`, error)
+    }
+  }
+  return written
+}
+
+export const overwritePromptFiles = (entries: Array<PromptFileEntry>): Array<string> => {
+  const written: Array<string> = []
+  for (const entry of entries) {
+    const target = promptFilePath(entry)
+    try {
+      mkdirSync(dirname(target), { recursive: true })
+      writeFileSync(target, readFileSync(entry.bundledUrl, 'utf8'), 'utf8')
+      written.push(target)
+    } catch (error) {
+      console.error(`picobu: failed to overwrite prompt ${entry.filename}:`, error)
     }
   }
   return written

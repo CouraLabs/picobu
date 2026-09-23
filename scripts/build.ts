@@ -11,7 +11,7 @@ export const NATIVE_EXTERNALS = ['@opentui/core-*', '@vscode/ripgrep*']
 
 export const RUNTIME_ASSETS = [
   { from: 'src/agent/prompts/ask.md', to: 'ask.md' },
-  { from: 'src/agent/prompts/brainstorm.md', to: 'brainstorm.md' },
+  { from: 'src/agent/prompts/grill.md', to: 'grill.md' },
   { from: 'src/agent/prompts/coder.md', to: 'coder.md' },
   { from: 'src/agent/prompts/plan.md', to: 'plan.md' },
   { from: 'src/agent/prompts/persistent.md', to: 'persistent.md' },

@@ -140,4 +140,16 @@ describe('JobTracker', () => {
     tracker.releaseSlot()
     expect(tracker.activeSlots).toBe(0)
   })
+  test('stores and patches a job title', () => {
+    const tracker = new JobTracker()
+    tracker.set({ sessionId: 'a', parentId: 'p', subagent: 'explorer', state: 'running', queued: false, startedAt: 1, title: 'Explore the parser' })
+    expect(tracker.get('a')?.title).toBe('Explore the parser')
+    tracker.patch('a', { title: 'Refined title' })
+    expect(tracker.get('a')?.title).toBe('Refined title')
+  })
+  test('rows without a title leave title undefined', () => {
+    const tracker = new JobTracker()
+    tracker.set({ sessionId: 'b', parentId: 'p', subagent: 'executor', state: 'running', queued: false, startedAt: 1 })
+    expect(tracker.get('b')?.title).toBeUndefined()
+  })
 })
