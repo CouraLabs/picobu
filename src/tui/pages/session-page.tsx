@@ -1144,7 +1144,7 @@ export const SessionPage = (props: SessionPageProps) => {
           messages={messages()}
           isStreaming={isStreaming()}
           onFlowResponse={handleFlowResponse}
-          onMessageOpen={(message) => openMessageActions({ message, onRevert: handleRevert, onFork: (id) => void handleFork(id) })}
+          onMessageOpen={(message, part) => openMessageActions({ message, part, onRevert: handleRevert, onFork: (id) => void handleFork(id) })}
           onOpenSubSession={(id, label) => openSubagentMessages({ manager: sessionMgr, sessionId: id, label })}
           manager={sessionMgr}
         />

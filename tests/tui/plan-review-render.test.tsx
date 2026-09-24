@@ -1,7 +1,17 @@
 import { describe, expect, test } from 'bun:test'
+import { MarkdownRenderable, type Renderable } from '@opentui/core'
 import { testRender } from '@opentui/solid'
 import { PlanReview } from '../../src/tui/components/session/tools/plan-review.tsx'
 import { KeyboardProvider } from '../../src/tui/hooks/keyboard-provider.tsx'
+
+const collectMarkdowns = (node: Renderable): Array<MarkdownRenderable> => {
+  const found: Array<MarkdownRenderable> = []
+  for (const child of node.getChildren()) {
+    if (child instanceof MarkdownRenderable) found.push(child)
+    found.push(...collectMarkdowns(child))
+  }
+  return found
+}
 
 const mount = async (plan: string) => {
   const setup = await testRender(
@@ -36,6 +46,18 @@ describe('PlanReview render', () => {
     const setup = await mount('')
     try {
       expect(setup.captureCharFrame()).toContain('Approve')
+    } finally {
+      setup.renderer.destroy()
+    }
+  })
+
+  test('clips segment content so a block cannot bleed into the next', async () => {
+    const plan = `# Heading\n${'wrapline '.repeat(40)}\n\n## Following\nMARKER_FOLLOWING`
+    const setup = await mount(plan)
+    try {
+      const markdowns = collectMarkdowns(setup.renderer.root)
+      expect(markdowns.length).toBeGreaterThan(0)
+      for (const markdown of markdowns) expect(markdown.parent?.overflow).toBe('hidden')
     } finally {
       setup.renderer.destroy()
     }

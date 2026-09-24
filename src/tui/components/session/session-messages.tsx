@@ -12,7 +12,7 @@ export interface SessionMessagesProps {
   messages: Array<LoopMessage>
   isStreaming?: boolean
   onFlowResponse?: (response: ToolFlowResponse) => void | Promise<void>
-  onMessageOpen?: (message: LoopMessage) => void
+  onMessageOpen?: (message: LoopMessage, part: MessagePart) => void
   onOpenSubSession?: (sessionId: string, label: string) => void
   manager?: SessionManager
 }

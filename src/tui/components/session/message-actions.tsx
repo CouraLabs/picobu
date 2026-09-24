@@ -8,15 +8,18 @@ import { onMount } from 'solid-js'
 
 export interface MessageActionsProps {
   message: LoopMessage
+  part?: LoopMessage['parts'][number]
   onRevert?: (messageId: string) => void
   onFork?: (messageId: string) => void
 }
 
-export const messageText = (message: LoopMessage): string =>
-  message.parts
+export const messageText = (message: LoopMessage, part?: LoopMessage['parts'][number]): string => {
+  if (part && (part.type === 'text' || part.type === 'reasoning')) return part.text
+  return message.parts
     .filter((p): p is { type: 'text'; text: string } => p.type === 'text')
     .map((p) => p.text)
     .join('\n')
+}
 
 export type RevertRole = 'user' | 'assistant'
 
@@ -75,7 +78,7 @@ const MessageActionsDialog = (props: MessageActionsProps) => {
       return
     }
     try {
-      await service.writeText(messageText(props.message), { destination: 'all-available' })
+      await service.writeText(messageText(props.message, props.part), { destination: 'all-available' })
       closeDialog()
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error)

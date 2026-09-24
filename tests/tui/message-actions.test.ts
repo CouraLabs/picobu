@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { revertConfirmCopy } from '../../src/tui/components/session/message-actions.tsx'
+import { messageText, revertConfirmCopy } from '../../src/tui/components/session/message-actions.tsx'
 
 describe('revertConfirmCopy', () => {
   test('assistant copy is unchanged', () => {
@@ -14,5 +14,44 @@ describe('revertConfirmCopy', () => {
     expect(copy.title).toBe('Edit this message?')
     expect(copy.confirm).toBe('Edit')
     expect(copy.body).toContain('prompt')
+  })
+})
+
+describe('messageText', () => {
+  const message = (parts: Array<{ type: string; text: string }>) => ({ id: 'm1', role: 'assistant', parts }) as never
+
+  test('copies only the provided text part', () => {
+    expect(
+      messageText(
+        message([
+          { type: 'text', text: 'a' },
+          { type: 'text', text: 'b' },
+        ]),
+        { type: 'text', text: 'b' } as never,
+      ),
+    ).toBe('b')
+  })
+
+  test('copies the provided reasoning part text', () => {
+    expect(
+      messageText(
+        message([
+          { type: 'reasoning', text: 'think' },
+          { type: 'text', text: 'answer' },
+        ]),
+        { type: 'reasoning', text: 'think' } as never,
+      ),
+    ).toBe('think')
+  })
+
+  test('falls back to all text parts when no part is given', () => {
+    expect(
+      messageText(
+        message([
+          { type: 'text', text: 'a' },
+          { type: 'text', text: 'b' },
+        ]),
+      ),
+    ).toBe('a\nb')
   })
 })

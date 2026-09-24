@@ -24,7 +24,7 @@ export interface MessagePartViewProps {
   role: LoopMessage['role']
   part: MessagePart
   message: LoopMessage
-  onOpen?: (message: LoopMessage) => void
+  onOpen?: (message: LoopMessage, part: MessagePart) => void
 }
 
 const DOUBLE_CLICK_MS = 200
@@ -44,7 +44,7 @@ export const MessagePartView = (props: MessagePartViewProps) => {
       const now = Date.now()
       if (now - lastClickAt <= DOUBLE_CLICK_MS) {
         lastClickAt = 0
-        props.onOpen?.(props.message)
+        props.onOpen?.(props.message, props.part)
       } else {
         lastClickAt = now
       }

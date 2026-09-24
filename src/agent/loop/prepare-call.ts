@@ -39,7 +39,7 @@ export const createPrepareCall = (deps: PrepareCallDeps): ToolLoopAgentSettings<
       instructions: await buildSystem(persistent ? 'persistent' : config.agentId),
       reasoning: config.thinking as AgentReasoning,
       providerOptions: {
-        cacheControl: { type: 'ephemeral', ttl: '1h' },
+        anthropic: { cacheControl: { type: 'ephemeral', ttl: '1h' } },
       },
       ...(agentDef.temperature !== undefined ? { temperature: agentDef.temperature } : {}),
       ...(agentDef.topP !== undefined ? { topP: agentDef.topP } : {}),

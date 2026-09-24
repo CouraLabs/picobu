@@ -54,7 +54,7 @@ const PlanSegmentView = (props: PlanSegmentViewProps) => {
             {icons.pencil}
           </text>
         </box>
-        <box flexShrink={1} minWidth={0} border={['left']} borderColor={theme().borderSubtle} paddingX={1}>
+        <box flexShrink={1} minWidth={0} overflow="hidden" border={['left']} borderColor={theme().borderSubtle} paddingX={1}>
           <Show when={props.segment.kind === 'code'} fallback={<markdown syntaxStyle={theme().syntax} conceal content={props.segment.text.trim()} />}>
             <code content={props.segment.text} filetype={fenceFiletype(props.segment.lang)} syntaxStyle={theme().syntax} treeSitterClient={getSharedTreeSitterClientSync()} conceal />
           </Show>
