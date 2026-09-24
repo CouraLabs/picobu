@@ -1,8 +1,8 @@
 import { options } from '@config/options.ts'
 import { initMcpAuth, isMcpAuthActive, usesMcpAuth } from '@integrations/mcp/auth.ts'
 import type { McpManager } from '@integrations/mcp/client.ts'
-import { serverTarget } from '@integrations/mcp/config.ts'
-import { loadMcpConfig, loadProjectMcpServers } from '@integrations/mcp/discover.ts'
+import { mergeMcpServers, serverTarget } from '@integrations/mcp/config.ts'
+import { scanProjectMcpServers } from '@integrations/mcp/discover.ts'
 
 export interface McpServerInfo {
   id: string
@@ -16,16 +16,13 @@ export interface McpServerInfo {
 }
 
 export const listMcpServers = async (manager?: McpManager): Promise<Array<McpServerInfo>> => {
-  const servers = await loadMcpConfig(options.app.cwd)
+  const { servers: projectServers } = await scanProjectMcpServers(options.app.cwd)
+  const servers = mergeMcpServers(Object.values(options.mcp.servers), projectServers)
   try {
     await initMcpAuth()
   } catch {}
-  const [projectIds, snapshots] = await Promise.all([
-    loadProjectMcpServers(options.app.cwd)
-      .then((rows) => new Set(rows.map((server) => server.id)))
-      .catch(() => new Set<string>()),
-    manager ? manager.snapshot() : Promise.resolve(undefined),
-  ])
+  const snapshots = manager ? await manager.snapshot() : undefined
+  const projectIds = new Set(projectServers.map((server) => server.id))
   return servers.map((server) => {
     const snapshot = snapshots?.find((s) => s.id === server.id)
     return {

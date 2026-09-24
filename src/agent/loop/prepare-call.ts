@@ -1,4 +1,5 @@
 import { getAgent } from '@agent/agents/registry.ts'
+import { buildActiveTools } from '@agent/loop/active-tools.ts'
 import type { DoomLoopGuard } from '@agent/loop/doom-loop.ts'
 import { buildStopWhen } from '@agent/loop/stop-conditions.ts'
 import { buildToolOrder } from '@agent/loop/tool-order.ts'
@@ -34,7 +35,7 @@ export const createPrepareCall = (deps: PrepareCallDeps): ToolLoopAgentSettings<
       model: resolved.model,
       tools,
       toolOrder: buildToolOrder(Object.keys(tools), (name) => localKindByName.get(name) ?? 'mcp'),
-      activeTools: agentDef.tools.filter((name) => name in tools),
+      activeTools: buildActiveTools(agentDef.tools, Object.keys(tools), Object.keys(mcpTools)),
       instructions: await buildSystem(persistent ? 'persistent' : config.agentId),
       reasoning: config.thinking as AgentReasoning,
       providerOptions: {

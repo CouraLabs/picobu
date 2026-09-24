@@ -21,6 +21,7 @@ import {
   flowOutputMessage,
   flowOutputStatus,
   hasRenderableOutput,
+  isMcpTool,
   isShellTool,
   isSpawnTool,
   isTodoTool,
@@ -29,6 +30,7 @@ import {
   knowledgeDetail,
   planText,
   previewToolInput,
+  rawToolName,
   summarizeToolInput,
   summarizeToolOutput,
   type ToolPartLike,
@@ -94,24 +96,27 @@ export const ToolPart = (props: ToolPartProps) => {
   }
   const [hovered, setHovered] = createSignal(false)
   const name = createMemo(() => toolDisplayName(props.part))
+  const raw = createMemo(() => rawToolName(props.part))
+  const isMcp = createMemo(() => isMcpTool(props.part))
   const view = createMemo(() => toolStateView(props.part))
   const color = createMemo(() => toneColor(view().tone))
   const summary = createMemo(() => {
-    const known = summarizeToolInput(name(), props.part.input)
-    return known === '?' ? previewToolInput(props.part.input) : known
+    const known = summarizeToolInput(raw(), props.part.input)
+    const text = known === '?' ? previewToolInput(props.part.input) : known
+    return isMcp() && text.length > 0 ? `· ${text}` : text
   })
   const runningProgress = createMemo(() => toolProgress(props.part))
   const knowledge = createMemo(() => knowledgeDetail(props.part))
-  const outputPreview = createMemo(() => (runningProgress() ? undefined : summarizeToolOutput(name(), props.part.output, props.part.errorText)))
+  const outputPreview = createMemo(() => (runningProgress() ? undefined : summarizeToolOutput(raw(), props.part.output, props.part.errorText)))
   const diff = createMemo(() => (props.part.state === 'output-available' ? toolDiff(props.part.output) : undefined))
   const written = createMemo(() => (knowledge() !== undefined ? undefined : props.part.state === 'output-available' ? writeContent(props.part) : undefined))
   const expandedText = createMemo(() => {
     if (runningProgress() || written() !== undefined || knowledge() !== undefined || diff() !== undefined) return undefined
     if (props.part.state !== 'output-available' && props.part.state !== 'output-error') return undefined
-    const raw = toolOutputText(name(), props.part.output)
-    if (raw === undefined) return undefined
-    if (raw.trim().length === 0) return 'No matches'
-    return truncateLines(raw, EXPANDED_MAX_LINES).text
+    const text = toolOutputText(raw(), props.part.output)
+    if (text === undefined) return undefined
+    if (text.trim().length === 0) return 'No matches'
+    return truncateLines(text, EXPANDED_MAX_LINES).text
   })
   const questions = createMemo(() => (isAskTool(props.part) ? toolAskQuestions(props.part.input) : []))
   const plan = createMemo(() => (isPlanWriteTool(props.part) ? planText(props.part.input) : undefined))

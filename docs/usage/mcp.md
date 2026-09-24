@@ -1,6 +1,6 @@
 # MCP (Model Context Protocol)
 
-Picobu connects to [MCP](https://modelcontextprotocol.io/) servers via `@ai-sdk/mcp` and merges their tools into every agent loop. Configure servers globally in `~/.picobu/options.json` under `mcp.servers`, and/or per project in `.mcp.json` (Claude-style `mcpServers` map); the project wins on id collision.
+Picobu connects to [MCP](https://modelcontextprotocol.io/) servers via `@ai-sdk/mcp` and merges their tools into every agent loop. Configure servers globally in `~/.picobu/options.json` under `mcp.servers`, and/or per project. Project config is read from `.mcp.json` and `mcp.json` at the project root and in each first-level subfolder (Claude-style `mcpServers` map; `servers` is also accepted). On an id collision the winner, highest priority first, is: root `.mcp.json`, root `mcp.json`, any subfolder `.mcp.json`, any subfolder `mcp.json` — and project config always overrides global.
 
 ```json
 {
@@ -30,7 +30,7 @@ Picobu connects to [MCP](https://modelcontextprotocol.io/) servers via `@ai-sdk/
 | `instructions` | Guidance rendered into the system prompt alongside the server's tools |
 | `maxRetries` | Connection retry cap (floor 0) |
 
-Malformed entries fail fast with a named error, e.g. `MCP server "fs" (stdio) requires "command"`, and `"env:VAR"` references to unset variables throw at connect time.
+Malformed entries fail fast with a named error, e.g. `MCP server "fs" (stdio) requires "command"`. A malformed project file is skipped with a warning and the remaining files still load; `"env:VAR"` references to unset variables throw at connect time.
 
 ## Auth
 
@@ -46,7 +46,7 @@ Tokens live in `~/.picobu/mcp-auth.json` and refresh at connect.
 ## Discovery
 
 - Tools are namespaced `mcp_<serverId>_<toolName>` (capped at 64 chars).
-- All-tools agents get them automatically; explicit-tool agents opt in by name.
+- Every agent gets all MCP tools active automatically; only agents declaring `tools: none` opt out.
 - Each server's tools (plus config `instructions` or server initialize-time instructions) render into the `<Tools>` system-prompt section.
 
 ## Lifecycle

@@ -9,16 +9,20 @@ import {
   flowOutputMessage,
   flowOutputStatus,
   hasRenderableOutput,
+  isMcpTool,
   isShellTool,
   isTodoTool,
   isToolPart,
   latestTodoItems,
+  mcpDisplayName,
   planText,
   previewToolInput,
   rawToolName,
+  summarizeMcpInput,
   summarizeToolInput,
   summarizeToolOutput,
   type ToolPartLike,
+  titleCase,
   todoItems,
   toolAskQuestions,
   toolDiff,
@@ -77,6 +81,54 @@ describe('rawToolName/toolDisplayName', () => {
   test('display name is upper case', () => {
     expect(toolDisplayName(part({ type: 'tool-read' }))).toBe('READ')
     expect(toolDisplayName(part({ type: 'dynamic-tool', toolName: 'fetch' }))).toBe('FETCH')
+  })
+})
+
+describe('mcp tools', () => {
+  test('isMcpTool detects the mcp_ prefix', () => {
+    expect(isMcpTool({ type: 'dynamic-tool', toolName: 'mcp_deepwiki_read_wiki_structure' })).toBe(true)
+    expect(isMcpTool({ type: 'dynamic-tool', toolName: 'read' })).toBe(false)
+    expect(isMcpTool({ type: 'tool-read' })).toBe(false)
+  })
+  test('titleCase splits camelCase and snake_case', () => {
+    expect(titleCase('repoName')).toBe('Repo Name')
+    expect(titleCase('repo_name')).toBe('Repo Name')
+    expect(titleCase('readWikiStructure')).toBe('Read Wiki Structure')
+    expect(titleCase('')).toBe('')
+  })
+  test('mcpDisplayName renders MCP · Title Case Name', () => {
+    expect(mcpDisplayName('mcp_deepwiki_read_wiki_structure')).toBe('MCP · Deepwiki Read Wiki Structure')
+    expect(mcpDisplayName('mcp_ask')).toBe('MCP · Ask')
+    expect(mcpDisplayName('mcp_')).toBe('MCP')
+  })
+  test('toolDisplayName routes mcp names through mcpDisplayName', () => {
+    expect(toolDisplayName({ type: 'dynamic-tool', toolName: 'mcp_deepwiki_read_wiki_structure' })).toBe('MCP · Deepwiki Read Wiki Structure')
+  })
+  test('summarizeMcpInput renders fields as Title Case: value', () => {
+    expect(summarizeMcpInput({ repoName: 'microsoft/TypeScript', question: 'How does it work?' })).toBe('Repo Name: microsoft/TypeScript, Question: How does it work?')
+    expect(summarizeMcpInput({ limit: 5, deep: true })).toBe('Limit: 5, Deep: true')
+    expect(summarizeMcpInput({ tags: ['a', 'b'] })).toBe('Tags: ["a","b"]')
+    expect(summarizeMcpInput({})).toBe('')
+    expect(summarizeMcpInput({ q: undefined })).toBe('')
+    expect(summarizeMcpInput({ q: '' })).toBe('')
+  })
+  test('summarizeToolInput detects mcp by name', () => {
+    expect(summarizeToolInput('mcp_deepwiki_read_wiki_structure', { repoName: 'microsoft/TypeScript' })).toBe('Repo Name: microsoft/TypeScript')
+  })
+  test('summarizeToolOutput counts MCP text content lines', () => {
+    expect(summarizeToolOutput('mcp_deepwiki_ask', { content: [{ type: 'text', text: 'Hello world' }] })).toBe('1 lines')
+    expect(
+      summarizeToolOutput('mcp_deepwiki_ask', {
+        content: [
+          { type: 'text', text: 'a' },
+          { type: 'text', text: 'b' },
+        ],
+      }),
+    ).toBe('2 lines')
+    expect(summarizeToolOutput('mcp_deepwiki_ask', 'plain')).toBe('1 lines')
+    expect(summarizeToolOutput('mcp_deepwiki_ask', { isError: false })).toBeUndefined()
+    expect(summarizeToolOutput('mcp_deepwiki_ask', undefined)).toBeUndefined()
+    expect(summarizeToolOutput('mcp_deepwiki_ask', undefined, 'boom')).toBe('boom')
   })
 })
 

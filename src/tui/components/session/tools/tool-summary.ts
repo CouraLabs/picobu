@@ -36,6 +36,12 @@ export const isSpawnTool = (part: ToolPartLike): boolean => rawToolName(part).to
 
 export const isShellTool = (part: ToolPartLike): boolean => rawToolName(part).toLowerCase() === 'shell'
 
+const MCP_PREFIX = 'mcp_'
+
+const isMcpName = (name: string): boolean => name.toLowerCase().startsWith(MCP_PREFIX)
+
+export const isMcpTool = (part: ToolPartLike): boolean => isMcpName(rawToolName(part))
+
 export const isTodoTool = (part: ToolPartLike): boolean => part.type === 'tool-todo' || (part.type === DYNAMIC_TOOL_TYPE && part.toolName === 'todo')
 
 const isTodoItemValue = (value: unknown): value is TodoItem =>
@@ -116,7 +122,27 @@ export const planLineCount = (input: unknown): number | undefined => {
   return plan.length === 0 ? 0 : plan.split('\n').length
 }
 
-export const toolDisplayName = (part: ToolPartLike): string => rawToolName(part).toUpperCase()
+const titleCaseWord = (word: string): string => (word.length === 0 ? word : `${word[0]?.toUpperCase() ?? ''}${word.slice(1).toLowerCase()}`)
+
+export const titleCase = (value: string): string =>
+  value
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
+    .replace(/[_-]+/g, ' ')
+    .split(/\s+/)
+    .filter((word) => word.length > 0)
+    .map(titleCaseWord)
+    .join(' ')
+
+export const mcpDisplayName = (raw: string): string => {
+  const label = titleCase(raw.replace(/^mcp[_-]+/i, ''))
+  return label.length > 0 ? `MCP · ${label}` : 'MCP'
+}
+
+export const toolDisplayName = (part: ToolPartLike): string => {
+  const raw = rawToolName(part)
+  return isMcpName(raw) ? mcpDisplayName(raw) : raw.toUpperCase()
+}
 
 export const isPreliminaryToolResult = (part: ToolPartLike): boolean => (part as { preliminary?: unknown }).preliminary === true
 
@@ -161,7 +187,19 @@ export const toolProgress = (part: ToolPartLike): string | undefined => {
   return typeof progress === 'string' && progress.length > 0 ? progress : undefined
 }
 
+const MCP_VALUE_MAX = 120
+
+const formatMcpValue = (value: unknown): string => singleLine(value, MCP_VALUE_MAX)
+
+export const summarizeMcpInput = (input: unknown): string => {
+  if (typeof input !== 'object' || input === null) return typeof input === 'string' ? singleLine(input, MCP_VALUE_MAX) : ''
+  const entries = Object.entries(input as Record<string, unknown>).filter(([, value]) => value !== undefined && value !== null && value !== '')
+  if (entries.length === 0) return ''
+  return entries.map(([key, value]) => `${titleCase(key)}: ${formatMcpValue(value)}`).join(', ')
+}
+
 export const summarizeToolInput = (name: string, input: unknown): string => {
+  if (isMcpName(name)) return summarizeMcpInput(input)
   const args = (input ?? {}) as Record<string, unknown>
   const field = (key: string): string | undefined => {
     const value = args[key]
@@ -246,7 +284,26 @@ export const truncateLines = (text: string, max: number = EXPANDED_MAX_LINES): {
 
 export const detailClipWidth = (width: number, running: boolean, nameLength: number): number => Math.max(8, width - 8 - (running ? 2 : 0) - nameLength)
 
+const mcpOutputText = (output: unknown): string | undefined => {
+  if (output === undefined || output === null) return undefined
+  if (typeof output === 'string') return output.length > 0 ? output : undefined
+  if (typeof output !== 'object') return undefined
+  const content = (output as { content?: unknown }).content
+  if (!Array.isArray(content)) return undefined
+  const text = content
+    .map((item) => (typeof item === 'object' && item !== null && typeof (item as { text?: unknown }).text === 'string' ? (item as { text: string }).text : ''))
+    .filter((part) => part.length > 0)
+    .join('\n')
+  return text.length > 0 ? text : undefined
+}
+
+const summarizeMcpOutput = (output: unknown): string | undefined => {
+  const text = mcpOutputText(output)
+  return text !== undefined ? `${countLines(text)} lines` : undefined
+}
+
 export const toolOutputText = (name: string, output: unknown): string | undefined => {
+  if (isMcpName(name)) return mcpOutputText(output)
   if (output === undefined || output === null) return undefined
   const args = typeof output === 'object' ? (output as Record<string, unknown>) : undefined
   switch (name.toLowerCase()) {
@@ -268,6 +325,7 @@ export const toolOutputText = (name: string, output: unknown): string | undefine
 
 export const summarizeToolOutput = (name: string, output: unknown, errorText?: string): string | undefined => {
   if (errorText) return summarizeToolError(errorText)
+  if (isMcpName(name)) return summarizeMcpOutput(output)
   if (output === undefined || output === null) return undefined
   if (output === '' && name.toLowerCase() !== 'glob') return undefined
 

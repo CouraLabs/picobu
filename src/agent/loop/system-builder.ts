@@ -1,3 +1,4 @@
+import { NO_TOOLS } from '@agent/agents/create-agent.ts'
 import { getAgent } from '@agent/agents/registry.ts'
 import { canWriteFiles, listSubagents } from '@agent/agents/subagents.ts'
 import { listSkills } from '@agent/commands/index.ts'
@@ -22,8 +23,7 @@ export interface SystemBuilderDeps {
 export const createSystemBuilder = (deps: SystemBuilderDeps): { buildSystem: (agentId: string) => Promise<string> } => {
   const { getConfig, cwd, toolSet, mcp } = deps
   const mcpInfo = async (agentDef: { tools: Array<string> }): Promise<string> => {
-    const hasMcpTools = agentDef.tools.length === 0 || agentDef.tools.some((name) => name.startsWith('mcp_'))
-    if (!hasMcpTools) return ''
+    if (agentDef.tools.includes(NO_TOOLS)) return ''
     const snapshots = await mcp.snapshot()
     return snapshots
       .map((snapshot) => (snapshot.connected && snapshot.tools.length ? renderMcpServerToolsInfo(snapshot.id, snapshot.instructions ?? snapshot.serverInstructions, snapshot.tools) : ''))
@@ -53,7 +53,7 @@ export const createSystemBuilder = (deps: SystemBuilderDeps): { buildSystem: (ag
     if (cached !== undefined) return cached
     const hasSkillTool = agent.tools.length === 0 || agent.tools.includes('skill')
     const hasRuleTool = agent.tools.length === 0 || agent.tools.includes('rule')
-    const hasSpawnTool = agent.tools.includes('spawn')
+    const hasSpawnTool = agent.tools.length === 0 || agent.tools.includes('spawn')
     const mcpDocs = await mcpInfo(agent)
     const built = generateSystemMessage({
       appName: options.app.name,
