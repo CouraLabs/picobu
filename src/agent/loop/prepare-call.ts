@@ -1,10 +1,12 @@
+import { NO_TOOLS } from '@agent/agents/create-agent.ts'
 import { getAgent } from '@agent/agents/registry.ts'
 import { buildActiveTools } from '@agent/loop/active-tools.ts'
 import type { DoomLoopGuard } from '@agent/loop/doom-loop.ts'
 import { buildStopWhen } from '@agent/loop/stop-conditions.ts'
 import { buildToolOrder } from '@agent/loop/tool-order.ts'
 import type { AgentReasoning, LoopCallOptions, LoopConfig } from '@agent/loop/types.ts'
-import { resolveModel } from '@agent/model/resolver.ts'
+import { copilotProviderToolSet } from '@agent/model/providers/copilot/tools.ts'
+import { copilotEndpoint, resolveModel } from '@agent/model/resolver.ts'
 import type { AgentTool } from '@agent/tools/toolset.ts'
 import { options as appOptions } from '@config/options.ts'
 import type { McpManager } from '@integrations/mcp/client.ts'
@@ -29,17 +31,28 @@ export const createPrepareCall = (deps: PrepareCallDeps): ToolLoopAgentSettings<
     const agentDef = config.agentOverride ?? getAgent(persistent ? 'persistent' : config.agentId)
     const resolved = resolveModel(config.modelKey, config.sessionId ? { sessionId: config.sessionId } : undefined)
     const mcpTools = await mcp.tools()
-    const tools = { ...toolSet.getToolSet(), ...mcpTools }
+    const isCopilot = resolved.provider.id === 'github-copilot'
+    const copilot = isCopilot ? copilotEndpoint(resolved.modelMeta.endpoint, resolved.modelMeta.npm) : undefined
+    const copilotMessages = copilot === 'messages'
+    const copilotResponses = copilot === 'responses'
+    const copilotEffort = config.thinking === 'none' || config.thinking === 'provider-default' ? undefined : config.thinking
+    const declaredNoTools = agentDef.tools.includes(NO_TOOLS)
+    const nativeTools = Object.fromEntries(Object.entries(toolSet.getToolSet()).filter(([name]) => !(copilotResponses && name === 'websearch')))
+    const copilotTools = copilotResponses && !declaredNoTools ? copilotProviderToolSet() : {}
+    const tools = { ...nativeTools, ...copilotTools, ...mcpTools }
+    const mcpNames = Object.keys(mcpTools)
+    const activeTools = [...new Set([...buildActiveTools(agentDef.tools, [...Object.keys(nativeTools), ...Object.keys(copilotTools)], mcpNames), ...Object.keys(copilotTools)])]
     const base = {
       ...rest,
       model: resolved.model,
       tools,
       toolOrder: buildToolOrder(Object.keys(tools), (name) => localKindByName.get(name) ?? 'mcp'),
-      activeTools: buildActiveTools(agentDef.tools, Object.keys(tools), Object.keys(mcpTools)),
+      activeTools,
       instructions: await buildSystem(persistent ? 'persistent' : config.agentId),
       reasoning: config.thinking as AgentReasoning,
       providerOptions: {
-        anthropic: { cacheControl: { type: 'ephemeral', ttl: '1h' } },
+        anthropic: { cacheControl: { type: 'ephemeral', ttl: '1h' }, ...(copilotMessages ? { toolStreaming: false } : {}) },
+        ...(copilotResponses && copilotEffort ? { copilot: { reasoningEffort: copilotEffort } } : {}),
       },
       ...(agentDef.temperature !== undefined ? { temperature: agentDef.temperature } : {}),
       ...(agentDef.topP !== undefined ? { topP: agentDef.topP } : {}),

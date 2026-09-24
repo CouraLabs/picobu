@@ -1,0 +1,15 @@
+import type { LanguageModelV4FinishReason } from '@ai-sdk/provider'
+
+export function mapOpenAIResponseFinishReason({ finishReason, hasFunctionCall }: { finishReason: string | null | undefined; hasFunctionCall: boolean }): LanguageModelV4FinishReason['unified'] {
+  switch (finishReason) {
+    case undefined:
+    case null:
+      return hasFunctionCall ? 'tool-calls' : 'stop'
+    case 'max_output_tokens':
+      return 'length'
+    case 'content_filter':
+      return 'content-filter'
+    default:
+      return hasFunctionCall ? 'tool-calls' : 'other'
+  }
+}

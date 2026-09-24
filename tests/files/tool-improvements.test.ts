@@ -18,6 +18,7 @@ import { WebfetchToolArgsSchema } from '../../src/agent/tools/web/webfetch.ts'
 import { WebsearchToolArgsSchema } from '../../src/agent/tools/web/websearch.ts'
 import { options } from '../../src/config/options.ts'
 import { initLockDir } from '../../src/shared/lock.ts'
+import { shellErrorLabel } from '../../src/tui/components/session/tools/tool-summary.ts'
 
 const sb = (dir: string) => ({ root: dir }) as never
 const originalSystemDir = options.app.systemDir
@@ -156,6 +157,7 @@ describe('shell spill and metadata', () => {
       expect(message).toContain('exited 3')
       expect(message).toContain('out-line')
       expect(message).toContain('<shell_metadata>')
+      expect(shellErrorLabel(message)).toBe('errored · exit 3')
     }
   })
   test('timeout error names the timeout', async () => {

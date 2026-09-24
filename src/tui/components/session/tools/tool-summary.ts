@@ -148,6 +148,13 @@ export const isPreliminaryToolResult = (part: ToolPartLike): boolean => (part as
 
 export const isToolRunning = (part: ToolPartLike): boolean => part.state !== 'output-available' && part.state !== 'output-error'
 
+export const isErroredTool = (part: ToolPartLike): boolean => part.state === 'output-error'
+
+export const shellErrorLabel = (errorText: string): string => {
+  const exit = /exited (\d+)/.exec(errorText)
+  return exit ? `errored · exit ${exit[1]}` : 'errored'
+}
+
 // A finished tool only offers expand/collapse when its output has something to show:
 // errored tools and finished-with-empty-output tools collapse to the static row.
 export const hasRenderableOutput = (part: ToolPartLike): boolean => {

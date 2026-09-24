@@ -1,4 +1,5 @@
 import { withResponsesFallback } from '@agent/model/openai-fallback.ts'
+import { createCopilotProvider } from '@agent/model/providers/copilot/copilot-provider.ts'
 import { headersForProviderId } from '@agent/model/providers/index.ts'
 import { createAmazonBedrock } from '@ai-sdk/amazon-bedrock'
 import { createAnthropic } from '@ai-sdk/anthropic'
@@ -80,6 +81,7 @@ export const npmForProviderType = (type: ProviderOptions['type']): string => {
 
 export interface ModelInstanceOptions {
   modelNpm?: string
+  endpoint?: 'chat' | 'responses' | 'messages'
   sessionId?: string
 }
 
@@ -96,6 +98,13 @@ export const opencodeGoBaseUrl = (baseUrl: string | undefined): string | undefin
   const trimmed = baseUrl.replace(/\/$/, '')
   const suffix = OPENCODE_GO_ENDPOINT_SUFFIXES.find((ending) => trimmed.endsWith(ending))
   return suffix ? trimmed.slice(0, -suffix.length) : baseUrl
+}
+
+export const copilotEndpoint = (endpoint: ProviderModelOptions['endpoint'], npm: string | undefined): 'chat' | 'responses' | 'messages' => {
+  if (endpoint) return endpoint
+  if (npm === '@ai-sdk/anthropic') return 'messages'
+  if (npm === '@ai-sdk/openai') return 'responses'
+  return 'chat'
 }
 
 export const npmForModel = (provider: ProviderOptions, modelMeta?: Pick<ProviderModelOptions, 'id' | 'npm'>): string => {
@@ -115,8 +124,9 @@ export const createModelInstance = (provider: ProviderOptions, modelId: string, 
   const rawBaseUrl = auth.baseUrl ?? (provider.baseUrl || undefined)
   const goBaseUrl = isOpencodeGoProvider(provider) && provider.type !== 'openai-responses' ? opencodeGoBaseUrl(rawBaseUrl) : rawBaseUrl
   const baseUrl = provider.id === 'github-copilot' && npm === '@ai-sdk/anthropic' && goBaseUrl && !goBaseUrl.replace(/\/$/, '').endsWith('/v1') ? `${goBaseUrl.replace(/\/$/, '')}/v1` : goBaseUrl
-  const headers = headersForProvider(provider, opts?.sessionId ? { sessionId: opts.sessionId } : undefined)
+  const baseHeaders = headersForProvider(provider, opts?.sessionId ? { sessionId: opts.sessionId } : undefined)
   const isCopilot = provider.id === 'github-copilot'
+  const headers = isCopilot && npm === '@ai-sdk/anthropic' ? { ...baseHeaders, 'anthropic-beta': 'interleaved-thinking-2025-05-14' } : baseHeaders
   const createOpenAIModel = (mode: 'responses' | 'chat'): LanguageModelV4 => {
     const instance = createOpenAI({ baseURL: baseUrl, apiKey, headers })
     if (mode === 'responses') return instance.responses(modelId)
@@ -124,14 +134,17 @@ export const createModelInstance = (provider: ProviderOptions, modelId: string, 
       onFallback: () => console.error('picobu: OpenAI key is missing the api.responses.write scope; falling back to the Chat Completions API.'),
     })
   }
+  if (isCopilot) {
+    if (copilotEndpoint(opts?.endpoint, npm) === 'messages') return createAnthropic({ baseURL: baseUrl, authToken: apiKey, headers })(modelId)
+    const copilot = createCopilotProvider({ baseURL: baseUrl ?? '', ...(apiKey ? { apiKey } : {}), ...(headers ? { headers } : {}), name: 'github-copilot' })
+    return copilotEndpoint(opts?.endpoint, npm) === 'responses' ? copilot.responses(modelId) : copilot.chat(modelId)
+  }
   switch (npm) {
     case '@ai-sdk/anthropic':
-      if (isCopilot) return createAnthropic({ baseURL: baseUrl, authToken: apiKey, headers })(modelId)
       return createAnthropic({ baseURL: baseUrl, apiKey, headers })(modelId)
     case '@ai-sdk/openai':
       if (provider.type === 'openai-responses') return createOpenResponses({ url: baseUrl ?? '', name: provider.name, apiKey, headers })(modelId)
       if (isOpencodeGoProvider(provider)) return createOpenAIModel('responses')
-      if (isCopilot) return createOpenAIModel('responses')
       return createOpenAIModel('chat')
     case '@ai-sdk/google':
       return createGoogleGenerativeAI({ baseURL: baseUrl, apiKey, headers })(modelId)
@@ -249,7 +262,14 @@ export const resolveModelRef = (modelKey?: string): Omit<ResolvedModel, 'model'>
 
 export const resolveModel = (modelKey?: string, opts?: { sessionId?: string }): ResolvedModel => {
   const ref = resolveModelRef(modelKey)
-  return { ...ref, model: createModelInstance(ref.provider, ref.modelId, { modelNpm: ref.modelMeta.npm, ...(opts?.sessionId ? { sessionId: opts.sessionId } : {}) }) }
+  return {
+    ...ref,
+    model: createModelInstance(ref.provider, ref.modelId, {
+      modelNpm: ref.modelMeta.npm,
+      ...(ref.modelMeta.endpoint ? { endpoint: ref.modelMeta.endpoint } : {}),
+      ...(opts?.sessionId ? { sessionId: opts.sessionId } : {}),
+    }),
+  }
 }
 
 export const resolveDefaultModel = (): ResolvedModel => resolveModel(options.harness?.defaultModel)

@@ -9,6 +9,7 @@ import {
   flowOutputMessage,
   flowOutputStatus,
   hasRenderableOutput,
+  isErroredTool,
   isMcpTool,
   isShellTool,
   isTodoTool,
@@ -18,6 +19,7 @@ import {
   planText,
   previewToolInput,
   rawToolName,
+  shellErrorLabel,
   summarizeMcpInput,
   summarizeToolInput,
   summarizeToolOutput,
@@ -239,6 +241,17 @@ describe('previewToolInput/summarizeToolOutput', () => {
     expect(summarizeToolOutput('shell', 'ok')).toBe('ok')
     expect(summarizeToolOutput('shell', 'l1\nl2\nl3')).toBe('3 lines · l3')
     expect(summarizeToolOutput('shell', { exit: 0 })).toBeUndefined()
+  })
+  test('shell error label replaces the command title with errored', () => {
+    expect(shellErrorLabel('command `rm x` exited 1\nstderr:\nboom')).toBe('errored · exit 1')
+    expect(shellErrorLabel('command `boom` exited 2\n\n<shell_metadata>\nexit: 2\n</shell_metadata>')).toBe('errored · exit 2')
+    expect(shellErrorLabel('command `slow` timed out after 5s and was killed')).toBe('errored')
+    expect(shellErrorLabel('command `x` was aborted\n\n<shell_metadata>\nexit: aborted\n</shell_metadata>')).toBe('errored')
+  })
+  test('isErroredTool only matches output-error state', () => {
+    expect(isErroredTool(part({ state: 'output-error' }))).toBe(true)
+    expect(isErroredTool(part({ state: 'output-available' }))).toBe(false)
+    expect(isErroredTool(part({ state: 'input-available' }))).toBe(false)
   })
   test('search/ask/plan/todo/fetch summaries', () => {
     expect(summarizeToolOutput('websearch', { results: [1, 2, 3] })).toBe('3 results')

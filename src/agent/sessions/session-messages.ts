@@ -25,8 +25,9 @@ export function stripUnreplayableReasoning<M extends UIMessage>(messages: Array<
     let changed = false
     const parts = m.parts.filter((part) => {
       if (part.type !== 'reasoning') return true
-      const meta = (part as { providerMetadata?: { anthropic?: { signature?: unknown; redactedData?: unknown } } }).providerMetadata
-      const replayable = Boolean(meta?.anthropic?.signature || meta?.anthropic?.redactedData)
+      const meta = (part as { providerMetadata?: { anthropic?: { signature?: unknown; redactedData?: unknown }; copilot?: { reasoningEncryptedContent?: unknown; reasoningOpaque?: unknown } } })
+        .providerMetadata
+      const replayable = Boolean(meta?.anthropic?.signature || meta?.anthropic?.redactedData || meta?.copilot?.reasoningEncryptedContent || meta?.copilot?.reasoningOpaque)
       if (!replayable) changed = true
       return replayable
     })

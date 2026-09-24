@@ -101,12 +101,17 @@ const hasMessagesEndpoint = (item: CopilotRemoteItem): boolean => normalizedEndp
 
 const hasResponsesEndpoint = (item: CopilotRemoteItem): boolean => normalizedEndpoints(item).some((endpoint) => endpoint.includes('responses'))
 
-const hasChatEndpoint = (item: CopilotRemoteItem): boolean => normalizedEndpoints(item).some((endpoint) => endpoint.includes('chat/completions'))
-
 export const copilotModelNpm = (item: CopilotRemoteItem): string => {
   if (hasMessagesEndpoint(item)) return '@ai-sdk/anthropic'
-  if (hasResponsesEndpoint(item) && !hasChatEndpoint(item)) return '@ai-sdk/openai'
-  return '@ai-sdk/openai-compatible'
+  return '@ai-sdk/github-copilot'
+}
+
+export const copilotModelEndpoint = (item: CopilotRemoteItem): 'chat' | 'responses' | 'messages' => {
+  if (hasMessagesEndpoint(item)) return 'messages'
+  const match = /^gpt-(\d+)/.exec(item.id)
+  const major = match ? Number(match[1]) : Number.NaN
+  const isGpt5OrNewer = Number.isFinite(major) && major >= 5 && !item.id.startsWith('gpt-5-mini')
+  return isGpt5OrNewer && hasResponsesEndpoint(item) ? 'responses' : 'chat'
 }
 
 export const buildCopilotProviderModel = (remote: CopilotRemoteItem, prev?: ProviderModelOptions): ProviderModelOptions => {
@@ -141,6 +146,7 @@ export const buildCopilotProviderModel = (remote: CopilotRemoteItem, prev?: Prov
     defaultEffort: prev?.defaultEffort,
     billing: liveBilling ?? prev?.billing,
     npm: copilotModelNpm(remote),
+    endpoint: copilotModelEndpoint(remote),
   }
 }
 

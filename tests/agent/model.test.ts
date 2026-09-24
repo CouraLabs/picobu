@@ -133,6 +133,40 @@ describe('createModelInstance', () => {
     const model = createModelInstance(provider, 'glm-5.3-flash')
     expect(String(model.provider)).toContain('chat')
   })
+  test('routes copilot chat and responses models through the vendored provider', () => {
+    const copilot: ProviderOptions = {
+      id: 'github-copilot',
+      name: 'GitHub Copilot',
+      type: 'openai-compatible',
+      baseUrl: 'https://api.individual.githubcopilot.com',
+      apiKey: 'copilot-token',
+      models: [],
+    }
+    const chat = createModelInstance(copilot, 'gpt-4o', { modelNpm: '@ai-sdk/github-copilot', endpoint: 'chat' })
+    expect(chat.specificationVersion).toBe('v4')
+    expect(chat.provider).toBe('github-copilot.chat')
+    const responses = createModelInstance(copilot, 'gpt-5', { modelNpm: '@ai-sdk/github-copilot', endpoint: 'responses' })
+    expect(responses.specificationVersion).toBe('v4')
+    expect(responses.provider).toBe('github-copilot.responses')
+    const messages = createModelInstance(copilot, 'claude-sonnet-4', { modelNpm: '@ai-sdk/anthropic', endpoint: 'messages' })
+    expect(messages.provider).toBe('anthropic.messages')
+  })
+  test('routes legacy copilot npm entries through the vendored provider', () => {
+    const copilot: ProviderOptions = {
+      id: 'github-copilot',
+      name: 'GitHub Copilot',
+      type: 'openai-compatible',
+      baseUrl: 'https://api.individual.githubcopilot.com',
+      apiKey: 'copilot-token',
+      models: [],
+    }
+    const legacyResponses = createModelInstance(copilot, 'gpt-5', { modelNpm: '@ai-sdk/openai' })
+    expect(legacyResponses.provider).toBe('github-copilot.responses')
+    const legacyChat = createModelInstance(copilot, 'gpt-4o', { modelNpm: '@ai-sdk/openai-compatible' })
+    expect(legacyChat.provider).toBe('github-copilot.chat')
+    const legacyMessages = createModelInstance(copilot, 'claude-sonnet-4', { modelNpm: '@ai-sdk/anthropic' })
+    expect(legacyMessages.provider).toBe('anthropic.messages')
+  })
 })
 
 describe('modelsFromModelsDev', () => {

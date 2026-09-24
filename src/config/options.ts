@@ -29,6 +29,7 @@ export interface ProviderModelOptions {
   defaultEffort?: ProviderModelReasoningEffort
   billing?: ProviderModelBilling
   npm?: string
+  endpoint?: 'chat' | 'responses' | 'messages'
   status?: ProviderModelStatus
 }
 export type {

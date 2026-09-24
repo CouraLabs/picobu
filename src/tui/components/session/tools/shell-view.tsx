@@ -7,7 +7,9 @@ import { createMemo, createSignal, onCleanup, onMount, Show } from 'solid-js'
 import {
   detailClipWidth,
   EXPANDED_MAX_LINES,
+  isErroredTool,
   isToolRunning,
+  shellErrorLabel,
   summarizeToolInput,
   summarizeToolOutput,
   type ToolPartLike,
@@ -23,8 +25,15 @@ export const ShellView = (props: { part: ToolPartLike }) => {
   const view = createMemo(() => toolStateView(props.part))
   const color = createMemo(() => toneColor(view().tone))
   const running = createMemo(() => isToolRunning(props.part))
+  const errored = createMemo(() => isErroredTool(props.part))
   const command = createMemo(() => summarizeToolInput('shell', props.part.input))
-  const summary = createMemo(() => summarizeToolOutput('shell', props.part.output, props.part.errorText))
+  const successSummary = createMemo(() => summarizeToolOutput('shell', props.part.output))
+  const errorLabel = createMemo(() => shellErrorLabel(props.part.errorText ?? ''))
+  const errorText = createMemo(() => {
+    const text = props.part.errorText
+    if (text === undefined || text.trim().length === 0) return ''
+    return truncateLines(text, EXPANDED_MAX_LINES).text
+  })
   const progress = createMemo(() => toolProgress(props.part))
   const output = createMemo(() => toolOutputText('shell', props.part.output))
   const startAt = Date.now()
@@ -53,7 +62,8 @@ export const ShellView = (props: { part: ToolPartLike }) => {
   })
   const dims = useTerminalDims()
   const summaryText = createMemo(() => {
-    const value = summary()
+    if (errored()) return errorLabel()
+    const value = successSummary()
     return value === undefined || value.length === 0 ? '' : value
   })
   const toggle = () => setExpanded((current) => !current)
@@ -79,7 +89,7 @@ export const ShellView = (props: { part: ToolPartLike }) => {
           </text>
         </Show>
         <Show when={!running() && summaryText().length > 0}>
-          <text fg={theme().textMuted} flexShrink={1} selectable={false}>
+          <text fg={errored() ? theme().error : theme().textMuted} flexShrink={1} selectable={false}>
             {`· ${clip(summaryText(), detailClipWidth(dims().width, false, 5))}`}
           </text>
         </Show>
@@ -87,6 +97,9 @@ export const ShellView = (props: { part: ToolPartLike }) => {
       <Show when={expanded()}>
         <box flexDirection="column" marginTop={1}>
           <text fg={theme().text}>{`$ ${command()}`}</text>
+          <Show when={errored() && errorText().length > 0}>
+            <text fg={theme().error}>{errorText()}</text>
+          </Show>
           <Show when={body().length > 0}>
             <text fg={theme().textMuted}>{body()}</text>
           </Show>

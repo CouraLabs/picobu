@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { buildCopilotModelsFromCatalog, buildCopilotProviderModel, parseCopilotCatalog } from '../../src/auth/copilot-models.ts'
+import { buildCopilotModelsFromCatalog, buildCopilotProviderModel, copilotModelEndpoint, copilotModelNpm, parseCopilotCatalog } from '../../src/auth/copilot-models.ts'
 
 const item = (id: string, overrides?: Record<string, unknown>): unknown => ({
   id,
@@ -62,7 +62,8 @@ describe('buildCopilotProviderModel', () => {
     expect(model.supports).toEqual(['text', 'vision'])
     expect(model.reasoning).toBe(true)
     expect(model.efforts).toEqual(['low', 'high'])
-    expect(model.npm).toBe('@ai-sdk/openai-compatible')
+    expect(model.npm).toBe('@ai-sdk/github-copilot')
+    expect(model.endpoint).toBe('chat')
     expect(model.billing?.input).toBe(20)
     expect(model.billing?.output).toBe(40)
     expect(model.billing?.cacheRead).toBe(10)
@@ -72,7 +73,23 @@ describe('buildCopilotProviderModel', () => {
     const parsed = parseCopilotCatalog({ data: [raw] }, false)
     const remote = parsed.usable[0]
     if (!remote) throw new Error('missing remote')
-    expect(buildCopilotProviderModel(remote).npm).toBe('@ai-sdk/anthropic')
+    const model = buildCopilotProviderModel(remote)
+    expect(model.npm).toBe('@ai-sdk/anthropic')
+    expect(model.endpoint).toBe('messages')
+  })
+  test('maps chat and responses models to the copilot npm with the right endpoint', () => {
+    const parse = (overrides: Record<string, unknown>) => {
+      const parsed = parseCopilotCatalog({ data: [item('m', overrides)] }, false)
+      const remote = parsed.usable[0]
+      if (!remote) throw new Error('missing remote')
+      return remote
+    }
+    const responses = parse({ id: 'gpt-5', supported_endpoints: ['/responses', '/chat/completions'] })
+    expect(copilotModelNpm(responses)).toBe('@ai-sdk/github-copilot')
+    expect(copilotModelEndpoint(responses)).toBe('responses')
+    expect(copilotModelEndpoint(parse({ id: 'gpt-5-mini', supported_endpoints: ['/responses'] }))).toBe('chat')
+    expect(copilotModelEndpoint(parse({ id: 'gpt-4o', supported_endpoints: ['/chat/completions'] }))).toBe('chat')
+    expect(copilotModelEndpoint(parse({ id: 'claude-x', supported_endpoints: ['/v1/messages'] }))).toBe('messages')
   })
   test('preserves previous name and billing when live lacks prices', () => {
     const raw = item('m1')
