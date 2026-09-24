@@ -1,3 +1,5 @@
+import { options } from '@config/options.ts'
+import { collapseHome } from '@shared/path.ts'
 import { type BangOutput, bangOutput } from '@states/bang-output.state.ts'
 import { theme } from '@states/theme-state.ts'
 import { createMemo, Show } from 'solid-js'
@@ -27,7 +29,7 @@ export const SessionBangOutput = () => {
             <text fg={theme().text}>! {command()}</text>
             <text fg={exitColor()}>· exit {current().exitCode}</text>
             <text fg={theme().textMuted}>
-              · {current().durationMs}ms · {current().cwd}
+              · {current().durationMs}ms · {collapseHome(current().cwd, options.app.homeDir)}
             </text>
           </box>
           <scrollbox

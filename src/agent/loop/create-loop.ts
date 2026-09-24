@@ -1,3 +1,4 @@
+import { createDoomLoopGuard } from '@agent/loop/doom-loop.ts'
 import { createLoopStatsStore } from '@agent/loop/loop-stats.ts'
 import { createPrepareCall } from '@agent/loop/prepare-call.ts'
 import { resolveInitialModel } from '@agent/loop/resolve-initial-model.ts'
@@ -69,7 +70,8 @@ export function createLoop(getConfig: () => LoopConfig): Loop {
     }
   }
   const { buildSystem } = createSystemBuilder({ getConfig, cwd, toolSet, mcp })
-  const prepareCall = createPrepareCall({ getConfig, toolSet, mcp, buildSystem })
+  const doomLoopGuard = createDoomLoopGuard()
+  const prepareCall = createPrepareCall({ getConfig, toolSet, mcp, buildSystem, doomLoopGuard })
   const localTools = toolSet.getTools()
   const kindByName = new Map(localTools.map((t) => [t.name, t.kind]))
   const loopAgent = new ToolLoopAgent<LoopCallOptions, ToolSet, Record<string, unknown>, never>({

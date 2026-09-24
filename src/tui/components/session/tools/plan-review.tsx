@@ -3,10 +3,12 @@ import { clip } from '@shared/format.ts'
 import { theme } from '@states/theme-state.ts'
 import { pushToast } from '@states/toast.state.ts'
 import { Button } from '@tui/components/button.tsx'
+import { fenceFiletype, type PlanSegment, planSegments } from '@tui/components/session/tools/plan-blocks.ts'
 import { COMMENT_TEXTAREA_KEY_BINDINGS } from '@tui/components/shared/textarea-keybindings.ts'
 import { getClipboardService } from '@tui/hooks/clipboard.state.ts'
 import { useAppKeyboard } from '@tui/hooks/keyboard-provider.tsx'
 import { icons } from '@tui/themes/icons.ts'
+import { getSharedTreeSitterClientSync } from '@wrappers/treesitter-wrapper.ts'
 import { createSignal, For, Show } from 'solid-js'
 
 export type PlanVerdict = 'approved' | 'rejected'
@@ -20,38 +22,117 @@ export interface PlanReviewProps {
   onCancel: () => void | Promise<void>
 }
 
+interface PlanSegmentViewProps {
+  segment: PlanSegment
+  open: boolean
+  comment: string
+  onToggle: () => void
+  registerEditor: (el: TextareaRenderable | null) => void
+  onEditorSubmit: () => void
+  onEditorChange: () => void
+}
+
+const PlanSegmentView = (props: PlanSegmentViewProps) => {
+  let rowRef: BoxRenderable | null = null
+  let editorRef: TextareaRenderable | null = null
+  const commented = () => props.comment.trim().length > 0
+  return (
+    <box
+      ref={(el) => {
+        rowRef = el
+      }}
+      flexDirection="column"
+      onMouseOver={() => {
+        if (rowRef) rowRef.backgroundColor = theme().backgroundElement
+      }}
+      onMouseOut={() => {
+        if (rowRef) rowRef.backgroundColor = undefined
+      }}>
+      <box flexDirection="row" columnGap={1} onMouseUp={props.onToggle}>
+        <box flexDirection="row" columnGap={1} flexShrink={0} paddingLeft={1}>
+          <text fg={commented() || props.open ? theme().accent : theme().primary} selectable={false}>
+            {icons.pencil}
+          </text>
+        </box>
+        <box flexShrink={1} minWidth={0} border={['left']} borderColor={theme().borderSubtle} paddingX={1}>
+          <Show when={props.segment.kind === 'code'} fallback={<markdown syntaxStyle={theme().syntax} conceal content={props.segment.text.trim()} />}>
+            <code content={props.segment.text} filetype={fenceFiletype(props.segment.lang)} syntaxStyle={theme().syntax} treeSitterClient={getSharedTreeSitterClientSync()} conceal />
+          </Show>
+        </box>
+      </box>
+      <Show when={commented() && !props.open}>
+        <text fg={theme().accent}>{` ${icons.boxBottomLeft}${icons.boxHorizontal}${icons.boxHorizontal} Comment: ${props.comment.trim()} `}</text>
+      </Show>
+      <Show when={props.open}>
+        <box
+          flexDirection="row"
+          marginTop={0}
+          onMouseUp={() =>
+            queueMicrotask(() => {
+              if (editorRef && !editorRef.isDestroyed) editorRef.focus()
+            })
+          }>
+          <box flexBasis={5} flexShrink={1}>
+            <text fg={theme().accent}>{` ${icons.boxBottomLeft}${icons.boxHorizontal}${icons.boxHorizontal}`}</text>
+          </box>
+          <box flexGrow={1} flexShrink={1} minWidth={0}>
+            <textarea
+              ref={(r) => {
+                editorRef = r
+                props.registerEditor(r)
+              }}
+              maxHeight={3}
+              placeholder={`Comment on block ${props.segment.index + 1} (optional, clear to remove)`}
+              placeholderColor={theme().textMuted}
+              textColor={theme().accent}
+              cursorColor={theme().textMuted}
+              backgroundColor={theme().backgroundElement}
+              keyBindings={COMMENT_TEXTAREA_KEY_BINDINGS}
+              onSubmit={props.onEditorSubmit}
+              onContentChange={props.onEditorChange}
+            />
+          </box>
+        </box>
+      </Show>
+    </box>
+  )
+}
+
+const firstNonBlankLine = (text: string): string => text.split('\n').find((line) => line.trim().length > 0) ?? ''
+
 export const PlanReview = (props: PlanReviewProps) => {
-  const lines = () => props.plan.split('\n').filter((l) => l.trim().length > 0)
-  const [lineComments, setLineComments] = createSignal<Array<string>>(lines().map(() => ''))
-  const [openLine, setOpenLine] = createSignal<number | undefined>(undefined)
+  const segments = () => planSegments(props.plan)
+  const [blockComments, setBlockComments] = createSignal<Array<string>>(segments().map(() => ''))
+  const [openBlock, setOpenBlock] = createSignal<number | undefined>(undefined)
   const [overall, setOverall] = createSignal('')
   const [responded, setResponded] = createSignal(false)
   const [dismissed, setDismissed] = createSignal(false)
   const [sending, setSending] = createSignal(false)
-  const lineRefs: Array<TextareaRenderable | null> = []
-  const rowRefs: Array<BoxRenderable | null> = []
+  const blockRefs: Array<TextareaRenderable | null> = []
   let overallRef: TextareaRenderable | null = null
 
   const readonly = () => !props.interactive || sending() || responded() || (props.status !== undefined && props.status !== 'pending')
   const wasDismissed = () => props.status === 'cancelled' || (responded() && dismissed() && props.status !== 'approved' && props.status !== 'rejected')
 
-  const setLineComment = (index: number, value: string) => {
+  const setBlockComment = (index: number, value: string) => {
     if (readonly()) return
-    setLineComments((prev) => {
+    setBlockComments((prev) => {
       const next = [...prev]
-      while (next.length < lines().length) next.push('')
+      while (next.length < segments().length) next.push('')
       next[index] = value
       return next
     })
   }
 
-  const hasComment = () => lineComments().some((c) => c.trim().length > 0) || overall().trim().length > 0
+  const hasComment = () => blockComments().some((c) => c.trim().length > 0) || overall().trim().length > 0
 
   const buildMessage = (): string => {
     const parts: Array<string> = []
-    lines().forEach((line, index) => {
-      const comment = (lineComments()[index] ?? '').trim()
-      if (comment) parts.push(`Line ${index + 1} "${clip(line.trim(), 80)}": ${comment}`)
+    segments().forEach((segment, index) => {
+      const comment = (blockComments()[index] ?? '').trim()
+      if (!comment) return
+      const label = segment.kind === 'code' && segment.lang ? ` (${segment.lang})` : ''
+      parts.push(`Block ${index + 1}${label} "${clip(firstNonBlankLine(segment.text).trim(), 80)}": ${comment}`)
     })
     const all = overall().trim()
     if (all) parts.push(`Overall: ${all}`)
@@ -76,12 +157,12 @@ export const PlanReview = (props: PlanReviewProps) => {
   useAppKeyboard((key) => {
     if (key.name !== 'return' && key.name !== 'enter') return
     if (!key.meta && !key.ctrl) return
-    const index = openLine()
+    const index = openBlock()
     if (index === undefined) return
-    if (!lineRefs[index]?.focused) return
+    if (!blockRefs[index]?.focused) return
     key.preventDefault()
     key.stopPropagation()
-    setOpenLine(undefined)
+    setOpenBlock(undefined)
   })
 
   const copy = async () => {
@@ -111,6 +192,28 @@ export const PlanReview = (props: PlanReviewProps) => {
     }
   }
 
+  const registerEditor = (index: number) => (el: TextareaRenderable | null) => {
+    blockRefs[index] = el
+    if (!el) return
+    const existing = blockComments()[index] ?? ''
+    if (existing.length > 0 && el.plainText !== existing) el.setText(existing)
+    el.focus()
+  }
+
+  const editorSubmit = (index: number) => () => {
+    const ref = blockRefs[index]
+    if (ref && !ref.isDestroyed) {
+      setBlockComment(index, ref.plainText)
+      ref.blur()
+    }
+    setOpenBlock(undefined)
+  }
+
+  const editorChange = (index: number) => () => {
+    const ref = blockRefs[index]
+    if (ref && !ref.isDestroyed) setBlockComment(index, ref.plainText)
+  }
+
   return (
     <box flexDirection="column">
       <Show
@@ -123,14 +226,17 @@ export const PlanReview = (props: PlanReviewProps) => {
                 <Show
                   when={props.status !== undefined && props.status !== 'pending' && props.outputMessage}
                   fallback={
-                    <For each={lines()}>
-                      {(line, index) => (
-                        <box flexDirection="column">
-                          <markdown syntaxStyle={theme().syntax} conceal content={`*${index() + 1}* ${line.trim()}`} />
-                          <Show when={(lineComments()[index()] ?? '').trim()} keyed>
-                            {(comment: string) => <text fg={theme().accent}>{`  ${icons.flag} ${comment}`}</text>}
-                          </Show>
-                        </box>
+                    <For each={segments()}>
+                      {(segment, index) => (
+                        <PlanSegmentView
+                          segment={segment}
+                          open={false}
+                          comment={blockComments()[index()] ?? ''}
+                          onToggle={() => {}}
+                          registerEditor={() => {}}
+                          onEditorSubmit={() => {}}
+                          onEditorChange={() => {}}
+                        />
                       )}
                     </For>
                   }>
@@ -145,83 +251,20 @@ export const PlanReview = (props: PlanReviewProps) => {
           </box>
         }>
         <text fg={theme().textMuted} selectable={false} marginY={1}>
-          {` Click on the pencil or line to add a comment`}
+          {` Click on the pencil or block to add a comment`}
         </text>
-        <For each={lines()}>
-          {(line, index) => {
-            const commented = () => (lineComments()[index()] ?? '').trim().length > 0
-            return (
-              <box
-                ref={(r) => (rowRefs[index()] = r)}
-                flexDirection="column"
-                onMouseOver={() => {
-                  const row = rowRefs[index()]
-                  if (row) row.backgroundColor = theme().backgroundElement
-                }}
-                onMouseOut={() => {
-                  const row = rowRefs[index()]
-                  if (row) row.backgroundColor = undefined
-                }}>
-                <box flexDirection="row" columnGap={1} onMouseUp={() => setOpenLine(openLine() === index() ? undefined : index())}>
-                  <box flexDirection="row" columnGap={1} flexShrink={0} paddingLeft={1}>
-                    <text fg={commented() || openLine() === index() ? theme().accent : theme().primary} selectable={false}>
-                      {icons.pencil}
-                    </text>
-                  </box>
-                  <box flexShrink={1} minWidth={0} border={['left']} borderColor={theme().borderSubtle} paddingX={1}>
-                    <markdown syntaxStyle={theme().syntax} conceal content={line.trim()} />
-                  </box>
-                </box>
-                <Show when={commented() && !(openLine() === index())}>
-                  <text fg={theme().accent}>{` ${icons.boxBottomLeft}${icons.boxHorizontal}${icons.boxHorizontal} Comment: ${(lineComments()[index()] ?? '').trim()} `}</text>
-                </Show>
-                <Show when={openLine() === index()}>
-                  <box
-                    flexDirection="row"
-                    marginTop={0}
-                    onMouseUp={() =>
-                      queueMicrotask(() => {
-                        const ref = lineRefs[index()]
-                        if (ref && !ref.isDestroyed) ref.focus()
-                      })
-                    }>
-                    <box flexBasis={5} flexShrink={1}>
-                      <text fg={theme().accent}>{` ${icons.boxBottomLeft}${icons.boxHorizontal}${icons.boxHorizontal}`}</text>
-                    </box>
-                    <box flexGrow={1} flexShrink={1} minWidth={0}>
-                      <textarea
-                        ref={(r) => {
-                          lineRefs[index()] = r
-                          const existing = lineComments()[index()] ?? ''
-                          if (existing.length > 0 && r.plainText !== existing) r.setText(existing)
-                          r.focus()
-                        }}
-                        maxHeight={3}
-                        placeholder={`Comment on line ${index() + 1} (optional, clear to remove)`}
-                        placeholderColor={theme().textMuted}
-                        textColor={theme().accent}
-                        cursorColor={theme().textMuted}
-                        backgroundColor={theme().backgroundElement}
-                        keyBindings={COMMENT_TEXTAREA_KEY_BINDINGS}
-                        onSubmit={() => {
-                          const ref = lineRefs[index()]
-                          if (ref && !ref.isDestroyed) {
-                            setLineComment(index(), ref.plainText)
-                            ref.blur()
-                          }
-                          setOpenLine(undefined)
-                        }}
-                        onContentChange={() => {
-                          const ref = lineRefs[index()]
-                          if (ref && !ref.isDestroyed) setLineComment(index(), ref.plainText)
-                        }}
-                      />
-                    </box>
-                  </box>
-                </Show>
-              </box>
-            )
-          }}
+        <For each={segments()}>
+          {(segment, index) => (
+            <PlanSegmentView
+              segment={segment}
+              open={openBlock() === index()}
+              comment={blockComments()[index()] ?? ''}
+              onToggle={() => setOpenBlock(openBlock() === index() ? undefined : index())}
+              registerEditor={registerEditor(index())}
+              onEditorSubmit={editorSubmit(index())}
+              onEditorChange={editorChange(index())}
+            />
+          )}
         </For>
         <box
           marginTop={1}

@@ -18,9 +18,9 @@ export const parseVersion = (value: string): ParsedVersion => {
 
 export const bumpVersion = (current: string, kind: VersionKind): string => {
   const parsed = parseVersion(current)
-  if (parsed.major !== 1) throw new Error(`Major version must stay 1 (got ${parsed.major})`)
-  if (kind === 'feature') return `1.${parsed.minor + 1}.0`
-  return `1.${parsed.minor}.${parsed.patch + 1}`
+  if (parsed.major !== 0) throw new Error(`Major version must stay 0 (got ${parsed.major}) — bump it manually in package.json`)
+  if (kind === 'feature') return `0.${parsed.minor + 1}.0`
+  return `0.${parsed.minor}.${parsed.patch + 1}`
 }
 
 export const getVersion = (): string => {
@@ -30,7 +30,7 @@ export const getVersion = (): string => {
   return cached
 }
 
-export const formatConsoleTitle = (sessionTitle?: string): string => {
-  const trimmed = sessionTitle?.trim()
-  return trimmed ? `Picobu v${getVersion()} - ${trimmed}` : `Picobu v${getVersion()}`
+export const formatConsoleTitle = (appName: string, sessionId?: string, sessionTitle?: string): string => {
+  const segments = [appName, sessionId, sessionTitle].map((value) => value?.trim()).filter((value): value is string => typeof value === 'string' && value.length > 0)
+  return segments.join(' | ')
 }

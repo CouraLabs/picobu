@@ -7,7 +7,7 @@ import type { ToolExecuteOptions } from '@agent/tools/toolset.ts'
 import z from 'zod'
 export const GlobToolArgsSchema = z.object({
   pattern: z.string(),
-  cwd: z.string().optional(),
+  path: z.string().min(1),
   limit: z.number().int().min(1).max(5000).optional(),
 })
 async function runArgv(argv: Array<string>, cwd: string, toolOptions?: ToolExecuteOptions) {
@@ -37,13 +37,13 @@ async function runArgv(argv: Array<string>, cwd: string, toolOptions?: ToolExecu
 }
 export const globTool = {
   name: 'glob',
-  description: 'Find files by glob pattern; respects .gitignore (max 500 by default, capped at 5000).',
+  description: 'Find files by glob pattern under a required directory path; respects .gitignore (max 500 by default, capped at 5000).',
   parameters: GlobToolArgsSchema,
   output: z.string(),
   handler: async (args: z.infer<typeof GlobToolArgsSchema>, toolOptions?: ToolExecuteOptions): Promise<string> => {
     const rgPath = await resolveRgPath()
     const limit = args.limit ?? 500
-    const cwd = resolve(sandboxRoot(toolOptions?.experimental_sandbox) ?? process.cwd(), args.cwd ?? '.')
+    const cwd = resolve(sandboxRoot(toolOptions?.experimental_sandbox) ?? process.cwd(), args.path)
     const cwdStat = await stat(cwd).catch(() => undefined)
     if (cwdStat?.isFile()) throw new Error(`glob path must be a directory: ${cwd}`)
     const listing = await runArgv([rgPath, '--files', '--color', 'never'], cwd, toolOptions)
@@ -62,6 +62,6 @@ export const globTool = {
     }
     matches.sort()
     if (matches.length <= limit) return matches.join('\n')
-    return [...matches.slice(0, limit), `(Results truncated to ${limit} of ${matches.length}. Narrow pattern/cwd or raise limit.)`].join('\n')
+    return [...matches.slice(0, limit), `(Results truncated to ${limit} of ${matches.length}. Narrow pattern/path or raise limit.)`].join('\n')
   },
 }

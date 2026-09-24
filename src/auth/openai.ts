@@ -29,6 +29,7 @@ export interface JwtPayload {
   [key: string]: unknown
 }
 const CALLBACK_PORT = 1455
+const FALLBACK_CALLBACK_PORT = 1457
 const LOGIN_TIMEOUT_MS = 15 * 60 * 1000
 const callbackHost = (): string => process.env.PICOBU_OAUTH_CALLBACK_HOST || '127.0.0.1'
 const createState = (): string => randomBytes(16).toString('hex')
@@ -198,10 +199,7 @@ function startLocalOAuthServer(state: string): Promise<CallbackServerInfo> {
           return
         }
         fallback = true
-        server.listen(0, callbackHost(), () => {
-          const address = server.address()
-          finish(typeof address === 'object' && address !== null ? address.port : 0)
-        })
+        server.listen(FALLBACK_CALLBACK_PORT, callbackHost(), () => finish(FALLBACK_CALLBACK_PORT))
       })
   })
 }
@@ -218,7 +216,7 @@ function credentialsFromToken(token: OAuthToken): OAuthCredential {
     accountId,
   }
 }
-async function createAuthorizationFlow(redirectUri: string, state: string): Promise<{ verifier: string; url: string }> {
+export async function createAuthorizationFlow(redirectUri: string, state: string): Promise<{ verifier: string; url: string }> {
   const { verifier, challenge } = await generatePKCE()
   const url = new URL(AUTHORIZE_URL)
   url.searchParams.set('response_type', 'code')
@@ -230,7 +228,7 @@ async function createAuthorizationFlow(redirectUri: string, state: string): Prom
   url.searchParams.set('state', state)
   url.searchParams.set('id_token_add_organizations', 'true')
   url.searchParams.set('codex_cli_simplified_flow', 'true')
-  url.searchParams.set('originator', 'picobu')
+  url.searchParams.set('originator', 'codex_cli_rs')
   return { verifier, url: url.toString() }
 }
 async function loginOpenAI(interaction: AuthInteraction, options?: AuthLoginOptions): Promise<OAuthCredential> {

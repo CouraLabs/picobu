@@ -8,8 +8,17 @@ describe('NATIVE_EXTERNALS', () => {
 })
 
 describe('RUNTIME_ASSETS', () => {
-  test('copies the builtin workflow markdown next to the bundle', () => {
+  test('copies the builtin prompt and workflow markdown next to the bundle', () => {
     expect(RUNTIME_ASSETS).toEqual([
+      { from: 'src/agent/prompts/ask.md', to: 'ask.md' },
+      { from: 'src/agent/prompts/grill.md', to: 'grill.md' },
+      { from: 'src/agent/prompts/coder.md', to: 'coder.md' },
+      { from: 'src/agent/prompts/plan.md', to: 'plan.md' },
+      { from: 'src/agent/prompts/persistent.md', to: 'persistent.md' },
+      { from: 'src/agent/prompts/executor.md', to: 'executor.md' },
+      { from: 'src/agent/prompts/explorer.md', to: 'explorer.md' },
+      { from: 'src/agent/prompts/reviewer.md', to: 'reviewer.md' },
+      { from: 'src/agent/prompts/debugger.md', to: 'debugger.md' },
       { from: 'src/agent/workflows/init.md', to: 'init.md' },
       { from: 'src/agent/workflows/review.md', to: 'review.md' },
     ])

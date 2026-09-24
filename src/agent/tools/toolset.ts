@@ -1,13 +1,12 @@
-import { createApplyPatchTool } from '@agent/tools/filesystem/apply-patch.ts'
 import { createEditTool } from '@agent/tools/filesystem/edit.ts'
 import { globTool } from '@agent/tools/filesystem/glob.ts'
 import { grepTool } from '@agent/tools/filesystem/grep.ts'
 import { readTool } from '@agent/tools/filesystem/read.ts'
-import { repoMapTool } from '@agent/tools/filesystem/repomap.ts'
 import { createShellTool } from '@agent/tools/filesystem/shell.ts'
 import { createTaskOutputTool, createTaskStopTool } from '@agent/tools/filesystem/task-tools.ts'
 import { createWriteTool } from '@agent/tools/filesystem/write.ts'
 import { createAskTool } from '@agent/tools/flow/ask.ts'
+import { createGrillExitTool } from '@agent/tools/flow/grill-exit.ts'
 import { createPlanExitTool } from '@agent/tools/flow/plan-exit.ts'
 import { createPlanWriteTool } from '@agent/tools/flow/plan-write.ts'
 import { createRuleTool } from '@agent/tools/flow/rule.ts'
@@ -47,10 +46,8 @@ export function buildToolSet(ctx: ToolSetContext = {}) {
     wrapTool(readTool),
     wrapTool(createWriteTool(ctx.checkpointsPath)),
     wrapTool(createEditTool(ctx.checkpointsPath)),
-    wrapTool(createApplyPatchTool(ctx.checkpointsPath)),
     wrapTool(globTool),
     wrapTool(grepTool),
-    wrapTool(repoMapTool),
     wrapTool(createShellTool({ ...(ctx.sessionId ? { sessionId: ctx.sessionId } : {}), allowBackground: ctx.interactive !== false })),
     ...(ctx.interactive === false ? [] : [wrapTool(createTaskOutputTool()), wrapTool(createTaskStopTool())]),
     wrapTool(websearchTool),
@@ -59,7 +56,7 @@ export function buildToolSet(ctx: ToolSetContext = {}) {
     ...(ctx.todoFilePath ? [wrapTool(createTodoTool(ctx.todoFilePath))] : []),
     wrapTool(createSkillTool()),
     wrapTool(createRuleTool()),
-    ...(ctx.sessionId ? [...(ctx.interactive === false ? [] : [wrapTool(createAskTool()), wrapTool(createPlanExitTool()), wrapTool(createPlanWriteTool())])] : []),
+    ...(ctx.sessionId ? [...(ctx.interactive === false ? [] : [wrapTool(createAskTool()), wrapTool(createGrillExitTool()), wrapTool(createPlanExitTool()), wrapTool(createPlanWriteTool())])] : []),
     ...(ctx.sessionId && ctx.spawn ? [wrapTool(createSpawnTool(ctx.spawn))] : []),
   ]
   const getTools = (names?: Array<string>): Array<AgentTool> => (names?.length ? allTools.filter((t) => names.includes(t.name)) : allTools)

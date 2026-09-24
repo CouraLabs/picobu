@@ -1,5 +1,5 @@
 import { collapseSeparators, lineHasVisibleItem, type SessionHeaderItem, type SessionHeaderLayout, type SessionStatusLayout } from '@config/session-layout.ts'
-import { For, Show } from 'solid-js'
+import { createMemo, For, Show } from 'solid-js'
 import { HeaderItemView, type HeaderRenderContext, headerItemHasContent } from './header-items.tsx'
 import { StatusItemView, type StatusRenderContext, statusItemHasContent } from './status-items.tsx'
 
@@ -8,13 +8,16 @@ export const StatusLines = (props: { layout: SessionStatusLayout; ctx: StatusRen
   return (
     <box flexDirection="column" rowGap={props.layout.rowGap} flexShrink={0}>
       <For each={props.layout.lines}>
-        {(line) => (
-          <Show when={lineHasVisibleItem(line, visible)}>
-            <box flexDirection="row" columnGap={props.layout.columnGap} flexShrink={0} flexWrap="wrap">
-              <For each={collapseSeparators(line, visible)}>{(item) => <StatusItemView item={item} ctx={props.ctx} />}</For>
-            </box>
-          </Show>
-        )}
+        {(line) => {
+          const collapsed = createMemo(() => collapseSeparators(line, visible))
+          return (
+            <Show when={lineHasVisibleItem(line, visible)}>
+              <box flexDirection="row" columnGap={props.layout.columnGap} flexShrink={0} flexWrap="wrap">
+                <For each={collapsed()}>{(item, index) => <StatusItemView item={item} ctx={props.ctx} previousItem={index() === 0 ? undefined : collapsed()[index() - 1]} />}</For>
+              </box>
+            </Show>
+          )
+        }}
       </For>
     </box>
   )

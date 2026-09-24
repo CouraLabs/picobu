@@ -22,7 +22,6 @@ import { initLockDir } from '../../src/shared/lock.ts'
 const realFetch = globalThis.fetch
 const realConsoleLog = console.log
 const realConsoleError = console.error
-const realBunSpawn = (Bun as unknown as { spawn: typeof Bun.spawn }).spawn
 
 afterEach(() => {
   globalThis.fetch = realFetch
@@ -597,11 +596,9 @@ describe('createInteraction', () => {
     console.log = (...args: unknown[]) => {
       logs.push(args.map((part) => String(part)).join(' '))
     }
-    ;(Bun as unknown as { spawn: typeof Bun.spawn }).spawn = (() => ({ unref() {} }) as unknown as ReturnType<typeof Bun.spawn>) as typeof Bun.spawn
   })
   afterEach(() => {
     console.log = realConsoleLog
-    ;(Bun as unknown as { spawn: typeof Bun.spawn }).spawn = realBunSpawn
   })
   test('passes signal through to interaction', () => {
     const controller = new AbortController()

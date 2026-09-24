@@ -5,8 +5,7 @@ import { generatePKCE } from '@auth/pkce.ts'
 import { describeTokenPayload, redactTokenBody } from '@auth/redact.ts'
 import type { AuthInteraction, OAuthAuth, OAuthCredential } from '@auth/types.ts'
 
-const decode = (s: string): string => atob(s)
-const CLIENT_ID = decode('OWQxYzI1MGEtZTYxYi00NGQ5LTg4ZWQtNTk0NGQxOTYyZjVl')
+const CLIENT_ID = '9d1c250a-e61b-44d9-88ed-5944d1962f5e'
 const AUTHORIZE_URL = 'https://claude.ai/oauth/authorize'
 const TOKEN_URL = 'https://platform.claude.com/v1/oauth/token'
 const CALLBACK_PORT = 53692

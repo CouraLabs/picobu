@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
+import { afterEach, beforeEach, describe, expect, spyOn, test } from 'bun:test'
 import { spawnSync } from 'node:child_process'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { mkdtemp, rm } from 'node:fs/promises'
@@ -7,6 +7,7 @@ import { join } from 'node:path'
 import { options } from '../../src/config/options.ts'
 import {
   createMcpAuthProvider,
+  ensureMcpAuth,
   getMcpCredential,
   initMcpAuth,
   initMcpAuthFilePath,
@@ -16,10 +17,14 @@ import {
   removeMcpCredential,
   resetMcpAuthCache,
   setMcpCredential,
+  startMcpCallbackServer,
+  startMcpLogin,
+  usesMcpAuth,
 } from '../../src/integrations/mcp/auth.ts'
 import { createMcpManager } from '../../src/integrations/mcp/client.ts'
 import { DEFAULT_MCP_OPTIONS, mergeMcpServers, normalizeServer, normalizeServerMap, resolveEnvMap, resolveEnvRef, serverTarget } from '../../src/integrations/mcp/config.ts'
 import { parseProjectMcpJson } from '../../src/integrations/mcp/discover.ts'
+import { listMcpServers } from '../../src/integrations/mcp/status.ts'
 import { closeMcpStderrTargets, createMcpStderrTarget } from '../../src/integrations/mcp/stderr-sink.ts'
 import { mcpToolName, renderMcpServerToolsInfo, renderMcpToolInfo } from '../../src/integrations/mcp/tools-info.ts'
 import { initLockDir } from '../../src/shared/lock.ts'
@@ -160,6 +165,22 @@ describe('mcp auth redirect', () => {
   test('uses localhost callback with default port', () => {
     expect(MCP_REDIRECT_URL).toBe('http://localhost:19888/callback')
   })
+  test('prints the authorization URL instead of opening a browser', async () => {
+    const logs: Array<string> = []
+    const logSpy = spyOn(console, 'log').mockImplementation((...args: Array<unknown>) => {
+      logs.push(args.map((arg) => String(arg)).join(' '))
+    })
+    const spawnSpy = spyOn(Bun, 'spawn')
+    const { provider } = createMcpAuthProvider({ id: 'srv', type: 'http', url: 'https://api.example.com/mcp' })
+    const redirect = provider.redirectToAuthorization
+    if (!redirect) throw new Error('missing redirectToAuthorization')
+    await redirect(new URL('https://api.example.com/auth?x=1'))
+    logSpy.mockRestore()
+    spawnSpy.mockRestore()
+    expect(logs.some((line) => line.includes('https://api.example.com/auth?x=1'))).toBe(true)
+    expect(logs.some((line) => line.includes('Open this URL in your browser'))).toBe(true)
+    expect(spawnSpy).not.toHaveBeenCalled()
+  })
   test('allows same origin authorization server', () => {
     const { provider } = createMcpAuthProvider({ id: 't', type: 'http', url: 'https://api.example.com/mcp' })
     const validate = provider.validateAuthorizationServerURL
@@ -198,6 +219,45 @@ describe('mcp auth redirect', () => {
   })
 })
 
+describe('mcp callback server', () => {
+  test('binds, serves the redirect and resolves the authorization code', async () => {
+    const server = startMcpCallbackServer({ port: 0, timeoutMs: 2000 })
+    try {
+      expect(server.port).toBeGreaterThan(0)
+      const response = await fetch(`${server.url}?code=abc&state=st&iss=https://iss.example`)
+      expect(response.status).toBe(200)
+      expect(await response.text()).toContain('login complete')
+      expect(await server.result).toEqual({ code: 'abc', state: 'st', issuer: 'https://iss.example' })
+    } finally {
+      server.stop()
+    }
+  })
+  test('reports a clear error when the callback port is already taken', () => {
+    const first = startMcpCallbackServer({ port: 0, timeoutMs: 2000 })
+    try {
+      expect(() => startMcpCallbackServer({ port: first.port, timeoutMs: 2000 })).toThrow('Failed to start the MCP OAuth callback server on port')
+    } finally {
+      first.stop()
+    }
+  })
+  test('404s unknown paths and rejects when the redirect carries an error', async () => {
+    const server = startMcpCallbackServer({ port: 0, timeoutMs: 2000 })
+    try {
+      const miss = await fetch(`http://localhost:${server.port}/nope`)
+      expect(miss.status).toBe(404)
+      const outcome = server.result.then(
+        () => undefined,
+        (error: Error) => error,
+      )
+      const failed = await fetch(`${server.url}?error=access_denied&error_description=denied`)
+      expect(failed.status).toBe(400)
+      expect((await outcome)?.message).toContain('access_denied')
+    } finally {
+      server.stop()
+    }
+  })
+})
+
 describe('mcp auth file', () => {
   let dir = ''
   beforeEach(async () => {
@@ -217,28 +277,32 @@ describe('mcp auth file', () => {
     await Bun.write(path, '[1,2]')
     expect(await readMcpAuthFile(path)).toEqual({})
   })
-  test('saveClientInformation skips when no tokens exist', async () => {
+  test('persists client information before any tokens exist (first-time login)', async () => {
     await initMcpAuth()
     const { provider } = createMcpAuthProvider({ id: 'srv', type: 'http', url: 'https://x.example/mcp' })
     const save = provider.saveClientInformation
     if (!save) throw new Error('missing saveClientInformation')
     await save({ client_id: 'c' } as unknown as { client_id: string })
-    expect(getMcpCredential('srv')).toBeUndefined()
-    expect(await Bun.file(join(dir, 'mcp-auth.json')).exists()).toBe(false)
+    expect(getMcpCredential('srv')?.clientInformation).toEqual({ client_id: 'c' })
+    expect(getMcpCredential('srv')?.tokens).toBeUndefined()
+    expect(await Bun.file(join(dir, 'mcp-auth.json')).exists()).toBe(true)
   })
   test('credentials roundtrip and client info persists after tokens', async () => {
     await initMcpAuth()
     await setMcpCredential('srv', { tokens: { access_token: 'a', token_type: 'bearer' } } as unknown as Parameters<typeof setMcpCredential>[1])
-    expect(getMcpCredential('srv')?.tokens.access_token).toBe('a')
+    expect(getMcpCredential('srv')?.tokens?.access_token).toBe('a')
     const { provider } = createMcpAuthProvider({ id: 'srv', type: 'http', url: 'https://x.example/mcp' })
     const save = provider.saveClientInformation
     if (!save) throw new Error('missing saveClientInformation')
     await save({ client_id: 'c2' } as unknown as { client_id: string })
     expect(getMcpCredential('srv')?.clientInformation).toEqual({ client_id: 'c2' })
+    expect(getMcpCredential('srv')?.tokens?.access_token).toBe('a')
   })
   test('isMcpAuthActive handles missing expired and fresh entries', async () => {
     await initMcpAuth()
     expect(isMcpAuthActive('nope')).toBe(false)
+    await setMcpCredential('client-only', { clientInformation: { client_id: 'c' } } as unknown as Parameters<typeof setMcpCredential>[1])
+    expect(isMcpAuthActive('client-only')).toBe(false)
     await setMcpCredential('plain', { tokens: { access_token: 'a', token_type: 'bearer' } } as unknown as Parameters<typeof setMcpCredential>[1])
     expect(isMcpAuthActive('plain')).toBe(true)
     await setMcpCredential('old', { tokens: { access_token: 'a', token_type: 'bearer' }, expiresAt: Date.now() - 1000 } as unknown as Parameters<typeof setMcpCredential>[1])
@@ -251,6 +315,54 @@ describe('mcp auth file', () => {
     await setMcpCredential('srv', { tokens: { access_token: 'a', token_type: 'bearer' } } as unknown as Parameters<typeof setMcpCredential>[1])
     expect(await removeMcpCredential('srv')).toBe(true)
     expect(await removeMcpCredential('srv')).toBe(false)
+  })
+})
+
+describe('mcp auth without the flag', () => {
+  let dir = ''
+  const originalMcpServers = options.mcp.servers
+  beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), 'picobu-mcp-noauth-'))
+    initLockDir(dir)
+    initMcpAuthFilePath(join(dir, 'mcp-auth.json'))
+  })
+  afterEach(async () => {
+    resetMcpAuthCache()
+    options.mcp.servers = originalMcpServers
+    await rm(dir, { recursive: true, force: true })
+  })
+  test('usesMcpAuth engages once credentials exist, ignores stdio and unauthenticated servers', async () => {
+    await initMcpAuth()
+    expect(usesMcpAuth({ id: 'stdio', type: 'stdio', command: 'x' })).toBe(false)
+    expect(usesMcpAuth({ id: 'plain', type: 'http', url: 'https://x/mcp' })).toBe(false)
+    expect(usesMcpAuth({ id: 'flagged', type: 'http', url: 'https://x/mcp', auth: true })).toBe(true)
+    await setMcpCredential('partial', { clientInformation: { client_id: 'c' } } as unknown as Parameters<typeof setMcpCredential>[1])
+    expect(usesMcpAuth({ id: 'partial', type: 'http', url: 'https://x/mcp' })).toBe(false)
+    await setMcpCredential('plain', { tokens: { access_token: 'a', token_type: 'bearer' } } as unknown as Parameters<typeof setMcpCredential>[1])
+    expect(usesMcpAuth({ id: 'plain', type: 'http', url: 'https://x/mcp' })).toBe(true)
+  })
+  test('ensureMcpAuth no-ops without the flag and without tokens', async () => {
+    await initMcpAuth()
+    await expect(ensureMcpAuth({ id: 'plain', type: 'http', url: 'https://mcp.invalid/mcp' })).resolves.toBeUndefined()
+    await setMcpCredential('partial', { clientInformation: { client_id: 'c' } } as unknown as Parameters<typeof setMcpCredential>[1])
+    await expect(ensureMcpAuth({ id: 'partial', type: 'http', url: 'https://mcp.invalid/mcp' })).resolves.toBeUndefined()
+  })
+  test('login no longer demands the auth flag in config', async () => {
+    await initMcpAuth()
+    const outcome = await startMcpLogin({ id: 'srv', type: 'http', url: 'https://mcp.invalid/mcp' }).then(
+      () => 'resolved',
+      (error: Error) => error.message,
+    )
+    expect(outcome).not.toContain('has no "auth": true')
+    expect(outcome).not.toContain('enable it in the config first')
+  })
+  test('listMcpServers reports auth active for a logged-in server without the flag', async () => {
+    options.mcp.servers = { srv: { id: 'srv', type: 'http', url: 'https://api.example.com/mcp' } }
+    await initMcpAuth()
+    await setMcpCredential('srv', { tokens: { access_token: 'a', token_type: 'bearer' } } as unknown as Parameters<typeof setMcpCredential>[1])
+    const row = (await listMcpServers()).find((info) => info.id === 'srv')
+    expect(row?.authRequired).toBe(true)
+    expect(row?.authActive).toBe(true)
   })
 })
 

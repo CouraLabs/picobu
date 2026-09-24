@@ -2,8 +2,7 @@ import { buildCopilotModelsFromCatalog, parseCopilotModelIds } from '@auth/copil
 import { pollOAuthDeviceCodeFlow } from '@auth/device-code.ts'
 import type { AuthInteraction, AuthLoginOptions, OAuthAuth, OAuthCredential } from '@auth/types.ts'
 
-const decode = (s: string): string => atob(s)
-const CLIENT_ID = decode('SXYxLmI1MDdhMDhjODdlY2ZlOTg=')
+const CLIENT_ID = 'Iv1.b507a08c87ecfe98'
 export const COPILOT_HEADERS = {
   'User-Agent': 'GitHubCopilotChat/0.35.0',
   'Editor-Version': 'vscode/1.107.0',

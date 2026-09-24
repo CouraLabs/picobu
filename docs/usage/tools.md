@@ -9,11 +9,9 @@ Every tool carries a JSON Schema that is rendered into the system prompt. Agents
 | `read` | Read a file (`skip`/`limit` slice lines) or list a directory; rejects binaries, images/PDFs return metadata only, long output is capped |
 | `write` | Write contents to a path, creating parent directories; records an undo checkpoint |
 | `edit` | Replace `oldString` with `newString` (exact or whitespace-tolerant match); fails on missing matches, refuses ambiguous single replaces unless `replaceAll` is true, returns a diff |
-| `apply_patch` | Apply a verified unified diff across one or more files atomically; prefer `edit` for single small replacements |
 | `glob` | Find files by glob pattern; respects `.gitignore` |
 | `grep` | Search files with ripgrep regex; returns matching lines as `path:line: content`; `include` filters by file glob |
 | `shell` | Run a shell command; streams output live, kills on timeout. Large output is tailed near 50KB/2000 lines with the full log spilled to a file. `run_in_background: true` returns a `taskId` immediately; collect with `task_output`, stop with `task_stop` |
-| `repo-map` | Structural map of the repository: top files ranked by relevance with key symbols (functions, classes, types) extracted via tree-sitter, capped to a token budget; `focus` boosts paths you care about |
 
 `glob`/`grep` always include agent config folders (`.agents`, `~/.agents`, `~/.picobu`) even when gitignored.
 

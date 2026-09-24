@@ -16,6 +16,7 @@ export interface McpOptions {
 export const DEFAULT_MCP_OPTIONS: McpOptions = { servers: {} }
 
 export const PROJECT_MCP_FILENAME = '.mcp.json'
+export const PROJECT_MCP_FILENAME_ALT = 'mcp.json'
 
 export const resolveEnvRef = (value: string): string => {
   if (!value.startsWith('env:')) return value

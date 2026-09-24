@@ -1,4 +1,5 @@
 import { describe, expect, mock, test } from 'bun:test'
+import { readFileSync } from 'node:fs'
 import { mkdir, mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -14,15 +15,16 @@ import { parseModelsResponse } from '../../src/agent/model/fetch-models.ts'
 import { LLM_PROVIDERS, upsertProvider } from '../../src/agent/model/registry.ts'
 import { createModelInstance, listModels, resolveApiKey, resolveAuth } from '../../src/agent/model/resolver.ts'
 import { loadAgentsMarkdown } from '../../src/agent/prompts/agents-md.ts'
-import { askMarkdown } from '../../src/agent/prompts/ask.ts'
-import { coderMarkdown } from '../../src/agent/prompts/coder.ts'
-import { persistentMarkdown } from '../../src/agent/prompts/persistent.ts'
-import { planMarkdown } from '../../src/agent/prompts/plan.ts'
 import { buildTitlePrompt, generateSessionTitle, sessionTitlePrompt } from '../../src/agent/prompts/session-title.ts'
 import { summarizerPrompt } from '../../src/agent/prompts/summarizer.ts'
 import { buildRulesSection, buildSkillsSection, buildSubagentsSection, generateSystemMessage, systemMarkdown } from '../../src/agent/prompts/system.ts'
 import { listRules, loadRules } from '../../src/agent/rules/rules.ts'
 import { options, type ProviderOptions } from '../../src/config/options.ts'
+
+const askMarkdown = readFileSync(new URL('../../src/agent/prompts/ask.md', import.meta.url), 'utf8')
+const coderMarkdown = readFileSync(new URL('../../src/agent/prompts/coder.md', import.meta.url), 'utf8')
+const persistentMarkdown = readFileSync(new URL('../../src/agent/prompts/persistent.md', import.meta.url), 'utf8')
+const planMarkdown = readFileSync(new URL('../../src/agent/prompts/plan.md', import.meta.url), 'utf8')
 
 mock.module('@opencode-ai/models', () => ({
   Models: {
@@ -409,8 +411,8 @@ describe('agent prompt texts', () => {
     expect(coderMarkdown).toContain('in parallel')
   })
   test('plan and ask tool lists include spawn', () => {
-    expect(planMarkdown).toContain('tools: read, grep, glob, repo-map, skill, rule, ask, plan-write, plan-exit, spawn')
-    expect(askMarkdown).toContain('tools: read, grep, glob, repo-map, skill, rule, websearch, webfetch, ask, spawn')
+    expect(planMarkdown).toContain('tools: read, grep, glob, skill, rule, ask, plan-write, plan-exit, spawn')
+    expect(askMarkdown).toContain('tools: read, grep, glob, skill, rule, websearch, webfetch, ask, spawn')
   })
   test('summarizer prompt carries markers', () => {
     expect(summarizerPrompt).toContain('Summarize')

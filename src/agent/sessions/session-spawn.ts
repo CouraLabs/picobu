@@ -64,6 +64,20 @@ export async function spawnSubSession(
     throw new Error('Agent concurrency limit reached — wait for the current sub agents to finish, then retry')
   }
   const sessionId = requestedSessionId ?? generateSessionId()
+  const promptText =
+    typeof prompt === 'string'
+      ? prompt
+      : Array.isArray((prompt as { parts?: unknown }).parts)
+        ? (prompt as { parts: Array<{ type?: unknown; text?: unknown }> }).parts
+            .filter((entry) => entry.type === 'text' && typeof entry.text === 'string')
+            .map((entry) => entry.text as string)
+            .join('\n')
+        : ''
+  const initialTitle = description?.trim()
+    ? `${description.trim()} (@${subagent} subagent)`
+    : promptText.trim()
+      ? `${subagent}: ${truncate(promptText.replace(/\s+/g, ' ').trim())}`
+      : `${subagent}: sub session`
   ctx.jobs.set({
     sessionId,
     parentId,
@@ -71,6 +85,7 @@ export async function spawnSubSession(
     state: 'running',
     queued: !nested,
     startedAt: Date.now(),
+    title: taskId ? `${initialTitle} (continues ${taskId.slice(0, 8)})` : initialTitle,
   })
   let slotAcquired = false
   let child: Session | undefined
@@ -93,24 +108,11 @@ export async function spawnSubSession(
       const ref = resolveModelRef(def.model)
       if (`${ref.provider.id}/${ref.modelId}` === def.model) modelKey = def.model
     }
-    const promptText =
-      typeof prompt === 'string'
-        ? prompt
-        : Array.isArray((prompt as { parts?: unknown }).parts)
-          ? (prompt as { parts: Array<{ type?: unknown; text?: unknown }> }).parts
-              .filter((entry) => entry.type === 'text' && typeof entry.text === 'string')
-              .map((entry) => entry.text as string)
-              .join('\n')
-          : ''
-    const fallbackTitle = description?.trim()
-      ? `${description.trim()} (@${subagent} subagent)`
-      : promptText.trim()
-        ? `${subagent}: ${truncate(promptText.replace(/\s+/g, ' ').trim())}`
-        : `${subagent}: sub session`
+    const jobTitle = taskId ? `${initialTitle} (continues ${taskId.slice(0, 8)})` : initialTitle
     child = await createSession({
       config: () => ctx.baseConfig({ modelKey, sessionId, agentOverride: prepared, subagent: true, spawn: { manager: ctx.manager, parentId: sessionId, depth: depth + 1 } }),
       id: sessionId,
-      meta: { cwd: ctx.cwd, parentSessionId: parentId, title: taskId ? `${fallbackTitle} (continues ${taskId.slice(0, 8)})` : fallbackTitle },
+      meta: { cwd: ctx.cwd, parentSessionId: parentId, title: jobTitle },
     })
     ctx.live.set(sessionId, child)
     const created = child
@@ -118,6 +120,7 @@ export async function spawnSubSession(
       generateSessionTitle(promptText, undefined, { sessionId })
         .then((generated) => {
           created.setTitle(generated)
+          ctx.jobs.patch(sessionId, { title: generated })
         })
         .catch(() => {})
     }

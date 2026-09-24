@@ -18,7 +18,13 @@ type ShellToolChunk = z.infer<typeof ShellToolOutputSchema>
 const DEFAULT_TIMEOUT_SECONDS = 120
 const PROGRESS_INTERVAL_MS = 300
 const PROGRESS_TAIL_LINES = 10
-const PROGRESS_LINE_MAX = 160
+const PROGRESS_LINE_FALLBACK = 120
+const PROGRESS_OVERHEAD_COLS = 6
+const PROGRESS_LINE_MIN = 20
+export const progressClipWidth = (columns: number | undefined): number => {
+  if (columns === undefined || columns <= 0) return PROGRESS_LINE_FALLBACK
+  return Math.max(PROGRESS_LINE_MIN, columns - PROGRESS_OVERHEAD_COLS)
+}
 const DRAIN_GRACE_MS = 500
 const SHELL_BUFFER_MAX_BYTES = 2 * 1024 * 1024
 const SHELL_BUFFER_TRIM_BYTES = 512 * 1024
@@ -28,7 +34,7 @@ interface Child {
   exited: PromiseLike<number>
   kill: () => void
 }
-const truncateLine = (line: string): string => (line.length > PROGRESS_LINE_MAX ? `${line.slice(0, PROGRESS_LINE_MAX - 1)}…` : line)
+export const truncateLine = (line: string, max: number): string => (line.length > max ? `${line.slice(0, max - 1)}…` : line)
 const drainStream = (stream: ReadableStream<Uint8Array>, sink: (text: string) => void, cancel: Promise<'cancel'>): Promise<void> => {
   const reader = stream.getReader()
   const decoder = new TextDecoder()
@@ -105,7 +111,7 @@ const runStreaming = async function* (label: string, child: Child, toolOptions: 
     const parts = text.split('\n')
     tailPending += parts[0]
     for (const part of parts.slice(1)) {
-      tailLines.push(truncateLine(tailPending))
+      tailLines.push(truncateLine(tailPending, progressClipWidth(process.stdout.columns)))
       tailPending = part
     }
     if (tailLines.length > PROGRESS_TAIL_LINES) tailLines.splice(0, tailLines.length - PROGRESS_TAIL_LINES)
@@ -116,7 +122,7 @@ const runStreaming = async function* (label: string, child: Child, toolOptions: 
     pushText(text)
   }
   const progressText = (): string => {
-    const lines = tailPending.length > 0 ? [...tailLines, truncateLine(tailPending)] : [...tailLines]
+    const lines = tailPending.length > 0 ? [...tailLines, truncateLine(tailPending, progressClipWidth(process.stdout.columns))] : [...tailLines]
     return lines.join('\n').replace(/^\n+/, '')
   }
   let resolveCancel: (value: 'cancel') => void = () => {}

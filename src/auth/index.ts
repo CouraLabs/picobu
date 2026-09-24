@@ -4,9 +4,10 @@ import { digitaloceanOAuth } from '@auth/digitalocean.ts'
 import { githubCopilotOAuth } from '@auth/github-copilot.ts'
 import { createInteraction } from '@auth/interaction.ts'
 import { kimiCodingOAuth } from '@auth/kimi-coding.ts'
+import { withPreservedModels } from '@auth/oauth-models.ts'
 import { openaiOAuth } from '@auth/openai.ts'
 import { openrouterOAuth } from '@auth/openrouter.ts'
-import { registerOAuthProvider } from '@auth/register.ts'
+import { populateOAuthModels, registerOAuthProvider } from '@auth/register.ts'
 import { snowflakeCortexOAuth } from '@auth/snowflake-cortex.ts'
 import { getCredential, initAuth, listCredentials, setCredential } from '@auth/store.ts'
 import type { AuthLoginOptions, OAuthAuth } from '@auth/types.ts'
@@ -118,9 +119,24 @@ export const refreshOAuthTokens = async (): Promise<void> => {
     try {
       const fresh = await auth.refresh(credential, AbortSignal.timeout(60_000))
       if (fresh.expires - REFRESH_GRACE_MS <= Date.now()) continue
-      await setCredential(id, fresh)
+      await setCredential(id, withPreservedModels(fresh, credential))
     } catch (error) {
       console.warn(`Token refresh failed for ${id}: ${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
+}
+export const ensureOAuthModels = async (): Promise<void> => {
+  await ensureOAuthTokens()
+  await initAuth()
+  const credentials = listCredentials()
+  for (const [id, credential] of Object.entries(credentials)) {
+    if ((credential.availableModels?.length ?? 0) > 0) continue
+    const auth = oauthAuthById(id)
+    if (!auth) continue
+    try {
+      await populateOAuthModels(auth, credential, { signal: AbortSignal.timeout(10_000) })
+    } catch (error) {
+      console.warn(`Model catalog refresh failed for ${id}: ${error instanceof Error ? error.message : String(error)}`)
     }
   }
 }

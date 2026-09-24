@@ -75,11 +75,13 @@ export interface HarnessOptions {
   defaultModel?: string
   modelRoles?: ModelRoles
   maxAgents?: number
+  doomLoop?: boolean
 }
 export interface HarnessOptionsInput {
   defaultModel?: string
   modelRoles?: ModelRoles
   maxAgents?: number
+  doomLoop?: boolean
 }
 export interface ThemePrefs {
   key: string
@@ -243,6 +245,12 @@ const normalizeHarness = (value: unknown): HarnessOptions => {
       throw new Error('options.json: "harness.modelRoles" must be an object')
     }
     normalized.modelRoles = harness.modelRoles
+  }
+  if (harness.doomLoop !== undefined) {
+    if (typeof harness.doomLoop !== 'boolean') {
+      throw new Error('options.json: "harness.doomLoop" must be a boolean')
+    }
+    normalized.doomLoop = harness.doomLoop
   }
   return normalized
 }

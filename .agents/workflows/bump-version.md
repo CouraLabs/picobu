@@ -1,6 +1,6 @@
 ---
 name: bump-version
-description: Bump the package version following the 1.<features>.<build> scheme
+description: Bump the package version following the 0.<features>.<build> scheme
 ---
 
 Bump `package.json` `version`, the source of truth read via `getVersion()` in `src/shared/version.ts`. Never hardcode the version elsewhere.
@@ -11,7 +11,7 @@ User-provided focus or constraints (honor these):
 
 ## How to decide the kind
 
-Read `scripts/bump-version.ts` and `src/shared/version.ts` first. The scheme is `1.<features>.<build>` (major stays `1`):
+Read `scripts/bump-version.ts` and `src/shared/version.ts` first. The scheme is `0.<features>.<build>` (major stays `0`, changed manually):
 
 - `build` (default): patch +1, for fixes, docs, chores — anything that is not a user-facing feature. Repository chores such as new workflows, rules, skills, docs, and license text are always `build`.
 - `feature` (`--feature`): minor +1 and build resets to 0, for user-facing features. Only apply on explicit request or when the change set clearly ships user-facing behavior.

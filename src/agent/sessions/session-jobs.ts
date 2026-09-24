@@ -15,6 +15,7 @@ export interface JobRow {
   state: SessionState
   queued: boolean
   startedAt: number
+  title?: string
   stats?: SpawnJobStats
 }
 

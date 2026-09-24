@@ -9,15 +9,20 @@ import {
   flowOutputMessage,
   flowOutputStatus,
   hasRenderableOutput,
+  isMcpTool,
+  isShellTool,
   isTodoTool,
   isToolPart,
   latestTodoItems,
+  mcpDisplayName,
   planText,
   previewToolInput,
   rawToolName,
+  summarizeMcpInput,
   summarizeToolInput,
   summarizeToolOutput,
   type ToolPartLike,
+  titleCase,
   todoItems,
   toolAskQuestions,
   toolDiff,
@@ -28,7 +33,7 @@ import {
 import { COMMENT_TEXTAREA_KEY_BINDINGS } from '../../src/tui/components/shared/textarea-keybindings.ts'
 import { deliversEvent } from '../../src/tui/hooks/keyboard-provider.tsx'
 import { icons } from '../../src/tui/themes/icons.ts'
-import { allThemes, hasTheme, isTheme, resolveTheme, type ThemeJson, tint } from '../../src/tui/themes/index.ts'
+import { allThemes, DEFAULT_THEMES, hasTheme, isTheme, resolveTheme, type ThemeJson, tint } from '../../src/tui/themes/index.ts'
 
 const part = (overrides: Partial<ToolPartLike> & Record<string, unknown> = {}): ToolPartLike => ({ type: 'tool-read', ...overrides })
 
@@ -55,6 +60,15 @@ describe('isToolPart/asToolPart', () => {
   })
 })
 
+describe('isShellTool', () => {
+  test('matches tool-shell and dynamic-tool named shell', () => {
+    expect(isShellTool({ type: 'tool-shell' })).toBe(true)
+    expect(isShellTool({ type: 'dynamic-tool', toolName: 'shell' })).toBe(true)
+    expect(isShellTool({ type: 'tool-spawn' })).toBe(false)
+    expect(isShellTool({ type: 'dynamic-tool', toolName: 'read' })).toBe(false)
+  })
+})
+
 describe('rawToolName/toolDisplayName', () => {
   test('strips tool- prefix', () => {
     expect(rawToolName(part({ type: 'tool-shell' }))).toBe('shell')
@@ -67,6 +81,54 @@ describe('rawToolName/toolDisplayName', () => {
   test('display name is upper case', () => {
     expect(toolDisplayName(part({ type: 'tool-read' }))).toBe('READ')
     expect(toolDisplayName(part({ type: 'dynamic-tool', toolName: 'fetch' }))).toBe('FETCH')
+  })
+})
+
+describe('mcp tools', () => {
+  test('isMcpTool detects the mcp_ prefix', () => {
+    expect(isMcpTool({ type: 'dynamic-tool', toolName: 'mcp_deepwiki_read_wiki_structure' })).toBe(true)
+    expect(isMcpTool({ type: 'dynamic-tool', toolName: 'read' })).toBe(false)
+    expect(isMcpTool({ type: 'tool-read' })).toBe(false)
+  })
+  test('titleCase splits camelCase and snake_case', () => {
+    expect(titleCase('repoName')).toBe('Repo Name')
+    expect(titleCase('repo_name')).toBe('Repo Name')
+    expect(titleCase('readWikiStructure')).toBe('Read Wiki Structure')
+    expect(titleCase('')).toBe('')
+  })
+  test('mcpDisplayName renders MCP · Title Case Name', () => {
+    expect(mcpDisplayName('mcp_deepwiki_read_wiki_structure')).toBe('MCP · Deepwiki Read Wiki Structure')
+    expect(mcpDisplayName('mcp_ask')).toBe('MCP · Ask')
+    expect(mcpDisplayName('mcp_')).toBe('MCP')
+  })
+  test('toolDisplayName routes mcp names through mcpDisplayName', () => {
+    expect(toolDisplayName({ type: 'dynamic-tool', toolName: 'mcp_deepwiki_read_wiki_structure' })).toBe('MCP · Deepwiki Read Wiki Structure')
+  })
+  test('summarizeMcpInput renders fields as Title Case: value', () => {
+    expect(summarizeMcpInput({ repoName: 'microsoft/TypeScript', question: 'How does it work?' })).toBe('Repo Name: microsoft/TypeScript, Question: How does it work?')
+    expect(summarizeMcpInput({ limit: 5, deep: true })).toBe('Limit: 5, Deep: true')
+    expect(summarizeMcpInput({ tags: ['a', 'b'] })).toBe('Tags: ["a","b"]')
+    expect(summarizeMcpInput({})).toBe('')
+    expect(summarizeMcpInput({ q: undefined })).toBe('')
+    expect(summarizeMcpInput({ q: '' })).toBe('')
+  })
+  test('summarizeToolInput detects mcp by name', () => {
+    expect(summarizeToolInput('mcp_deepwiki_read_wiki_structure', { repoName: 'microsoft/TypeScript' })).toBe('Repo Name: microsoft/TypeScript')
+  })
+  test('summarizeToolOutput counts MCP text content lines', () => {
+    expect(summarizeToolOutput('mcp_deepwiki_ask', { content: [{ type: 'text', text: 'Hello world' }] })).toBe('1 lines')
+    expect(
+      summarizeToolOutput('mcp_deepwiki_ask', {
+        content: [
+          { type: 'text', text: 'a' },
+          { type: 'text', text: 'b' },
+        ],
+      }),
+    ).toBe('2 lines')
+    expect(summarizeToolOutput('mcp_deepwiki_ask', 'plain')).toBe('1 lines')
+    expect(summarizeToolOutput('mcp_deepwiki_ask', { isError: false })).toBeUndefined()
+    expect(summarizeToolOutput('mcp_deepwiki_ask', undefined)).toBeUndefined()
+    expect(summarizeToolOutput('mcp_deepwiki_ask', undefined, 'boom')).toBe('boom')
   })
 })
 
@@ -122,6 +184,11 @@ describe('summarizeToolInput', () => {
   })
   test('plan-exit takes no input', () => {
     expect(summarizeToolInput('plan-exit', {})).toBe('')
+  })
+  test('grill-exit takes no input but echoes its handoff message', () => {
+    expect(summarizeToolInput('grill-exit', {})).toBe('')
+    expect(summarizeToolOutput('grill-exit', { switchedTo: 'plan-code', message: 'Design agreed' })).toBe('Design agreed')
+    expect(summarizeToolOutput('grill-exit', {})).toBeUndefined()
   })
   test('todo summarizes the written list', () => {
     expect(summarizeToolInput('todo', { items: [1, 2] })).toBe('2 item(s)')
@@ -344,8 +411,8 @@ describe('keyboard event delivery', () => {
 
 describe('detailClipWidth', () => {
   test('reserves the spinner column only while running', () => {
-    expect(detailClipWidth(80, false, 4)).toBe(70)
-    expect(detailClipWidth(80, true, 4)).toBe(68)
+    expect(detailClipWidth(80, false, 4)).toBe(68)
+    expect(detailClipWidth(80, true, 4)).toBe(66)
   })
   test('never drops below the eight column floor', () => {
     expect(detailClipWidth(10, false, 40)).toBe(8)
@@ -448,6 +515,20 @@ describe('resolveTheme', () => {
     expect(resolved.backgroundMenu.r).toBe(resolved.backgroundElement.r)
     expect(resolved.backgroundMenu.g).toBe(resolved.backgroundElement.g)
     expect(resolved.selectedListItemText).toBeDefined()
+  })
+  test('picobu default theme keeps all semantic roles visually distinct', () => {
+    const picobu = DEFAULT_THEMES.picobu
+    if (!picobu) throw new Error('picobu theme missing')
+    const key = (c: RGBA): string => `${c.r},${c.g},${c.b}`
+    for (const variant of ['dark', 'light'] as const) {
+      const t = resolveTheme(picobu, variant)
+      const roles = [t.primary, t.secondary, t.accent, t.success, t.info, t.warning, t.error]
+      expect(new Set(roles.map(key)).size).toBe(7)
+      expect(t.success.g).toBeGreaterThan(t.success.r)
+      expect(t.info.b).toBeGreaterThan(t.info.r)
+      expect(t.error.r).toBeGreaterThan(t.error.g)
+      expect(t.warning.r).toBeGreaterThan(t.warning.b)
+    }
   })
 })
 

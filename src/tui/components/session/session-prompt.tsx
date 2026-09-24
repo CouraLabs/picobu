@@ -2,7 +2,7 @@ import { listCommands, listSkills } from '@agent/commands/index.ts'
 import { SYSTEM_COMMANDS, toKebab, tokenizeCommandLine } from '@agent/commands/parse-command-line.ts'
 import type { CommandKind } from '@agent/commands/types.ts'
 import { addPrompt, clearDraft, loadDraft, loadPromptHistory, saveDraft } from '@agent/sessions/prompt-history.ts'
-import type { MouseEvent, ScrollBoxRenderable, TextareaRenderable } from '@opentui/core'
+import type { MouseEvent, RGBA, ScrollBoxRenderable, TextareaRenderable } from '@opentui/core'
 import { catalogVersion } from '@states/catalog-state.ts'
 import { theme } from '@states/theme-state.ts'
 import { pushToast } from '@states/toast.state.ts'
@@ -34,6 +34,32 @@ export interface EditRequest {
   text: string
   files: Array<AttachedFile>
   nonce: number
+}
+
+export type PromptFieldTone = 'info' | 'error' | 'secondary' | 'accent' | 'muted'
+
+export interface PromptFieldPresentation {
+  title: string
+  tone: PromptFieldTone
+}
+
+export interface PromptFieldMode {
+  waiting: boolean
+  queue: boolean
+  steering: boolean
+  shell: boolean
+  command: boolean
+  queueDepth: number
+}
+
+export const resolvePromptFieldPresentation = (mode: PromptFieldMode): PromptFieldPresentation => {
+  const queueSuffix = mode.queueDepth > 0 ? ` (${mode.queueDepth})` : ''
+  if (mode.waiting) return { title: ' Prompt - Waiting ', tone: 'info' }
+  if (mode.queue) return { title: ` Prompt - Enqueue${queueSuffix} `, tone: 'info' }
+  if (mode.steering) return { title: ' Prompt Steering ', tone: 'error' }
+  if (mode.shell) return { title: ' Shell ', tone: 'secondary' }
+  if (mode.command) return { title: ' Command ', tone: 'accent' }
+  return { title: ' Prompt ', tone: 'muted' }
 }
 
 export interface SessionPromptProps {
@@ -194,7 +220,10 @@ export const SessionPrompt = (props: SessionPromptProps) => {
         setFiles(request.files)
       })
     } else if (request.text.trim().length === 0) {
-      return
+      if (request.files.length === 0) return
+      batch(() => {
+        setFiles([...currentFiles, ...request.files])
+      })
     } else {
       textareaRef?.setText(`${current}\n${request.text}`)
       batch(() => {
@@ -520,18 +549,28 @@ export const SessionPrompt = (props: SessionPromptProps) => {
     })
   }
 
-  const queueSuffix = () => (merged.queueDepth > 0 ? ` (${merged.queueDepth})` : '')
-
-  const borderColor = () => (waitingMode() ? theme().info : queueMode() ? theme().info : steeringMode() ? theme().error : commandOpen() ? theme().accent : theme().border)
-  const titleColor = () => (waitingMode() ? theme().info : queueMode() ? theme().info : steeringMode() ? theme().error : commandOpen() ? theme().accent : theme().textMuted)
-  const title = () => (waitingMode() ? ' Prompt - Waiting ' : queueMode() ? ` Prompt - Enqueue${queueSuffix()} ` : steeringMode() ? ' Prompt Steering ' : commandOpen() ? ' Command ' : ' Prompt ')
+  const shellOpen = () => text().startsWith('!')
+  const presentation = () =>
+    resolvePromptFieldPresentation({
+      waiting: waitingMode(),
+      queue: queueMode(),
+      steering: steeringMode(),
+      shell: shellOpen(),
+      command: commandOpen(),
+      queueDepth: merged.queueDepth,
+    })
+  const toneColor = (tone: PromptFieldTone): RGBA =>
+    tone === 'info' ? theme().info : tone === 'error' ? theme().error : tone === 'secondary' ? theme().secondary : tone === 'accent' ? theme().accent : theme().textMuted
+  const borderColor = () => (presentation().tone === 'muted' ? theme().border : toneColor(presentation().tone))
+  const titleColor = () => toneColor(presentation().tone)
+  const title = () => presentation().title
   const placeholder = () =>
     waitingMode() ? 'Answer the questions above…' : queueMode() ? 'Enqueued until the run finishes…' : steeringMode() ? 'Steer the running step…' : 'What are we going to build?'
 
   return (
     <box flexDirection="column" flexShrink={0}>
       <Show when={commandOpen()}>
-        <box flexDirection="row" gap={0} flexShrink={0} paddingX={1}>
+        <box flexDirection="row" columnGap={0} flexShrink={0} paddingX={1}>
           <For each={tokenPreview()}>{(token) => <text fg={tokenColor(token.kind, token.text)}>{token.text}</text>}</For>
         </box>
         <Show when={filteredItems().length > 0}>
@@ -542,13 +581,13 @@ export const SessionPrompt = (props: SessionPromptProps) => {
                   {(item, index) => (
                     <box
                       flexDirection="row"
-                      gap={1}
+                      columnGap={1}
                       flexShrink={0}
                       paddingX={1}
                       backgroundColor={highlight() === index() ? theme().backgroundElement : undefined}
                       onMouseOver={() => setHighlight(index())}
                       onMouseUp={() => completeItem(index())}>
-                      <box flexDirection="row" gap={1} flexShrink={0}>
+                      <box flexDirection="row" columnGap={1} flexShrink={0}>
                         <text fg={labelColor(item.kind)}>{item.label}</text>
                         <text fg={theme().textMuted}>({item.kind})</text>
                       </box>
@@ -570,17 +609,17 @@ export const SessionPrompt = (props: SessionPromptProps) => {
       </Show>
       <box
         flexDirection="row"
-        gap={1}
+        columnGap={1}
         flexShrink={0}
         paddingX={1}
-        border
+        border={['top', 'bottom']}
         borderStyle={queueMode() || waitingMode() ? 'double' : steeringMode() ? 'heavy' : 'single'}
         borderColor={borderColor()}
         titleColor={titleColor()}
         title={title()}
         titleAlignment="right"
         onMouseDown={() => textareaRef?.focus()}>
-        <text flexShrink={0} fg={waitingMode() ? theme().info : queueMode() ? theme().info : steeringMode() ? theme().error : commandOpen() ? theme().accent : theme().textMuted}>
+        <text flexShrink={0} fg={toneColor(presentation().tone)}>
           {icons.promptBig}
         </text>
         <box flexGrow={1} flexShrink={1} onMouseDown={handleMouseDown}>

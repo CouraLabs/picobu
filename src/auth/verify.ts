@@ -2,6 +2,8 @@ import { stdin as input, stdout as output } from 'node:process'
 import { createInterface } from 'node:readline/promises'
 import { buildCopilotModelsFromCatalog } from '@auth/copilot-models.ts'
 import { fetchCopilotModelsWithCredential, getGitHubCopilotBaseUrl, parseGitHubCopilotModelCatalog } from '@auth/github-copilot.ts'
+import { withPreservedModels } from '@auth/oauth-models.ts'
+import { oauthProviderCatalogSupported, populateOAuthModels } from '@auth/register.ts'
 import { setCredential } from '@auth/store.ts'
 import type { OAuthAuth, OAuthCredential } from '@auth/types.ts'
 
@@ -23,40 +25,7 @@ export interface VerifyFail {
 
 export type VerifyResult = VerifyOk | VerifyFail
 
-const modelIdsFromStandardCatalog = (raw: unknown): Array<string> => {
-  const data = (raw as { data?: unknown } | null | undefined)?.data
-  if (!Array.isArray(data)) return []
-  return data.flatMap((entry) => {
-    const id = (entry as { id?: unknown } | null | undefined)?.id
-    return typeof id === 'string' && id.length > 0 ? [id] : []
-  })
-}
-
 const errorMessage = (error: unknown): string => (error instanceof Error ? error.message : String(error))
-
-const fetchOpenAIModels = async (access: string, signal: AbortSignal): Promise<unknown> => {
-  const response = await fetch('https://api.openai.com/v1/models', {
-    headers: { Authorization: `Bearer ${access}` },
-    signal: AbortSignal.any([signal, AbortSignal.timeout(VERIFY_TIMEOUT_MS)]),
-  })
-  if (!response.ok) throw new Error(`models catalog request failed (${response.status} ${response.statusText})`)
-  return response.json()
-}
-
-const fetchAnthropicModels = async (access: string, signal: AbortSignal): Promise<unknown> => {
-  const response = await fetch('https://api.anthropic.com/v1/models', {
-    headers: { 'x-api-key': access, 'anthropic-version': '2023-06-01' },
-    signal: AbortSignal.any([signal, AbortSignal.timeout(VERIFY_TIMEOUT_MS)]),
-  })
-  if (!response.ok) throw new Error(`models catalog request failed (${response.status} ${response.statusText})`)
-  return response.json()
-}
-
-const fetchLiveModels = (auth: OAuthAuth, credential: OAuthCredential, signal: AbortSignal): Promise<unknown> | null => {
-  if (auth.id === 'openai') return fetchOpenAIModels(credential.access, signal)
-  if (auth.id === 'anthropic') return fetchAnthropicModels(credential.access, signal)
-  return null
-}
 
 export const verifyOAuthCredential = async (auth: OAuthAuth, credential: OAuthCredential, signal?: AbortSignal): Promise<VerifyResult> => {
   const fallback = signal ?? AbortSignal.timeout(VERIFY_TIMEOUT_MS)
@@ -64,8 +33,9 @@ export const verifyOAuthCredential = async (auth: OAuthAuth, credential: OAuthCr
   if (effective.expires - REFRESH_GRACE_MS <= Date.now()) {
     try {
       const fresh = await auth.refresh(effective, fallback)
-      await setCredential(auth.id, fresh)
-      effective = fresh
+      const merged = withPreservedModels(fresh, effective)
+      await setCredential(auth.id, merged)
+      effective = merged
     } catch (error) {
       return { ok: false, error: `token refresh failed: ${errorMessage(error)}` }
     }
@@ -81,17 +51,14 @@ export const verifyOAuthCredential = async (auth: OAuthAuth, credential: OAuthCr
       await setCredential(auth.id, effective)
       return { ok: true, modelCount: modelIds.length, credential: effective, modelIds }
     }
-    const pending = fetchLiveModels(auth, effective, fallback)
-    if (pending === null) {
-      const stored = effective.availableModelIds
+    const stored = effective.availableModelIds
+    if (!oauthProviderCatalogSupported(auth.id)) {
       if (stored !== undefined) return { ok: true, modelCount: stored.length, credential: effective, modelIds: stored }
       return { ok: true, modelCount: 0, credential: effective, modelIds: [] }
     }
-    const modelIds = modelIdsFromStandardCatalog(await pending)
-    if (modelIds.length === 0) return { ok: false, error: 'models catalog was empty' }
-    effective = { ...effective, availableModelIds: modelIds }
-    await setCredential(auth.id, effective)
-    return { ok: true, modelCount: modelIds.length, credential: effective, modelIds }
+    const populated = await populateOAuthModels(auth, effective, { signal: fallback })
+    if (populated.modelIds.length === 0) return { ok: false, error: 'models catalog was empty' }
+    return { ok: true, modelCount: populated.modelIds.length, credential: populated.credential, modelIds: populated.modelIds }
   } catch (error) {
     return { ok: false, error: errorMessage(error) }
   }

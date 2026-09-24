@@ -99,14 +99,14 @@ export const DEFAULT_SESSION_STATUS_LAYOUT: SessionStatusLayout = {
   lines: [
     ['agent', 'separator', 'model', 'separator', 'effort', 'separator', 'run-state', 'separator', 'loading', 'session-title'],
     ['ttft', 'tps', 'separator', 'input', 'output', 'cache', 'cost'],
-    ['sandbox', 'separator', 'msgs', 'tools', 'separator', 'queue', 'separator', 'jobs'],
+    ['sandbox', 'separator', 'msgs', 'tools', 'separator', 'queue', 'separator', 'jobs', 'separator', 'todo'],
     ['provider-items'],
   ],
   columnGap: DEFAULT_COLUMN_GAP,
   rowGap: DEFAULT_ROW_GAP,
 }
 export const DEFAULT_SESSION_HEADER_LAYOUT: SessionHeaderLayout = {
-  lines: [['workspace', 'separator', 'context', 'separator', 'notification']],
+  lines: [['workspace', 'notification', 'context']],
   columnGap: DEFAULT_COLUMN_GAP,
   rowGap: DEFAULT_ROW_GAP,
 }

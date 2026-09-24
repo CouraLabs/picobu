@@ -30,7 +30,6 @@ export interface MessagePartViewProps {
 const DOUBLE_CLICK_MS = 200
 
 export const MessagePartView = (props: MessagePartViewProps) => {
-  const [hovered, setHovered] = createSignal(false)
   let lastClickAt = 0
 
   const reasoningPart = createMemo(() => {
@@ -40,8 +39,6 @@ export const MessagePartView = (props: MessagePartViewProps) => {
   })
 
   const hoverProps = {
-    onMouseOver: () => setHovered(true),
-    onMouseOut: () => setHovered(false),
     onMouseUp: () => {
       if (dialogStatus().status === 'open') return
       const now = Date.now()
@@ -58,7 +55,7 @@ export const MessagePartView = (props: MessagePartViewProps) => {
     <Show
       when={props.role !== 'user'}
       fallback={
-        <box marginTop={1} marginLeft={1} columnGap={1} flexDirection="row" backgroundColor={hovered() ? theme().backgroundPanel : theme().backgroundElement} padding={1} {...hoverProps}>
+        <box columnGap={1} flexDirection="row" {...hoverProps}>
           <text fg={theme().accent} flexShrink={0} selectable={false}>
             {icons.promptBig}
           </text>
@@ -70,12 +67,12 @@ export const MessagePartView = (props: MessagePartViewProps) => {
       <Show
         when={reasoningPart()}
         fallback={
-          <box marginTop={1} backgroundColor={hovered() ? theme().backgroundElement : undefined} paddingLeft={1} {...hoverProps}>
+          <box {...hoverProps}>
             <markdown syntaxStyle={theme().syntax} treeSitterClient={getSharedTreeSitterClientSync()} streaming={true} internalBlockMode={'top-level'} conceal content={partContent(props.part)} />
           </box>
         }>
         {(rp: () => NonNullable<ReturnType<typeof reasoningPart>>) => (
-          <box marginTop={1} backgroundColor={hovered() ? theme().backgroundElement : undefined} paddingLeft={1} {...hoverProps}>
+          <box {...hoverProps}>
             <ReasoningPart part={rp()} isStreamingTail={rp().state === 'streaming'} />
           </box>
         )}

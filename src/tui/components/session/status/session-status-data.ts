@@ -1,4 +1,5 @@
 export { HeaderItemView, type HeaderRenderContext, headerItemHasContent } from './header-items.tsx'
+export { isLoadingAdjacentToAgent, LOADING_VERBS, pickLoadingVerb } from './loading-verbs.ts'
 export { getProviderStatusExtras, type ProviderStatusExtra } from './provider-extras.ts'
 export type { ActivityKind } from './status-activity.ts'
 export {

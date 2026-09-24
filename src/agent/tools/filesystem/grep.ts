@@ -13,7 +13,7 @@ const GrepToolOutputSchema = z.object({
 })
 export const GrepToolArgsSchema = z.object({
   pattern: z.string().min(1),
-  path: z.string().optional(),
+  path: z.string().min(1),
   include: z.string().optional().describe('File glob to include in the search (e.g. "*.ts", "*.{ts,tsx}").'),
   limit: z.number().int().min(1).max(1000).optional(),
 })
@@ -42,7 +42,7 @@ async function runArgv(argv: Array<string>, cwd: string, toolOptions?: ToolExecu
 export const grepTool = {
   name: 'grep',
   description:
-    'Search files with ripgrep regex; returns matching lines as path:line: content (max 100 by default, capped at 1000). Use include to filter by file glob (e.g. "*.ts"). Respects .gitignore except inside .agents dirs.',
+    'Search files with ripgrep regex; requires a path to search; returns matching lines as path:line: content (max 100 by default, capped at 1000). Use include to filter by file glob (e.g. "*.ts"). Respects .gitignore except inside .agents dirs.',
   parameters: GrepToolArgsSchema,
   output: GrepToolOutputSchema,
   isTerminal: false,
@@ -54,11 +54,9 @@ export const grepTool = {
     const limit = args.limit ?? 100
     const sandbox = sandboxRoot(toolOptions?.experimental_sandbox)
     const root = sandbox ?? process.cwd()
-    const searchPath = args.path ? resolve(root, args.path) : root
-    if (sandbox) {
-      if (!isInsideBase(resolve(sandbox), resolve(searchPath))) {
-        throw new Error(`Path escapes working directory: ${args.path}`)
-      }
+    const searchPath = resolve(root, args.path)
+    if (sandbox && !isInsideBase(resolve(sandbox), resolve(searchPath))) {
+      throw new Error(`Path escapes working directory: ${args.path}`)
     }
     const base = resolve(searchPath)
     const bypassFilters = insideAgentDir(base)

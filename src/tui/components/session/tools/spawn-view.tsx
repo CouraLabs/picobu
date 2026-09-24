@@ -16,12 +16,14 @@ export const SpawnView = (props: { part: ToolPartLike; onOpen?: (sessionId: stri
   const subagent = createMemo(() => (spawnSubagentName(props.part.input) ?? 'Spawn').toUpperCase())
   const sessionId = createMemo(() => spawnSessionId(props.part.output))
   const [jobsVersion, setJobsVersion] = createSignal(0)
-  const jobStats = createMemo(() => {
+  const jobRow = createMemo(() => {
     const id = sessionId()
     if (id === undefined) return undefined
     jobsVersion()
-    return props.manager?.jobs().find((job) => job.sessionId === id)?.stats
+    return props.manager?.jobs().find((job) => job.sessionId === id)
   })
+  const jobStats = createMemo(() => jobRow()?.stats)
+  const title = createMemo(() => jobRow()?.title)
   const running = createMemo(() => isToolRunning(props.part) || isPreliminaryToolResult(props.part))
   const failed = createMemo(() => props.part.state === 'output-error')
   const startAt = Date.now()
@@ -61,7 +63,7 @@ export const SpawnView = (props: { part: ToolPartLike; onOpen?: (sessionId: stri
     if (id) props.onOpen?.(id, subagent())
   }
   const dims = useTerminalDims()
-  const usageLine = () => `${icons.arrowUp} ${inputLabel()} · ${icons.arrowDown} ${outputLabel()} · ${icons.cache} ${cacheLabel()} · ${icons.cost} ${costLabel()}`
+  const usageLine = () => `${icons.arrowUp}${inputLabel()}  ${icons.arrowDown}${outputLabel()}  ${icons.cache} ${cacheLabel()}  ${icons.cost}${costLabel()}`
   const clipRest = (line: string): string => {
     const max = Math.max(8, dims().width - 12 - subagent().length)
     return clip(line, max)
@@ -69,7 +71,6 @@ export const SpawnView = (props: { part: ToolPartLike; onOpen?: (sessionId: stri
   return (
     <box
       flexDirection="column"
-      paddingLeft={1}
       backgroundColor={hovered() ? theme().backgroundElement : undefined}
       onMouseOver={() => setHovered(true)}
       onMouseOut={() => setHovered(false)}
@@ -77,8 +78,8 @@ export const SpawnView = (props: { part: ToolPartLike; onOpen?: (sessionId: stri
         event.stopPropagation()
         open()
       }}>
-      <box flexDirection="row" gap={1} flexWrap="no-wrap" alignItems="center">
-        <ToolStatusIcon running={running()} color={color()} />
+      <box flexDirection="row" columnGap={1} flexWrap="no-wrap" alignItems="center">
+        <ToolStatusIcon running={running()} color={theme().accent} />
         <text fg={color()} flexShrink={0}>
           {subagent()}
         </text>
@@ -91,6 +92,13 @@ export const SpawnView = (props: { part: ToolPartLike; onOpen?: (sessionId: stri
           <text fg={theme().error} flexShrink={0}>
             · failed
           </text>
+        </Show>
+        <Show when={title()} keyed>
+          {(value: string) => (
+            <text fg={theme().textMuted} flexShrink={1}>
+              {clip(`· ${value}`, Math.max(8, dims().width - 12 - subagent().length))}
+            </text>
+          )}
         </Show>
         <Show when={!running()}>
           <text fg={theme().textMuted} flexShrink={1}>

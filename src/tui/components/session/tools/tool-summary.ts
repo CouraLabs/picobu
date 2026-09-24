@@ -34,13 +34,18 @@ export const rawToolName = (part: ToolPartLike): string => (part.type === DYNAMI
 
 export const isSpawnTool = (part: ToolPartLike): boolean => rawToolName(part).toLowerCase() === 'spawn'
 
+export const isShellTool = (part: ToolPartLike): boolean => rawToolName(part).toLowerCase() === 'shell'
+
+const MCP_PREFIX = 'mcp_'
+
+const isMcpName = (name: string): boolean => name.toLowerCase().startsWith(MCP_PREFIX)
+
+export const isMcpTool = (part: ToolPartLike): boolean => isMcpName(rawToolName(part))
+
 export const isTodoTool = (part: ToolPartLike): boolean => part.type === 'tool-todo' || (part.type === DYNAMIC_TOOL_TYPE && part.toolName === 'todo')
 
 const isTodoItemValue = (value: unknown): value is TodoItem =>
-  typeof value === 'object' &&
-  value !== null &&
-  typeof (value as { title?: unknown }).title === 'string' &&
-  (typeof (value as { done?: unknown }).done === 'boolean' || typeof (value as { status?: unknown }).status === 'string')
+  typeof value === 'object' && value !== null && typeof (value as { title?: unknown }).title === 'string' && typeof (value as { done?: unknown }).done === 'boolean'
 
 export const todoItems = (part: ToolPartLike): Array<TodoItem> | undefined => {
   const input = part.input
@@ -117,7 +122,27 @@ export const planLineCount = (input: unknown): number | undefined => {
   return plan.length === 0 ? 0 : plan.split('\n').length
 }
 
-export const toolDisplayName = (part: ToolPartLike): string => rawToolName(part).toUpperCase()
+const titleCaseWord = (word: string): string => (word.length === 0 ? word : `${word[0]?.toUpperCase() ?? ''}${word.slice(1).toLowerCase()}`)
+
+export const titleCase = (value: string): string =>
+  value
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
+    .replace(/[_-]+/g, ' ')
+    .split(/\s+/)
+    .filter((word) => word.length > 0)
+    .map(titleCaseWord)
+    .join(' ')
+
+export const mcpDisplayName = (raw: string): string => {
+  const label = titleCase(raw.replace(/^mcp[_-]+/i, ''))
+  return label.length > 0 ? `MCP · ${label}` : 'MCP'
+}
+
+export const toolDisplayName = (part: ToolPartLike): string => {
+  const raw = rawToolName(part)
+  return isMcpName(raw) ? mcpDisplayName(raw) : raw.toUpperCase()
+}
 
 export const isPreliminaryToolResult = (part: ToolPartLike): boolean => (part as { preliminary?: unknown }).preliminary === true
 
@@ -162,7 +187,19 @@ export const toolProgress = (part: ToolPartLike): string | undefined => {
   return typeof progress === 'string' && progress.length > 0 ? progress : undefined
 }
 
+const MCP_VALUE_MAX = 120
+
+const formatMcpValue = (value: unknown): string => singleLine(value, MCP_VALUE_MAX)
+
+export const summarizeMcpInput = (input: unknown): string => {
+  if (typeof input !== 'object' || input === null) return typeof input === 'string' ? singleLine(input, MCP_VALUE_MAX) : ''
+  const entries = Object.entries(input as Record<string, unknown>).filter(([, value]) => value !== undefined && value !== null && value !== '')
+  if (entries.length === 0) return ''
+  return entries.map(([key, value]) => `${titleCase(key)}: ${formatMcpValue(value)}`).join(', ')
+}
+
 export const summarizeToolInput = (name: string, input: unknown): string => {
+  if (isMcpName(name)) return summarizeMcpInput(input)
   const args = (input ?? {}) as Record<string, unknown>
   const field = (key: string): string | undefined => {
     const value = args[key]
@@ -178,11 +215,6 @@ export const summarizeToolInput = (name: string, input: unknown): string => {
     case 'write':
     case 'edit':
       return field('path') ?? '?'
-    case 'apply_patch': {
-      const files = args.files
-      if (Array.isArray(files)) return `${files.length} file(s)`
-      return 'patch'
-    }
     case 'glob':
     case 'grep':
       return field('pattern') ?? '?'
@@ -211,6 +243,7 @@ export const summarizeToolInput = (name: string, input: unknown): string => {
       return lines <= 1 ? first : `${first} · ${lines} lines`
     }
     case 'plan-exit':
+    case 'grill-exit':
       return ''
     case 'todo': {
       const items = Array.isArray(args.items) ? args.items : undefined
@@ -249,9 +282,28 @@ export const truncateLines = (text: string, max: number = EXPANDED_MAX_LINES): {
   return { text: [...lines.slice(0, max), `… +${lines.length - max} more`].join('\n'), remaining: lines.length - max }
 }
 
-export const detailClipWidth = (width: number, running: boolean, nameLength: number): number => Math.max(8, width - 6 - (running ? 2 : 0) - nameLength)
+export const detailClipWidth = (width: number, running: boolean, nameLength: number): number => Math.max(8, width - 8 - (running ? 2 : 0) - nameLength)
+
+const mcpOutputText = (output: unknown): string | undefined => {
+  if (output === undefined || output === null) return undefined
+  if (typeof output === 'string') return output.length > 0 ? output : undefined
+  if (typeof output !== 'object') return undefined
+  const content = (output as { content?: unknown }).content
+  if (!Array.isArray(content)) return undefined
+  const text = content
+    .map((item) => (typeof item === 'object' && item !== null && typeof (item as { text?: unknown }).text === 'string' ? (item as { text: string }).text : ''))
+    .filter((part) => part.length > 0)
+    .join('\n')
+  return text.length > 0 ? text : undefined
+}
+
+const summarizeMcpOutput = (output: unknown): string | undefined => {
+  const text = mcpOutputText(output)
+  return text !== undefined ? `${countLines(text)} lines` : undefined
+}
 
 export const toolOutputText = (name: string, output: unknown): string | undefined => {
+  if (isMcpName(name)) return mcpOutputText(output)
   if (output === undefined || output === null) return undefined
   const args = typeof output === 'object' ? (output as Record<string, unknown>) : undefined
   switch (name.toLowerCase()) {
@@ -273,6 +325,7 @@ export const toolOutputText = (name: string, output: unknown): string | undefine
 
 export const summarizeToolOutput = (name: string, output: unknown, errorText?: string): string | undefined => {
   if (errorText) return summarizeToolError(errorText)
+  if (isMcpName(name)) return summarizeMcpOutput(output)
   if (output === undefined || output === null) return undefined
   if (output === '' && name.toLowerCase() !== 'glob') return undefined
 
@@ -295,13 +348,9 @@ export const summarizeToolOutput = (name: string, output: unknown, errorText?: s
       const stats = diffStats(diff)
       return `${stats.added}+ ${stats.removed}−`
     }
-    case 'edit':
-    case 'apply_patch': {
+    case 'edit': {
       const diff = args && typeof args.diff === 'string' ? args.diff : undefined
-      if (diff === undefined) {
-        const files = args && Array.isArray(args.files) ? args.files : undefined
-        return files ? `${files.length} file(s)` : undefined
-      }
+      if (diff === undefined) return undefined
       const stats = diffStats(diff)
       return `${stats.added}+ ${stats.removed}−`
     }
@@ -334,7 +383,8 @@ export const summarizeToolOutput = (name: string, output: unknown, errorText?: s
       const label = status !== undefined && status !== 'pending' ? `${status} · ` : ''
       return message !== undefined && message.length > 0 ? `${label}${singleLine(message, OUTPUT_PREVIEW_MAX)}` : status ? label.trim() : undefined
     }
-    case 'plan-exit': {
+    case 'plan-exit':
+    case 'grill-exit': {
       const message = args && typeof args.message === 'string' ? args.message : undefined
       return message !== undefined && message.length > 0 ? singleLine(message, OUTPUT_PREVIEW_MAX) : undefined
     }
