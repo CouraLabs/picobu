@@ -1160,6 +1160,7 @@ export const SessionPage = (props: SessionPageProps) => {
           commandExitNonce={commandExitNonce()}
           editRequest={editRequest()}
           historyProjectKey={projectKey()}
+          firstRun={messages().length === 0}
         />
         <SessionStatus
           agentId={agentId()}
