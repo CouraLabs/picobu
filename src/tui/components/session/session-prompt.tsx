@@ -62,6 +62,20 @@ export const resolvePromptFieldPresentation = (mode: PromptFieldMode): PromptFie
   return { title: ' Prompt ', tone: 'muted' }
 }
 
+export interface PromptPlaceholderMode {
+  waiting: boolean
+  queue: boolean
+  steering: boolean
+  firstRun: boolean
+}
+
+export const resolvePromptPlaceholder = (mode: PromptPlaceholderMode): string => {
+  if (mode.waiting) return 'Answer the questions above…'
+  if (mode.queue) return 'Enqueued until the run finishes…'
+  if (mode.steering) return 'Steer the running step…'
+  return mode.firstRun ? 'What are we going to build?' : ''
+}
+
 export interface SessionPromptProps {
   onPrompt: (payload: PromptPayload) => void
   streaming?: boolean
@@ -72,6 +86,7 @@ export interface SessionPromptProps {
   commandExitNonce?: number
   editRequest?: EditRequest
   historyProjectKey: string
+  firstRun: boolean
 }
 
 interface CommandItem {
@@ -565,7 +580,12 @@ export const SessionPrompt = (props: SessionPromptProps) => {
   const titleColor = () => toneColor(presentation().tone)
   const title = () => presentation().title
   const placeholder = () =>
-    waitingMode() ? 'Answer the questions above…' : queueMode() ? 'Enqueued until the run finishes…' : steeringMode() ? 'Steer the running step…' : 'What are we going to build?'
+    resolvePromptPlaceholder({
+      waiting: waitingMode(),
+      queue: queueMode(),
+      steering: steeringMode(),
+      firstRun: merged.firstRun,
+    })
 
   return (
     <box flexDirection="column" flexShrink={0}>
