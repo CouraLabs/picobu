@@ -37,6 +37,7 @@ export function createCopilotProvider(settings: CopilotProviderSettings = { base
       headers: getHeaders,
       url: ({ path }) => `${baseURL}${path}`,
       fetch: settings.fetch,
+      includeUsage: true,
     })
   }
 

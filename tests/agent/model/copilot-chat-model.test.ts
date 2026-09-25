@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { convertToOpenAICompatibleChatMessages as convertToCopilotMessages } from '../../../src/agent/model/providers/copilot/chat/convert-to-openai-compatible-chat-messages.ts'
 import { OpenAICompatibleChatLanguageModel } from '../../../src/agent/model/providers/copilot/chat/openai-compatible-chat-language-model.ts'
+import { createCopilotProvider } from '../../../src/agent/model/providers/copilot/copilot-provider.ts'
 
 describe('system messages', () => {
   test('should convert system message content to string', () => {
@@ -546,5 +547,23 @@ describe('prompt caching', () => {
     })
     await model.doGenerate({ prompt: [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }], providerOptions: { copilot: { promptCacheKey: 'sess-abc' } } })
     expect((body as { prompt_cache_key?: string }).prompt_cache_key).toBe('sess-abc')
+  })
+
+  test('requests streaming usage so cached tokens are reported on the chat endpoint', async () => {
+    let body: unknown
+    const fetchFn = (async (_input: unknown, init?: { body?: unknown }) => {
+      body = typeof init?.body === 'string' ? JSON.parse(init.body) : init?.body
+      return new Response(
+        'data: {"choices":[{"delta":{"content":"hi"}}],"usage":{"prompt_tokens":10,"completion_tokens":1,"total_tokens":11,"prompt_tokens_details":{"cached_tokens":7}}}\n\ndata: [DONE]\n\n',
+        { status: 200, headers: { 'Content-Type': 'text/event-stream' } },
+      )
+    }) as unknown as typeof fetch
+    const model = createCopilotProvider({ baseURL: 'https://api.test.com', name: 'github-copilot', fetch: fetchFn }).chat('gemini-2.5-pro')
+    const { stream } = await model.doStream({ prompt: [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }] })
+    const parts: Array<unknown> = []
+    for await (const part of stream) parts.push(part)
+    expect((body as { stream_options?: unknown }).stream_options).toEqual({ include_usage: true })
+    const finish = parts.find((p) => (p as { type?: string }).type === 'finish') as { usage?: { inputTokens?: { cacheRead?: number } } } | undefined
+    expect(finish?.usage?.inputTokens?.cacheRead).toBe(7)
   })
 })
