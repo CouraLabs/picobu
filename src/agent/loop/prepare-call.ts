@@ -1,11 +1,9 @@
-import { NO_TOOLS } from '@agent/agents/create-agent.ts'
 import { getAgent } from '@agent/agents/registry.ts'
 import { buildActiveTools } from '@agent/loop/active-tools.ts'
 import type { DoomLoopGuard } from '@agent/loop/doom-loop.ts'
 import { buildStopWhen } from '@agent/loop/stop-conditions.ts'
 import { buildToolOrder } from '@agent/loop/tool-order.ts'
 import type { AgentReasoning, LoopCallOptions, LoopConfig } from '@agent/loop/types.ts'
-import { copilotProviderToolSet } from '@agent/model/providers/copilot/tools.ts'
 import { copilotEndpoint, resolveModel } from '@agent/model/resolver.ts'
 import type { AgentTool } from '@agent/tools/toolset.ts'
 import { options as appOptions } from '@config/options.ts'
@@ -36,12 +34,15 @@ export const createPrepareCall = (deps: PrepareCallDeps): ToolLoopAgentSettings<
     const copilotMessages = copilot === 'messages'
     const copilotResponses = copilot === 'responses'
     const copilotEffort = config.thinking === 'none' || config.thinking === 'provider-default' ? undefined : config.thinking
-    const declaredNoTools = agentDef.tools.includes(NO_TOOLS)
-    const nativeTools = Object.fromEntries(Object.entries(toolSet.getToolSet()).filter(([name]) => !(copilotResponses && name === 'websearch')))
-    const copilotTools = copilotResponses && !declaredNoTools ? copilotProviderToolSet() : {}
-    const tools = { ...nativeTools, ...copilotTools, ...mcpTools }
+    const copilotCacheKey = isCopilot && !copilotMessages ? config.sessionId?.trim() : undefined
+    const copilotOptions = {
+      ...(copilotResponses && copilotEffort ? { reasoningEffort: copilotEffort } : {}),
+      ...(copilotCacheKey ? { promptCacheKey: copilotCacheKey } : {}),
+    }
+    const nativeTools = toolSet.getToolSet()
+    const tools = { ...nativeTools, ...mcpTools }
     const mcpNames = Object.keys(mcpTools)
-    const activeTools = [...new Set([...buildActiveTools(agentDef.tools, [...Object.keys(nativeTools), ...Object.keys(copilotTools)], mcpNames), ...Object.keys(copilotTools)])]
+    const activeTools = buildActiveTools(agentDef.tools, Object.keys(nativeTools), mcpNames)
     const base = {
       ...rest,
       model: resolved.model,
@@ -52,7 +53,7 @@ export const createPrepareCall = (deps: PrepareCallDeps): ToolLoopAgentSettings<
       reasoning: config.thinking as AgentReasoning,
       providerOptions: {
         anthropic: { cacheControl: { type: 'ephemeral', ttl: '1h' }, ...(copilotMessages ? { toolStreaming: false } : {}) },
-        ...(copilotResponses && copilotEffort ? { copilot: { reasoningEffort: copilotEffort } } : {}),
+        ...(Object.keys(copilotOptions).length > 0 ? { copilot: copilotOptions } : {}),
       },
       ...(agentDef.temperature !== undefined ? { temperature: agentDef.temperature } : {}),
       ...(agentDef.topP !== undefined ? { topP: agentDef.topP } : {}),

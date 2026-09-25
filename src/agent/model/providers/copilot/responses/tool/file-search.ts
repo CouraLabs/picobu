@@ -1,6 +1,5 @@
-import { createProviderExecutedToolFactory } from '@ai-sdk/provider-utils'
 import { z } from 'zod'
-import type { OpenAIResponsesFileSearchToolComparisonFilter, OpenAIResponsesFileSearchToolCompoundFilter } from '../openai-responses-api-types.ts'
+import type { OpenAIResponsesFileSearchToolCompoundFilter } from '../openai-responses-api-types.ts'
 
 const comparisonFilterSchema = z.object({
   key: z.string(),
@@ -38,35 +37,4 @@ export const fileSearchOutputSchema = z.object({
       }),
     )
     .nullable(),
-})
-
-type FileSearchResult = {
-  attributes: Record<string, unknown>
-  fileId: string
-  filename: string
-  score: number
-  text: string
-}
-
-type FileSearchArgs = {
-  vectorStoreIds: Array<string>
-  maxNumResults?: number
-  ranking?: {
-    ranker?: string
-    scoreThreshold?: number
-  }
-  filters?: OpenAIResponsesFileSearchToolComparisonFilter | OpenAIResponsesFileSearchToolCompoundFilter
-}
-
-export const fileSearch = createProviderExecutedToolFactory<
-  Record<string, never>,
-  {
-    queries: Array<string>
-    results: Array<FileSearchResult> | null
-  },
-  FileSearchArgs
->({
-  id: 'openai.file_search',
-  inputSchema: z.object({}),
-  outputSchema: fileSearchOutputSchema,
 })

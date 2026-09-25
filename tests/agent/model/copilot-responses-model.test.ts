@@ -1,6 +1,5 @@
 import { describe, expect, mock, test } from 'bun:test'
 import type { LanguageModelV4Prompt } from '@ai-sdk/provider'
-import { createCopilotProvider } from '../../../src/agent/model/providers/copilot/copilot-provider.ts'
 import { convertToOpenAIResponsesInput } from '../../../src/agent/model/providers/copilot/responses/convert-to-openai-responses-input.ts'
 import { OpenAIResponsesLanguageModel } from '../../../src/agent/model/providers/copilot/responses/openai-responses-language-model.ts'
 
@@ -81,6 +80,22 @@ describe('doGenerate', () => {
 
     expect(providerMetadata?.copilot?.responseId).toBe('resp_1')
     expect(providerMetadata?.openai).toBeUndefined()
+  })
+
+  test('sends prompt_cache_key from copilot provider options', async () => {
+    let body: unknown
+    const mockFetch = (async (_input: unknown, init?: { body?: unknown }) => {
+      body = typeof init?.body === 'string' ? JSON.parse(init.body) : init?.body
+      return new Response(JSON.stringify({ id: 'resp_1', created_at: 0, model: 'gpt-5.5', output: [], usage: { input_tokens: 1, output_tokens: 1 } }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }) as unknown as typeof fetch
+    const model = createModel(mockFetch)
+
+    await model.doGenerate({ prompt: TEST_PROMPT, providerOptions: { copilot: { promptCacheKey: 'sess-abc' } } })
+
+    expect((body as { prompt_cache_key?: string }).prompt_cache_key).toBe('sess-abc')
   })
 })
 
@@ -208,25 +223,5 @@ describe('convertToOpenAIResponsesInput', () => {
 
     const first = input[0] as { content: Array<{ detail?: string }> }
     expect(first.content[0]?.detail).toBe('high')
-  })
-})
-
-describe('provider tools', () => {
-  test('exposes provider-executed tools with the expected ids', () => {
-    const provider = createCopilotProvider({ baseURL: 'https://x' })
-
-    expect(provider.tools.webSearch().id).toBe('openai.web_search')
-    expect(provider.tools.codeInterpreter().id).toBe('openai.code_interpreter')
-    expect(provider.tools.imageGeneration().id).toBe('openai.image_generation')
-    expect(provider.tools.fileSearch({ vectorStoreIds: ['vs_1'] }).id).toBe('openai.file_search')
-  })
-
-  test('marks the provider-executed tools as provider executed', () => {
-    const provider = createCopilotProvider({ baseURL: 'https://x' })
-
-    expect(provider.tools.webSearch().isProviderExecuted).toBe(true)
-    expect(provider.tools.codeInterpreter().isProviderExecuted).toBe(true)
-    expect(provider.tools.imageGeneration().isProviderExecuted).toBe(true)
-    expect(provider.tools.fileSearch({ vectorStoreIds: ['vs_1'] }).isProviderExecuted).toBe(true)
   })
 })

@@ -1,4 +1,3 @@
-import { createProviderExecutedToolFactory } from '@ai-sdk/provider-utils'
 import { z } from 'zod'
 
 export const codeInterpreterInputSchema = z.object({
@@ -20,17 +19,3 @@ export const codeInterpreterArgsSchema = z.object({
     ])
     .optional(),
 })
-
-type CodeInterpreterArgs = {
-  container?: string | { fileIds?: Array<string> }
-}
-
-export const codeInterpreterToolFactory = createProviderExecutedToolFactory<z.infer<typeof codeInterpreterInputSchema>, z.infer<typeof codeInterpreterOutputSchema>, CodeInterpreterArgs>({
-  id: 'openai.code_interpreter',
-  inputSchema: codeInterpreterInputSchema,
-  outputSchema: codeInterpreterOutputSchema,
-})
-
-export const codeInterpreter = (args: CodeInterpreterArgs = {}) => {
-  return codeInterpreterToolFactory(args)
-}

@@ -60,7 +60,7 @@ const copilotProvider: ProviderOptions = {
   ],
 }
 
-describe('createPrepareCall copilot provider tools', () => {
+describe('createPrepareCall copilot provider options', () => {
   beforeAll(() => {
     if (!options.providers.some((p) => p.id === copilotProvider.id)) options.providers.push(copilotProvider)
   })
@@ -80,25 +80,24 @@ describe('createPrepareCall copilot provider tools', () => {
     if (!fn) throw new Error('createPrepareCall returned no prepareCall')
     return fn({ options: { sessionMode: 'chat' }, prompt: 'hi' } as never)
   }
-  test('preloads copilot tools and suspends picobu websearch on responses', async () => {
+  test('keeps the native picobu websearch tool on copilot responses', async () => {
     const result = await run('github-copilot/gpt-5')
     const names = Object.keys(result?.tools ?? {})
-    expect(names).toEqual(expect.arrayContaining(['web_search', 'code_interpreter', 'image_generation', 'file_search']))
-    expect(names).not.toContain('websearch')
-    expect(result?.activeTools).toEqual(expect.arrayContaining(['web_search', 'code_interpreter', 'image_generation', 'file_search']))
-    expect(result?.activeTools).not.toContain('websearch')
-  })
-  test('keeps picobu websearch and omits copilot tools on the chat endpoint', async () => {
-    const result = await run('github-copilot/gpt-4o')
-    const names = Object.keys(result?.tools ?? {})
     expect(names).toContain('websearch')
+    expect(result?.activeTools).toContain('websearch')
     expect(names).not.toContain('web_search')
   })
-  test('non-copilot providers keep picobu websearch', async () => {
-    const result = await run('test-cache/test')
-    const names = Object.keys(result?.tools ?? {})
-    expect(names).toContain('websearch')
-    expect(names).not.toContain('web_search')
+  test('forwards the session id as the copilot prompt cache key on responses', async () => {
+    const fn = createPrepareCall({ ...deps('github-copilot/gpt-5'), getConfig: () => ({ agentId: 'ask', modelKey: 'github-copilot/gpt-5', thinking: 'medium', sessionId: 'sess-abc' }) })
+    if (!fn) throw new Error('createPrepareCall returned no prepareCall')
+    const result = await fn({ options: { sessionMode: 'chat' }, prompt: 'hi' } as never)
+    expect(result?.providerOptions).toHaveProperty('copilot', { reasoningEffort: 'medium', promptCacheKey: 'sess-abc' })
+  })
+  test('forwards the session id as the copilot prompt cache key on chat without reasoning effort', async () => {
+    const fn = createPrepareCall({ ...deps('github-copilot/gpt-4o'), getConfig: () => ({ agentId: 'ask', modelKey: 'github-copilot/gpt-4o', thinking: 'medium', sessionId: 'sess-abc' }) })
+    if (!fn) throw new Error('createPrepareCall returned no prepareCall')
+    const result = await fn({ options: { sessionMode: 'chat' }, prompt: 'hi' } as never)
+    expect(result?.providerOptions).toHaveProperty('copilot', { promptCacheKey: 'sess-abc' })
   })
   test('forwards reasoning effort to copilot responses and guards placeholder thinking', async () => {
     const withThinking = async (thinking: string) => {
@@ -121,15 +120,5 @@ describe('createPrepareCall copilot provider tools', () => {
     if (!fn) throw new Error('createPrepareCall returned no prepareCall')
     const result = await fn({ options: { sessionMode: 'chat' }, prompt: 'hi' } as never)
     expect(result?.providerOptions).toHaveProperty('anthropic', expect.objectContaining({ toolStreaming: false }))
-  })
-  test('does not preload copilot tools for NO_TOOLS agents', async () => {
-    const fn = createPrepareCall({
-      ...deps('github-copilot/gpt-5'),
-      getConfig: () => ({ agentId: 'ask', modelKey: 'github-copilot/gpt-5', thinking: 'medium', agentOverride: { name: 'x', description: '', category: 'coding', tools: ['__none__'], prompt: '' } }),
-    })
-    if (!fn) throw new Error('createPrepareCall returned no prepareCall')
-    const result = await fn({ options: { sessionMode: 'chat' }, prompt: 'hi' } as never)
-    expect(Object.keys(result?.tools ?? {})).not.toContain('web_search')
-    expect(result?.activeTools).toEqual([])
   })
 })

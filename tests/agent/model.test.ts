@@ -42,6 +42,24 @@ describe('headersForProvider', () => {
     expect(headers?.['Editor-Version']).toBe('custom/9')
     expect(headers?.['Copilot-Integration-Id']).toBe('vscode-chat')
   })
+  test('adds the copilot interaction id header from the session id', () => {
+    const provider = baseProvider({ id: 'github-copilot', type: 'openai-compatible' })
+    expect(headersForProvider(provider, { sessionId: 'abc123' })?.['X-Interaction-Id']).toBe('abc123')
+  })
+  test('omits the copilot interaction id header without a session id', () => {
+    const provider = baseProvider({ id: 'github-copilot', type: 'openai-compatible' })
+    expect(headersForProvider(provider)?.['X-Interaction-Id']).toBeUndefined()
+  })
+  test('lets a configured copilot interaction id override the session id', () => {
+    const provider = baseProvider({ id: 'github-copilot', type: 'openai-compatible', headers: { 'X-Interaction-Id': 'custom' } })
+    expect(headersForProvider(provider, { sessionId: 'abc123' })?.['X-Interaction-Id']).toBe('custom')
+  })
+  test('treats a lowercased configured copilot interaction id case-insensitively', () => {
+    const provider = baseProvider({ id: 'github-copilot', type: 'openai-compatible', headers: { 'x-interaction-id': 'custom' } })
+    const headers = headersForProvider(provider, { sessionId: 'abc123' })
+    expect(headers?.['X-Interaction-Id']).toBe('custom')
+    expect(headers).not.toHaveProperty('x-interaction-id')
+  })
   test('adds session and user-agent headers for opencode-go', () => {
     const provider = baseProvider({ id: 'opencode-go', name: 'OpenCode Go', type: 'openai-compatible', baseUrl: 'https://opencode.ai/zen/go/v1' })
     const headers = headersForProvider(provider, { sessionId: 'sess-123' })

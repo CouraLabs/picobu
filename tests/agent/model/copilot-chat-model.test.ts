@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { convertToOpenAICompatibleChatMessages as convertToCopilotMessages } from '../../../src/agent/model/providers/copilot/chat/convert-to-openai-compatible-chat-messages.ts'
+import { OpenAICompatibleChatLanguageModel } from '../../../src/agent/model/providers/copilot/chat/openai-compatible-chat-language-model.ts'
 
 describe('system messages', () => {
   test('should convert system message content to string', () => {
@@ -518,5 +519,32 @@ describe('full conversation', () => {
     }
     expect(assistantMsg.reasoning_text).toBe('Let me calculate 2+2...')
     expect(assistantMsg.reasoning_opaque).toBe('sig-abc')
+  })
+})
+
+describe('prompt caching', () => {
+  test('sends prompt_cache_key from copilot provider options', async () => {
+    let body: unknown
+    const fetchFn = (async (_input: unknown, init?: { body?: unknown }) => {
+      body = typeof init?.body === 'string' ? JSON.parse(init.body) : init?.body
+      return new Response(
+        JSON.stringify({
+          id: 'x',
+          created: 0,
+          model: 'gpt-4o',
+          choices: [{ index: 0, message: { role: 'assistant', content: 'hi' }, finish_reason: 'stop' }],
+          usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      )
+    }) as unknown as typeof fetch
+    const model = new OpenAICompatibleChatLanguageModel('gpt-4o', {
+      provider: 'github-copilot.chat',
+      url: () => 'https://api.test.com/chat/completions',
+      headers: () => ({}),
+      fetch: fetchFn,
+    })
+    await model.doGenerate({ prompt: [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }], providerOptions: { copilot: { promptCacheKey: 'sess-abc' } } })
+    expect((body as { prompt_cache_key?: string }).prompt_cache_key).toBe('sess-abc')
   })
 })

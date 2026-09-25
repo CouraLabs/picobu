@@ -1,4 +1,3 @@
-import { createProviderExecutedToolFactory } from '@ai-sdk/provider-utils'
 import { z } from 'zod'
 
 export const imageGenerationArgsSchema = z
@@ -24,35 +23,3 @@ export const imageGenerationArgsSchema = z
 export const imageGenerationOutputSchema = z.object({
   result: z.string(),
 })
-
-type ImageGenerationArgs = {
-  background?: 'auto' | 'opaque' | 'transparent'
-  inputFidelity?: 'low' | 'high'
-  inputImageMask?: {
-    fileId?: string
-    imageUrl?: string
-  }
-  model?: string
-  moderation?: 'auto'
-  outputCompression?: number
-  outputFormat?: 'png' | 'jpeg' | 'webp'
-  partialImages?: number
-  quality?: 'auto' | 'low' | 'medium' | 'high'
-  size?: 'auto' | '1024x1024' | '1024x1536' | '1536x1024'
-}
-
-const imageGenerationToolFactory = createProviderExecutedToolFactory<
-  Record<string, never>,
-  {
-    result: string
-  },
-  ImageGenerationArgs
->({
-  id: 'openai.image_generation',
-  inputSchema: z.object({}),
-  outputSchema: imageGenerationOutputSchema,
-})
-
-export const imageGeneration = (args: ImageGenerationArgs = {}) => {
-  return imageGenerationToolFactory(args)
-}

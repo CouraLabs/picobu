@@ -7,6 +7,7 @@ export const openaiCompatibleProviderOptions = z.object({
   reasoningEffort: z.string().optional(),
   textVerbosity: z.string().optional(),
   thinking_budget: z.number().optional(),
+  promptCacheKey: z.string().optional(),
 })
 
 export type OpenAICompatibleProviderOptions = z.infer<typeof openaiCompatibleProviderOptions>

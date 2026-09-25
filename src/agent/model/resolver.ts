@@ -201,7 +201,14 @@ export const headersForProvider = (provider: ProviderOptions, opts?: { sessionId
   for (const [key, value] of Object.entries(base ?? {})) {
     headers[key] = resolveProviderHeader(provider.id, key, value)
   }
-  if (provider.id === 'github-copilot') return { ...COPILOT_HEADERS, ...headers }
+  if (provider.id === 'github-copilot') {
+    const merged: Record<string, string> = { ...COPILOT_HEADERS, ...headers }
+    const configuredKey = Object.keys(merged).find((key) => key.toLowerCase() === 'x-interaction-id')
+    const interactionId = (configuredKey ? merged[configuredKey] : undefined)?.trim() || opts?.sessionId?.trim()
+    if (configuredKey) delete merged[configuredKey]
+    if (interactionId) merged['X-Interaction-Id'] = interactionId
+    return merged
+  }
   if (isOpencodeGoProvider(provider)) {
     if (!headers['User-Agent']) headers['User-Agent'] = `picobu/${getVersion()}`
     const sessionId = opts?.sessionId?.trim() || headers['x-opencode-session']?.trim() || OPENCODE_GO_FALLBACK_SESSION

@@ -1,4 +1,3 @@
-import { createProviderExecutedToolFactory } from '@ai-sdk/provider-utils'
 import { z } from 'zod'
 
 export const webSearchArgsSchema = z.object({
@@ -18,51 +17,3 @@ export const webSearchArgsSchema = z.object({
     })
     .optional(),
 })
-
-export const webSearchInputSchema = z.object({
-  action: z
-    .discriminatedUnion('type', [
-      z.object({
-        type: z.literal('search'),
-        query: z.string().nullish(),
-      }),
-      z.object({
-        type: z.literal('open_page'),
-        url: z.string(),
-      }),
-      z.object({
-        type: z.literal('find'),
-        url: z.string(),
-        pattern: z.string(),
-      }),
-    ])
-    .nullish(),
-})
-
-export const webSearchOutputSchema = z.object({
-  status: z.string(),
-})
-
-type WebSearchArgs = {
-  filters?: {
-    allowedDomains?: Array<string>
-  }
-  searchContextSize?: 'low' | 'medium' | 'high'
-  userLocation?: {
-    type: 'approximate'
-    country?: string
-    city?: string
-    region?: string
-    timezone?: string
-  }
-}
-
-export const webSearchToolFactory = createProviderExecutedToolFactory<z.infer<typeof webSearchInputSchema>, z.infer<typeof webSearchOutputSchema>, WebSearchArgs>({
-  id: 'openai.web_search',
-  inputSchema: webSearchInputSchema,
-  outputSchema: webSearchOutputSchema,
-})
-
-export const webSearch = (args: WebSearchArgs = {}) => {
-  return webSearchToolFactory(args)
-}

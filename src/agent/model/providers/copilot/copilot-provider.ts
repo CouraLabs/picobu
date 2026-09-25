@@ -1,12 +1,7 @@
 import type { LanguageModelV4 } from '@ai-sdk/provider'
-import type { ProviderDefinedTool, ProviderExecutedTool } from '@ai-sdk/provider-utils'
 import { type FetchFunction, withoutTrailingSlash, withUserAgentSuffix } from '@ai-sdk/provider-utils'
 import { OpenAICompatibleChatLanguageModel } from './chat/openai-compatible-chat-language-model.ts'
 import { OpenAIResponsesLanguageModel } from './responses/openai-responses-language-model.ts'
-import { codeInterpreter } from './responses/tool/code-interpreter.ts'
-import { fileSearch } from './responses/tool/file-search.ts'
-import { imageGeneration } from './responses/tool/image-generation.ts'
-import { webSearch } from './responses/tool/web-search.ts'
 
 export interface CopilotProviderSettings {
   apiKey?: string
@@ -16,18 +11,10 @@ export interface CopilotProviderSettings {
   fetch?: FetchFunction
 }
 
-export interface CopilotProviderTools {
-  webSearch: () => ProviderExecutedTool
-  codeInterpreter: () => ProviderExecutedTool
-  imageGeneration: () => ProviderExecutedTool
-  fileSearch: (args: { vectorStoreIds: Array<string> }) => ProviderExecutedTool
-}
-
 export interface CopilotProvider {
   languageModel(modelId: string): LanguageModelV4
   chat(modelId: string): LanguageModelV4
   responses(modelId: string): LanguageModelV4
-  tools: CopilotProviderTools
 }
 
 export function createCopilotProvider(settings: CopilotProviderSettings = { baseURL: '' }): CopilotProvider {
@@ -62,19 +49,9 @@ export function createCopilotProvider(settings: CopilotProviderSettings = { base
     })
   }
 
-  const tools: CopilotProviderTools = {
-    webSearch: () => webSearch(),
-    codeInterpreter: () => codeInterpreter(),
-    imageGeneration: () => imageGeneration(),
-    fileSearch: (args: { vectorStoreIds: Array<string> }) => fileSearch(args),
-  }
-
   return {
     languageModel: createChatModel,
     chat: createChatModel,
     responses: createResponsesModel,
-    tools,
   }
 }
-
-export type { ProviderDefinedTool, ProviderExecutedTool }

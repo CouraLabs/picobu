@@ -158,6 +158,7 @@ export class OpenAICompatibleChatLanguageModel implements LanguageModelV4 {
 
         reasoning_effort: compatibleOptions.reasoningEffort ?? (reasoning && reasoning !== 'none' && reasoning !== 'provider-default' ? reasoning : undefined),
         verbosity: compatibleOptions.textVerbosity,
+        prompt_cache_key: compatibleOptions.promptCacheKey,
 
         messages: convertToOpenAICompatibleChatMessages(prompt),
 
