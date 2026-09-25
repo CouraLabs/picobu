@@ -4,8 +4,6 @@ import { CheckpointStore } from '@agent/sessions/checkpoints.ts'
 import { fileHasBom, joinBom, splitBom } from '@agent/tools/filesystem/bom.ts'
 import { resolveInsideBase } from '@agent/tools/filesystem/paths.ts'
 import { diffForFile } from '@agent/tools/filesystem/replacers.ts'
-import { sandboxRoot } from '@agent/tools/sandbox.ts'
-import type { ToolExecuteOptions } from '@agent/tools/toolset.ts'
 import { withLock } from '@shared/lock.ts'
 import z from 'zod'
 export const WriteToolArgsSchema = z.object({
@@ -32,10 +30,9 @@ export const createWriteTool = (checkpointsPath?: string) => {
     parameters: WriteToolArgsSchema,
     output: WriteToolOutputSchema,
     skipPermission: true,
-    handler: async (args: z.infer<typeof WriteToolArgsSchema>, toolOptions?: ToolExecuteOptions): Promise<WriteToolResult> => {
+    handler: async (args: z.infer<typeof WriteToolArgsSchema>): Promise<WriteToolResult> => {
       if (!args.path) throw new Error('write requires a non-empty path')
-      const base = sandboxRoot(toolOptions?.experimental_sandbox)
-      const resolvedPath = await resolveInsideBase(base, args.path)
+      const resolvedPath = await resolveInsideBase(undefined, args.path)
       return withLock(resolvedPath, async () => {
         await mkdir(dirname(resolvedPath), { recursive: true })
         const file = Bun.file(resolvedPath)

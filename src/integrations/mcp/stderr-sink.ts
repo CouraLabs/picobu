@@ -1,6 +1,7 @@
 import { closeSync, mkdirSync, openSync } from 'node:fs'
 import { join } from 'node:path'
 import { options } from '@config/options.ts'
+import { logDebug } from '@shared/logger.ts'
 
 const sanitize = (value: string): string => value.replace(/[^a-zA-Z0-9._-]+/g, '-').replace(/^-+|-+$/g, '') || 'server'
 
@@ -11,7 +12,9 @@ export const closeMcpStderrTargets = (): void => {
     if (typeof target === 'number') {
       try {
         closeSync(target)
-      } catch {}
+      } catch (error) {
+        logDebug('swallowed error', { scope: 'stderr-sink', error })
+      }
     }
     opened.delete(id)
   }

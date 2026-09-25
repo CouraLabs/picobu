@@ -1,3 +1,4 @@
+import { agentIdFromName } from '@agent/agents/agent-id.ts'
 import { createAgent } from '@agent/agents/create-agent.ts'
 import type { AgentCategory, AgentType } from '@agent/agents/types.ts'
 import { listModels } from '@agent/model/resolver.ts'
@@ -10,6 +11,7 @@ export const AGENTS: Record<string, AgentType> = {
   coder: createAgent(readPromptMarkdown(AGENT_PROMPT_FILES.coder)),
   'plan-code': createAgent(readPromptMarkdown(AGENT_PROMPT_FILES.plan)),
   persistent: createAgent(readPromptMarkdown(AGENT_PROMPT_FILES.persistent)),
+  optioneer: createAgent(readPromptMarkdown(AGENT_PROMPT_FILES.optioneer)),
 }
 
 export const DEFAULT_AGENT_ROLE: Record<string, ModelRoleId> = {
@@ -17,6 +19,7 @@ export const DEFAULT_AGENT_ROLE: Record<string, ModelRoleId> = {
   grill: 'heavy',
   coder: 'flash',
   'plan-code': 'heavy',
+  optioneer: 'heavy',
 }
 
 export const DEFAULT_AGENT_ID = 'ask'
@@ -31,7 +34,31 @@ const AGENT_ROLE_THINKING: Partial<Record<ModelRoleId, ModelRoleId>> = {
   heavy: 'heavyThinkingLevel',
 }
 
+export function resolveHarnessAgentOverride(name: string): AgentModelChoice | undefined {
+  const map = options.harness?.agent
+  if (!map) return undefined
+  const target = agentIdFromName(name)
+  const key = Object.keys(map).find((candidate) => agentIdFromName(candidate) === target)
+  if (!key) return undefined
+  const value = map[key]?.trim()
+  if (!value) return undefined
+  const role = value as ModelRoleId
+  if (role === 'tiny' || role === 'flash' || role === 'flashThinking' || role === 'heavy' || role === 'heavyThinkingLevel') {
+    try {
+      const resolved = resolveModelRole(options.harness, role)
+      const thinkingRole = AGENT_ROLE_THINKING[role]
+      const thinking = (thinkingRole ? resolveModelRole(options.harness, thinkingRole).thinking : resolved.thinking) ?? 'medium'
+      return { modelKey: resolved.modelKey, thinking }
+    } catch {
+      return undefined
+    }
+  }
+  return { modelKey: value, thinking: 'medium' }
+}
+
 export function resolveAgentModel(agentId: string): AgentModelChoice | undefined {
+  const override = resolveHarnessAgentOverride(agentId)
+  if (override) return override
   const role = DEFAULT_AGENT_ROLE[agentId]
   if (!role) return undefined
   try {

@@ -12,7 +12,17 @@ import { forkSession, sliceMessagesUpTo } from '../../src/agent/sessions/session
 import { createHeadlessChatState } from '../../src/agent/sessions/session-headless-chat.ts'
 import { JobTracker } from '../../src/agent/sessions/session-jobs.ts'
 import { evictLiveSession, SessionManager } from '../../src/agent/sessions/session-manager.ts'
-import { deleteSessionMeta, folderKeyForSession, isWaiting, readSessionMeta, recoverSessionMeta, sessionMetaPath, updateSessionMeta, writeSessionMeta } from '../../src/agent/sessions/session-meta.ts'
+import {
+  deleteSessionMeta,
+  folderKeyForSession,
+  hasPendingApproval,
+  isWaiting,
+  readSessionMeta,
+  recoverSessionMeta,
+  sessionMetaPath,
+  updateSessionMeta,
+  writeSessionMeta,
+} from '../../src/agent/sessions/session-meta.ts'
 import { folderKeyFor } from '../../src/agent/sessions/session-paths.ts'
 import { deleteSessionCascade, listSessionsFor, listSessionTree } from '../../src/agent/sessions/session-queries.ts'
 import { spawnSubSession } from '../../src/agent/sessions/session-spawn.ts'
@@ -67,6 +77,57 @@ describe('session meta pure helpers', () => {
       },
     ]
     expect(isWaiting(pending)).toBe(true)
+  })
+  test('isWaiting ignores auto-approved tools (Picopilot)', () => {
+    const autoApproved = [
+      {
+        role: 'assistant',
+        parts: [{ type: 'tool-shell', toolCallId: 'a', state: 'approval-requested', input: {}, approval: { id: 'x', isAutomatic: true } }],
+      },
+    ]
+    expect(isWaiting(autoApproved)).toBe(false)
+  })
+  test('isWaiting detects a manual approval request (Picoasks)', () => {
+    const manual = [
+      {
+        role: 'assistant',
+        parts: [{ type: 'tool-shell', toolCallId: 'a', state: 'approval-requested', input: {}, approval: { id: 'x' } }],
+      },
+    ]
+    expect(isWaiting(manual)).toBe(true)
+  })
+  test('hasPendingApproval is true while any approval is unanswered', () => {
+    const mixed = [
+      {
+        role: 'assistant',
+        parts: [
+          { type: 'tool-shell', toolCallId: '1', state: 'approval-responded', approval: { id: '1', approved: true } },
+          { type: 'tool-shell', toolCallId: '2', state: 'approval-requested', approval: { id: '2' } },
+        ],
+      },
+    ]
+    expect(hasPendingApproval(mixed)).toBe(true)
+  })
+  test('hasPendingApproval is false once every approval is answered', () => {
+    const answered = [
+      {
+        role: 'assistant',
+        parts: [
+          { type: 'tool-shell', toolCallId: '1', state: 'approval-responded', approval: { id: '1', approved: true } },
+          { type: 'tool-shell', toolCallId: '2', state: 'approval-responded', approval: { id: '2', approved: true } },
+        ],
+      },
+    ]
+    expect(hasPendingApproval(answered)).toBe(false)
+  })
+  test('hasPendingApproval ignores auto-approved parts', () => {
+    const autoApproved = [
+      {
+        role: 'assistant',
+        parts: [{ type: 'tool-shell', toolCallId: '1', state: 'approval-requested', approval: { id: '1', isAutomatic: true } }],
+      },
+    ]
+    expect(hasPendingApproval(autoApproved)).toBe(false)
   })
 })
 describe('session meta persistence', () => {
@@ -344,13 +405,10 @@ describe('session manager construction', () => {
     initLockDir(originalSystemDir)
     await rm(dir, { recursive: true, force: true })
   })
-  test('exposes cwd maxAgents and sandbox toggle', () => {
+  test('exposes cwd and maxAgents', () => {
     const manager = new SessionManager({ cwd: dir, maxAgents: 2 })
     expect(manager.currentCwd).toBe(dir)
     expect(manager.maxAgents).toBe(2)
-    expect(manager.sandboxEnabled).toBe(true)
-    manager.setSandbox(false)
-    expect(manager.sandboxEnabled).toBe(false)
   })
   test('starts with no jobs', () => {
     const manager = new SessionManager({ cwd: dir, maxAgents: 1 })

@@ -13,7 +13,7 @@ export type SessionStatusItemId =
   | 'output'
   | 'cache'
   | 'cost'
-  | 'sandbox'
+  | 'permission-mode'
   | 'msgs'
   | 'tools'
   | 'mcp'
@@ -47,7 +47,7 @@ export const SESSION_STATUS_ITEM_IDS: Array<SessionStatusItemId> = [
   'output',
   'cache',
   'cost',
-  'sandbox',
+  'permission-mode',
   'msgs',
   'tools',
   'mcp',
@@ -71,7 +71,7 @@ export const SESSION_STATUS_ITEM_LABELS: Record<SessionStatusItem, string> = {
   output: 'Output tokens',
   cache: 'Cache',
   cost: 'Cost',
-  sandbox: 'Sandbox',
+  'permission-mode': 'Permission mode',
   msgs: 'Messages',
   tools: 'Tool calls',
   mcp: 'MCP',
@@ -99,7 +99,7 @@ export const DEFAULT_SESSION_STATUS_LAYOUT: SessionStatusLayout = {
   lines: [
     ['agent', 'separator', 'model', 'separator', 'effort', 'separator', 'run-state', 'separator', 'loading', 'session-title'],
     ['ttft', 'tps', 'separator', 'input', 'output', 'cache', 'cost'],
-    ['sandbox', 'separator', 'msgs', 'tools', 'separator', 'queue', 'separator', 'jobs', 'separator', 'todo'],
+    ['permission-mode', 'separator', 'msgs', 'tools', 'separator', 'queue', 'separator', 'jobs', 'separator', 'todo'],
     ['provider-items'],
   ],
   columnGap: DEFAULT_COLUMN_GAP,
@@ -211,7 +211,16 @@ const configFrom = <TItem>(value: unknown, fallback: SessionLayoutConfig<TItem>,
   }
 }
 
-export const normalizeSessionStatusLayout = (value: unknown): SessionStatusLayout => configFrom(value, DEFAULT_SESSION_STATUS_LAYOUT, isSessionStatusItem)
+const migrateStatusItem = (value: unknown): unknown => {
+  if (Array.isArray(value)) return value.map((item) => (item === 'sandbox' ? 'permission-mode' : Array.isArray(item) ? migrateStatusItem(item) : item))
+  if (typeof value === 'object' && value !== null && Array.isArray((value as { lines?: unknown }).lines)) {
+    const lines = (value as { lines: Array<unknown> }).lines
+    return { ...(value as Record<string, unknown>), lines: lines.map((line) => (Array.isArray(line) ? line.map((item) => (item === 'sandbox' ? 'permission-mode' : item)) : line)) }
+  }
+  return value
+}
+
+export const normalizeSessionStatusLayout = (value: unknown): SessionStatusLayout => configFrom(migrateStatusItem(value), DEFAULT_SESSION_STATUS_LAYOUT, isSessionStatusItem)
 export const normalizeSessionHeaderLayout = (value: unknown): SessionHeaderLayout => {
   const config = configFrom(value, DEFAULT_SESSION_HEADER_LAYOUT, isSessionHeaderItem)
   return { ...config, lines: config.lines.slice(0, 1) }

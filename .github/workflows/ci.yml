@@ -48,3 +48,15 @@ jobs:
         run: bun install
       - name: Test
         run: bun run test
+
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+      - name: Install dependencies
+        run: bun install
+      - name: Coverage gate
+        run: bun run coverage

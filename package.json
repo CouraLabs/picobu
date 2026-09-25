@@ -1,6 +1,6 @@
 {
   "name": "@couralabs/picobu",
-  "version": "0.35.3",
+  "version": "0.36.0",
   "description": "Terminal coding agent — reads, plans, edits and verifies your code — with a TUI, CLI, MCP and multi-provider support on the Vercel AI SDK",
   "license": "MIT",
   "module": "dist/cli.js",
@@ -38,6 +38,7 @@
     "release": "bun scripts/publish.ts",
     "tsc": "tsc -noEmit",
     "test": "AGENT=1 bun test tests",
+    "coverage": "bun scripts/coverage.ts",
     "lint": "biome check src tests --max-diagnostics 900",
     "lint:fix": "biome check --write src tests --max-diagnostics 900",
     "format": "biome format --write src tests --max-diagnostics 900",

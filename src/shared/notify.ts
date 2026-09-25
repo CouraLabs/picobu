@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process'
+import { logDebug } from '@shared/logger.ts'
 
 const APP_NAME = 'Picobu'
 
@@ -41,13 +42,17 @@ function osNotify(title: string, message: string, style: NotifyStyle = {}): void
       child.on('error', () => {})
       child.unref()
     }
-  } catch {}
+  } catch (error) {
+    logDebug('swallowed error', { scope: 'notify', error })
+  }
 }
 
 function bell(): void {
   try {
     process.stdout.write('\x07')
-  } catch {}
+  } catch (error) {
+    logDebug('swallowed error', { scope: 'notify', error })
+  }
 }
 
 export function notifyCompletion(message = 'Run complete'): void {

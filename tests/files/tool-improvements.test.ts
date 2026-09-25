@@ -20,50 +20,52 @@ import { options } from '../../src/config/options.ts'
 import { initLockDir } from '../../src/shared/lock.ts'
 import { shellErrorLabel } from '../../src/tui/components/session/tools/tool-summary.ts'
 
-const sb = (dir: string) => ({ root: dir }) as never
 const originalSystemDir = options.app.systemDir
+const originalCwd = process.cwd()
 let dir = ''
 
 beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), 'picobu-improve-'))
   initLockDir(join(dir, 'locks'))
+  process.chdir(dir)
 })
 
 afterEach(async () => {
+  process.chdir(originalCwd)
   options.app.systemDir = originalSystemDir
   await rm(dir, { recursive: true, force: true })
 })
 
 describe('edit fuzzy matching', () => {
   test('tolerates indentation differences', async () => {
-    await createWriteTool().handler({ path: 'f.txt', contents: 'if (x) {\n    doThing()\n}' }, { experimental_sandbox: sb(dir) })
-    const res = await createEditTool().handler({ path: 'f.txt', oldString: 'if (x) {\n  doThing()\n}', newString: 'if (x) {\n  doOther()\n}' }, { experimental_sandbox: sb(dir) })
+    await createWriteTool().handler({ path: 'f.txt', contents: 'if (x) {\n    doThing()\n}' })
+    const res = await createEditTool().handler({ path: 'f.txt', oldString: 'if (x) {\n  doThing()\n}', newString: 'if (x) {\n  doOther()\n}' })
     expect(res.message).toContain('Replaced')
-    const back = await readTool.handler({ path: 'f.txt' }, { experimental_sandbox: sb(dir) })
+    const back = await readTool.handler({ path: 'f.txt' })
     expect(back.content).toContain('doOther()')
   })
   test('replaceAll rewrites every occurrence', async () => {
-    await createWriteTool().handler({ path: 'm.txt', contents: 'foo one foo two foo' }, { experimental_sandbox: sb(dir) })
-    await createEditTool().handler({ path: 'm.txt', oldString: 'foo', newString: 'bar', replaceAll: true }, { experimental_sandbox: sb(dir) })
-    const back = await readTool.handler({ path: 'm.txt' }, { experimental_sandbox: sb(dir) })
+    await createWriteTool().handler({ path: 'm.txt', contents: 'foo one foo two foo' })
+    await createEditTool().handler({ path: 'm.txt', oldString: 'foo', newString: 'bar', replaceAll: true })
+    const back = await readTool.handler({ path: 'm.txt' })
     expect(back.content).toBe('bar one bar two bar')
   })
   test('empty oldString creates a missing file', async () => {
-    const res = await createEditTool().handler({ path: 'new.txt', oldString: '', newString: 'created' }, { experimental_sandbox: sb(dir) })
+    const res = await createEditTool().handler({ path: 'new.txt', oldString: '', newString: 'created' })
     expect(res.diff).toContain('+created')
     expect(await Bun.file(join(dir, 'new.txt')).text()).toBe('created')
   })
   test('empty oldString on existing file errors', async () => {
-    await createWriteTool().handler({ path: 'e.txt', contents: 'x' }, { experimental_sandbox: sb(dir) })
-    await expect(createEditTool().handler({ path: 'e.txt', oldString: '', newString: 'y' }, { experimental_sandbox: sb(dir) })).rejects.toThrow('cannot be empty')
+    await createWriteTool().handler({ path: 'e.txt', contents: 'x' })
+    await expect(createEditTool().handler({ path: 'e.txt', oldString: '', newString: 'y' })).rejects.toThrow('cannot be empty')
   })
   test('identical old and new strings error', async () => {
-    await createWriteTool().handler({ path: 's.txt', contents: 'same' }, { experimental_sandbox: sb(dir) })
-    await expect(createEditTool().handler({ path: 's.txt', oldString: 'same', newString: 'same' }, { experimental_sandbox: sb(dir) })).rejects.toThrow('identical')
+    await createWriteTool().handler({ path: 's.txt', contents: 'same' })
+    await expect(createEditTool().handler({ path: 's.txt', oldString: 'same', newString: 'same' })).rejects.toThrow('identical')
   })
   test('preserves CRLF line endings', async () => {
     await Bun.write(join(dir, 'crlf.txt'), 'a\r\nb\r\n')
-    await createEditTool().handler({ path: 'crlf.txt', oldString: 'a', newString: 'z' }, { experimental_sandbox: sb(dir) })
+    await createEditTool().handler({ path: 'crlf.txt', oldString: 'a', newString: 'z' })
     expect(await Bun.file(join(dir, 'crlf.txt')).text()).toBe('z\r\nb\r\n')
   })
 })
@@ -71,21 +73,21 @@ describe('edit fuzzy matching', () => {
 describe('write BOM preservation', () => {
   test('keeps an existing BOM', async () => {
     await Bun.write(join(dir, 'bom.txt'), '﻿hello')
-    await createWriteTool().handler({ path: 'bom.txt', contents: 'world' }, { experimental_sandbox: sb(dir) })
+    await createWriteTool().handler({ path: 'bom.txt', contents: 'world' })
     const bytes = new Uint8Array(await Bun.file(join(dir, 'bom.txt')).arrayBuffer())
     expect([...bytes.slice(0, 3)]).toEqual([0xef, 0xbb, 0xbf])
     expect(new TextDecoder().decode(bytes.slice(3))).toBe('world')
   })
   test('write output carries a diff', async () => {
-    const out = await createWriteTool().handler({ path: 'd.txt', contents: 'one' }, { experimental_sandbox: sb(dir) })
+    const out = await createWriteTool().handler({ path: 'd.txt', contents: 'one' })
     expect(out.diff).toContain('+one')
   })
   test('write result preview truncates by lines, not characters', async () => {
     const longLine = 'x'.repeat(20_000)
-    const under = await createWriteTool().handler({ path: 'u.txt', contents: `a\n${longLine}` }, { experimental_sandbox: sb(dir) })
+    const under = await createWriteTool().handler({ path: 'u.txt', contents: `a\n${longLine}` })
     expect(under.content).toBe(`a\n${longLine}`)
     const manyLines = Array.from({ length: 600 }, (_, i) => `line ${i}`)
-    const over = await createWriteTool().handler({ path: 'o.txt', contents: manyLines.join('\n') }, { experimental_sandbox: sb(dir) })
+    const over = await createWriteTool().handler({ path: 'o.txt', contents: manyLines.join('\n') })
     expect(over.content).toBe(`${manyLines.slice(0, 500).join('\n')}\n…[truncated]`)
     expect(await Bun.file(join(dir, 'o.txt')).text()).toBe(manyLines.join('\n'))
   })
@@ -96,34 +98,34 @@ describe('read upgrades', () => {
     await mkdir(join(dir, 'listed'), { recursive: true })
     await Bun.write(join(dir, 'listed', 'b.txt'), 'b')
     await Bun.write(join(dir, 'listed', 'a.txt'), 'a')
-    const all = await readTool.handler({ path: 'listed' }, { experimental_sandbox: sb(dir) })
+    const all = await readTool.handler({ path: 'listed' })
     expect(all.filetype).toBe('directory')
     expect(all.content).toContain('a.txt')
-    const page = await readTool.handler({ path: 'listed', skip: 1, limit: 1 }, { experimental_sandbox: sb(dir) })
+    const page = await readTool.handler({ path: 'listed', skip: 1, limit: 1 })
     expect(page.content).toContain('b.txt')
     expect(page.content).not.toContain('a.txt')
   })
   test('rejects binary files', async () => {
     await Bun.write(join(dir, 'blob.bin'), new Uint8Array([0, 1, 2, 3, 4, 5]))
-    await expect(readTool.handler({ path: 'blob.bin' }, { experimental_sandbox: sb(dir) })).rejects.toThrow('binary')
+    await expect(readTool.handler({ path: 'blob.bin' })).rejects.toThrow('binary')
   })
   test('images return metadata instead of bytes', async () => {
     await Bun.write(join(dir, 'pic.png'), new Uint8Array([137, 80, 78, 71]))
-    const got = await readTool.handler({ path: 'pic.png' }, { experimental_sandbox: sb(dir) })
+    const got = await readTool.handler({ path: 'pic.png' })
     expect(got.content).toContain('Image')
   })
   test('missing file suggests similar names', async () => {
     await Bun.write(join(dir, 'app-config.ts'), 'x')
-    await expect(readTool.handler({ path: 'config.ts' }, { experimental_sandbox: sb(dir) })).rejects.toThrow('Did you mean')
+    await expect(readTool.handler({ path: 'config.ts' })).rejects.toThrow('Did you mean')
   })
   test('long lines are cut with a suffix', async () => {
     await Bun.write(join(dir, 'long.txt'), `ok\n${'y'.repeat(3000)}`)
-    const got = await readTool.handler({ path: 'long.txt' }, { experimental_sandbox: sb(dir) })
+    const got = await readTool.handler({ path: 'long.txt' })
     expect(got.content).toContain('line truncated to 2000 chars')
   })
   test('out of range skip errors', async () => {
     await Bun.write(join(dir, 'small.txt'), 'one\ntwo')
-    await expect(readTool.handler({ path: 'small.txt', skip: 99 }, { experimental_sandbox: sb(dir) })).rejects.toThrow('out of range')
+    await expect(readTool.handler({ path: 'small.txt', skip: 99 })).rejects.toThrow('out of range')
   })
 })
 
@@ -131,23 +133,21 @@ describe('grep include and glob validation', () => {
   test('grep include filters by file glob', async () => {
     await Bun.write(join(dir, 'keep.ts'), 'needle here')
     await Bun.write(join(dir, 'skip.md'), 'needle here')
-    const res = await grepTool.handler({ pattern: 'needle', path: '.', include: '*.ts' }, { experimental_sandbox: sb(dir) })
+    const res = await grepTool.handler({ pattern: 'needle', path: '.', include: '*.ts' })
     expect(res.content).toContain('keep.ts')
     expect(res.content).not.toContain('skip.md')
   })
   test('glob rejects file paths', async () => {
     await Bun.write(join(dir, 'plain.txt'), 'x')
-    await expect(globTool.handler({ pattern: '**/*.txt', path: 'plain.txt' }, { experimental_sandbox: sb(dir) })).rejects.toThrow('must be a directory')
+    await expect(globTool.handler({ pattern: '**/*.txt', path: 'plain.txt' })).rejects.toThrow('must be a directory')
   })
 })
 
 describe('shell spill and metadata', () => {
   test('failure output carries exit metadata', async () => {
-    const { createLocalSandboxSession } = await import('../../src/agent/tools/sandbox.ts')
-    const session = createLocalSandboxSession(dir, 'Unix:Sh')
     const shell = createShellTool()
     const collect = async () => {
-      for await (const chunk of shell.handler({ command: 'echo out-line; echo err-line >&2; exit 3' }, { experimental_sandbox: session as never })) void chunk
+      for await (const chunk of shell.handler({ command: 'echo out-line; echo err-line >&2; exit 3' })) void chunk
     }
     try {
       await collect()
@@ -161,11 +161,9 @@ describe('shell spill and metadata', () => {
     }
   })
   test('timeout error names the timeout', async () => {
-    const { createLocalSandboxSession } = await import('../../src/agent/tools/sandbox.ts')
-    const session = createLocalSandboxSession(dir, 'Unix:Sh')
     const shell = createShellTool()
     const collect = async () => {
-      for await (const chunk of shell.handler({ command: 'sleep 5', timeout: 1 }, { experimental_sandbox: session as never })) void chunk
+      for await (const chunk of shell.handler({ command: 'sleep 5', timeout: 1 })) void chunk
     }
     await expect(collect()).rejects.toThrow('timed out after 1s')
   })

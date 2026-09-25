@@ -3,6 +3,7 @@ import type { LoopMessage, LoopStats } from '@agent/loop/create-loop.ts'
 import { resolveModelRef } from '@agent/model/resolver.ts'
 import type { TodoItem } from '@agent/tools/flow/todo.ts'
 import { listProviders } from '@auth/oauth-providers.ts'
+import type { PermissionMode } from '@config/harness-options.ts'
 import { options, type ProviderModelReasoningEffort } from '@config/options.ts'
 import { RGBA } from '@opentui/core'
 import { fmtCostPreciseBare, fmtMs, fmtTokens, fmtTps } from '@shared/format.ts'
@@ -27,7 +28,7 @@ export interface SessionStatusProps {
   mode?: string
   waiting?: boolean
   mcp?: { connected: number; total: number; tools: number }
-  sandbox?: boolean
+  permissionMode?: PermissionMode
   bgJobs?: number
   provider?: { id: string; name?: string; detail?: string }
   statsStatus?: Pick<LoopStats, 'finishReason' | 'warnings' | 'headers' | 'endpoints'> & { rawUsage?: LanguageModelUsage['raw'] }

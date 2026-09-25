@@ -1,8 +1,6 @@
 import { readdir, stat } from 'node:fs/promises'
 import { basename, dirname, join } from 'node:path'
 import { resolveInsideBase } from '@agent/tools/filesystem/paths.ts'
-import { sandboxRoot } from '@agent/tools/sandbox.ts'
-import type { ToolExecuteOptions } from '@agent/tools/toolset.ts'
 import { headText, MAX_TOOL_OUTPUT_BYTES, MAX_TOOL_OUTPUT_LINES } from '@agent/tools/truncate-output.ts'
 import { detectFiletype } from '@shared/filetype.ts'
 import { withLock } from '@shared/lock.ts'
@@ -103,10 +101,9 @@ export const readTool = {
   parameters: ReadToolArgsSchema,
   output: ReadToolOutputSchema,
   defer: 'auto',
-  handler: async (args: z.infer<typeof ReadToolArgsSchema>, toolOptions?: ToolExecuteOptions): Promise<z.infer<typeof ReadToolOutputSchema>> => {
+  handler: async (args: z.infer<typeof ReadToolArgsSchema>): Promise<z.infer<typeof ReadToolOutputSchema>> => {
     if (!args.path) throw new Error('read requires a non-empty path')
-    const base = sandboxRoot(toolOptions?.experimental_sandbox)
-    const path = await resolveInsideBase(base, args.path)
+    const path = await resolveInsideBase(undefined, args.path)
     return withLock(path, async () => {
       let info: Awaited<ReturnType<typeof stat>> | undefined
       try {

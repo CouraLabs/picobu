@@ -1,10 +1,11 @@
 import { resolve } from 'node:path'
 import { startBackgroundShell } from '@agent/tools/filesystem/background-shell.ts'
 import { isInsideBase } from '@agent/tools/filesystem/paths.ts'
-import { killProcessTree, sandboxRoot, shellSpec } from '@agent/tools/sandbox.ts'
+import { killProcessTree, shellSpec } from '@agent/tools/sandbox.ts'
 import type { ToolExecuteOptions } from '@agent/tools/toolset.ts'
 import { MAX_TOOL_OUTPUT_BYTES, MAX_TOOL_OUTPUT_LINES, tailText, writeFullToolOutput } from '@agent/tools/truncate-output.ts'
 import { options } from '@config/options.ts'
+import { logDebug } from '@shared/logger.ts'
 import z from 'zod'
 export const ShellToolArgsSchema = z.object({
   command: z.string(),
@@ -49,7 +50,9 @@ const drainStream = (stream: ReadableStream<Uint8Array>, sink: (text: string) =>
         if (result.done) return
         sink(decoder.decode(result.value, { stream: true }))
       }
-    } catch {}
+    } catch (error) {
+      logDebug('swallowed error', { scope: 'shell', error })
+    }
   })()
 }
 const spillCombined = async (label: string, exit: number | null, stdout: string, stderr: string): Promise<string | undefined> => {
@@ -211,10 +214,10 @@ export function createShellTool(ctx: { sessionId?: string; allowBackground?: boo
     defer: 'auto',
     handler: async function* (args: ShellToolArgs, toolOptions?: ToolExecuteOptions): AsyncGenerator<ShellToolChunk> {
       if (args.run_in_background) {
-        const sandboxRootPath = sandboxRoot(toolOptions?.experimental_sandbox) ?? process.cwd()
+        const base = process.cwd()
         if (args.cwd) {
-          const cwdPath = resolve(sandboxRootPath, args.cwd)
-          if (!isInsideBase(sandboxRootPath, cwdPath)) {
+          const cwdPath = resolve(base, args.cwd)
+          if (!isInsideBase(base, cwdPath)) {
             throw new Error(`Working directory escapes allowed root: ${args.cwd}`)
           }
         }
@@ -222,7 +225,6 @@ export function createShellTool(ctx: { sessionId?: string; allowBackground?: boo
           command: args.command,
           cwd: args.cwd,
           ...(ctx.sessionId ? { ownerSessionId: ctx.sessionId } : {}),
-          ...(toolOptions?.experimental_sandbox ? { sandbox: toolOptions.experimental_sandbox } : {}),
           ...(toolOptions?.abortSignal ? { abortSignal: toolOptions.abortSignal } : {}),
         })
         yield {
@@ -232,40 +234,24 @@ export function createShellTool(ctx: { sessionId?: string; allowBackground?: boo
         }
         return
       }
-      const sandbox = toolOptions?.experimental_sandbox
       const timeoutSeconds = args.timeout ?? DEFAULT_TIMEOUT_SECONDS
-      let child: Child
-      if (sandbox) {
-        const proc = await sandbox.spawn({
-          command: args.command,
-          workingDirectory: args.cwd,
-          abortSignal: toolOptions?.abortSignal,
-        })
-        child = {
-          stdout: proc.stdout as ReadableStream<Uint8Array>,
-          stderr: proc.stderr as ReadableStream<Uint8Array>,
-          exited: proc.wait().then((w) => w.exitCode),
-          kill: () => void proc.kill(),
-        }
-      } else {
-        const base = process.cwd()
-        const cwd = args.cwd ? resolve(base, args.cwd) : base
-        if (!isInsideBase(base, cwd)) {
-          throw new Error(`Working directory escapes allowed root: ${args.cwd}`)
-        }
-        const proc = Bun.spawn({
-          cmd: [...shellSpec(options.app.shell).cmd, args.command],
-          cwd,
-          stdout: 'pipe',
-          stderr: 'pipe',
-          detached: process.platform !== 'win32',
-        })
-        child = {
-          stdout: proc.stdout as ReadableStream<Uint8Array>,
-          stderr: proc.stderr as ReadableStream<Uint8Array>,
-          exited: proc.exited,
-          kill: () => killProcessTree(proc),
-        }
+      const base = process.cwd()
+      const cwd = args.cwd ? resolve(base, args.cwd) : base
+      if (!isInsideBase(base, cwd)) {
+        throw new Error(`Working directory escapes allowed root: ${args.cwd}`)
+      }
+      const proc = Bun.spawn({
+        cmd: [...shellSpec(options.app.shell).cmd, args.command],
+        cwd,
+        stdout: 'pipe',
+        stderr: 'pipe',
+        detached: process.platform !== 'win32',
+      })
+      const child: Child = {
+        stdout: proc.stdout as ReadableStream<Uint8Array>,
+        stderr: proc.stderr as ReadableStream<Uint8Array>,
+        exited: proc.exited,
+        kill: () => killProcessTree(proc),
       }
       yield* runStreaming(args.command, child, toolOptions, timeoutSeconds)
     },

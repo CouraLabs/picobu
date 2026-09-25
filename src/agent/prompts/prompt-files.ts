@@ -10,8 +10,8 @@ export interface PromptFileEntry {
   bundledUrl: URL
 }
 
-export type AgentPromptId = 'ask' | 'grill' | 'coder' | 'plan' | 'persistent'
-export type SubagentPromptId = 'executor' | 'explorer' | 'reviewer' | 'debugger'
+export type AgentPromptId = 'ask' | 'grill' | 'coder' | 'plan' | 'persistent' | 'optioneer'
+export type SubagentPromptId = 'executor' | 'explorer' | 'reviewer' | 'debugger' | 'plan-reviewer'
 
 export const AGENT_PROMPT_FILES: Record<AgentPromptId, PromptFileEntry> = {
   ask: { kind: 'agents', filename: 'ask.md', bundledUrl: new URL('./ask.md', import.meta.url) },
@@ -19,6 +19,7 @@ export const AGENT_PROMPT_FILES: Record<AgentPromptId, PromptFileEntry> = {
   coder: { kind: 'agents', filename: 'coder.md', bundledUrl: new URL('./coder.md', import.meta.url) },
   plan: { kind: 'agents', filename: 'plan.md', bundledUrl: new URL('./plan.md', import.meta.url) },
   persistent: { kind: 'agents', filename: 'persistent.md', bundledUrl: new URL('./persistent.md', import.meta.url) },
+  optioneer: { kind: 'agents', filename: 'optioneer.md', bundledUrl: new URL('./optioneer.md', import.meta.url) },
 }
 
 export const SUBAGENT_PROMPT_FILES: Record<SubagentPromptId, PromptFileEntry> = {
@@ -26,6 +27,7 @@ export const SUBAGENT_PROMPT_FILES: Record<SubagentPromptId, PromptFileEntry> = 
   explorer: { kind: 'agents', filename: 'explorer.md', bundledUrl: new URL('./explorer.md', import.meta.url) },
   reviewer: { kind: 'agents', filename: 'reviewer.md', bundledUrl: new URL('./reviewer.md', import.meta.url) },
   debugger: { kind: 'agents', filename: 'debugger.md', bundledUrl: new URL('./debugger.md', import.meta.url) },
+  'plan-reviewer': { kind: 'agents', filename: 'plan-reviewer.md', bundledUrl: new URL('./plan-reviewer.md', import.meta.url) },
 }
 
 export const ALL_PROMPT_FILES: Array<PromptFileEntry> = [...Object.values(AGENT_PROMPT_FILES), ...Object.values(SUBAGENT_PROMPT_FILES)]

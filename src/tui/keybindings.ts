@@ -46,7 +46,7 @@ export const isSteerKey = (key: KeyLike, platform: string = process.platform): b
 
 export const isCycleEffortKey = (key: KeyLike, platform: string = process.platform): boolean => matchesLetter(key, ['e'], platform)
 
-export const isSandboxKey = (key: KeyLike, platform: string = process.platform): boolean => matchesLetter(key, ['p'], platform)
+export const isPermissionModeKey = (key: KeyLike, platform: string = process.platform): boolean => matchesLetter(key, ['p'], platform)
 
 // ctrl+d is the exit chord. Both press and release are claimed away from the textarea's
 // delete/delete-line defaults; the session handler preventDefaults before the textarea
@@ -66,7 +66,7 @@ export const isClaimedChord = (key: KeyLike, platform: string = process.platform
   isJobsKey(key, platform) ||
   isSteerKey(key, platform) ||
   isCycleEffortKey(key, platform) ||
-  isSandboxKey(key, platform) ||
+  isPermissionModeKey(key, platform) ||
   isExitKey(key) ||
   isCopyKey(key) ||
   isSelectAllKey(key) ||

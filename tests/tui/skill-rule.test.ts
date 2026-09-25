@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { knowledgeDetail, summarizeToolError, summarizeToolOutput } from '../../src/tui/components/session/tools/tool-summary.ts'
+import { knowledgeDetail, skillRowLabel, summarizeToolError, summarizeToolOutput } from '../../src/tui/components/session/tools/tool-summary.ts'
 
 const skillOutput = {
   name: 'opentui',
@@ -28,6 +28,18 @@ describe('skill/rule output summaries', () => {
   })
   test('missing description falls back to undefined instead of JSON', () => {
     expect(summarizeToolOutput('skill', { name: 'x' })).toBeUndefined()
+  })
+})
+
+describe('skillRowLabel', () => {
+  test('collapsed skill row reads loaded <name>', () => {
+    expect(skillRowLabel({ type: 'tool-skill', input: { name: 'opentui' }, output: skillOutput })).toBe('loaded opentui')
+  })
+  test('expanded detail still carries the description', () => {
+    expect(knowledgeDetail({ type: 'tool-skill', input: { name: 'opentui' }, output: skillOutput })?.description).toBe('Build terminal UIs with OpenTUI.')
+  })
+  test('falls back to loaded when the name is unknown', () => {
+    expect(skillRowLabel({ type: 'tool-skill', input: {}, output: {} })).toBe('loaded')
   })
 })
 

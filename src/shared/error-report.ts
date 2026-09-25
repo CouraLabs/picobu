@@ -1,3 +1,5 @@
+import { logDebug } from '@shared/logger.ts'
+
 const MAX_BODY = 400
 
 const asRecord = (value: unknown): Record<string, unknown> | null => (typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : null)
@@ -31,7 +33,9 @@ const responseSummary = (body: string): string | null => {
     const nested = asRecord(json?.error)
     const summary = str(nested?.message) ?? str(json?.message) ?? str(json?.detail)
     if (summary) return clip(summary)
-  } catch {}
+  } catch (error) {
+    logDebug('swallowed error', { scope: 'error-report', error })
+  }
   return clip(text)
 }
 

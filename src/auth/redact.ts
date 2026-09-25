@@ -1,3 +1,5 @@
+import { logDebug } from '@shared/logger.ts'
+
 const SECRET_FIELD_KEYS = new Set(['access_token', 'refresh_token', 'id_token', 'assertion', 'client_secret'])
 
 const MAX_PLAIN_CHARS = 160
@@ -20,6 +22,8 @@ export const describeTokenPayload = (payload: unknown): string => {
 export const redactTokenBody = (body: string): string => {
   try {
     return describeTokenPayload(JSON.parse(body))
-  } catch {}
+  } catch (error) {
+    logDebug('swallowed error', { scope: 'redact', error })
+  }
   return body.length > MAX_PLAIN_CHARS ? `${body.slice(0, MAX_PLAIN_CHARS)}…` : body
 }

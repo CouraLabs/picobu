@@ -1,3 +1,4 @@
+import { logDebug } from '@shared/logger.ts'
 import { createTwoFilesPatch } from 'diff'
 
 export type Replacer = (content: string, find: string) => Generator<string, void, unknown>
@@ -124,7 +125,9 @@ export const WhitespaceNormalizedReplacer: Replacer = function* (content, find) 
       try {
         const match = line.match(new RegExp(words.map(escapeRegExp).join('\\s+')))
         if (match) yield match[0]
-      } catch {}
+      } catch (error) {
+        logDebug('swallowed error', { scope: 'replacers', error })
+      }
     }
   }
   const findLines = find.split('\n')

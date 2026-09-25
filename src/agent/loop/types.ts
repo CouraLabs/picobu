@@ -1,6 +1,7 @@
 import type { AgentType } from '@agent/agents/types.ts'
 import type { LoopStats, LoopStepCost } from '@agent/loop/loop-stats.ts'
 import type { SpawnToolContext } from '@agent/tools/flow/spawn.ts'
+import type { PermissionMode } from '@config/harness-options.ts'
 import type { ProviderModelReasoningEffort } from '@config/options.ts'
 import type { McpManager } from '@integrations/mcp/client.ts'
 import type { DirectChatTransport, InferUITools, ToolLoopAgent, ToolSet, UIMessage } from 'ai'
@@ -14,7 +15,7 @@ export interface LoopConfig {
   sessionMode?: 'chat' | 'persistent'
   sessionId?: string
   cwd?: string
-  sandbox?: boolean
+  permissionMode?: PermissionMode
   agentOverride?: AgentType
   subagent?: boolean
   spawn?: SpawnToolContext
@@ -37,4 +38,5 @@ export interface Loop {
   restoreStats: (stats: LoopStats) => void
   addExternalCost: (cost: LoopStepCost) => void
   refreshEndpoints: () => void
+  onBudgetExceeded: (listener: () => void) => () => void
 }

@@ -23,7 +23,7 @@ const shortcuts: Array<{ keys: string; what: string }> = [
   { keys: 'CTRL + W / F4', what: 'Toggle steer mode (steer never clears the queue)' },
   { keys: 'SHIFT + TAB', what: 'Cycle agent' },
   { keys: 'CTRL + E', what: 'Cycle thinking effort' },
-  { keys: 'CTRL + P', what: 'Toggle sandbox (takes effect on next run)' },
+  { keys: 'CTRL + P', what: 'Toggle permission mode (YOLO / Ask — saved as the default)' },
   { keys: 'TAB', what: 'Cycle prompt history (disabled while the command flyout is open)' },
   { keys: 'TAB (in command flyout)', what: 'Complete command in the flyout' },
   { keys: 'CTRL + A', what: 'Select all text in the prompt' },
@@ -45,7 +45,7 @@ const footerLines: Array<string> = [
   '- Use `/session-status-view` to edit the status bar: lines, items, column/row gaps.',
   '- Use `/session-header-view` to edit the header: workspace (folder + git), context, notification.',
   '- In the dialog: arrows move the cursor, `enter` picks up / drops an item, `del` moves it to Unused, `esc` closes.',
-  '- Defaults: agent, model, thinking effort, run state, spinner, session title; TTFT/TPS, input, output, cache, cost; sandbox, messages, tools, queue, jobs; provider items.',
+  '- Defaults: agent, model, thinking effort, run state, spinner, session title; TTFT/TPS, input, output, cache, cost; permission mode, messages, tools, queue, jobs; provider items.',
 ]
 
 export const HelpDialog = () => {

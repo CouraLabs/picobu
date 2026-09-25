@@ -15,7 +15,6 @@ An open-source coding agent for your terminal. Point Picobu at a project and it 
   - [Sessions](#sessions)
   - [Configuration](#configuration)
 - [Documentation](#documentation)
-- [WhatsApp](#whatsapp)
 - [Related Efforts](#related-efforts)
 - [Maintainers](#maintainers)
 - [Contributing](#contributing)
@@ -102,7 +101,7 @@ The session footer shows the active agent, model, thinking effort, run state, to
 
 ### Agents
 
-Picobu ships five built-in agents:
+Picobu ships six built-in agents:
 
 | Agent | What it does |
 | --- | --- |
@@ -111,8 +110,9 @@ Picobu ships five built-in agents:
 | `grill` | Interviews you to reach a shared design before any plan or code. |
 | `plan-code` | Produces an ordered implementation plan and hands off to the coder on approval. |
 | `persistent` | Runs each prompt as a fresh, stateless session mode. |
+| `optioneer` | **Picobu's Optioneer** — configures picobu on request: `options.json` via `update-options`/`reload-options`, plus agents, subagents, rules, skills and workflows, then reloads so changes apply live in the same session. |
 
-`SHIFT+TAB` cycles the four conversational agents (`ask` → `grill` → `plan-code` → `coder`). Agents delegate work to four built-in subagents — `executor`, `explorer`, `reviewer`, `debugger` — via the `spawn` tool, which runs each as an isolated sub session. You can add your own subagents as markdown files in `.agents/agents/*.md`. See [docs/usage/agents.md](docs/usage/agents.md).
+`SHIFT+TAB` cycles the conversational agents (`ask` → `grill` → `plan-code` → `coder` → `optioneer`). Agents delegate work to five built-in subagents — `executor`, `explorer`, `reviewer`, `debugger`, `plan-reviewer` — via the `spawn` tool, which runs each as an isolated sub session. You can add your own subagents as markdown files in `.agents/agents/*.md`. See [docs/usage/agents.md](docs/usage/agents.md).
 
 ### Tools
 
@@ -136,17 +136,11 @@ Every conversation is a session, persisted incrementally to `~/.picobu/sessions/
 
 ### Configuration
 
-All settings live in one file, `~/.picobu/options.json` — providers, harness and model roles, theme (35 bundled) and TUI layout, MCP servers, watchdog, and the WhatsApp block. It is seeded with defaults on first launch and migrated as Picobu evolves. See [docs/configuration/options.md](docs/configuration/options.md).
+All settings live in one file, `~/.picobu/options.json` — providers, harness and model roles, permissions and budget, theme (35 bundled) and TUI layout, MCP servers, and watchdog. It is seeded with defaults on first launch and migrated as Picobu evolves. See [docs/configuration/options.md](docs/configuration/options.md).
 
 ## Documentation
 
 Full documentation is modular under [`docs/`](docs/README.md) — usage, keybindings, install, frontends, configuration, agents, tools, sessions, and MCP. Start with [docs/README.md](docs/README.md).
-
-## WhatsApp
-
-A Baileys integration (unofficial WhatsApp Web API) lives in `src/integrations/whatsapp/` — connection and reconnect handling (auth persisted to `~/.picobu/whatsapp/auth`, 0700, retrying 10×/3s), the QR/pairing-code status store, contacts, the `today` todo list (`~/.picobu/whatsapp/today.json`), an inbound bus, and the `wwp-msg`/`wwp-today` agent tools.
-
-The connection is **not wired into the current runtime**: the CLI bootstrap and the TUI neither call `connectToWhatsApp()` nor subscribe to inbound messages, so the `whatsapp.enabled`/`allowedNumbers` options are inert today and the integration is dormant until a host frontend wires the bus and the connection back up. The modules and tools remain importable and tested.
 
 ## Related Efforts
 

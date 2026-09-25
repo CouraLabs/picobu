@@ -1,4 +1,5 @@
 import type { TodoItem } from '@agent/tools/flow/todo.ts'
+import type { PermissionMode } from '@config/harness-options.ts'
 import type { SessionStatusItem } from '@config/session-layout.ts'
 import { TextAttributes } from '@opentui/core'
 import { theme } from '@states/theme-state.ts'
@@ -139,13 +140,12 @@ const CostItem = (props: { ctx: StatusRenderContext }) => (
   <StatusSegment icon={icons.cost} value={props.ctx.data.costValue()} labelColor={theme().warning} valueColor={theme().textMuted} selectable={props.ctx.selectable} />
 )
 
-const SandboxItem = (props: { ctx: StatusRenderContext }) => (
-  <StatusSegment
-    icon={icons.shield}
-    value={props.ctx.status.sandbox === false ? 'Sandbox Off' : 'Sandbox On'}
-    valueColor={props.ctx.status.sandbox === false ? theme().warning : theme().success}
-    selectable={props.ctx.selectable}
-  />
+const permissionModeLabel = (mode: PermissionMode | undefined): string => (mode === 'yolo' ? 'Ya only live once' : mode === 'autopilot' ? 'Picopilot' : 'Picoasks')
+
+const permissionModeColor = (mode: PermissionMode | undefined) => (mode === 'yolo' ? theme().warning : mode === 'autopilot' ? theme().secondary : theme().success)
+
+const PermissionModeItem = (props: { ctx: StatusRenderContext }) => (
+  <StatusSegment icon={icons.shield} value={permissionModeLabel(props.ctx.status.permissionMode)} valueColor={permissionModeColor(props.ctx.status.permissionMode)} selectable={props.ctx.selectable} />
 )
 
 const MsgsItem = (props: { ctx: StatusRenderContext }) => <StatusSegment icon={icons.fileText} value={`${props.ctx.data.stats().total} msgs`} selectable={props.ctx.selectable} />
@@ -216,8 +216,8 @@ export const StatusItemView = (props: { item: SessionStatusItem; ctx: StatusRend
     <Show when={props.item === 'cost'}>
       <CostItem ctx={props.ctx} />
     </Show>
-    <Show when={props.item === 'sandbox'}>
-      <SandboxItem ctx={props.ctx} />
+    <Show when={props.item === 'permission-mode'}>
+      <PermissionModeItem ctx={props.ctx} />
     </Show>
     <Show when={props.item === 'msgs'}>
       <MsgsItem ctx={props.ctx} />

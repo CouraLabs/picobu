@@ -1,10 +1,13 @@
 import { mkdirSync } from 'node:fs'
 import { homedir } from 'node:os'
+import { normalizeHarness, type PermissionMode } from '@config/harness-options.ts'
+import { formatOptionsIssues, OptionsExternalSchema } from '@config/options-schema.ts'
 import { normalizeStatusLines, type ProviderStatusEntry } from '@config/provider-status-line.ts'
 import { normalizeSessionHeaderLayout, normalizeSessionStatusLayout, type SessionHeaderLayout, type SessionStatusLayout } from '@config/session-layout.ts'
 import { DEFAULT_MCP_OPTIONS, type McpOptions } from '@integrations/mcp/config.ts'
 import { atomicWriteFile } from '@shared/atomic-write.ts'
 import { acquireLock } from '@shared/lock.ts'
+import { logDebug } from '@shared/logger.ts'
 import { detectShell } from '@shared/shell.ts'
 export interface ProviderModelBilling {
   multiplier?: number
@@ -75,14 +78,22 @@ export interface ModelRoles {
 export interface HarnessOptions {
   defaultModel?: string
   modelRoles?: ModelRoles
+  agent?: Record<string, string>
   maxAgents?: number
   doomLoop?: boolean
+  permissions?: Record<string, boolean>
+  budgetLimitUsd?: number
+  defaultPermissionMode?: PermissionMode
 }
 export interface HarnessOptionsInput {
   defaultModel?: string
   modelRoles?: ModelRoles
+  agent?: Record<string, string>
   maxAgents?: number
   doomLoop?: boolean
+  permissions?: Record<string, boolean>
+  budgetLimitUsd?: number
+  defaultPermissionMode?: PermissionMode
 }
 export interface ThemePrefs {
   key: string
@@ -225,36 +236,8 @@ const normalizeProviders = (value: unknown): Array<ProviderOptions> => {
   }
   return out
 }
-const normalizeHarness = (value: unknown): HarnessOptions => {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
-  const harness = value as HarnessOptions
-  const normalized: HarnessOptions = {}
-  if (harness.defaultModel !== undefined) {
-    if (typeof harness.defaultModel !== 'string' || harness.defaultModel.trim().length === 0) {
-      throw new Error('options.json: "harness.defaultModel" must be a non-empty string like "<providerId>/<modelId>"')
-    }
-    normalized.defaultModel = harness.defaultModel
-  }
-  if (harness.maxAgents !== undefined) {
-    if (typeof harness.maxAgents !== 'number' || !Number.isFinite(harness.maxAgents) || harness.maxAgents < 1) {
-      throw new Error('options.json: "harness.maxAgents" must be a number >= 1')
-    }
-    normalized.maxAgents = Math.floor(harness.maxAgents)
-  }
-  if (harness.modelRoles !== undefined) {
-    if (!harness.modelRoles || typeof harness.modelRoles !== 'object' || Array.isArray(harness.modelRoles)) {
-      throw new Error('options.json: "harness.modelRoles" must be an object')
-    }
-    normalized.modelRoles = harness.modelRoles
-  }
-  if (harness.doomLoop !== undefined) {
-    if (typeof harness.doomLoop !== 'boolean') {
-      throw new Error('options.json: "harness.doomLoop" must be a boolean')
-    }
-    normalized.doomLoop = harness.doomLoop
-  }
-  return normalized
-}
+
+export { DEFAULT_PERMISSION_MODE, normalizeHarness, type PermissionMode } from '@config/harness-options.ts'
 export const DEFAULT_THEME_PREFS: ThemePrefs = { key: 'picobu', variant: 'dark' }
 const normalizeMaxMessages = (value: unknown): number => {
   if (typeof value !== 'number' || !Number.isFinite(value)) return DEFAULT_TUI_OPTIONS.maxMessages
@@ -318,7 +301,9 @@ async function readExternalOptions(): Promise<OptionsExternal> {
         try {
           const raw = await externalOptsFile.text()
           await Bun.write(`${externalOptsPath}.corrupt-${Date.now()}`, raw)
-        } catch {}
+        } catch (error) {
+          logDebug('swallowed error', { scope: 'options', error })
+        }
         externalOpts = {}
       }
     }
@@ -338,6 +323,10 @@ async function readExternalOptions(): Promise<OptionsExternal> {
         harness: { ...externalOpts.harness, defaultModel: externalOpts.defaults.model },
         defaults: undefined,
       } as OptionsExternal
+    }
+    const validated = OptionsExternalSchema.safeParse(externalOpts)
+    if (!validated.success) {
+      throw new Error(`Invalid ${externalOptsPath}: ${formatOptionsIssues(validated.error)}`)
     }
     const seeded: OptionsExternal = {
       ...externalOpts,
@@ -389,6 +378,14 @@ export const updateSettings = async (
           ...current.harness?.modelRoles,
           ...patch.harness?.modelRoles,
         },
+        permissions: {
+          ...current.harness?.permissions,
+          ...patch.harness?.permissions,
+        },
+        agent: {
+          ...current.harness?.agent,
+          ...patch.harness?.agent,
+        },
       },
       tui: {
         theme: patch.tui?.theme ?? current.tui?.theme ?? current.theme,
@@ -424,3 +421,9 @@ export const updateSettings = async (
   }
 }
 export const options = await loadOptions()
+
+export const reloadOptions = async (): Promise<Options> => {
+  const next = await loadOptions()
+  Object.assign(options, next)
+  return options
+}

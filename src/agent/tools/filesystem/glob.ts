@@ -2,7 +2,7 @@ import { stat } from 'node:fs/promises'
 import { relative, resolve } from 'node:path'
 import { agentDirsUnder } from '@agent/tools/filesystem/agent-dirs.ts'
 import { resolveRgPath } from '@agent/tools/filesystem/rg.ts'
-import { killProcessTree, type LocalSandboxSession, sandboxRoot } from '@agent/tools/sandbox.ts'
+import { killProcessTree } from '@agent/tools/sandbox.ts'
 import type { ToolExecuteOptions } from '@agent/tools/toolset.ts'
 import z from 'zod'
 export const GlobToolArgsSchema = z.object({
@@ -11,8 +11,6 @@ export const GlobToolArgsSchema = z.object({
   limit: z.number().int().min(1).max(5000).optional(),
 })
 async function runArgv(argv: Array<string>, cwd: string, toolOptions?: ToolExecuteOptions) {
-  const sandbox = toolOptions?.experimental_sandbox as LocalSandboxSession | undefined
-  if (sandbox && typeof sandbox.exec === 'function') return sandbox.exec(argv, { cwd, abortSignal: toolOptions?.abortSignal })
   const proc = Bun.spawn({
     cmd: argv,
     cwd,
@@ -43,7 +41,7 @@ export const globTool = {
   handler: async (args: z.infer<typeof GlobToolArgsSchema>, toolOptions?: ToolExecuteOptions): Promise<string> => {
     const rgPath = await resolveRgPath()
     const limit = args.limit ?? 500
-    const cwd = resolve(sandboxRoot(toolOptions?.experimental_sandbox) ?? process.cwd(), args.path)
+    const cwd = resolve(process.cwd(), args.path)
     const cwdStat = await stat(cwd).catch(() => undefined)
     if (cwdStat?.isFile()) throw new Error(`glob path must be a directory: ${cwd}`)
     const listing = await runArgv([rgPath, '--files', '--color', 'never'], cwd, toolOptions)

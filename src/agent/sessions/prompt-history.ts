@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs'
 import { basename, join, resolve } from 'node:path'
 import { options } from '@config/options.ts'
+import { logDebug } from '@shared/logger.ts'
 
 export const PROMPT_HISTORY_LIMIT = 20
 const PROMPT_HISTORY_PRUNE = 100
@@ -32,7 +33,9 @@ function getDb(): Database {
   if (db && dbPathCached === path) return db
   try {
     db?.close()
-  } catch {}
+  } catch (error) {
+    logDebug('swallowed error', { scope: 'prompt-history', error })
+  }
   db = null
   mkdirSync(options.app.systemDir, { recursive: true })
   const next = new Database(path, { create: true })
@@ -50,7 +53,9 @@ function getDb(): Database {
 export function closePromptHistory(): void {
   try {
     db?.close()
-  } catch {}
+  } catch (error) {
+    logDebug('swallowed error', { scope: 'prompt-history', error })
+  }
   db = null
   dbPathCached = ''
 }
@@ -93,7 +98,9 @@ function migrateLegacy(project: string): void {
     })
     run(list.slice(-PROMPT_HISTORY_LIMIT))
     rmSync(path, { force: true })
-  } catch {}
+  } catch (error) {
+    logDebug('swallowed error', { scope: 'prompt-history', error })
+  }
 }
 
 export function loadPromptHistory(projectKey?: string): Array<string> {
@@ -128,7 +135,9 @@ export function addPrompt(text: string, projectKey?: string): Array<string> {
       database.prepare('DELETE FROM history WHERE project = ? AND id NOT IN (SELECT id FROM history WHERE project = ? ORDER BY id DESC LIMIT ?)').run(project, project, PROMPT_HISTORY_PRUNE)
     })
     run()
-  } catch {}
+  } catch (error) {
+    logDebug('swallowed error', { scope: 'prompt-history', error })
+  }
   return loadPromptHistory(project)
 }
 
@@ -151,14 +160,18 @@ export function saveDraft(text: string, projectKey?: string): void {
     database
       .prepare('INSERT INTO draft (project, body_b64, updated_at) VALUES (?, ?, ?) ON CONFLICT(project) DO UPDATE SET body_b64 = excluded.body_b64, updated_at = excluded.updated_at')
       .run(project, encode(text), Date.now())
-  } catch {}
+  } catch (error) {
+    logDebug('swallowed error', { scope: 'prompt-history', error })
+  }
 }
 
 export function clearDraft(projectKey?: string): void {
   const project = projectKey ?? projectKeyFor()
   try {
     getDb().prepare('DELETE FROM draft WHERE project = ?').run(project)
-  } catch {}
+  } catch (error) {
+    logDebug('swallowed error', { scope: 'prompt-history', error })
+  }
 }
 
 export function clearPromptHistory(): { history: number; drafts: number } {
@@ -168,13 +181,19 @@ export function clearPromptHistory(): { history: number; drafts: number } {
     const d = database.prepare('DELETE FROM draft').run()
     try {
       database.exec('VACUUM;')
-    } catch {}
+    } catch (error) {
+      logDebug('swallowed error', { scope: 'prompt-history', error })
+    }
     try {
       rmSync(legacyHistoryPath(), { force: true })
-    } catch {}
+    } catch (error) {
+      logDebug('swallowed error', { scope: 'prompt-history', error })
+    }
     try {
       rmSync(join(options.app.systemDir, 'prompt-draft.b64'), { force: true })
-    } catch {}
+    } catch (error) {
+      logDebug('swallowed error', { scope: 'prompt-history', error })
+    }
     return { history: Number(h.changes ?? 0), drafts: Number(d.changes ?? 0) }
   } catch {
     return { history: 0, drafts: 0 }

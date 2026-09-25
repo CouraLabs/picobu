@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto'
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join, resolve } from 'node:path'
+import { logDebug } from '@shared/logger.ts'
 
 const POLL_INTERVAL_MS = 100
 
@@ -95,7 +96,9 @@ export async function acquireLock(filePath: string): Promise<LockHandle> {
     settled = true
     try {
       rmSync(dir, { recursive: true, force: true })
-    } catch {}
+    } catch (error) {
+      logDebug('swallowed error', { scope: 'lock', error })
+    }
     releaseInProcess()
   }
   try {

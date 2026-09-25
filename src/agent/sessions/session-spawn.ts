@@ -1,4 +1,4 @@
-import { getAgent } from '@agent/agents/registry.ts'
+import { getAgent, resolveHarnessAgentOverride } from '@agent/agents/registry.ts'
 import { canWriteFiles, getSubagent, listSubagents, prepareSubagent, SUBAGENT_DEPTH_CAP } from '@agent/agents/subagents.ts'
 import type { LoopConfig } from '@agent/loop/create-loop.ts'
 import { resolveModelRef } from '@agent/model/resolver.ts'
@@ -8,6 +8,7 @@ import type { JobTracker } from '@agent/sessions/session-jobs.ts'
 import type { SessionManager } from '@agent/sessions/session-manager.ts'
 import { lastAssistantText } from '@agent/sessions/session-messages.ts'
 import { generateSessionId } from '@agent/sessions/session-paths.ts'
+import type { ProviderModelReasoningEffort } from '@config/options.ts'
 import { truncate } from '@shared/text-stats.ts'
 
 export interface SpawnSubSessionParams {
@@ -26,7 +27,15 @@ export interface SpawnContext {
   maxAgents: number
   live: Map<string, Session>
   jobs: JobTracker
-  baseConfig: (overrides?: { agentId?: string; modelKey?: string; sessionId?: string; agentOverride?: LoopConfig['agentOverride']; subagent?: boolean; spawn?: LoopConfig['spawn'] }) => LoopConfig
+  baseConfig: (overrides?: {
+    agentId?: string
+    modelKey?: string
+    thinking?: ProviderModelReasoningEffort
+    sessionId?: string
+    agentOverride?: LoopConfig['agentOverride']
+    subagent?: boolean
+    spawn?: LoopConfig['spawn']
+  }) => LoopConfig
 }
 
 export async function spawnSubSession(
@@ -104,13 +113,18 @@ export async function spawnSubSession(
     ctx.jobs.patch(sessionId, { queued: false })
     const prepared = prepareSubagent(def)
     let modelKey = parentModelKey
-    if (def.model) {
+    let childThinking: ProviderModelReasoningEffort | undefined
+    const override = resolveHarnessAgentOverride(def.name)
+    if (override) {
+      modelKey = override.modelKey
+      childThinking = override.thinking
+    } else if (def.model) {
       const ref = resolveModelRef(def.model)
       if (`${ref.provider.id}/${ref.modelId}` === def.model) modelKey = def.model
     }
     const jobTitle = taskId ? `${initialTitle} (continues ${taskId.slice(0, 8)})` : initialTitle
     child = await createSession({
-      config: () => ctx.baseConfig({ modelKey, sessionId, agentOverride: prepared, subagent: true, spawn: { manager: ctx.manager, parentId: sessionId, depth: depth + 1 } }),
+      config: () => ctx.baseConfig({ modelKey, thinking: childThinking, sessionId, agentOverride: prepared, subagent: true, spawn: { manager: ctx.manager, parentId: sessionId, depth: depth + 1 } }),
       id: sessionId,
       meta: { cwd: ctx.cwd, parentSessionId: parentId, title: jobTitle },
     })

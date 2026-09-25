@@ -1,6 +1,7 @@
 import { getAgent } from '@agent/agents/registry.ts'
 import { buildActiveTools } from '@agent/loop/active-tools.ts'
 import type { DoomLoopGuard } from '@agent/loop/doom-loop.ts'
+import { buildToolApproval } from '@agent/loop/permissions.ts'
 import { buildStopWhen } from '@agent/loop/stop-conditions.ts'
 import { buildToolOrder } from '@agent/loop/tool-order.ts'
 import type { AgentReasoning, LoopCallOptions, LoopConfig } from '@agent/loop/types.ts'
@@ -43,10 +44,18 @@ export const createPrepareCall = (deps: PrepareCallDeps): ToolLoopAgentSettings<
     const tools = { ...nativeTools, ...mcpTools }
     const mcpNames = Object.keys(mcpTools)
     const activeTools = buildActiveTools(agentDef.tools, Object.keys(tools), mcpNames)
+    const toolApproval = buildToolApproval({
+      ...(appOptions.harness.permissions ? { permissions: appOptions.harness.permissions } : {}),
+      mode: config.permissionMode ?? appOptions.harness.defaultPermissionMode ?? 'ask',
+      kindOf: (name) => localKindByName.get(name),
+      ...(config.subagent ? { subagent: true } : {}),
+      ...(config.sessionId ? { sessionId: config.sessionId } : {}),
+    })
     const base = {
       ...rest,
       model: resolved.model,
       tools,
+      ...(toolApproval ? { toolApproval } : {}),
       toolOrder: buildToolOrder(Object.keys(tools), (name) => localKindByName.get(name) ?? 'mcp'),
       activeTools,
       instructions: await buildSystem(persistent ? 'persistent' : config.agentId),

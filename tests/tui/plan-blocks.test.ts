@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { fenceFiletype, fenceLabel, isFence, planSegments } from '../../src/tui/components/session/tools/plan-blocks.ts'
+import { approvalBodyLines, approvalVerdictLabel, fenceFiletype, fenceLabel, isFence, planSegments } from '../../src/tui/components/session/tools/plan-blocks.ts'
 
 const plan = '# Title\n```ts\nconst a = 1\n\nconst b = 2\n```\nDone'
 
@@ -64,5 +64,25 @@ describe('fenceFiletype', () => {
     expect(fenceFiletype('ts')).toBe('typescript')
     expect(fenceFiletype('TSX')).toBe('typescriptreact')
     expect(typeof fenceFiletype('nope-lang')).toBe('string')
+  })
+})
+
+describe('approvalVerdictLabel', () => {
+  test('maps rejected and everything else', () => {
+    expect(approvalVerdictLabel('rejected')).toBe('Rejected')
+    expect(approvalVerdictLabel('approved')).toBe('Approved')
+    expect(approvalVerdictLabel(undefined)).toBe('Approved')
+  })
+})
+
+describe('approvalBodyLines', () => {
+  test('drops the bare verdict echoed by a comment-free approval', () => {
+    expect(approvalBodyLines('approved', 'Approved')).toEqual([])
+    expect(approvalBodyLines('approved', '')).toEqual([])
+    expect(approvalBodyLines('approved', undefined)).toEqual([])
+  })
+  test('keeps comment lines and strips the duplicate verdict line', () => {
+    expect(approvalBodyLines('approved', 'Approved\nBlock 1: fix X')).toEqual(['Block 1: fix X'])
+    expect(approvalBodyLines('rejected', 'Rejected\nOverall: no')).toEqual(['Overall: no'])
   })
 })

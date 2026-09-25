@@ -12,6 +12,7 @@ import { snowflakeCortexOAuth } from '@auth/snowflake-cortex.ts'
 import { getCredential, initAuth, listCredentials, setCredential } from '@auth/store.ts'
 import type { AuthLoginOptions, OAuthAuth } from '@auth/types.ts'
 import { xaiOAuth } from '@auth/xai.ts'
+import { logDebug } from '@shared/logger.ts'
 
 const REFRESH_GRACE_MS = 5 * 60 * 1000
 export const OAUTH_AUTHS: Array<OAuthAuth> = [openaiOAuth, anthropicOAuth, githubCopilotOAuth, xaiOAuth, openrouterOAuth, kimiCodingOAuth, digitaloceanOAuth, snowflakeCortexOAuth, azureOAuth]
@@ -71,7 +72,9 @@ export const startLogin = async (id: string, opts?: string): Promise<void> => {
   if (previousTask) {
     try {
       await previousTask
-    } catch {}
+    } catch (error) {
+      logDebug('swallowed error', { scope: 'index', error })
+    }
   }
   const auth = oauthAuthById(id)
   if (!auth) {

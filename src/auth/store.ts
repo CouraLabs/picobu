@@ -4,6 +4,7 @@ import type { OAuthCredential } from '@auth/types.ts'
 import { options } from '@config/options.ts'
 import { atomicWriteFile } from '@shared/atomic-write.ts'
 import { acquireLock } from '@shared/lock.ts'
+import { logDebug } from '@shared/logger.ts'
 export type AuthFile = Record<string, OAuthCredential>
 const DEFAULT_PATH = join(options.app.systemDir, 'auth.json')
 const MAX_CORRUPT_BACKUPS = 3
@@ -25,7 +26,9 @@ const pruneCorruptBackups = (): void => {
       .sort()
       .slice(0, -MAX_CORRUPT_BACKUPS)
     for (const name of stale) rmSync(join(dirname(authFilePath), name), { force: true })
-  } catch {}
+  } catch (error) {
+    logDebug('swallowed error', { scope: 'store', error })
+  }
 }
 export const readAuthFile = async (path: string): Promise<AuthFile> => {
   try {
@@ -39,7 +42,9 @@ export const readAuthFile = async (path: string): Promise<AuthFile> => {
       const raw = await Bun.file(path).text()
       await Bun.write(`${path}.corrupt-${Date.now()}`, raw, { mode: 0o600 })
       pruneCorruptBackups()
-    } catch {}
+    } catch (error) {
+      logDebug('swallowed error', { scope: 'store', error })
+    }
     return {}
   }
 }
@@ -58,7 +63,9 @@ const persist = async (mutate: (current: AuthFile) => AuthFile | null): Promise<
     await atomicWriteFile(authFilePath, JSON.stringify(updated, null, 2), 0o600)
     try {
       chmodSync(authFilePath, 0o600)
-    } catch {}
+    } catch (error) {
+      logDebug('swallowed error', { scope: 'store', error })
+    }
     cache = updated
     return updated
   } finally {

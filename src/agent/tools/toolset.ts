@@ -7,6 +7,7 @@ import { createTaskOutputTool, createTaskStopTool } from '@agent/tools/filesyste
 import { createWriteTool } from '@agent/tools/filesystem/write.ts'
 import { createAskTool } from '@agent/tools/flow/ask.ts'
 import { createGrillExitTool } from '@agent/tools/flow/grill-exit.ts'
+import { createReloadOptionsTool, createUpdateOptionsTool } from '@agent/tools/flow/options.ts'
 import { createPlanExitTool } from '@agent/tools/flow/plan-exit.ts'
 import { createPlanWriteTool } from '@agent/tools/flow/plan-write.ts'
 import { createRuleTool } from '@agent/tools/flow/rule.ts'
@@ -16,8 +17,7 @@ import { createTodoTool } from '@agent/tools/flow/todo.ts'
 import { spillToolResult } from '@agent/tools/truncate-output.ts'
 import { webfetchTool } from '@agent/tools/web/webfetch.ts'
 import { websearchTool } from '@agent/tools/web/websearch.ts'
-import { wwpTools } from '@integrations/whatsapp/wwp-tools.ts'
-import { type Experimental_SandboxSession, type Tool, type ToolSet, tool } from 'ai'
+import { type Tool, type ToolSet, tool } from 'ai'
 import type z from 'zod'
 
 export type ToolKind = 'filesystem' | 'flow' | 'external' | 'integration' | 'mcp'
@@ -30,7 +30,6 @@ export interface AgentTool {
 
 export interface ToolExecuteOptions {
   abortSignal?: AbortSignal
-  experimental_sandbox?: Experimental_SandboxSession
 }
 
 export interface ToolSetContext {
@@ -52,10 +51,11 @@ export function buildToolSet(ctx: ToolSetContext = {}) {
     ...(ctx.interactive === false ? [] : [wrapTool(createTaskOutputTool()), wrapTool(createTaskStopTool())]),
     wrapTool(websearchTool),
     wrapTool(webfetchTool),
-    ...wwpTools.map(wrapTool),
     ...(ctx.todoFilePath ? [wrapTool(createTodoTool(ctx.todoFilePath))] : []),
     wrapTool(createSkillTool()),
     wrapTool(createRuleTool()),
+    wrapTool(createUpdateOptionsTool()),
+    wrapTool(createReloadOptionsTool()),
     ...(ctx.sessionId ? [...(ctx.interactive === false ? [] : [wrapTool(createAskTool()), wrapTool(createGrillExitTool()), wrapTool(createPlanExitTool()), wrapTool(createPlanWriteTool())])] : []),
     ...(ctx.sessionId && ctx.spawn ? [wrapTool(createSpawnTool(ctx.spawn))] : []),
   ]
@@ -94,7 +94,6 @@ function wrapTool<TSchema extends z.ZodType, TOutput extends z.ZodType>(def: {
         try {
           result = def.handler(args as z.infer<TSchema>, {
             abortSignal: executeOptions?.abortSignal,
-            experimental_sandbox: executeOptions?.experimental_sandbox,
           }) as unknown
         } catch (error) {
           return Promise.reject(error) as z.infer<TOutput>

@@ -1,8 +1,7 @@
 import { resolve } from 'node:path'
 import { agentDirsUnder, insideAgentDir } from '@agent/tools/filesystem/agent-dirs.ts'
-import { isInsideBase } from '@agent/tools/filesystem/paths.ts'
 import { resolveRgPath } from '@agent/tools/filesystem/rg.ts'
-import { killProcessTree, type LocalSandboxSession, sandboxRoot } from '@agent/tools/sandbox.ts'
+import { killProcessTree } from '@agent/tools/sandbox.ts'
 import type { ToolExecuteOptions } from '@agent/tools/toolset.ts'
 import { detectFiletype } from '@shared/filetype.ts'
 import z from 'zod'
@@ -19,8 +18,6 @@ export const GrepToolArgsSchema = z.object({
 })
 async function runArgv(argv: Array<string>, cwd: string, toolOptions?: ToolExecuteOptions) {
   const abortSignal = toolOptions?.abortSignal
-  const sandbox = toolOptions?.experimental_sandbox as LocalSandboxSession | undefined
-  if (sandbox && typeof sandbox.exec === 'function') return sandbox.exec(argv, { cwd, abortSignal })
   const proc = Bun.spawn({
     cmd: argv,
     cwd,
@@ -52,12 +49,8 @@ export const grepTool = {
   handler: async (args: z.infer<typeof GrepToolArgsSchema>, toolOptions?: ToolExecuteOptions): Promise<z.infer<typeof GrepToolOutputSchema>> => {
     const rgPath = await resolveRgPath()
     const limit = args.limit ?? 100
-    const sandbox = sandboxRoot(toolOptions?.experimental_sandbox)
-    const root = sandbox ?? process.cwd()
+    const root = process.cwd()
     const searchPath = resolve(root, args.path)
-    if (sandbox && !isInsideBase(resolve(sandbox), resolve(searchPath))) {
-      throw new Error(`Path escapes working directory: ${args.path}`)
-    }
     const base = resolve(searchPath)
     const bypassFilters = insideAgentDir(base)
     const flags = bypassFilters ? ['--hidden', '--no-ignore-vcs'] : []

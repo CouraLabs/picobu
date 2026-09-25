@@ -5,6 +5,7 @@ import { dirname, join } from 'node:path'
 import { sanitizeMessages } from '@agent/sessions/session-messages.ts'
 import { sessionDir, sessionFilePath } from '@agent/sessions/session-paths.ts'
 import { withLock } from '@shared/lock.ts'
+import { logDebug } from '@shared/logger.ts'
 import { truncate } from '@shared/text-stats.ts'
 import type { UIMessage } from 'ai'
 import { z } from 'zod'
@@ -117,7 +118,9 @@ export async function listSessions(folderKey: string): Promise<Array<SessionRow>
     try {
       const [info, content] = await Promise.all([stat(filePath), readFile(filePath, 'utf8')])
       rows.push({ id, mtimeMs: info.mtimeMs, firstPrompt: firstPromptPreview(content) })
-    } catch {}
+    } catch (error) {
+      logDebug('swallowed error', { scope: 'session-store', error })
+    }
   }
   return rows.sort((a, b) => b.mtimeMs - a.mtimeMs)
 }
@@ -189,7 +192,9 @@ async function upsertLine(filePath: string, json: string): Promise<void> {
   let content = ''
   try {
     content = await readFile(filePath, 'utf8')
-  } catch {}
+  } catch (error) {
+    logDebug('swallowed error', { scope: 'session-store', error })
+  }
   const lines = content.split('\n').filter((raw) => {
     if (!raw.trim()) return false
     try {

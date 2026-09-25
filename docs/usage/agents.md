@@ -10,7 +10,8 @@ An agent is a system prompt plus a tool allow-list, running on the `flash` model
 | `coder` | Default coding loop: edit, run, verify | `read`, `write`, `edit`, `glob`, `grep`, `shell`, `task_output`, `task_stop`, `ask`, `todo`, `skill`, `rule`, `spawn`, `websearch`, `webfetch` |
 | `grill` (display name **Grill**) | Interviews the user to reach a shared understanding (a design tree), then hands off to Plan or Coder | `read`, `grep`, `glob`, `skill`, `rule`, `ask`, `grill-exit`, `spawn` |
 | `plan-code` (display name **Plan**) | Deep planning + implementation handoff; no code edits until the plan is approved | `read`, `grep`, `glob`, `skill`, `rule`, `ask`, `plan-write`, `plan-exit`, `spawn` |
-| `persistent` | Fresh, stateless runs per prompt; ships with the WhatsApp integration | `wwp-msg`, `wwp-today`, `rule` |
+| `persistent` | Fresh, stateless runs per prompt | `rule` |
+| `optioneer` (display name **Picobu's Optioneer**) | Configures picobu on request — options.json plus agents, subagents, rules, skills and workflows — then reloads so changes apply live | `read`, `write`, `edit`, `glob`, `rule`, `skill`, `update-options`, `reload-options` |
 
 Cycle agents with `SHIFT+TAB` in the TUI.
 
@@ -32,9 +33,9 @@ Agent prompt body here.
 
 - `tools` accepts a comma list, `*` for all tools, or `none` for no tools. An empty value means all tools.
 - `model` optionally pins a model key (`"<providerId>/<modelId>"`).
-- A custom agent whose `name` matches a built-in subagent (`executor`, `explorer`, `reviewer`, `debugger`) overrides it for this project.
+- A custom agent whose `name` matches a built-in subagent (`executor`, `explorer`, `reviewer`, `debugger`, `plan-reviewer`) overrides it for this project.
 
-Picobu ships four built-in subagents — `executor` (single-task implementer), `explorer` (read-only codebase search), `reviewer` (change review), and `debugger` (root-cause a failure before fixing) — all available to the `spawn` tool. Read-only agents can only spawn read-only subagents (`explorer`, `reviewer`), so write-capable subagents (`executor`, `debugger`) are hidden from and rejected by them.
+Picobu ships five built-in subagents — `executor` (single-task implementer), `explorer` (read-only codebase search), `reviewer` (change review), `debugger` (root-cause a failure before fixing), and `plan-reviewer` (practical implementation-plan review before `plan-write`) — all available to the `spawn` tool. Read-only agents can only spawn read-only subagents (`explorer`, `reviewer`, `plan-reviewer`), so write-capable subagents (`executor`, `debugger`) are hidden from and rejected by them.
 
 Every subagent prompt gets a rules block appended automatically: no user interaction (never ask, wait, or submit plans — resolve ambiguity yourself and state assumptions), context isolation (work only from the given prompt), a self-contained summary as the last text message, and a status-line report contract (`DONE` / `DONE_WITH_CONCERNS` / `NEEDS_CONTEXT` / `BLOCKED` plus evidence). Interactive tools are stripped from the tool list, and spawn depth is capped at 3.
 

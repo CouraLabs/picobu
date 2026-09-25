@@ -2,8 +2,6 @@ import { CheckpointStore } from '@agent/sessions/checkpoints.ts'
 import { joinBom, readFileWithBom, splitBom } from '@agent/tools/filesystem/bom.ts'
 import { resolveInsideBase } from '@agent/tools/filesystem/paths.ts'
 import { convertToLineEnding, detectLineEnding, diffForFile, normalizeLineEndings, replaceText } from '@agent/tools/filesystem/replacers.ts'
-import { sandboxRoot } from '@agent/tools/sandbox.ts'
-import type { ToolExecuteOptions } from '@agent/tools/toolset.ts'
 import { withLock } from '@shared/lock.ts'
 import z from 'zod'
 export const EditToolArgsSchema = z.object({
@@ -27,10 +25,9 @@ export const createEditTool = (checkpointsPath?: string) => {
     description: 'Replace oldString with newString using exact or whitespace-tolerant matching; fails on missing matches, refuses ambiguous single replaces unless replaceAll is true, returns diff.',
     parameters: EditToolArgsSchema,
     output: EditToolOutputSchema,
-    handler: async (args: z.infer<typeof EditToolArgsSchema>, toolOptions?: ToolExecuteOptions): Promise<EditToolResult> => {
+    handler: async (args: z.infer<typeof EditToolArgsSchema>): Promise<EditToolResult> => {
       if (!args.path) throw new Error('edit requires a non-empty path')
-      const base = sandboxRoot(toolOptions?.experimental_sandbox)
-      const path = await resolveInsideBase(base, args.path)
+      const path = await resolveInsideBase(undefined, args.path)
       return withLock(path, async () => {
         const file = Bun.file(path)
         const exists = await file.exists()

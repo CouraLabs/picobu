@@ -31,6 +31,7 @@ import {
   planText,
   previewToolInput,
   rawToolName,
+  skillRowLabel,
   summarizeToolInput,
   summarizeToolOutput,
   type ToolPartLike,
@@ -107,6 +108,7 @@ export const ToolPart = (props: ToolPartProps) => {
   })
   const runningProgress = createMemo(() => toolProgress(props.part))
   const knowledge = createMemo(() => knowledgeDetail(props.part))
+  const summaryText = createMemo(() => (raw() === 'skill' ? skillRowLabel(props.part) : summary()))
   const outputPreview = createMemo(() => (runningProgress() ? undefined : summarizeToolOutput(raw(), props.part.output, props.part.errorText)))
   const diff = createMemo(() => (props.part.state === 'output-available' ? toolDiff(props.part.output) : undefined))
   const written = createMemo(() => (knowledge() !== undefined ? undefined : props.part.state === 'output-available' ? writeContent(props.part) : undefined))
@@ -175,7 +177,7 @@ export const ToolPart = (props: ToolPartProps) => {
   }
 
   const collapsedDetail = createMemo(() => {
-    const detail = [summary(), runningProgress() ?? outputPreview()].filter((part) => typeof part === 'string' && part.length > 0).join(' · ')
+    const detail = [summaryText(), runningProgress() ?? outputPreview()].filter((part) => typeof part === 'string' && part.length > 0).join(' · ')
     return detail
   })
   const clipToWidth = (line: string): string => clip(line, detailClipWidth(dims().width, running(), name().length))
@@ -226,7 +228,7 @@ export const ToolPart = (props: ToolPartProps) => {
             {name()}
           </text>
           <text fg={theme().textMuted} flexShrink={1} attributes={hovered() && hasExpandableContent() ? TextAttributes.BOLD : undefined}>
-            {summary()}
+            {summaryText()}
           </text>
         </box>
         <Show when={runningProgress()} keyed>

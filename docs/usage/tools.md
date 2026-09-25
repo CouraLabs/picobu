@@ -41,11 +41,7 @@ Web tools use headless Chrome with a real-Chrome identity (bot-protection resist
 
 | Tool | Description |
 | --- | --- |
-| `wwp-msg` | Send a WhatsApp text message to a phone number (WhatsApp integration) |
-| `wwp-today` | Add a task to the user's `today` todo list (WhatsApp integration) |
 | `mcp_<server>_<tool>` | Auto-discovered MCP tools, namespaced and capped at 64 chars — see [mcp.md](mcp.md) |
-
-The `wwp-*` tools require a live WhatsApp connection; the integration modules ship but are not wired into the current CLI/TUI, so they are inert until a host connects them (see the root [README](../../README.md#whatsapp)).
 
 ## See also
 

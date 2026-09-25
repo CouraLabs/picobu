@@ -12,7 +12,9 @@ import { deleteSessionCascade, listSessionsFor, listSessionTree, type SessionLis
 import { type SpawnSubSessionParams, spawnSubSession } from '@agent/sessions/session-spawn.ts'
 import { loadSession } from '@agent/sessions/session-store.ts'
 import { type BackgroundShellEntry, listBackgroundShells, onBackgroundShells, stopBackgroundShell } from '@agent/tools/filesystem/background-shell.ts'
-import { options, type ProviderModelReasoningEffort, resolveModelRole } from '@config/options.ts'
+import { DEFAULT_PERMISSION_MODE, type PermissionMode } from '@config/harness-options.ts'
+import { options, type ProviderModelReasoningEffort, resolveModelRole, updateSettings } from '@config/options.ts'
+import { logDebug } from '@shared/logger.ts'
 import type { UIMessage } from 'ai'
 
 export type { JobRow, SessionListRow, SpawnSubSessionParams }
@@ -35,7 +37,7 @@ export const evictLiveSession = async (live: Map<string, Session>, id: string): 
 
 export class SessionManager {
   private cwd: string
-  private _sandboxEnabled = true
+  private _permissionMode: PermissionMode
   private readonly _maxAgents: number
   private readonly live = new Map<string, Session>()
   private readonly jobTracker = new JobTracker()
@@ -44,6 +46,7 @@ export class SessionManager {
   private disposed = false
   constructor(init: { cwd?: string; maxAgents?: number } = {}) {
     this.cwd = resolve(init.cwd ?? options.app.cwd)
+    this._permissionMode = options.harness.defaultPermissionMode ?? DEFAULT_PERMISSION_MODE
     this._maxAgents = init.maxAgents ?? options.harness.maxAgents ?? DEFAULT_MAX_AGENTS
     this.unsubscribeShells = onBackgroundShells((entries) => this.handleShellJobUpdates(entries))
   }
@@ -65,11 +68,16 @@ export class SessionManager {
     return this._maxAgents
   }
 
-  setSandbox(enabled: boolean): void {
-    this._sandboxEnabled = enabled
+  setPermissionMode(mode: PermissionMode): void {
+    this._permissionMode = mode
+    void updateSettings({ harness: { defaultPermissionMode: mode } })
+      .then((next) => {
+        options.harness = next.harness
+      })
+      .catch(() => {})
   }
-  get sandboxEnabled(): boolean {
-    return this._sandboxEnabled
+  get permissionMode(): PermissionMode {
+    return this._permissionMode
   }
 
   private handleShellJobUpdates(entries: Array<BackgroundShellEntry>): void {
@@ -89,7 +97,9 @@ export class SessionManager {
       const preview = tail.length > 2000 ? `${tail.slice(tail.length - 2000)}\n…full log at ${entry.logFile}` : tail
       try {
         owner.queue(`Background task ${entry.id} ("${entry.command}") finished (${exit}):\n${preview || '(no output)'}`)
-      } catch {}
+      } catch (error) {
+        logDebug('swallowed error', { scope: 'session-manager', error })
+      }
     }
   }
 
@@ -109,7 +119,9 @@ export class SessionManager {
     return stopBackgroundShell(id)
   }
 
-  private baseConfig(overrides: { agentId?: string; modelKey?: string; sessionId?: string; agentOverride?: AgentType; subagent?: boolean; spawn?: LoopConfig['spawn'] } = {}): LoopConfig {
+  private baseConfig(
+    overrides: { agentId?: string; modelKey?: string; thinking?: ProviderModelReasoningEffort; sessionId?: string; agentOverride?: AgentType; subagent?: boolean; spawn?: LoopConfig['spawn'] } = {},
+  ): LoopConfig {
     let modelKey = overrides.modelKey
     let thinking: ProviderModelReasoningEffort | undefined
     if (!modelKey) {
@@ -122,12 +134,13 @@ export class SessionManager {
         thinking = 'medium'
       }
     }
+    const resolvedThinking = overrides.thinking ?? thinking ?? 'medium'
     return {
       agentId: overrides.agentId ?? 'coder',
       modelKey,
-      thinking: thinking ?? 'medium',
+      thinking: resolvedThinking,
       cwd: this.cwd,
-      sandbox: this._sandboxEnabled,
+      permissionMode: this._permissionMode,
       sessionId: overrides.sessionId,
       ...(overrides.agentOverride ? { agentOverride: overrides.agentOverride } : {}),
       ...(overrides.subagent ? { subagent: true } : {}),
@@ -145,7 +158,9 @@ export class SessionManager {
           const info = await stat(meta.cwd).catch(() => undefined)
           if (info?.isDirectory()) this.cwd = meta.cwd
         }
-      } catch {}
+      } catch (error) {
+        logDebug('swallowed error', { scope: 'session-manager', error })
+      }
     }
     const folderKey = folderKeyFor(this.cwd)
     const existing = this.live.get(id)

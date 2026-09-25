@@ -495,7 +495,43 @@ export const knowledgeDetail = (part: ToolPartLike): KnowledgeDetail | undefined
   return { kind: name, name: itemName, description, file, relatedFiles: files }
 }
 
+export const skillRowLabel = (part: ToolPartLike): string => {
+  const name = knowledgeDetail(part)?.name
+  return name ? `loaded ${name}` : 'loaded'
+}
+
 export const planText = (input: unknown): string | undefined => {
   const plan = (input as { plan?: unknown } | undefined)?.plan
   return typeof plan === 'string' && plan.length > 0 ? plan : undefined
+}
+
+const PREVIEW_HEAD_LINES = 8
+
+export const permissionPreview = (toolName: string, input: unknown): string => {
+  const args = (input ?? {}) as Record<string, unknown>
+  const field = (key: string): string | undefined => (typeof args[key] === 'string' ? (args[key] as string) : undefined)
+  const firstLine = (text: string): string => text.split('\n')[0] ?? ''
+  switch (toolName.toLowerCase()) {
+    case 'shell':
+      return `$ ${field('command') ?? ''}`
+    case 'read':
+      return `path: ${field('path') ?? '?'}`
+    case 'edit': {
+      const oldText = field('oldString') ?? ''
+      const newText = field('newString') ?? ''
+      return [`path: ${field('path') ?? '?'}`, oldText ? `- ${firstLine(oldText)}` : '', newText ? `+ ${firstLine(newText)}` : ''].filter(Boolean).join('\n')
+    }
+    case 'write': {
+      const lines = (field('contents') ?? '').split('\n')
+      const head = lines.slice(0, PREVIEW_HEAD_LINES).join('\n')
+      return [`path: ${field('path') ?? '?'}`, head, lines.length > PREVIEW_HEAD_LINES ? '…' : ''].filter(Boolean).join('\n')
+    }
+    default: {
+      try {
+        return JSON.stringify(input ?? {}) ?? ''
+      } catch {
+        return String(input)
+      }
+    }
+  }
 }

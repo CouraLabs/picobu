@@ -9,7 +9,7 @@ import { GrepToolArgsSchema, grepTool } from '../../src/agent/tools/filesystem/g
 import { ReadToolArgsSchema, readTool } from '../../src/agent/tools/filesystem/read.ts'
 import { createShellTool, progressClipWidth, ShellToolArgsSchema, ShellToolOutputSchema, truncateLine } from '../../src/agent/tools/filesystem/shell.ts'
 import { createWriteTool, WriteToolArgsSchema } from '../../src/agent/tools/filesystem/write.ts'
-import { createLocalSandboxSession, sandboxRoot, shellSpec } from '../../src/agent/tools/sandbox.ts'
+import { shellSpec } from '../../src/agent/tools/sandbox.ts'
 import { buildToolSet } from '../../src/agent/tools/toolset.ts'
 import { options } from '../../src/config/options.ts'
 import { detectFiletype } from '../../src/shared/filetype.ts'
@@ -17,38 +17,40 @@ import { initLockDir, withLock } from '../../src/shared/lock.ts'
 import { detectShell } from '../../src/shared/shell.ts'
 import { createTreeSitterClient, getSharedTreeSitterClientSync, loadParsers } from '../../src/wrappers/treesitter-wrapper.ts'
 
+const originalCwd = process.cwd()
+const useDir = async (dir: string): Promise<void> => {
+  initLockDir(join(dir, 'locks'))
+  process.chdir(dir)
+}
+const restoreDir = async (dir: string): Promise<void> => {
+  process.chdir(originalCwd)
+  await rm(dir, { recursive: true, force: true })
+}
+
 describe('write/read roundtrip via tools', () => {
   let dir = ''
   beforeEach(async () => {
     dir = await mkdtemp(join(tmpdir(), 'picobu-ext-'))
-    initLockDir(join(dir, 'locks'))
+    await useDir(dir)
   })
   afterEach(async () => {
-    await rm(dir, { recursive: true, force: true })
+    await restoreDir(dir)
   })
   test('write then read returns contents and filetype', async () => {
-    const sb = { root: dir }
     const write = createWriteTool()
-    const out = await write.handler({ path: 'sub/note.txt', contents: 'hello\nworld' }, { experimental_sandbox: sb as never })
+    const out = await write.handler({ path: 'sub/note.txt', contents: 'hello\nworld' })
     expect(out.message).toBe('Wrote sub/note.txt (2 lines)')
     expect(out.content).toBe('hello\nworld')
-    const got = await readTool.handler({ path: 'sub/note.txt' }, { experimental_sandbox: sb as never })
+    const got = await readTool.handler({ path: 'sub/note.txt' })
     expect(got.content).toBe('hello\nworld')
     expect(got.filetype).toBe('text')
   })
   test('read slices lines with skip/limit', async () => {
-    const sb = { root: dir }
-    await createWriteTool().handler({ path: 'a.txt', contents: 'one\ntwo\nthree' }, { experimental_sandbox: sb as never })
-    const sliced = await readTool.handler({ path: 'a.txt', skip: 1, limit: 1 }, { experimental_sandbox: sb as never })
+    await createWriteTool().handler({ path: 'a.txt', contents: 'one\ntwo\nthree' })
+    const sliced = await readTool.handler({ path: 'a.txt', skip: 1, limit: 1 })
     expect(sliced.content).toBe('two')
-    const all = await readTool.handler({ path: 'a.txt' }, { experimental_sandbox: sb as never })
+    const all = await readTool.handler({ path: 'a.txt' })
     expect(all.content).toBe('one\ntwo\nthree')
-  })
-  test('sandbox containment blocks escape for write and read', async () => {
-    const sb = { root: dir }
-    await expect(createWriteTool().handler({ path: '../evil.txt', contents: 'x' }, { experimental_sandbox: sb as never })).rejects.toThrow('escapes')
-    await expect(readTool.handler({ path: '../evil.txt' }, { experimental_sandbox: sb as never })).rejects.toThrow('escapes')
-    await expect(readTool.handler({ path: '/etc/passwd' }, { experimental_sandbox: sb as never })).rejects.toThrow('escapes')
   })
   test('arg schemas reject empty paths', () => {
     expect(WriteToolArgsSchema.safeParse({ path: '', contents: 'x' }).success).toBe(false)
@@ -61,44 +63,41 @@ describe('edit handler', () => {
   let dir = ''
   beforeEach(async () => {
     dir = await mkdtemp(join(tmpdir(), 'picobu-edit-'))
-    initLockDir(join(dir, 'locks'))
+    await useDir(dir)
   })
   afterEach(async () => {
-    await rm(dir, { recursive: true, force: true })
+    await restoreDir(dir)
   })
   test('replaces single occurrence and returns diff', async () => {
-    const sb = { root: dir }
-    await createWriteTool().handler({ path: 'f.txt', contents: 'hello foo world' }, { experimental_sandbox: sb as never })
+    await createWriteTool().handler({ path: 'f.txt', contents: 'hello foo world' })
     const edit = createEditTool()
-    const res = await edit.handler({ path: 'f.txt', oldString: 'foo', newString: 'bar' }, { experimental_sandbox: sb as never })
+    const res = await edit.handler({ path: 'f.txt', oldString: 'foo', newString: 'bar' })
     expect(res.message).toContain('Replaced single occurrence')
     expect(res.diff).toContain('-hello foo world')
     expect(res.diff).toContain('+hello bar world')
-    const back = await readTool.handler({ path: 'f.txt' }, { experimental_sandbox: sb as never })
+    const back = await readTool.handler({ path: 'f.txt' })
     expect(back.content).toBe('hello bar world')
   })
   test('ambiguous match errors', async () => {
-    const sb = { root: dir }
-    await createWriteTool().handler({ path: 'amb.txt', contents: 'foo foo' }, { experimental_sandbox: sb as never })
-    await expect(createEditTool().handler({ path: 'amb.txt', oldString: 'foo', newString: 'bar' }, { experimental_sandbox: sb as never })).rejects.toThrow('multiple matches')
+    await createWriteTool().handler({ path: 'amb.txt', contents: 'foo foo' })
+    await expect(createEditTool().handler({ path: 'amb.txt', oldString: 'foo', newString: 'bar' })).rejects.toThrow('multiple matches')
   })
   test('missing file errors', async () => {
-    const sb = { root: dir }
-    await expect(createEditTool().handler({ path: 'missing.txt', oldString: 'a', newString: 'b' }, { experimental_sandbox: sb as never })).rejects.toThrow('File not found')
+    await expect(createEditTool().handler({ path: 'missing.txt', oldString: 'a', newString: 'b' })).rejects.toThrow('File not found')
   })
 })
 describe('glob and grep', () => {
   let dir = ''
   beforeEach(async () => {
     dir = await mkdtemp(join(tmpdir(), 'picobu-gg-'))
-    initLockDir(join(dir, 'locks'))
+    await useDir(dir)
     await Bun.write(join(dir, 'a.txt'), 'hello world')
     await Bun.write(join(dir, 'b.md'), 'other')
     await mkdir(join(dir, 'sub'), { recursive: true })
     await Bun.write(join(dir, 'sub', 'c.txt'), 'hello again')
   })
   afterEach(async () => {
-    await rm(dir, { recursive: true, force: true })
+    await restoreDir(dir)
   })
   test('glob schema requires pattern and path', () => {
     expect(GlobToolArgsSchema.safeParse({ pattern: '**/*.txt', path: '.' }).success).toBe(true)
@@ -108,7 +107,7 @@ describe('glob and grep', () => {
   })
   test('glob finds txt files in tmp dir', async () => {
     const signal = new AbortController().signal
-    const out = await globTool.handler({ pattern: '**/*.txt', path: '.' }, { experimental_sandbox: { root: dir } as never, abortSignal: signal })
+    const out = await globTool.handler({ pattern: '**/*.txt', path: '.' }, { abortSignal: signal })
     const lines = out.split('\n').filter(Boolean)
     expect(lines).toContain('a.txt')
     expect(lines).toContain(join('sub', 'c.txt'))
@@ -122,23 +121,23 @@ describe('glob and grep', () => {
   })
   test('grep finds matches in tmp dir', async () => {
     const signal = new AbortController().signal
-    const res = await grepTool.handler({ pattern: 'hello', path: '.' }, { experimental_sandbox: { root: dir } as never, abortSignal: signal })
+    const res = await grepTool.handler({ pattern: 'hello', path: '.' }, { abortSignal: signal })
     expect(res.content).toContain('hello world')
     expect(res.content).toContain('hello again')
     expect(res.filetype).toBe('text')
   })
   test('grep reports no matches', async () => {
-    const res = await grepTool.handler({ pattern: 'zzz-no-such-token-zzz', path: '.' }, { experimental_sandbox: { root: dir } as never })
+    const res = await grepTool.handler({ pattern: 'zzz-no-such-token-zzz', path: '.' })
     expect(res.content).toContain('No matches')
   })
   test('grep caps output at limit with footer', async () => {
     for (let i = 0; i < 10; i++) await Bun.write(join(dir, `m${i}.txt`), 'hello match')
-    const res = await grepTool.handler({ pattern: 'hello', path: '.', limit: 2 }, { experimental_sandbox: { root: dir } as never })
+    const res = await grepTool.handler({ pattern: 'hello', path: '.', limit: 2 })
     expect(res.content).toContain('Results truncated to 2')
   })
   test('glob caps output at limit with footer', async () => {
     for (let i = 0; i < 10; i++) await Bun.write(join(dir, `g${i}.txt`), 'x')
-    const out = await globTool.handler({ pattern: '**/*.txt', path: '.', limit: 3 }, { experimental_sandbox: { root: dir } as never })
+    const out = await globTool.handler({ pattern: '**/*.txt', path: '.', limit: 3 })
     const lines = out.split('\n').filter(Boolean)
     expect(lines.length).toBe(4)
     expect(out).toContain('Results truncated to 3')
@@ -149,10 +148,10 @@ describe('glob and grep', () => {
     await mkdir(join(dir, 'ignored-dir'), { recursive: true })
     await Bun.write(join(dir, 'ignored-dir', 'inner.txt'), 'hello inner')
     await Bun.$`git init -q`.cwd(dir).quiet()
-    const res = await grepTool.handler({ pattern: 'hello', path: '.' }, { experimental_sandbox: { root: dir } as never })
+    const res = await grepTool.handler({ pattern: 'hello', path: '.' })
     expect(res.content).not.toContain('ignored.txt')
     expect(res.content).not.toContain('inner.txt')
-    const out = await globTool.handler({ pattern: '**/*.txt', path: '.' }, { experimental_sandbox: { root: dir } as never })
+    const out = await globTool.handler({ pattern: '**/*.txt', path: '.' })
     expect(out).not.toContain('ignored.txt')
     expect(out).not.toContain('inner.txt')
   })
@@ -161,10 +160,10 @@ describe('shell tool', () => {
   let dir = ''
   beforeEach(async () => {
     dir = await mkdtemp(join(tmpdir(), 'picobu-shell-'))
-    initLockDir(join(dir, 'locks'))
+    await useDir(dir)
   })
   afterEach(async () => {
-    await rm(dir, { recursive: true, force: true })
+    await restoreDir(dir)
   })
   test('arg schema validates command and timeout', () => {
     expect(ShellToolArgsSchema.safeParse({ command: 'echo hi' }).success).toBe(true)
@@ -190,39 +189,35 @@ describe('shell tool', () => {
     expect(ShellToolOutputSchema.safeParse({ progress: 'working' }).success).toBe(true)
     expect(ShellToolOutputSchema.safeParse({}).success).toBe(false)
   })
-  test('echo via sandbox returns trimmed output', async () => {
-    const session = createLocalSandboxSession(dir, 'Unix:Sh')
+  test('echo returns trimmed output', async () => {
     const shell = createShellTool()
     let final = ''
-    for await (const chunk of shell.handler({ command: 'echo hi' }, { experimental_sandbox: session as never })) {
+    for await (const chunk of shell.handler({ command: 'echo hi' })) {
       if (typeof chunk === 'string') final = chunk
     }
     expect(final).toBe('hi')
   })
-  test('true via sandbox reports no output', async () => {
-    const session = createLocalSandboxSession(dir, 'Unix:Sh')
+  test('true reports no output', async () => {
     const shell = createShellTool()
     let final = ''
-    for await (const chunk of shell.handler({ command: 'true' }, { experimental_sandbox: session as never })) {
+    for await (const chunk of shell.handler({ command: 'true' })) {
       if (typeof chunk === 'string') final = chunk
     }
     expect(final).toBe('(no output)')
   })
   test('failing command throws with exit code', async () => {
-    const session = createLocalSandboxSession(dir, 'Unix:Sh')
     const shell = createShellTool()
     const collect = async () => {
-      for await (const chunk of shell.handler({ command: 'exit 3' }, { experimental_sandbox: session as never })) {
+      for await (const chunk of shell.handler({ command: 'exit 3' })) {
         void chunk
       }
     }
     await expect(collect()).rejects.toThrow('exited 3')
   })
   test('large output is tailed near 50KB with a spill file note', async () => {
-    const session = createLocalSandboxSession(dir, 'Unix:Sh')
     const shell = createShellTool()
     let final = ''
-    for await (const chunk of shell.handler({ command: 'awk \'BEGIN{for(i=0;i<150000;i++)printf "x";}\'', timeout: 30 }, { experimental_sandbox: session as never })) {
+    for await (const chunk of shell.handler({ command: 'awk \'BEGIN{for(i=0;i<150000;i++)printf "x";}\'', timeout: 30 })) {
       if (typeof chunk === 'string') final = chunk
     }
     expect(final.length).toBeLessThanOrEqual(60000)
@@ -262,15 +257,7 @@ describe('agent dirs', () => {
     expect(insideAgentDir(join(dir, '.agents-backup', 'file.txt'))).toBe(false)
   })
 })
-describe('sandbox mapping and containment', () => {
-  let dir = ''
-  beforeEach(async () => {
-    dir = await mkdtemp(join(tmpdir(), 'picobu-sb-'))
-    initLockDir(join(dir, 'locks'))
-  })
-  afterEach(async () => {
-    await rm(dir, { recursive: true, force: true })
-  })
+describe('shell spec mapping', () => {
   test('shellSpec maps known shells', () => {
     expect(shellSpec('Windows:PowerShell')).toEqual({ cmd: ['powershell', '-Command'] })
     expect(shellSpec('Windows:Bash')).toEqual({ cmd: ['bash', '-c'] })
@@ -284,24 +271,6 @@ describe('sandbox mapping and containment', () => {
     const res = shellSpec('Bogus:Label')
     expect(res.cmd).toHaveLength(2)
     expect(res.cmd[1]).toBe('-c')
-  })
-  test('sandboxRoot reads root only', () => {
-    expect(sandboxRoot({ root: dir })).toBe(dir)
-    expect(sandboxRoot(undefined)).toBeUndefined()
-    expect(sandboxRoot({})).toBeUndefined()
-    expect(sandboxRoot(null)).toBeUndefined()
-  })
-  test('exec cwd containment and success', async () => {
-    const session = createLocalSandboxSession(dir, 'Unix:Sh')
-    const ok = await session.exec(['echo', 'hi'], {})
-    expect(ok.exitCode).toBe(0)
-    expect(ok.stdout).toContain('hi')
-    await expect(session.exec(['echo', 'hi'], { cwd: '../..' })).rejects.toThrow('escapes sandbox')
-  })
-  test('write outside root throws and read outside is null', async () => {
-    const session = createLocalSandboxSession(dir, 'Unix:Sh')
-    await expect(session.writeTextFile({ path: '../evil.txt', content: 'x' })).rejects.toThrow('escapes sandbox')
-    expect(await session.readTextFile({ path: '../evil.txt' })).toBeNull()
   })
 })
 describe('lock behavior', () => {

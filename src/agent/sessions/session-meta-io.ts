@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { metaSchema, type SessionMeta } from '@agent/sessions/session-meta-schema.ts'
 import { folderKeyFor, sessionsRoot } from '@agent/sessions/session-paths.ts'
 import { withLock } from '@shared/lock.ts'
+import { logDebug } from '@shared/logger.ts'
 
 export const sessionMetaPath = (folderKey: string, sessionId: string): string => join(sessionsRoot(), folderKey, `${sessionId}.meta.json`)
 
@@ -53,7 +54,9 @@ export async function updateSessionMeta(folderKey: string, sessionId: string, pa
 export async function deleteSessionMeta(folderKey: string, sessionId: string): Promise<void> {
   try {
     await rm(sessionMetaPath(folderKey, sessionId), { force: true })
-  } catch {}
+  } catch (error) {
+    logDebug('swallowed error', { scope: 'session-meta-io', error })
+  }
 }
 
 export async function recoverSessionMeta(folderKey: string, sessionId: string): Promise<SessionMeta | null> {

@@ -1,6 +1,7 @@
 import { mkdtempSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { DEFAULT_PERMISSION_MODE, normalizeHarness } from '../../src/config/harness-options.ts'
 import type { HarnessOptions, ModelRoleId, Options, OptionsExternal, ProviderModelReasoningEffort } from '../../src/config/options.ts'
 import { MAX_STATUS_LINE_ITEMS, normalizeStatusLine, normalizeStatusLines, selectStatusLineItems } from '../../src/config/provider-status-line.ts'
 import { DEFAULT_SESSION_HEADER_LAYOUT, DEFAULT_SESSION_STATUS_LAYOUT } from '../../src/config/session-layout.ts'
@@ -39,6 +40,8 @@ const baseOptions = (): Options => ({
   watchdog: { ...MOCK_WATCHDOG_DEFAULTS },
 })
 
+export const baseFixtureOptions = (overrides: Partial<Options> = {}): Options => ({ ...baseOptions(), ...overrides })
+
 export const mockOptions: Options = baseOptions()
 
 export const resetMockOptions = (): Options => {
@@ -56,6 +59,8 @@ export const resetMockOptions = (): Options => {
 }
 
 export const mockLoadOptions = async (): Promise<Options> => mockOptions
+
+export const mockReloadOptions = async (): Promise<Options> => mockOptions
 
 const normalizeMockMaxMessages = (value: unknown): number => {
   if (typeof value !== 'number' || !Number.isFinite(value)) return MOCK_TUI_DEFAULTS.maxMessages
@@ -78,6 +83,8 @@ export const mockUpdateSettings = async (
     ...mockOptions.harness,
     ...patch.harness,
     modelRoles: { ...mockOptions.harness.modelRoles, ...patch.harness?.modelRoles },
+    permissions: { ...mockOptions.harness.permissions, ...patch.harness?.permissions },
+    agent: { ...mockOptions.harness.agent, ...patch.harness?.agent },
   }
   mockOptions.tui = {
     theme: patch.tui?.theme ?? mockOptions.tui.theme,
@@ -125,8 +132,11 @@ export const mockResolveModelRole = (harness: HarnessOptions | undefined, role: 
 export const mockOptionsModule = () => ({
   options: mockOptions,
   loadOptions: mockLoadOptions,
+  reloadOptions: mockReloadOptions,
   updateSettings: mockUpdateSettings,
   resolveModelRole: mockResolveModelRole,
+  DEFAULT_PERMISSION_MODE,
+  normalizeHarness,
   normalizeStatusLine,
   normalizeStatusLines,
   selectStatusLineItems,

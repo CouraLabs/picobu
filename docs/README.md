@@ -20,20 +20,17 @@ Modular documentation for Picobu, a terminal coding agent with a headless, UI-ag
 | [usage/tools.md](usage/tools.md) | The tool catalog agents run with |
 | [usage/mcp.md](usage/mcp.md) | MCP servers: transports, auth, namespacing, discovery |
 
-WhatsApp (a shipped-but-dormant Baileys integration) is documented in the root [README](../README.md#whatsapp).
-
 ## Where data lives
 
 Everything Picobu persists sits under one system dir, `~/.picobu` by default (override with `PICOBU_SYSTEM_DIR`):
 
 | Path | Contents |
 | --- | --- |
-| `options.json` | Settings: providers, harness, TUI, web, WhatsApp, MCP, watchdog |
+| `options.json` | Settings: providers, harness (permissions, budget), TUI, web, MCP, watchdog |
 | `sessions/<folderKey>/` | `<id>.jsonl` transcripts, `<id>.meta.json` sidecars, `<id>.stats.json` cost files |
 | `prompts.db` | Last 20 prompts and drafts per project (SQLite) |
 | `auth.json` | OAuth credentials for subscription providers |
 | `mcp-auth.json` | OAuth tokens for MCP servers |
-| `whatsapp/` | Baileys auth state (0700) and the `today.json` todo list |
 | `logs/` | Runtime logs |
 | `tree-sitter/` | Parser WASMs and highlight queries |
 | `bin/picobu` | The compiled executable (installer-managed) |
@@ -47,6 +44,6 @@ Everything Picobu persists sits under one system dir, `~/.picobu` by default (ov
 
 ## See also
 
-- [README](../README.md) — background, install, WhatsApp
+- [README](../README.md) — background and install
 - [usage.md](usage.md) — start here for the app tour
 - [configuration/options.md](configuration/options.md) — the settings file every other doc references

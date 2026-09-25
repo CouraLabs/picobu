@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { AGENTS, listAgents, resolveAgentModel } from '@agent/agents/registry.ts'
 import { type Command, listCommands, listSkills } from '@agent/commands/index.ts'
 import { createLoop, type LoopConfig, type LoopMessage, type LoopStats, type LoopStepCost } from '@agent/loop/create-loop.ts'
+import { grantPermission } from '@agent/loop/permissions.ts'
 import { resolveModelRef } from '@agent/model/resolver.ts'
 import { type SummarizeResult, summarizeSession } from '@agent/prompts/summarizer.ts'
 import { listRules, type Rule } from '@agent/rules/rules.ts'
@@ -20,12 +21,13 @@ import {
   stripUnreplayableReasoning,
   type UserPromptSnapshot,
 } from '@agent/sessions/session-messages.ts'
-import { isWaiting, readSessionMeta, type SessionMeta, type SessionState, updateSessionMeta, writeSessionMeta } from '@agent/sessions/session-meta.ts'
+import { hasPendingApproval, isWaiting, readSessionMeta, type SessionMeta, type SessionState, updateSessionMeta, writeSessionMeta } from '@agent/sessions/session-meta.ts'
 import { folderKeyFor, generateSessionId, sessionFilePath } from '@agent/sessions/session-paths.ts'
 import { readLoopStats, writeLoopStats } from '@agent/sessions/session-stats-io.ts'
 import { loadSession, SessionSaver } from '@agent/sessions/session-store.ts'
 import { clearStreamBackup, recoverStreamBackup, writeStreamBackup } from '@agent/sessions/session-stream-backup.ts'
-import { options, type ProviderModelReasoningEffort } from '@config/options.ts'
+import { options, type ProviderModelReasoningEffort, updateSettings } from '@config/options.ts'
+import { logDebug, logWarn } from '@shared/logger.ts'
 import {
   type AsyncIterableStream,
   type ChatInit,
@@ -74,6 +76,13 @@ export interface RespondFlowToolInput {
   tool: FlowToolName
   toolCallId: string
   output: FlowToolOutput
+}
+export interface RespondApprovalInput {
+  approvalId: string
+  approved: boolean
+  toolName?: string
+  alwaysAllow?: boolean
+  reason?: string
 }
 
 interface LooseFlowPart {
@@ -138,6 +147,7 @@ export interface Session {
   readonly stats: LoopStats | undefined
   readonly state: SessionState
   addExternalCost: (cost: LoopStepCost) => void
+  onBudgetWarning: (listener: () => void) => () => void
   summarize: () => Promise<SummarizeResult>
   compact: (opts?: { force?: boolean }) => Promise<CompactionResult>
   setTitle: (title: string) => void
@@ -151,6 +161,7 @@ export interface Session {
   clearError: Chat['clearError']
   addToolOutput: Chat['addToolOutput']
   respondFlowTool: (input: RespondFlowToolInput) => Promise<void>
+  respondApproval: (input: RespondApprovalInput) => Promise<void>
   switchAgent: (agentId: string) => void
   switchModel: (modelKey: string) => void
   switchThinking: (thinking: ProviderModelReasoningEffort) => void
@@ -395,8 +406,12 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
   const chatState = createHeadlessChatState(initialMessages ?? [], handleStateChange)
   const chat = new Chat({
     ...chatInit,
-    sendAutomaticallyWhen: () => {
+    sendAutomaticallyWhen: ({ messages }) => {
       if (resumeOnce) {
+        if (hasPendingApproval(messages)) {
+          resuming = false
+          return false
+        }
         resumeOnce = false
         return true
       }
@@ -552,6 +567,7 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
       return deriveState(chat)
     },
     addExternalCost: (cost) => loop.addExternalCost(cost),
+    onBudgetWarning: (listener) => loop.onBudgetExceeded(listener),
     summarize: async (): Promise<SummarizeResult> => {
       const config = effectiveConfig()
       return summarizeSession({
@@ -615,6 +631,26 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
       resuming = true
       try {
         await chat.addToolOutput({ tool: tool as never, toolCallId, output: output as never })
+      } catch (error) {
+        resumeOnce = false
+        resuming = false
+        throw error
+      }
+    },
+    respondApproval: async ({ approvalId, approved, toolName, alwaysAllow, reason }) => {
+      if (isRunning()) throw new Error('Cannot answer while a run is in progress')
+      if (alwaysAllow && toolName) {
+        try {
+          const next = await updateSettings({ harness: { permissions: grantPermission(options.harness.permissions, toolName) } })
+          options.harness = next.harness
+        } catch (error) {
+          logWarn('failed to persist always-allow permission', { toolName, error })
+        }
+      }
+      resumeOnce = true
+      resuming = true
+      try {
+        await chat.addToolApprovalResponse({ id: approvalId, approved, ...(reason ? { reason } : {}) })
       } catch (error) {
         resumeOnce = false
         resuming = false
@@ -728,7 +764,9 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
         markAborting()
         try {
           await chat.stop()
-        } catch {}
+        } catch (error) {
+          logDebug('swallowed error', { scope: 'session', error })
+        }
       }
       await saver.flush()
       await pendingStatsWrite

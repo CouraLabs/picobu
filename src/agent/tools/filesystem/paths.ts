@@ -1,5 +1,6 @@
 import { realpath } from 'node:fs/promises'
 import { isAbsolute, relative, resolve, sep } from 'node:path'
+import { logDebug } from '@shared/logger.ts'
 
 export const isInsideBase = (base: string, candidate: string): boolean => {
   const rel = relative(resolve(base), resolve(candidate))
@@ -11,7 +12,9 @@ const deepestRealpath = async (path: string): Promise<string> => {
   for (;;) {
     try {
       return await realpath(current)
-    } catch {}
+    } catch (error) {
+      logDebug('swallowed error', { scope: 'paths', error })
+    }
     const parent = resolve(current, '..')
     if (parent === current) return current
     current = parent

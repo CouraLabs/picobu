@@ -67,3 +67,10 @@ export const fenceFiletype = (lang: string): string | undefined => {
   if (trimmed.length === 0) return undefined
   return infoStringToFiletype(trimmed)
 }
+
+export const approvalVerdictLabel = (status: string | undefined): string => (status === 'rejected' ? 'Rejected' : 'Approved')
+
+export const approvalBodyLines = (status: string | undefined, message: string | undefined): Array<string> => {
+  const label = approvalVerdictLabel(status)
+  return (message ?? '').split('\n').filter((line) => line.trim().length > 0 && line.trim() !== label)
+}

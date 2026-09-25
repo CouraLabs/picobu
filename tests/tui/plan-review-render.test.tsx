@@ -51,6 +51,25 @@ describe('PlanReview render', () => {
     }
   })
 
+  test('shows Approved exactly once for a comment-free approval', async () => {
+    const setup = await testRender(
+      () => (
+        <KeyboardProvider>
+          <PlanReview plan="do the thing" status="approved" outputMessage="Approved" interactive={false} onVerdict={() => {}} onCancel={() => {}} />
+        </KeyboardProvider>
+      ),
+      { width: 60, height: 20 },
+    )
+    try {
+      await setup.renderOnce()
+      await setup.flush()
+      const frame = setup.captureCharFrame()
+      expect(frame.split('Approved').length - 1).toBe(1)
+    } finally {
+      setup.renderer.destroy()
+    }
+  })
+
   test('clips segment content so a block cannot bleed into the next', async () => {
     const plan = `# Heading\n${'wrapline '.repeat(40)}\n\n## Following\nMARKER_FOLLOWING`
     const setup = await mount(plan)

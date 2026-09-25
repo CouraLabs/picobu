@@ -173,6 +173,12 @@ export const logInfo = (message: string, context?: LogContext): void => {
   } catch {}
 }
 
+export const logDebug = (message: string, context?: LogContext): void => {
+  try {
+    getLogger().debug({ ...context }, message)
+  } catch {}
+}
+
 export const installGlobalErrorHandlers = (): void => {
   if (handlersInstalled) return
   handlersInstalled = true

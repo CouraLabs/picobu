@@ -7,6 +7,7 @@ import { loadMcpConfig } from '@integrations/mcp/discover.ts'
 import { createMcpStderrTarget } from '@integrations/mcp/stderr-sink.ts'
 import { mcpToolName } from '@integrations/mcp/tools-info.ts'
 import { describeError } from '@shared/error-report.ts'
+import { logDebug } from '@shared/logger.ts'
 
 const TOOL_TTL_MS = 60_000
 
@@ -203,7 +204,9 @@ export const createMcpManager = (opts: { dir?: string; servers?: Array<McpServer
         if (!runtime.client) return
         try {
           await runtime.client.close()
-        } catch {}
+        } catch (error) {
+          logDebug('swallowed error', { scope: 'client', error })
+        }
         runtime.client = undefined
         runtime.tools = undefined
       }),

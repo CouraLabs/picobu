@@ -3,7 +3,7 @@ import { clip } from '@shared/format.ts'
 import { theme } from '@states/theme-state.ts'
 import { pushToast } from '@states/toast.state.ts'
 import { Button } from '@tui/components/button.tsx'
-import { fenceFiletype, type PlanSegment, planSegments } from '@tui/components/session/tools/plan-blocks.ts'
+import { approvalBodyLines, fenceFiletype, type PlanSegment, planSegments } from '@tui/components/session/tools/plan-blocks.ts'
 import { COMMENT_TEXTAREA_KEY_BINDINGS } from '@tui/components/shared/textarea-keybindings.ts'
 import { getClipboardService } from '@tui/hooks/clipboard.state.ts'
 import { useAppKeyboard } from '@tui/hooks/keyboard-provider.tsx'
@@ -242,7 +242,7 @@ export const PlanReview = (props: PlanReviewProps) => {
                   }>
                   <box flexDirection="column">
                     <text fg={props.status === 'rejected' ? theme().error : theme().success}>{props.status === 'rejected' ? `${icons.cross} Rejected` : `${icons.success} Approved`}</text>
-                    <For each={(props.outputMessage ?? '').split('\n')}>{(line) => <text fg={theme().textMuted}>{line}</text>}</For>
+                    <For each={approvalBodyLines(props.status, props.outputMessage)}>{(line) => <text fg={theme().textMuted}>{line}</text>}</For>
                   </box>
                 </Show>
               }>

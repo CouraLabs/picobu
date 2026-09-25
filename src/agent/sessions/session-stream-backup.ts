@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { sanitizeMessages, settleAbortedToolParts, settleStreamingParts } from '@agent/sessions/session-messages.ts'
 import { sessionsRoot } from '@agent/sessions/session-paths.ts'
 import { withLock } from '@shared/lock.ts'
+import { logDebug } from '@shared/logger.ts'
 import type { UIMessage } from 'ai'
 
 export const streamBackupPath = (folderKey: string, sessionId: string): string => join(sessionsRoot(), folderKey, `${sessionId}.stream.json`)
@@ -41,7 +42,9 @@ export async function readStreamBackup(folderKey: string, sessionId: string): Pr
 export async function clearStreamBackup(folderKey: string, sessionId: string): Promise<void> {
   try {
     await rm(streamBackupPath(folderKey, sessionId), { force: true })
-  } catch {}
+  } catch (error) {
+    logDebug('swallowed error', { scope: 'session-stream-backup', error })
+  }
 }
 
 export async function recoverStreamBackup(folderKey: string, sessionId: string): Promise<Array<UIMessage> | undefined> {

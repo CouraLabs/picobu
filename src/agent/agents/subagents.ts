@@ -1,5 +1,6 @@
 import { readdir } from 'node:fs/promises'
 import { join } from 'node:path'
+import { agentIdFromName } from '@agent/agents/agent-id.ts'
 import { createAgent, NO_TOOLS } from '@agent/agents/create-agent.ts'
 import type { AgentType } from '@agent/agents/types.ts'
 import { parseMarkdownFile } from '@agent/markdown/markdown-parser.ts'
@@ -29,6 +30,7 @@ export const BUILT_IN_SUBAGENTS: Record<string, AgentType> = {
   explorer: createAgent(readPromptMarkdown(SUBAGENT_PROMPT_FILES.explorer)),
   reviewer: createAgent(readPromptMarkdown(SUBAGENT_PROMPT_FILES.reviewer)),
   debugger: createAgent(readPromptMarkdown(SUBAGENT_PROMPT_FILES.debugger)),
+  'plan-reviewer': createAgent(readPromptMarkdown(SUBAGENT_PROMPT_FILES['plan-reviewer'])),
 }
 
 const subagentsDir = (cwd: string): string => join(cwd, '.agents', 'agents')
@@ -45,7 +47,7 @@ const parseSubagentTools = (value: unknown): Array<string> => {
 
 export async function listSubagents(cwd: string = options.app.cwd): Promise<Array<AgentType>> {
   const byName = new Map<string, AgentType>()
-  for (const def of Object.values(BUILT_IN_SUBAGENTS)) byName.set(def.name.toLowerCase(), def)
+  for (const def of Object.values(BUILT_IN_SUBAGENTS)) byName.set(agentIdFromName(def.name), def)
   let files: Array<string>
   try {
     files = (await readdir(subagentsDir(cwd))).filter((f) => f.endsWith('.md'))
@@ -57,7 +59,7 @@ export async function listSubagents(cwd: string = options.app.cwd): Promise<Arra
       const parsed = await parseMarkdownFile(join(subagentsDir(cwd), file))
       const name = typeof parsed.name === 'string' ? parsed.name : ''
       if (!name) continue
-      byName.set(name.toLowerCase(), {
+      byName.set(agentIdFromName(name), {
         name,
         description: typeof parsed.description === 'string' ? parsed.description : '',
         category: 'coding',
@@ -73,7 +75,7 @@ export async function listSubagents(cwd: string = options.app.cwd): Promise<Arra
 }
 
 export async function getSubagent(name: string, cwd: string = options.app.cwd): Promise<AgentType | undefined> {
-  return (await listSubagents(cwd)).find((s) => s.name.toLowerCase() === name.toLowerCase())
+  return (await listSubagents(cwd)).find((s) => agentIdFromName(s.name) === agentIdFromName(name))
 }
 
 export function prepareSubagent(def: AgentType): AgentType {

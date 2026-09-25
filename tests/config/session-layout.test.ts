@@ -27,9 +27,19 @@ import {
 const DEFAULT_STATUS_LINES: SessionStatusLayout['lines'] = [
   ['agent', 'separator', 'model', 'separator', 'effort', 'separator', 'run-state', 'separator', 'loading', 'session-title'],
   ['ttft', 'tps', 'separator', 'input', 'output', 'cache', 'cost'],
-  ['sandbox', 'separator', 'msgs', 'tools', 'separator', 'queue', 'separator', 'jobs', 'separator', 'todo'],
+  ['permission-mode', 'separator', 'msgs', 'tools', 'separator', 'queue', 'separator', 'jobs', 'separator', 'todo'],
   ['provider-items'],
 ]
+
+describe('status layout migration', () => {
+  test('a persisted sandbox item migrates to permission-mode', () => {
+    const layout = normalizeSessionStatusLayout({ lines: [['sandbox', 'msgs']] })
+    expect(layout.lines[0]).toEqual(['permission-mode', 'msgs'])
+  })
+  test('a raw lines-array sandbox migrates too', () => {
+    expect(normalizeSessionStatusLayout([['sandbox', 'msgs']]).lines[0]).toEqual(['permission-mode', 'msgs'])
+  })
+})
 
 describe('defaults', () => {
   test('status default matches the requested matrix with default gaps', () => {

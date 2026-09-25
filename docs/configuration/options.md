@@ -12,14 +12,11 @@ This page covers the file's structure, defaults, environment variables, and valu
 | `statusLine` | Maps provider ids to status chips on the session footer provider row | `[]` |
 | `sessionStatusLayout` | Which segments render on the session status bar, and in what order | 4-line default (see [session-layout.md](session-layout.md)) |
 | `sessionHeaderLayout` | Which segments render on the session header (max 1 line) | workspace, context, notification |
-| `harness` | `defaultModel` (`"<providerId>/<modelId>"`), per-role model/thinking overrides, `maxAgents`, `doomLoop` | empty until first login or manual edit |
+| `harness` | `defaultModel` (`\"<providerId>/<modelId>\"`), per-role model/thinking overrides, `maxAgents`, `doomLoop`, `permissions` (tool → always-allow), `budgetLimitUsd`, `defaultPermissionMode` (`yolo`\|`ask`\|`autopilot`) | empty until first login or manual edit |
 | `tui` | `theme` (`{key, variant: dark\|light}`, default `picobu/dark`) and `maxMessages` (default 20) | seeded on first run |
-| `web` | Web server `{host, port}` — reserved; see note below | `{host: "0.0.0.0", port: 8080}` |
-| `whatsapp` | `enabled` flag and `allowedNumbers` allow-list | `{enabled: false, allowedNumbers: []}` |
+| `web` | Web server `{host, port}` — reserved; see note below | `{host: \"0.0.0.0\", port: 8080}` |
 | `mcp` | MCP `servers` map | `{servers: {}}` |
 | `watchdog` | Stale-run handling | 300000ms timeout, notification on, continue prompt off |
-
-See [WhatsApp](../../README.md#whatsapp) in the root README for the `whatsapp` block.
 
 ### The `web` block
 
@@ -39,6 +36,7 @@ See [WhatsApp](../../README.md#whatsapp) in the root README for the `whatsapp` b
 | --- | --- | --- |
 | `defaultModel` | — (set on first login) | `"<providerId>/<modelId>"` backing every role with no override |
 | `modelRoles` | — | Per-role model/thinking overrides (`tiny`, `flash`, `flashThinking`, `heavy`, `heavyThinkingLevel`) — see [providers.md](providers.md) |
+| `agent` | — | Per-agent model overrides `{ "<agent-id>": "<model-role> \| <providerId>/<modelId>" }`; overrides the markdown `model:` of that agent (top-level agents and subagents) |
 | `maxAgents` | `4` | Concurrent spawned sub sessions tree-wide (options.json requires ≥ 1; the `SessionManager` library API accepts `0` to disable spawning) |
 | `doomLoop` | `true` | Detect repeated identical messages or tool calls and steer, then halt the run (`false` disables the guard) |
 

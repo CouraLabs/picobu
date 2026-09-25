@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test } from 'bun:test'
-import { resolveAgentModel } from '../../src/agent/agents/registry.ts'
+import { resolveAgentModel, resolveHarnessAgentOverride } from '../../src/agent/agents/registry.ts'
 import { resetAuthCache } from '../../src/auth/store.ts'
 import { mockOptions, resetMockOptions } from '../helpers/mock-options.ts'
 
@@ -48,5 +48,25 @@ describe('resolveAgentModel', () => {
 
   test('returns undefined when no models exist at all', () => {
     expect(resolveAgentModel('coder')).toBeUndefined()
+  })
+
+  test('harness.agent roles and model keys override the markdown role', () => {
+    mockOptions.harness = {
+      defaultModel: 'openai/default',
+      modelRoles: { heavy: 'openai/heavy-model', heavyThinkingLevel: 'high' },
+      agent: { coder: 'heavy', 'plan-code': 'anthropic/sonnet' },
+    }
+    expect(resolveAgentModel('coder')).toEqual({ modelKey: 'openai/heavy-model', thinking: 'high' })
+    expect(resolveAgentModel('plan-code')).toEqual({ modelKey: 'anthropic/sonnet', thinking: 'medium' })
+  })
+
+  test('harness.agent keys match by slug (case and separators ignored)', () => {
+    mockOptions.harness = { defaultModel: 'openai/default', agent: { 'Plan Reviewer': 'flash' } }
+    expect(resolveHarnessAgentOverride('plan-reviewer')).toEqual({ modelKey: 'openai/default', thinking: 'medium' })
+  })
+
+  test('resolveHarnessAgentOverride returns undefined when unset', () => {
+    mockOptions.harness = { defaultModel: 'openai/default' }
+    expect(resolveHarnessAgentOverride('plan reviewer')).toBeUndefined()
   })
 })

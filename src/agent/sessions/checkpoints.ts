@@ -3,6 +3,7 @@ import { appendFile, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { options } from '@config/options.ts'
 import { withLock } from '@shared/lock.ts'
+import { logDebug } from '@shared/logger.ts'
 import { z } from 'zod'
 export const CheckpointRecordSchema = z.object({
   seq: z.number().int().min(0),
@@ -36,7 +37,9 @@ const eachCheckpointLine = async (path: string, visit: (record: CheckpointRecord
     let record: CheckpointRecord | undefined
     try {
       record = CheckpointRecordSchema.parse(JSON.parse(raw))
-    } catch {}
+    } catch (error) {
+      logDebug('swallowed error', { scope: 'checkpoints', error })
+    }
     if (!record) continue
     if (visit(record, raw)) return
   }

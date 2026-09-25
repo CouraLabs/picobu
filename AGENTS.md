@@ -15,7 +15,7 @@
 ## Layout
 - `src/cli.ts` is the entry and bootstrap; `src/config/options.ts` owns `~/.picobu/options.json`.
 - `src/agent/`: `loop/`, `sessions/`, `model/`, `agents/` + `subagent/`, `prompts/`, `tools/filesystem|flow|web/`.
-- `src/integrations/` holds WhatsApp (Baileys) + MCP. `src/tui/`, `src/states/`, `src/wrappers/` are host-frontend kit.
+- `src/integrations/` holds MCP. `src/tui/`, `src/states/`, `src/wrappers/` are host-frontend kit.
 - `tests/` mirrors `src/`. No CI.
 - Rules: `.agents/rules/*.md` need frontmatter `name`+`description`; skills: `.agents/skills/<name>/SKILL.md`.
 - Keep under 2000 chars; top wins the cut.

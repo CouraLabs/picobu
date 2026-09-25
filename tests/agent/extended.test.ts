@@ -126,7 +126,7 @@ describe('subagents', () => {
     expect(SUBAGENT_DEPTH_CAP).toBe(3)
     expect(SUBAGENT_RULES.length).toBeGreaterThan(0)
     expect(SUBAGENT_RULES).toContain('subagent')
-    expect(Object.keys(BUILT_IN_SUBAGENTS).sort()).toEqual(['debugger', 'executor', 'explorer', 'reviewer'])
+    expect(Object.keys(BUILT_IN_SUBAGENTS).sort()).toEqual(['debugger', 'executor', 'explorer', 'plan-reviewer', 'reviewer'])
   })
   test('listSubagents reads custom files with none and star sentinels', async () => {
     const root = await makeTempRoot()
@@ -401,10 +401,11 @@ describe('agent prompt texts', () => {
     expect(planMarkdown).toContain('plan-write')
     expect(planMarkdown).toContain('plan-exit')
     expect(planMarkdown).toContain('Raise "ask" early')
+    expect(planMarkdown).toContain('plan-reviewer')
     expect(planMarkdown).toContain('do not also write the plan out in your reply')
     expect(persistentMarkdown).toContain('persistent mode')
-    expect(persistentMarkdown).toContain('WhatsApp')
-    expect(persistentMarkdown).toContain('wwp-msg')
+    expect(persistentMarkdown).not.toContain('WhatsApp')
+    expect(persistentMarkdown).not.toContain('wwp-msg')
   })
   test('coder advertises reviewer spawn and parallel subagents', () => {
     expect(coderMarkdown).toContain('reviewer')

@@ -3,7 +3,7 @@ import { resolve } from 'node:path'
 import { killProcessTree, shellSpec } from '@agent/tools/sandbox.ts'
 import { toolOutputDir } from '@agent/tools/truncate-output.ts'
 import { options } from '@config/options.ts'
-import type { Experimental_SandboxSession } from 'ai'
+import { logDebug } from '@shared/logger.ts'
 
 export type BackgroundShellStatus = 'running' | 'completed' | 'stopped'
 
@@ -23,7 +23,6 @@ export interface StartBackgroundShellOptions {
   command: string
   cwd?: string
   ownerSessionId?: string
-  sandbox?: Experimental_SandboxSession
   abortSignal?: AbortSignal
 }
 
@@ -72,7 +71,9 @@ const drainInto = (stream: ReadableStream<Uint8Array> | undefined, sink: (text: 
         if (done) return
         sink(decoder.decode(value, { stream: true }))
       }
-    } catch {}
+    } catch (error) {
+      logDebug('swallowed error', { scope: 'background-shell', error })
+    }
   })()
 }
 
@@ -108,34 +109,20 @@ export const startBackgroundShell = (opts: StartBackgroundShellOptions): Backgro
   const run = async (): Promise<BackgroundShellStatus> => {
     try {
       const logReady = mkdir(toolOutputDir(), { recursive: true }).catch(() => {})
-      let kill: () => void
-      let exited: PromiseLike<number>
-      let stdout: ReadableStream<Uint8Array> | undefined
-      let stderr: ReadableStream<Uint8Array> | undefined
-      if (opts.sandbox) {
-        const proc = await opts.sandbox.spawn({ command: opts.command, workingDirectory: opts.cwd, abortSignal: opts.abortSignal })
-        stdout = proc.stdout as ReadableStream<Uint8Array>
-        stderr = proc.stderr as ReadableStream<Uint8Array>
-        exited = proc.wait().then((w) => w.exitCode)
-        kill = () => {
-          void proc.kill()
-        }
-      } else {
-        const base = process.cwd()
-        const cwd = opts.cwd ? resolve(base, opts.cwd) : base
-        const proc = Bun.spawn({
-          cmd: [...shellSpec(options.app.shell).cmd, opts.command],
-          cwd,
-          stdout: 'pipe',
-          stderr: 'pipe',
-          env: Bun.env,
-          detached: process.platform !== 'win32',
-        })
-        stdout = proc.stdout as ReadableStream<Uint8Array>
-        stderr = proc.stderr as ReadableStream<Uint8Array>
-        exited = proc.exited
-        kill = () => killProcessTree(proc)
-      }
+      const base = process.cwd()
+      const cwd = opts.cwd ? resolve(base, opts.cwd) : base
+      const proc = Bun.spawn({
+        cmd: [...shellSpec(options.app.shell).cmd, opts.command],
+        cwd,
+        stdout: 'pipe',
+        stderr: 'pipe',
+        env: Bun.env,
+        detached: process.platform !== 'win32',
+      })
+      const stdout = proc.stdout as ReadableStream<Uint8Array>
+      const stderr = proc.stderr as ReadableStream<Uint8Array>
+      const exited = proc.exited
+      const kill = () => killProcessTree(proc)
       killers.set(id, kill)
       if (entry.status !== 'running' || opts.abortSignal?.aborted) kill()
       const onAbort = () => kill()

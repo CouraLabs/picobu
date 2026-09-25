@@ -3,6 +3,7 @@ import { initMcpAuth, isMcpAuthActive, usesMcpAuth } from '@integrations/mcp/aut
 import type { McpManager } from '@integrations/mcp/client.ts'
 import { mergeMcpServers, serverTarget } from '@integrations/mcp/config.ts'
 import { scanProjectMcpServers } from '@integrations/mcp/discover.ts'
+import { logDebug } from '@shared/logger.ts'
 
 export interface McpServerInfo {
   id: string
@@ -20,7 +21,9 @@ export const listMcpServers = async (manager?: McpManager): Promise<Array<McpSer
   const servers = mergeMcpServers(Object.values(options.mcp.servers), projectServers)
   try {
     await initMcpAuth()
-  } catch {}
+  } catch (error) {
+    logDebug('swallowed error', { scope: 'status', error })
+  }
   const snapshots = manager ? await manager.snapshot() : undefined
   const projectIds = new Set(projectServers.map((server) => server.id))
   return servers.map((server) => {

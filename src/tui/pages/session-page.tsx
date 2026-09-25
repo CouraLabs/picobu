@@ -14,13 +14,14 @@ import { isWaiting } from '@agent/sessions/session-meta.ts'
 import { createSessionWatchdog } from '@agent/sessions/session-watchdog.ts'
 import { stopAllBackgroundShells } from '@agent/tools/filesystem/background-shell.ts'
 import { resetAuthCache } from '@auth/store.ts'
+import { cyclePermissionMode, type PermissionMode } from '@config/harness-options.ts'
 import type { ProviderModelReasoningEffort } from '@config/options.ts'
 import { options } from '@config/options.ts'
 import { resetMcpAuthCache } from '@integrations/mcp/auth.ts'
 import { useRenderer } from '@opentui/solid'
 import { setConsoleTitle } from '@shared/console-title.ts'
 import { getGitInfo } from '@shared/git-info.ts'
-import { logError, setLogRunId } from '@shared/logger.ts'
+import { logDebug, logError, logWarn, setLogRunId } from '@shared/logger.ts'
 import { notifyBlocking, notifyCompletion, notifyFailure } from '@shared/notify.ts'
 import { allocBangId, type BangOutput, bangOutput, clearBangOutput, setBangOutput } from '@states/bang-output.state.ts'
 import { bumpCatalog } from '@states/catalog-state.ts'
@@ -41,13 +42,14 @@ import type { SessionStatusProps } from '@tui/components/session/status/session-
 import { getModelContextSize } from '@tui/components/session/status/status-meta.ts'
 import { openStatusLayoutDialog } from '@tui/components/session/status-layout-dialog.tsx'
 import { openSubagentMessages } from '@tui/components/session/subagent-dialog.tsx'
+import { PermissionPrompt } from '@tui/components/session/tools/permission-prompt.tsx'
 import type { ToolFlowResponse } from '@tui/components/session/tools/tool-part.tsx'
 import { setExitStatus } from '@tui/hooks/exit-status.ts'
 import { useAppKeyboard } from '@tui/hooks/keyboard-provider.tsx'
 import { requestAppReload, setLastSessionId } from '@tui/hooks/reload-bus.ts'
-import { DOUBLE_PRESS_WINDOW_MS, isCycleEffortKey, isExitKey, isJobsKey, isModelKey, isRepeatKey, isSandboxKey, isSteerKey } from '@tui/keybindings.ts'
+import { DOUBLE_PRESS_WINDOW_MS, isCycleEffortKey, isExitKey, isJobsKey, isModelKey, isPermissionModeKey, isRepeatKey, isSteerKey } from '@tui/keybindings.ts'
 import type { CreateUIMessage } from 'ai'
-import { batch, createEffect, createSignal, getOwner, onCleanup, onMount, runWithOwner } from 'solid-js'
+import { batch, createEffect, createSignal, getOwner, on, onCleanup, onMount, runWithOwner, Show } from 'solid-js'
 import { type StatsStatusState, shouldSyncStats, toStatsState } from './session-stats-sync.ts'
 
 export interface SessionPageProps {
@@ -55,7 +57,7 @@ export interface SessionPageProps {
   visible: boolean
 }
 
-const AGENT_CYCLE = ['ask', 'grill', 'plan-code', 'coder']
+const AGENT_CYCLE = ['ask', 'grill', 'plan-code', 'coder', 'optioneer']
 
 const showError = (error: unknown, sessionId?: string) => {
   logError(error, { scope: 'session-page', ...(sessionId ? { sessionId } : {}) })
@@ -101,6 +103,32 @@ const pendingFlowPart = (parts: Array<unknown>): { tool: 'ask' | 'plan-write'; t
 
 const flowToolName = (tool: 'ask' | 'plan-write'): string => (tool === 'ask' ? 'ASK' : 'PLAN WRITE')
 
+const permissionModeToast = (mode: PermissionMode): string =>
+  mode === 'yolo'
+    ? 'Permission mode: Ya only live once (auto-run) — saved as the default'
+    : mode === 'autopilot'
+      ? 'Permission mode: Picopilot (tiny model validates tools) — saved as the default'
+      : 'Permission mode: Picoasks (confirm tools) — saved as the default'
+
+interface PendingApproval {
+  toolName: string
+  approvalId: string
+  input: unknown
+}
+
+const pendingApproval = (parts: Array<unknown>): PendingApproval | undefined => {
+  for (const raw of parts) {
+    const part = raw as { type?: unknown; toolName?: unknown; input?: unknown; state?: unknown; approval?: unknown }
+    if (part.type !== 'dynamic-tool' && !(typeof part.type === 'string' && part.type.startsWith('tool-'))) continue
+    if (part.state !== 'approval-requested') continue
+    const approval = part.approval as { id?: unknown; isAutomatic?: unknown } | undefined
+    if (!approval || approval.isAutomatic === true || typeof approval.id !== 'string' || approval.id.length === 0) continue
+    const toolName = part.type === 'dynamic-tool' ? String(part.toolName ?? '') : typeof part.type === 'string' ? part.type.slice('tool-'.length) : ''
+    return { toolName, approvalId: approval.id, input: part.input }
+  }
+  return undefined
+}
+
 const lastUserText = (messages: Array<LoopMessage>): string | undefined => {
   for (let i = messages.length - 1; i >= 0; i--) {
     const m = messages[i]
@@ -140,8 +168,36 @@ export const SessionPage = (props: SessionPageProps) => {
   const [statsPerformance, setStatsPerformance] = createSignal<LoopStats['performance']>(undefined)
   const [statsMetrics, setStatsMetrics] = createSignal<LoopStats | undefined>(undefined)
   const sessionMgr = new SessionManager()
-  const [sandboxOn, setSandboxOn] = createSignal(sessionMgr.sandboxEnabled)
+  const [permissionMode, setPermissionMode] = createSignal(sessionMgr.permissionMode)
+  const [approval, setApproval] = createSignal<PendingApproval | undefined>(undefined)
+  const [approvalHighlight, setApprovalHighlight] = createSignal(0)
   const [bgJobs, setBgJobs] = createSignal(sessionMgr.runningShellJobCount())
+  createEffect(
+    on(
+      messages,
+      (list) => {
+        const last = list[list.length - 1]
+        const next = last?.role === 'assistant' ? pendingApproval(last.parts as Array<unknown>) : undefined
+        setApproval(next)
+        if (next) setApprovalHighlight(0)
+      },
+      { defer: true },
+    ),
+  )
+  createEffect(
+    on(
+      session,
+      (live) => {
+        if (!live) return
+        const off = live.onBudgetWarning(() => {
+          logWarn('session budget limit exceeded', live.config.sessionId ? { sessionId: live.config.sessionId } : {})
+          pushToast('Budget limit exceeded for this session', 'warning')
+        })
+        onCleanup(off)
+      },
+      { defer: true },
+    ),
+  )
   const renderer = useRenderer()
   const watchdog = createSessionWatchdog({ staleTimeoutMs: options.watchdog.staleTimeoutMs })
   let lastEsc = 0
@@ -296,7 +352,9 @@ export const SessionPage = (props: SessionPageProps) => {
     setLastSessionId(next.id)
     try {
       setLogRunId(next.id)
-    } catch {}
+    } catch (error) {
+      logDebug('swallowed error', { scope: 'session-page', error })
+    }
     const streaming = next.status === 'submitted' || next.status === 'streaming'
     const w = isWaiting(next.messages)
     const nextProjectKey = projectKeyFor(next.config.cwd ?? sessionMgr.currentCwd)
@@ -371,7 +429,7 @@ export const SessionPage = (props: SessionPageProps) => {
     mode: mode(),
     waiting: waiting() || answering(),
     mcp: mcp(),
-    sandbox: sandboxOn(),
+    permissionMode: permissionMode(),
     bgJobs: bgJobs(),
     provider: modelKey() ? { id: modelKey()?.split('/')[0] ?? '' } : undefined,
     statsStatus: statsStatus(),
@@ -435,6 +493,29 @@ export const SessionPage = (props: SessionPageProps) => {
     if (dialogStatus().status === 'open') return
     const target = session()
     if (!target) return
+
+    if (approval()) {
+      key.preventDefault()
+      key.stopPropagation()
+      if (key.name === 'escape') {
+        void respondToApproval(false, false)
+        return
+      }
+      if (key.name === 'return' || key.name === 'enter') {
+        const choice = approvalHighlight()
+        void respondToApproval(choice !== 1, choice === 2)
+        return
+      }
+      if (key.name === 'left') {
+        setApprovalHighlight((n) => (n + 2) % 3)
+        return
+      }
+      if (key.name === 'right' || key.name === 'tab') {
+        setApprovalHighlight((n) => (n + 1) % 3)
+        return
+      }
+      return
+    }
 
     if (key.name === 'escape') {
       if (commandOpen()) {
@@ -522,13 +603,13 @@ export const SessionPage = (props: SessionPageProps) => {
       }
       return
     }
-    if (isSandboxKey(key)) {
+    if (isPermissionModeKey(key)) {
       key.preventDefault()
       key.stopPropagation()
-      const next = !sessionMgr.sandboxEnabled
-      sessionMgr.setSandbox(next)
-      setSandboxOn(next)
-      pushToast(next ? 'Sandbox enabled — takes effect on next run' : 'Sandbox disabled — takes effect on next run', next ? 'success' : 'warning')
+      const next = cyclePermissionMode(sessionMgr.permissionMode)
+      sessionMgr.setPermissionMode(next)
+      setPermissionMode(next)
+      pushToast(permissionModeToast(next), next === 'yolo' ? 'warning' : 'success')
       return
     }
     if (isModelKey(key)) {
@@ -698,7 +779,9 @@ export const SessionPage = (props: SessionPageProps) => {
     const target = session()
     try {
       await target?.flush()
-    } catch {}
+    } catch (error) {
+      logDebug('swallowed error', { scope: 'session-page', error })
+    }
     await stopAllBackgroundShells().catch(() => {})
     setExitStatus(
       target
@@ -715,10 +798,14 @@ export const SessionPage = (props: SessionPageProps) => {
     )
     try {
       await flushThemeSave()
-    } catch {}
+    } catch (error) {
+      logDebug('swallowed error', { scope: 'session-page', error })
+    }
     try {
       closePromptHistory()
-    } catch {}
+    } catch (error) {
+      logDebug('swallowed error', { scope: 'session-page', error })
+    }
     try {
       renderer.destroy()
     } catch {
@@ -742,7 +829,9 @@ export const SessionPage = (props: SessionPageProps) => {
     try {
       try {
         await target.flush()
-      } catch {}
+      } catch (error) {
+        logDebug('swallowed error', { scope: 'session-page', error })
+      }
       detachQueue?.()
       await sessionMgr.evictSession(target.id)
       batch(() => {
@@ -772,7 +861,9 @@ export const SessionPage = (props: SessionPageProps) => {
     try {
       try {
         await target.flush()
-      } catch {}
+      } catch (error) {
+        logDebug('swallowed error', { scope: 'session-page', error })
+      }
       detachQueue?.()
       await sessionMgr.evictSession(target.id)
       batch(() => {
@@ -957,7 +1048,9 @@ export const SessionPage = (props: SessionPageProps) => {
         }
         try {
           await target.flush()
-        } catch {}
+        } catch (error) {
+          logDebug('swallowed error', { scope: 'session-page', error })
+        }
         resetAuthCache()
         resetMcpAuthCache()
         try {
@@ -1073,6 +1166,22 @@ export const SessionPage = (props: SessionPageProps) => {
     if (target.error) showError(target.error)
   }
 
+  const respondToApproval = async (approved: boolean, alwaysAllow: boolean) => {
+    const target = session()
+    const pending = approval()
+    if (!target || !pending) return
+    setAnswering(true)
+    try {
+      await target.respondApproval({ approvalId: pending.approvalId, approved, toolName: pending.toolName, alwaysAllow })
+      setApproval(undefined)
+      pushToast(alwaysAllow ? `${pending.toolName} always allowed` : approved ? 'Approved' : 'Denied', approved || alwaysAllow ? 'success' : 'warning')
+    } catch (error) {
+      showError(error)
+    } finally {
+      setAnswering(false)
+    }
+  }
+
   const handleRevert = (messageId: string) => {
     const target = session()
     if (!target) {
@@ -1150,6 +1259,19 @@ export const SessionPage = (props: SessionPageProps) => {
         />
         <SessionQueue items={queued()} onRemove={handleRemoveQueued} />
         <SessionBangOutput />
+        <Show when={approval()}>
+          {(pending: () => PendingApproval) => (
+            <PermissionPrompt
+              model={modelKey() ?? 'model'}
+              toolName={pending().toolName}
+              input={pending().input}
+              highlight={approvalHighlight()}
+              onYes={() => void respondToApproval(true, false)}
+              onNo={() => void respondToApproval(false, false)}
+              onAlwaysAllow={() => void respondToApproval(true, true)}
+            />
+          )}
+        </Show>
         <SessionPrompt
           onPrompt={handlePrompt}
           streaming={isStreaming()}
@@ -1175,7 +1297,7 @@ export const SessionPage = (props: SessionPageProps) => {
           mode={mode()}
           waiting={waiting() || answering()}
           mcp={mcp()}
-          sandbox={sandboxOn()}
+          permissionMode={permissionMode()}
           bgJobs={bgJobs()}
           provider={modelKey() ? { id: modelKey()?.split('/')[0] ?? '' } : undefined}
           statsStatus={statsStatus()}

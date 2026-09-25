@@ -1,8 +1,8 @@
+import { budgetExceeded } from '@agent/loop/budget.ts'
 import { createDoomLoopGuard } from '@agent/loop/doom-loop.ts'
 import { createLoopStatsStore } from '@agent/loop/loop-stats.ts'
 import { createPrepareCall } from '@agent/loop/prepare-call.ts'
 import { resolveInitialModel } from '@agent/loop/resolve-initial-model.ts'
-import { withSandbox } from '@agent/loop/sandbox-agent.ts'
 import { createSystemBuilder } from '@agent/loop/system-builder.ts'
 import { buildToolOrder } from '@agent/loop/tool-order.ts'
 import { createLoopTransport } from '@agent/loop/transport.ts'
@@ -15,6 +15,7 @@ import { buildToolSet } from '@agent/tools/toolset.ts'
 import { options } from '@config/options.ts'
 import { selectStatusLineItems } from '@config/provider-status-line.ts'
 import { createMcpManager } from '@integrations/mcp/client.ts'
+import { logDebug } from '@shared/logger.ts'
 import { ToolLoopAgent, type ToolSet } from 'ai'
 
 export type { LoopStats, LoopStepCost, LoopStepStats } from '@agent/loop/loop-stats.ts'
@@ -55,7 +56,9 @@ export function createLoop(getConfig: () => LoopConfig): Loop {
           if (item.type !== 'endpoint') continue
           try {
             values[item.label] = await fetchProviderEndpoint(provider, item.endpoint)
-          } catch {}
+          } catch (error) {
+            logDebug('swallowed error', { scope: 'create-loop', error })
+          }
         }
         if (Object.keys(values).length === 0) return
         try {
@@ -89,7 +92,26 @@ export function createLoop(getConfig: () => LoopConfig): Loop {
     },
     prepareCall,
   })
-  const agent = withSandbox(loopAgent, cwd, () => getConfig().sandbox !== false)
+  const agent = loopAgent
   const transport = createLoopTransport(agent, isPersistent)
-  return { agent, transport, mcp, stats: statsStore.get, onStats: statsStore.onChange, restoreStats: statsStore.restore, addExternalCost: statsStore.addExternal, refreshEndpoints }
+  const budgetListeners = new Set<() => void>()
+  let budgetFired = false
+  let budgetSubscription: (() => void) | undefined
+  const onBudgetExceeded = (listener: () => void): (() => void) => {
+    budgetListeners.add(listener)
+    budgetSubscription ??= statsStore.onChange((stats) => {
+      if (budgetFired) return
+      if (!budgetExceeded(stats.cost, options.harness.budgetLimitUsd)) return
+      budgetFired = true
+      for (const notify of budgetListeners) notify()
+    })
+    return () => {
+      budgetListeners.delete(listener)
+      if (budgetListeners.size === 0) {
+        budgetSubscription?.()
+        budgetSubscription = undefined
+      }
+    }
+  }
+  return { agent, transport, mcp, stats: statsStore.get, onStats: statsStore.onChange, restoreStats: statsStore.restore, addExternalCost: statsStore.addExternal, refreshEndpoints, onBudgetExceeded }
 }

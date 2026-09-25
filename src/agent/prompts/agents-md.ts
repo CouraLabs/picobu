@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { logDebug } from '@shared/logger.ts'
 
 export async function loadAgentsMarkdown(cwd: string): Promise<string | undefined> {
   for (const name of ['AGENTS.md', 'CLAUDE.md']) {
@@ -7,7 +8,9 @@ export async function loadAgentsMarkdown(cwd: string): Promise<string | undefine
       const content = await readFile(join(cwd, name), 'utf8')
       if (!content.trim()) continue
       return content.length > 2000 ? `${content.slice(0, 2000)}\n…[truncated, read the file for the rest]` : content
-    } catch {}
+    } catch (error) {
+      logDebug('swallowed error', { scope: 'agents-md', error })
+    }
   }
   return undefined
 }

@@ -34,7 +34,7 @@ describe('spawn tool view helpers', () => {
 describe('built-in subagents', () => {
   test('each built-in keeps its own name and description', async () => {
     const names = (await listSubagents()).map((s) => s.name).sort()
-    expect(names).toEqual(['Debugger', 'Executor', 'Explorer', 'Reviewer'])
+    expect(names).toEqual(['Debugger', 'Executor', 'Explorer', 'Plan Reviewer', 'Reviewer'])
     for (const subagent of await listSubagents()) {
       expect(subagent.description.length).toBeGreaterThan(0)
     }
