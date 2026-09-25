@@ -1,6 +1,6 @@
 {
   "name": "@couralabs/picobu",
-  "version": "0.35.2",
+  "version": "0.35.3",
   "description": "Terminal coding agent — reads, plans, edits and verifies your code — with a TUI, CLI, MCP and multi-provider support on the Vercel AI SDK",
   "license": "MIT",
   "module": "dist/cli.js",
