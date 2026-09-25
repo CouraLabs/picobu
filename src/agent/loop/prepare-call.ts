@@ -42,7 +42,7 @@ export const createPrepareCall = (deps: PrepareCallDeps): ToolLoopAgentSettings<
     const nativeTools = toolSet.getToolSet()
     const tools = { ...nativeTools, ...mcpTools }
     const mcpNames = Object.keys(mcpTools)
-    const activeTools = buildActiveTools(agentDef.tools, Object.keys(nativeTools), mcpNames)
+    const activeTools = buildActiveTools(agentDef.tools, Object.keys(tools), mcpNames)
     const base = {
       ...rest,
       model: resolved.model,

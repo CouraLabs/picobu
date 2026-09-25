@@ -47,6 +47,27 @@ describe('createPrepareCall providerOptions', () => {
   })
 })
 
+describe('createPrepareCall active tools', () => {
+  const run = async (agentId: string, tools: Record<string, unknown>, mcpTools: Record<string, unknown>) => {
+    const fn = createPrepareCall({
+      getConfig: () => ({ agentId, modelKey: 'test-cache/test', thinking: 'none' }),
+      toolSet: { getTools: () => [], getToolSet: () => tools as never },
+      mcp: { tools: async () => mcpTools } as never,
+      buildSystem: async () => 'system',
+      doomLoopGuard: createDoomLoopGuard(),
+    })
+    if (!fn) throw new Error('createPrepareCall returned no prepareCall')
+    return fn({ options: { sessionMode: 'chat' }, prompt: 'hi' } as never)
+  }
+
+  test('keeps every mcp tool active for an agent that declares a tool subset', async () => {
+    const result = await run('coder', { read: {}, write: {} }, { mcp_linear_create: {}, mcp_linear_list: {} })
+    expect(result?.activeTools).toContain('read')
+    expect(result?.activeTools).toContain('mcp_linear_create')
+    expect(result?.activeTools).toContain('mcp_linear_list')
+  })
+})
+
 const copilotProvider: ProviderOptions = {
   id: 'github-copilot',
   name: 'GitHub Copilot',
