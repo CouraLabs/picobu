@@ -35,7 +35,7 @@ No UI logic lives in the agent loop.
 
 Every `src/` folder is importable as `@<folder>` via `tsconfig.json` paths (e.g. `import { options } from "@config/options.ts"`); tests import via relative paths and mirror `src/` under `tests/`.
 
-Tech stack: Vercel AI SDK (`ai`, `@ai-sdk/*`) · XState Store · Zod · Bun · Biome (single quotes, no semicolons, 2-space indent).
+Tech stack: Vercel AI SDK (`ai`, `@ai-sdk/*`) · OpenTUI + Solid (`@opentui/*`, `solid-js`) · Zod · Bun · Biome (single quotes, no semicolons, 2-space indent).
 
 ## See also
 

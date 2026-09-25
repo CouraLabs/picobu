@@ -1,6 +1,6 @@
 # Picobu documentation
 
-Modular documentation for Picobu, a headless autonomous coding agent core. Start with [usage](usage.md) for a guided tour, or jump straight to a topic below. The root [README](../README.md) holds the project background and install basics.
+Modular documentation for Picobu, a terminal coding agent with a headless, UI-agnostic core. Start with [usage](usage.md) for a guided tour, or jump straight to a topic below. The root [README](../README.md) holds the project background and install basics.
 
 ## Index
 
@@ -20,7 +20,7 @@ Modular documentation for Picobu, a headless autonomous coding agent core. Start
 | [usage/tools.md](usage/tools.md) | The tool catalog agents run with |
 | [usage/mcp.md](usage/mcp.md) | MCP servers: transports, auth, namespacing, discovery |
 
-WhatsApp is currently documented in the root [README](../README.md#whatsapp).
+WhatsApp (a shipped-but-dormant Baileys integration) is documented in the root [README](../README.md#whatsapp).
 
 ## Where data lives
 

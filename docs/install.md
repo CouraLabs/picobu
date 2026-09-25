@@ -2,7 +2,7 @@
 
 ## Requirements
 
-- [Bun](https://bun.sh) ≥ 1.x
+- [Bun](https://bun.sh) ≥ 1.3.0
 - A terminal font with current programmer-glyph coverage (e.g. an up-to-date Source Code Pro, JetBrains Mono, or equivalent Nerd Fonts coverage) — the TUI status icons assume it
 - A model: an API key (any `@opencode-ai/models` provider `env` var, e.g. `HYPER_API_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GITHUB_TOKEN`, `GOOGLE_API_KEY`, `XAI_API_KEY`, `OPENROUTER_API_KEY`) or an OAuth login — see [configuration/providers.md](configuration/providers.md)
 

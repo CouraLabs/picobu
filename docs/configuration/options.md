@@ -12,7 +12,7 @@ This page covers the file's structure, defaults, environment variables, and valu
 | `statusLine` | Maps provider ids to status chips on the session footer provider row | `[]` |
 | `sessionStatusLayout` | Which segments render on the session status bar, and in what order | 4-line default (see [session-layout.md](session-layout.md)) |
 | `sessionHeaderLayout` | Which segments render on the session header (max 1 line) | workspace, context, notification |
-| `harness` | `defaultModel` (`"<providerId>/<modelId>"`), per-role model/thinking overrides, `maxAgents` | empty until first login or manual edit |
+| `harness` | `defaultModel` (`"<providerId>/<modelId>"`), per-role model/thinking overrides, `maxAgents`, `doomLoop` | empty until first login or manual edit |
 | `tui` | `theme` (`{key, variant: dark\|light}`, default `picobu/dark`) and `maxMessages` (default 20) | seeded on first run |
 | `web` | Web server `{host, port}` — reserved; see note below | `{host: "0.0.0.0", port: 8080}` |
 | `whatsapp` | `enabled` flag and `allowedNumbers` allow-list | `{enabled: false, allowedNumbers: []}` |
@@ -23,7 +23,7 @@ See [WhatsApp](../../README.md#whatsapp) in the root README for the `whatsapp` b
 
 ### The `web` block
 
-`web` is seeded, persisted, and normalized, but nothing binds a listener to it today — `picobu --server` bootstraps providers and runs the WhatsApp daemon without a web UI. Treat it as reserved for a future web frontend.
+`web` is seeded, persisted, and normalized, but nothing binds a listener to it today — `picobu --server` bootstraps providers with no UI attached. Treat it as reserved for a future web frontend.
 
 ### Watchdog
 
@@ -32,6 +32,15 @@ See [WhatsApp](../../README.md#whatsapp) in the root README for the `whatsapp` b
 | `staleTimeoutMs` | `300000` (5 minutes, floor 5000) | A run is stale after this much inactivity — see [../usage/sessions.md](../usage/sessions.md#watchdog) |
 | `enableNotificationWhenStale` | `true` | Surface a stale-run notification |
 | `enableContinuePromptWhenStale` | `false` | Offer a continue prompt on stale runs |
+
+### Harness
+
+| Key | Default | Meaning |
+| --- | --- | --- |
+| `defaultModel` | — (set on first login) | `"<providerId>/<modelId>"` backing every role with no override |
+| `modelRoles` | — | Per-role model/thinking overrides (`tiny`, `flash`, `flashThinking`, `heavy`, `heavyThinkingLevel`) — see [providers.md](providers.md) |
+| `maxAgents` | `4` | Concurrent spawned sub sessions tree-wide (options.json requires ≥ 1; the `SessionManager` library API accepts `0` to disable spawning) |
+| `doomLoop` | `true` | Detect repeated identical messages or tool calls and steer, then halt the run (`false` disables the guard) |
 
 ### Legacy keys
 

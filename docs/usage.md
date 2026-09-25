@@ -7,7 +7,7 @@ Launch `picobu` (or `bun dev` from a clone). Bootstrap runs first — providers 
 1. **Prompt.** Type at the prompt and press enter. The active agent (Coder by default) starts a run: streamed text and reasoning appear as they generate, and tool calls render as collapsible blocks with their output.
 2. **Interrupts.** When the agent needs a decision it uses `ask`, which renders a structured question form inline — the run pauses until you answer. The Plan agent submits its plan with `plan-write`, which pauses for your approval or rejection before any code is written.
 3. **Queue and steer.** Prompts typed while a run is active are queued (`queue`); steer mode (`CTRL+W`/`F4`) delivers your follow-up mid-run instead (`steer` — it never clears the queue). `ESC ESC` interrupts: answers the flow first, moves the newest queued prompt back to edit, then stops the run.
-4. **Wrap up.** `/q` quits; sessions persist automatically, so `picobu --session <id>` (or `--session` alone) resumes where you left off.
+4. **Wrap up.** `/q` quits; sessions persist automatically, so `picobu --session <id>` resumes where you left off (bare `--session` without an id opens a fresh session).
 
 ## Slash commands
 
@@ -29,6 +29,14 @@ Type `/` at the prompt for the command flyout. Built-ins:
 | `/session-header-view` | `/session-header`, `/header-view` | Configure the session header layout |
 
 Skills (`/skill:<name>`) and project workflows appear in the flyout dynamically as they're discovered. `TAB` completes the highlighted command; `UP`/`DOWN` move the highlight.
+
+## Shell prefix
+
+Type `! <command>` at the prompt to run a shell command in the session workspace without the agent. Output appears in a transient region below the chat and clears on the next prompt; files are ignored and the command times out at 60s.
+
+## Update check
+
+On startup the TUI asks GitHub for the latest release; when it differs from the running version it is shown in parentheses in the app footer next to the current version, e.g. `v0.35.2 (0.36.0)`. The check is fire-and-forget and never blocks the UI.
 
 ## Where to next
 

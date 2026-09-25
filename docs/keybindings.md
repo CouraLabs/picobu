@@ -1,6 +1,6 @@
 # Keyboard shortcuts and mouse
 
-Shortcut actions fire when the key is **released**, so holding a key never repeats the action. Double-press chords use a 200ms window. On terminals that cannot report key releases (no Kitty keyboard protocol — e.g. Apple Terminal, tmux, Windows ConPTY), shortcuts transparently fall back to acting on key press. On Windows, ctrl+letter chords reported as alt+letter are also accepted.
+Shortcut actions fire when the key is **released**, so holding a key never repeats the action. Double-press chords use a 600ms window. On terminals that cannot report key releases (no Kitty keyboard protocol — e.g. Apple Terminal, tmux, Windows ConPTY), shortcuts transparently fall back to acting on key press. On Windows, ctrl+letter chords reported as alt+letter are also accepted.
 
 The in-app help (`F1`) is the always-current source; it also lists your discovered skills, workflows, rules, and subagents.
 
@@ -12,7 +12,7 @@ The in-app help (`F1`) is the always-current source; it also lists your discover
 | `CTRL+D` `CTRL+D` / `F10` | Exit the app (double-press) |
 | `ESC` | Close dialogs |
 | `ESC` `ESC` | Interrupt: answer the flow first, move the newest queued prompt back to edit, then stop the run |
-| `CTRL+U` / `F2` | Change model (same chord again closes the dialog) |
+| `CTRL+U` / `CTRL+O` / `F2` | Change model (same chord again closes the dialog) |
 | `CTRL+K` / `F3` | Subagent jobs (same chord again closes the dialog) |
 | `CTRL+W` / `F4` | Toggle steer mode (steer never clears the queue) |
 | `SHIFT+TAB` | Cycle agent |

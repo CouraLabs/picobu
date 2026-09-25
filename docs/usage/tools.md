@@ -1,6 +1,6 @@
 # Tools
 
-Every tool carries a JSON Schema that is rendered into the system prompt. Agents with empty `tools` frontmatter get everything below; explicit-tool agents (like `coder`) opt in by name — including MCP tools, which only all-tools agents pick up automatically. MCP servers add more tools at runtime — see [mcp.md](mcp.md).
+Every tool carries a JSON Schema that is rendered into the system prompt. Agents with empty `tools` frontmatter get everything below; explicit-tool agents (like `coder`) opt in by name. MCP tools are the exception: they are always active for every agent, whichever tools it declares — only `tools: none` opts out. MCP servers add more tools at runtime — see [mcp.md](mcp.md).
 
 ## Filesystem
 
@@ -25,6 +25,7 @@ Every tool carries a JSON Schema that is rendered into the system prompt. Agents
 | `ask` | **Interrupting** — ask the user up to 5 structured single/multiple-choice questions; the run pauses until answers arrive |
 | `plan-write` | **Interrupting** — submit the finished plan for review; the run pauses for approval/rejection |
 | `plan-exit` | Hand off to the coder agent to implement the approved plan (only after explicit approval) |
+| `grill-exit` | **Interrupting** — end the Grill interview once a shared design understanding is confirmed |
 | `spawn` | **Blocking** — run a subagent by name as an isolated sub session; parallel spawns settle together |
 
 ## External
@@ -43,6 +44,8 @@ Web tools use headless Chrome with a real-Chrome identity (bot-protection resist
 | `wwp-msg` | Send a WhatsApp text message to a phone number (WhatsApp integration) |
 | `wwp-today` | Add a task to the user's `today` todo list (WhatsApp integration) |
 | `mcp_<server>_<tool>` | Auto-discovered MCP tools, namespaced and capped at 64 chars — see [mcp.md](mcp.md) |
+
+The `wwp-*` tools require a live WhatsApp connection; the integration modules ship but are not wired into the current CLI/TUI, so they are inert until a host connects them (see the root [README](../../README.md#whatsapp)).
 
 ## See also
 

@@ -2,13 +2,18 @@
 
 [![standard-readme compliant](https://img.shields.io/badge/readme%20style-standard-brightgreen.svg?style=flat-square)](https://github.com/RichardLitt/standard-readme)
 
-A headless autonomous coding agent core. One agent loop — read, plan, edit — exposed as a library and a minimal CLI, built on the Vercel AI SDK. Attach your own frontend (TUI, web, chat bot) on top, or drive it from the WhatsApp integration that ships in-repo.
+An open-source coding agent for your terminal. Point Picobu at a project and it reads the code, reasons about the task, edits files, runs commands, and verifies its own work — in a fast OpenTUI interface built on the Vercel AI SDK.
 
 ## Table of Contents
 
 - [Background](#background)
 - [Install](#install)
 - [Usage](#usage)
+  - [Agents](#agents)
+  - [Tools](#tools)
+  - [Providers and models](#providers-and-models)
+  - [Sessions](#sessions)
+  - [Configuration](#configuration)
 - [Documentation](#documentation)
 - [WhatsApp](#whatsapp)
 - [Related Efforts](#related-efforts)
@@ -18,38 +23,23 @@ A headless autonomous coding agent core. One agent loop — read, plan, edit —
 
 ## Background
 
-Picobu started from frustration. I used Claude Code, Codex, GitHub Copilot, Opencode, and Pi extensively — and each of them got something right. Claude Code's agentic loop, Codex's task focus, Copilot's editor presence and model access, Opencode's openness and provider flexibility, Pi's minimalism. But none of them put the whole package together: every tool coupled the agent to its own interface, its own provider deals, its own opinions about how you should work. Switching tools meant relearning workflows and losing session history, and bending any of them to a custom frontend — a bot, a web view, a chat channel — meant fighting the product instead of building on it.
+Picobu started from frustration. I used Claude Code, Codex, GitHub Copilot, Opencode, and Pi extensively — and each of them got something right. Claude Code's agentic loop, Codex's task focus, Copilot's editor presence and model access, Opencode's openness and provider flexibility, Pi's minimalism. But none of them put the whole package together: every tool locked the agent to its own interface, its own provider deals, its own opinions about how you should work. Switching tools meant relearning workflows and losing session history.
 
-So Picobu takes the opposite bet: keep the agent runtime headless and take the best ideas from each of those tools — strong plan-then-execute flows, interruptible `ask` steps, delegating subagents, model-role routing, MCP extensibility, persistent sessions with undo — and ship them as one open core you can attach anything to.
+Picobu is that package: a coding agent for your terminal, with the best ideas from each of those tools built in. Point it at a project and it reads the code, reasons about the task, edits files, runs commands, and verifies its own work — with a rich OpenTUI interface for streaming runs, reviewing plans, and steering mid-flight. Underneath, the agent runtime stays headless and UI-agnostic, so the CLI, the headless server, and anything you build on the session facade drive the exact same loop, skills, and history. That core owns the agent loop (`ToolLoopAgent` from the `ai` SDK), session persistence, model resolution, tool execution, subagent delegation, MCP clients, OAuth credentials, and checkpointed undo/redo.
 
-Technically, that means the core owns the agent loop (`ToolLoopAgent` from the `ai` SDK, 100-step cap per run), session persistence, model resolution, tool execution, subagent delegation, MCP clients, OAuth credentials, and the WhatsApp connection. Frontends — the reference OpenTUI terminal UI, or anything you build on the session facade and headless chat state — only render and drive runs.
+The ideas worth keeping: strong plan-then-execute flows, an interview-first design agent, interruptible `ask` steps, delegating subagents, model-role routing, MCP extensibility, and persistent sessions with undo.
 
-Project instructions are automatic: when a session starts, the system prompt embeds `AGENTS.md` (or `CLAUDE.md`) from the working directory (truncated at 2000 chars), plus discovered skills, rules, subagents, and MCP tool schemas. Every write/edit is checkpointed for undo/redo and every run accumulates cost totals.
-
-> Your documentation is complete when someone can use your module without ever
-> having to look at its code.
-
-Picobu aims at that bar: the session facade, CLI, and `~/.picobu/options.json` are the documented interface; the loop internals stay free to change.
+Project instructions are automatic: when a session starts, the system prompt embeds `AGENTS.md` (or `CLAUDE.md`) from the working directory (truncated at 2000 chars), plus discovered skills, rules, subagents, and MCP tool schemas.
 
 ## Install
 
 Requirements:
 
-- [Bun](https://bun.sh) ≥ 1.x
-- [git](https://git-scm.com) is no longer required for the npm install path
+- [Bun](https://bun.sh) ≥ 1.3.0
 - A terminal font with current programmer-glyph coverage (e.g. an up-to-date Source Code Pro, JetBrains Mono, or equivalent Nerd Fonts coverage) — the TUI status icons assume it
-- A model: API key (any `@opencode-ai/models` provider `env` var, e.g. `HYPER_API_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GITHUB_TOKEN`, `GOOGLE_API_KEY`, `XAI_API_KEY`, `OPENROUTER_API_KEY`) or an OAuth login (see [docs/configuration/providers.md](docs/configuration/providers.md))
+- A model: an API key (any `@opencode-ai/models` provider `env` var, e.g. `HYPER_API_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GITHUB_TOKEN`, `GOOGLE_API_KEY`, `XAI_API_KEY`, `OPENROUTER_API_KEY`) or an OAuth login — see [Providers and models](#providers-and-models)
 
-From source:
-
-```sh
-git clone https://github.com/CouraLabs/picobu.git
-cd picobu
-bun install
-bun dev
-```
-
-Install with [Bun](https://bun.sh) from npm (puts `picobu` on your PATH; installs `bun` and provisions Chrome for the web tool when missing):
+Install with [Bun](https://bun.sh) from npm (puts `picobu` on your PATH; installs `bun` and provisions Chrome for the web tools when missing):
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/CouraLabs/picobu/refs/heads/master/scripts/install.sh | bash
@@ -67,7 +57,7 @@ Without installing anything (`bun` runs the published package directly):
 bunx @couralabs/picobu
 ```
 
-Or install/update/remove the global package yourself:
+Or manage the global package yourself:
 
 ```sh
 bun add -g @couralabs/picobu     # install
@@ -75,7 +65,16 @@ bun update -g @couralabs/picobu  # update
 bun remove -g @couralabs/picobu  # remove
 ```
 
-The installers pin the release they shipped with; set `PICOBU_VERSION=latest` to track the newest release. Sessions, settings and credentials still live in `~/.picobu`.
+From source:
+
+```sh
+git clone https://github.com/CouraLabs/picobu.git
+cd picobu
+bun install
+bun dev
+```
+
+The installers pin the release they shipped with; set `PICOBU_VERSION=latest` to track the newest release. Sessions, settings, and credentials live in `~/.picobu`.
 
 Uninstall (removes the global package, the data directory `~/.picobu`, and any legacy `~/.picobu/bin` PATH entry):
 
@@ -83,13 +82,11 @@ Uninstall (removes the global package, the data directory `~/.picobu`, and any l
 curl -fsSL https://raw.githubusercontent.com/CouraLabs/picobu/refs/heads/master/scripts/uninstall.sh | bash
 ```
 
-The web tools (`webfetch`/`websearch`) need Puppeteer's Chrome; the installers provision it automatically, and `bun install` handles it for source installs.
-
 Install troubleshooting, verification, and smoke-test notes live in [docs/install.md](docs/install.md).
 
 ## Usage
 
-Run the bootstrap (autoloads providers, refreshes OAuth tokens, connects WhatsApp when enabled):
+Launch `picobu` in a project directory to open the TUI on a session for that folder:
 
 ```sh
 picobu                    # open the TUI
@@ -99,17 +96,57 @@ picobu --server           # start the headless server (no UI)
 picobu sessions           # list saved sessions for the current folder
 ```
 
-`picobu --server` bootstraps (autoloads providers, refreshes OAuth tokens, connects WhatsApp when enabled) and prints `picobu headless server ready (no UI attached).`
+At the prompt, type a request and press enter. Streamed text, reasoning, and tool calls render as they happen; `ask` questions and plan reviews pause the run for your input. Type `/` for the command flyout (`/models`, `/fork`, `/compact`, `/summarize`, `/new`, `/reload`, `/export`, …), `!` to run a raw shell command in the workspace, or `SHIFT+TAB` to cycle agents. Press `F1` for the always-current keybinding help.
 
-Full CLI, keyboard shortcuts, agents, tools, MCP, and configuration live in [`docs/`](docs/README.md).
+The session footer shows the active agent, model, thinking effort, run state, token/timing metrics, cost, and MCP status; the header shows the workspace, context, and notifications. Both are rearranged with the layout dialogs. See [docs/keybindings.md](docs/keybindings.md) and [docs/usage.md](docs/usage.md) for the full tour.
+
+### Agents
+
+Picobu ships five built-in agents:
+
+| Agent | What it does |
+| --- | --- |
+| `coder` | The default. Edits files, runs commands, and verifies end to end. |
+| `ask` | Fast, read-only Q&A — cannot edit or execute. |
+| `grill` | Interviews you to reach a shared design before any plan or code. |
+| `plan-code` | Produces an ordered implementation plan and hands off to the coder on approval. |
+| `persistent` | Runs each prompt as a fresh, stateless session mode. |
+
+`SHIFT+TAB` cycles the four conversational agents (`ask` → `grill` → `plan-code` → `coder`). Agents delegate work to four built-in subagents — `executor`, `explorer`, `reviewer`, `debugger` — via the `spawn` tool, which runs each as an isolated sub session. You can add your own subagents as markdown files in `.agents/agents/*.md`. See [docs/usage/agents.md](docs/usage/agents.md).
+
+### Tools
+
+Agents work with a built-in tool catalog: `read`, `write`, `edit`, `glob`, `grep`, and `shell` (streaming output, background jobs, timeouts; collect with `task_output`, stop with `task_stop`) for the filesystem; `todo`, `skill`, `rule`, `ask`, `plan-write`, `plan-exit`, `grill-exit`, and `spawn` for flow; `websearch` and `webfetch` for the web. MCP servers add namespaced tools at runtime, active for every agent that doesn't declare `tools: none`. See [docs/usage/tools.md](docs/usage/tools.md).
+
+### Providers and models
+
+Picobu talks to any provider the Vercel AI SDK supports. Providers autoload from the [models.dev](https://models.dev) catalog when their API-key env vars are set, or you can log in to a subscription provider with OAuth:
+
+```sh
+picobu login                    # list OAuth provider status
+picobu login <provider>         # start a login (openai, anthropic, github-copilot, xai, …)
+picobu logout <provider>        # log out and repoint harness selectors
+```
+
+Model access is organized into roles (`tiny`, `flash`, `heavy`) that agents map onto, editable in `options.json`. See [docs/configuration/providers.md](docs/configuration/providers.md).
+
+### Sessions
+
+Every conversation is a session, persisted incrementally to `~/.picobu/sessions/`. Sessions resume by id, fork, compact, summarize, and export to HTML; every write/edit is checkpointed so you can undo and redo. The last 20 prompts (and drafts) persist per project, recalled with `TAB`.
+
+### Configuration
+
+All settings live in one file, `~/.picobu/options.json` — providers, harness and model roles, theme (35 bundled) and TUI layout, MCP servers, watchdog, and the WhatsApp block. It is seeded with defaults on first launch and migrated as Picobu evolves. See [docs/configuration/options.md](docs/configuration/options.md).
 
 ## Documentation
 
-All documentation is modular under [`docs/`](docs/README.md) — start there for usage, configuration, agents, tools, sessions, and MCP.
+Full documentation is modular under [`docs/`](docs/README.md) — usage, keybindings, install, frontends, configuration, agents, tools, sessions, and MCP. Start with [docs/README.md](docs/README.md).
 
 ## WhatsApp
 
-Baileys integration (unofficial WhatsApp Web API) in `src/integrations/whatsapp/`. When `whatsapp.enabled` is set, `connectToWhatsApp()` runs at bootstrap and reconnects from `~/.picobu/whatsapp/auth` (0700) without a QR, retrying 10×/3s. `allowedNumbers` lists phone numbers allowed to talk to the agent (the paired phone is always allowed regardless; outbound sending still works). Inbound messages from allowed numbers are submitted to the persistent session, which replies and acts via `wwp-msg`/`wwp-today`. Agent-sent texts carry an invisible zero-width-space sentinel so `fromMe` echoes are recognized and dropped. Pairing codes, QR/status/errors, contacts, and the `today` todo list (`~/.picobu/whatsapp/today.json`) are managed alongside the connection. Group (`@g.us`) and broadcast messages are ignored.
+A Baileys integration (unofficial WhatsApp Web API) lives in `src/integrations/whatsapp/` — connection and reconnect handling (auth persisted to `~/.picobu/whatsapp/auth`, 0700, retrying 10×/3s), the QR/pairing-code status store, contacts, the `today` todo list (`~/.picobu/whatsapp/today.json`), an inbound bus, and the `wwp-msg`/`wwp-today` agent tools.
+
+The connection is **not wired into the current runtime**: the CLI bootstrap and the TUI neither call `connectToWhatsApp()` nor subscribe to inbound messages, so the `whatsapp.enabled`/`allowedNumbers` options are inert today and the integration is dormant until a host frontend wires the bus and the connection back up. The modules and tools remain importable and tested.
 
 ## Related Efforts
 

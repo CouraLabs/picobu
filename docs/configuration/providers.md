@@ -68,14 +68,14 @@ Common autoload keys: `HYPER_API_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `G
 | Role | Purpose | Default thinking |
 | --- | --- | --- |
 | `tiny` | Fast, cheap lookups (session titles) | `none` |
-| `flash` | Default workhorse for all agents (ask, coder, plan, …) | `flashThinking` |
+| `flash` | Default workhorse for the `ask` and `coder` agents | `flashThinking` |
 | `flashThinking` | Thinking level for `flash` | `medium` |
-| `heavy` | Reserved heavy role | — |
+| `heavy` | The `grill` and `plan-code` agents | `heavyThinkingLevel` |
 | `heavyThinkingLevel` | Thinking level for `heavy` | `high` |
 
-`heavy` and `heavyThinkingLevel` are accepted in `harness.modelRoles` but no runtime path resolves them today.
+The conversational agents map to a role (`ask`/`coder` → `flash`, `grill`/`plan-code` → `heavy`; `persistent` has no role and runs on `flash`); switching agent in the TUI re-resolves its model and thinking from that role.
 
-`harness.maxAgents` (default `4`) caps concurrent spawned sub sessions tree-wide. Set `0` to disable spawning entirely.
+`harness.maxAgents` (default `4`) caps concurrent spawned sub sessions tree-wide. options.json requires it to be ≥ 1; the `SessionManager` library API accepts `0` to disable spawning entirely.
 
 ## OAuth login
 

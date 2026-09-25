@@ -32,17 +32,19 @@ Agent prompt body here.
 
 - `tools` accepts a comma list, `*` for all tools, or `none` for no tools. An empty value means all tools.
 - `model` optionally pins a model key (`"<providerId>/<modelId>"`).
-- A custom agent whose `name` matches a built-in subagent (`executor`, `explorer`, `reviewer`) overrides it for this project.
+- A custom agent whose `name` matches a built-in subagent (`executor`, `explorer`, `reviewer`, `debugger`) overrides it for this project.
 
-Every subagent prompt gets two rules appended automatically: no user interaction (never ask, wait, or submit plans — resolve ambiguity yourself and state assumptions), and finish with a self-contained summary as the last text message. Interactive tools are stripped from the tool list, and spawn depth is capped at 3.
+Picobu ships four built-in subagents — `executor` (single-task implementer), `explorer` (read-only codebase search), `reviewer` (change review), and `debugger` (root-cause a failure before fixing) — all available to the `spawn` tool. Read-only agents can only spawn read-only subagents (`explorer`, `reviewer`), so write-capable subagents (`executor`, `debugger`) are hidden from and rejected by them.
+
+Every subagent prompt gets a rules block appended automatically: no user interaction (never ask, wait, or submit plans — resolve ambiguity yourself and state assumptions), context isolation (work only from the given prompt), a self-contained summary as the last text message, and a status-line report contract (`DONE` / `DONE_WITH_CONCERNS` / `NEEDS_CONTEXT` / `BLOCKED` plus evidence). Interactive tools are stripped from the tool list, and spawn depth is capped at 3.
 
 ## Skills
 
-Skills are loadable knowledge packs in `.agents/skills/<name>/SKILL.md` with `name` + `description` frontmatter; the body and related files are returned to the agent on demand via the `skill` tool, and `/skill:<name>` runs them as commands. Shipped skills: `ai-sdk`, `baileys-wp`, `opentui`, `typescript-best-practices`, `solid-js-best-practices`.
+Skills are loadable knowledge packs in `.agents/skills/<name>/SKILL.md` with `name` + `description` frontmatter; the body and related files are returned to the agent on demand via the `skill` tool, and `/skill:<name>` runs them as commands. Shipped skills: `ai-sdk`, `baileys-wp`, `opentui`, `release`, `typescript-best-practices`, `solid-js-best-practices`.
 
 ## Rules
 
-Rules are flat markdown files with `name` + `description` frontmatter (a missing description skips the file) that are discovered and applied on demand via the `rule` tool. Shipped rules live in `.agents/rules/`.
+Rules are flat markdown files with `name` + `description` frontmatter (a missing description skips the file) that are discovered and applied on demand via the `rule` tool. No rules ship with Picobu — drop your own into `.agents/rules/` (or `~/.picobu/rules`, `~/.agents/rules`).
 
 ## Workflows, prompts, commands
 
