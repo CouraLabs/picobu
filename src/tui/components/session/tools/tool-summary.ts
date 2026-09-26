@@ -44,6 +44,8 @@ export const isMcpTool = (part: ToolPartLike): boolean => isMcpName(rawToolName(
 
 export const isTodoTool = (part: ToolPartLike): boolean => part.type === 'tool-todo' || (part.type === DYNAMIC_TOOL_TYPE && part.toolName === 'todo')
 
+export const isReloadOptionsTool = (part: ToolPartLike): boolean => rawToolName(part).toLowerCase() === 'reload-options'
+
 const isTodoItemValue = (value: unknown): value is TodoItem =>
   typeof value === 'object' && value !== null && typeof (value as { title?: unknown }).title === 'string' && typeof (value as { done?: unknown }).done === 'boolean'
 
@@ -156,8 +158,9 @@ export const shellErrorLabel = (errorText: string): string => {
 }
 
 // A finished tool only offers expand/collapse when its output has something to show:
-// errored tools and finished-with-empty-output tools collapse to the static row.
+// errored tools, reload-options, and finished-with-empty-output tools stay on the static row.
 export const hasRenderableOutput = (part: ToolPartLike): boolean => {
+  if (isReloadOptionsTool(part)) return false
   if (part.state === 'output-error') return false
   if (part.state !== 'output-available') return true
   const output = part.output
@@ -251,6 +254,8 @@ export const summarizeToolInput = (name: string, input: unknown): string => {
     }
     case 'plan-exit':
     case 'grill-exit':
+      return ''
+    case 'reload-options':
       return ''
     case 'todo': {
       const items = Array.isArray(args.items) ? args.items : undefined
@@ -394,6 +399,10 @@ export const summarizeToolOutput = (name: string, output: unknown, errorText?: s
     case 'grill-exit': {
       const message = args && typeof args.message === 'string' ? args.message : undefined
       return message !== undefined && message.length > 0 ? singleLine(message, OUTPUT_PREVIEW_MAX) : undefined
+    }
+    case 'reload-options': {
+      const ok = args && typeof args.ok === 'boolean' ? args.ok : undefined
+      return ok === undefined ? undefined : ok ? 'Success' : 'Failed'
     }
     case 'todo': {
       const message = args && typeof args.message === 'string' ? args.message : undefined

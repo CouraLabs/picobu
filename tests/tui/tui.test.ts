@@ -192,6 +192,12 @@ describe('summarizeToolInput', () => {
     expect(summarizeToolOutput('grill-exit', { switchedTo: 'plan-code', message: 'Design agreed' })).toBe('Design agreed')
     expect(summarizeToolOutput('grill-exit', {})).toBeUndefined()
   })
+  test('reload-options takes no input and reports Success/Failed from its output', () => {
+    expect(summarizeToolInput('reload-options', {})).toBe('')
+    expect(summarizeToolOutput('reload-options', { ok: true })).toBe('Success')
+    expect(summarizeToolOutput('reload-options', { ok: false })).toBe('Failed')
+    expect(summarizeToolOutput('reload-options', {})).toBeUndefined()
+  })
   test('todo summarizes the written list', () => {
     expect(summarizeToolInput('todo', { items: [1, 2] })).toBe('2 item(s)')
     expect(summarizeToolInput('todo', {})).toBe('?')
@@ -291,6 +297,11 @@ describe('hasRenderableOutput', () => {
     expect(hasRenderableOutput(part({ state: 'input-available' }))).toBe(true)
     expect(hasRenderableOutput(part({ state: 'input-streaming' }))).toBe(true)
     expect(hasRenderableOutput(part({}))).toBe(true)
+  })
+  test('reload-options never expands', () => {
+    expect(hasRenderableOutput(part({ type: 'tool-reload-options', state: 'output-available', output: { ok: true } }))).toBe(false)
+    expect(hasRenderableOutput(part({ type: 'tool-reload-options', state: 'output-available', output: { ok: false } }))).toBe(false)
+    expect(hasRenderableOutput(part({ type: 'tool-reload-options', state: 'input-available' }))).toBe(false)
   })
 })
 
