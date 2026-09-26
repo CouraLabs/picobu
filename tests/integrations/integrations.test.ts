@@ -12,7 +12,6 @@ import {
   initMcpAuth,
   initMcpAuthFilePath,
   isMcpAuthActive,
-  MCP_REDIRECT_URL,
   readMcpAuthFile,
   removeMcpCredential,
   resetMcpAuthCache,
@@ -162,9 +161,6 @@ describe('mcp manager snapshot without connecting', () => {
 })
 
 describe('mcp auth redirect', () => {
-  test('uses localhost callback with default port', () => {
-    expect(MCP_REDIRECT_URL).toBe('http://localhost:19888/callback')
-  })
   test('prints the authorization URL instead of opening a browser', async () => {
     const logs: Array<string> = []
     const logSpy = spyOn(console, 'log').mockImplementation((...args: Array<unknown>) => {

@@ -56,29 +56,37 @@ describe('decodeWin32Input', () => {
     expect(keys?.[0]).toMatchObject({ name: '1', sequence: '1', number: true })
   })
 
-  test('named keys map to opentui names and sequences', () => {
-    expect(decodeWin32Input(seq(13, 13, 0))?.[0]).toMatchObject({ name: 'return', sequence: '\r' })
-    expect(decodeWin32Input(seq(9, 9, 0))?.[0]).toMatchObject({ name: 'tab', sequence: '\t' })
-    expect(decodeWin32Input(seq(8, 8, 0))?.[0]).toMatchObject({ name: 'backspace', sequence: String.fromCharCode(127) })
-    expect(decodeWin32Input(seq(32, 32, 0))?.[0]).toMatchObject({ name: 'space', sequence: ' ' })
-    expect(decodeWin32Input(seq(38, 0, 0))?.[0]).toMatchObject({ name: 'up' })
-    expect(decodeWin32Input(seq(37, 0, 0))?.[0]).toMatchObject({ name: 'left' })
-    expect(decodeWin32Input(seq(39, 0, 0))?.[0]).toMatchObject({ name: 'right' })
-    expect(decodeWin32Input(seq(40, 0, 0))?.[0]).toMatchObject({ name: 'down' })
-    expect(decodeWin32Input(seq(36, 0, 0))?.[0]).toMatchObject({ name: 'home' })
-    expect(decodeWin32Input(seq(35, 0, 0))?.[0]).toMatchObject({ name: 'end' })
-    expect(decodeWin32Input(seq(33, 0, 0))?.[0]).toMatchObject({ name: 'pageup' })
-    expect(decodeWin32Input(seq(34, 0, 0))?.[0]).toMatchObject({ name: 'pagedown' })
-    expect(decodeWin32Input(seq(46, 0, 0))?.[0]).toMatchObject({ name: 'delete' })
-    expect(decodeWin32Input(seq(45, 0, 0))?.[0]).toMatchObject({ name: 'insert' })
-  })
-
-  test('function keys f1 through f12', () => {
-    expect(decodeWin32Input(seq(112, 0, 0))?.[0]).toMatchObject({ name: 'f1' })
-    expect(decodeWin32Input(seq(113, 0, 0))?.[0]).toMatchObject({ name: 'f2' })
-    expect(decodeWin32Input(seq(114, 0, 0))?.[0]).toMatchObject({ name: 'f3' })
-    expect(decodeWin32Input(seq(115, 0, 0))?.[0]).toMatchObject({ name: 'f4' })
-    expect(decodeWin32Input(seq(123, 0, 0))?.[0]).toMatchObject({ name: 'f12' })
+  interface NamedKeyCase {
+    vk: number
+    uc: number
+    name: string
+    sequence?: string
+  }
+  const namedKeyCases: Array<NamedKeyCase> = [
+    { vk: 13, uc: 13, name: 'return', sequence: '\r' },
+    { vk: 9, uc: 9, name: 'tab', sequence: '\t' },
+    { vk: 8, uc: 8, name: 'backspace', sequence: String.fromCharCode(127) },
+    { vk: 32, uc: 32, name: 'space', sequence: ' ' },
+    { vk: 38, uc: 0, name: 'up' },
+    { vk: 37, uc: 0, name: 'left' },
+    { vk: 39, uc: 0, name: 'right' },
+    { vk: 40, uc: 0, name: 'down' },
+    { vk: 36, uc: 0, name: 'home' },
+    { vk: 35, uc: 0, name: 'end' },
+    { vk: 33, uc: 0, name: 'pageup' },
+    { vk: 34, uc: 0, name: 'pagedown' },
+    { vk: 46, uc: 0, name: 'delete' },
+    { vk: 45, uc: 0, name: 'insert' },
+    { vk: 112, uc: 0, name: 'f1' },
+    { vk: 113, uc: 0, name: 'f2' },
+    { vk: 114, uc: 0, name: 'f3' },
+    { vk: 115, uc: 0, name: 'f4' },
+    { vk: 123, uc: 0, name: 'f12' },
+  ]
+  test.each(namedKeyCases)('vk $vk maps to opentui name $name', (row) => {
+    const expected: Record<string, string> = { name: row.name }
+    if (row.sequence !== undefined) expected.sequence = row.sequence
+    expect(decodeWin32Input(seq(row.vk, row.uc, 0))?.[0]).toMatchObject(expected)
   })
 
   test('key-up events are consumed but emit nothing', () => {

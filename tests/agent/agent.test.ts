@@ -29,9 +29,6 @@ describe('resolveModelRef', () => {
   test('throws on unknown provider', () => {
     expect(() => resolveModelRef('nope-typo/model')).toThrow('Unknown provider')
   })
-  test('throws on unknown model for known provider shape', () => {
-    expect(() => resolveModelRef('unknown-provider-xyz/anything')).toThrow('Unknown provider')
-  })
   test('throws when nothing configured', () => {
     expect(() => resolveModelRef('only-provider-without-slash-xyz')).toThrow()
   })

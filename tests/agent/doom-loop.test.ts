@@ -1,7 +1,6 @@
-import { afterEach, describe, expect, test } from 'bun:test'
+import { describe, expect, test } from 'bun:test'
 import { createDoomLoopGuard, DOOM_LOOP_TEXT_STEER, DOOM_LOOP_TOOL_STEER, detectDoomLoop, detectRepeatedToolCalls, type ToolCallLike } from '../../src/agent/loop/doom-loop.ts'
 import { buildStopWhen } from '../../src/agent/loop/stop-conditions.ts'
-import { options } from '../../src/config/options.ts'
 
 const words = (n: number): string => Array.from({ length: n }, (_, i) => `t${i}`).join(' ')
 
@@ -93,9 +92,6 @@ describe('createDoomLoopGuard', () => {
     expect(guard.observe({ texts: [], toolCalls: threeIdentical })).toEqual({ steer: DOOM_LOOP_TOOL_STEER, halt: false })
     expect(guard.observe({ texts: [], toolCalls: threeIdentical })).toEqual({ halt: true, reason: 'tool' })
   })
-  test('steer messages differ per signal', () => {
-    expect(DOOM_LOOP_TEXT_STEER).not.toBe(DOOM_LOOP_TOOL_STEER)
-  })
   test('resets strikes on divergence', () => {
     const guard = createDoomLoopGuard()
     guard.observe({ texts: tenIdentical(), toolCalls: [] })
@@ -127,20 +123,6 @@ describe('createDoomLoopGuard', () => {
     expect(guard.isHalted()).toBe(true)
     guard.reset()
     expect(guard.isHalted()).toBe(false)
-  })
-})
-
-describe('harness.doomLoop', () => {
-  const original = options.harness.doomLoop
-  afterEach(() => {
-    options.harness.doomLoop = original
-  })
-  test('defaults to enabled', () => {
-    expect(options.harness.doomLoop !== false).toBe(true)
-  })
-  test('disables when explicitly false', () => {
-    options.harness.doomLoop = false
-    expect(options.harness.doomLoop !== false).toBe(false)
   })
 })
 

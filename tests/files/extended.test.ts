@@ -255,6 +255,7 @@ describe('agent dirs', () => {
     expect(insideAgentDir(join(options.app.systemDir, 'rules', 'y.md'))).toBe(true)
     expect(insideAgentDir(join(dir, 'foo', 'bar.txt'))).toBe(false)
     expect(insideAgentDir(join(dir, '.agents-backup', 'file.txt'))).toBe(false)
+    expect(insideAgentDir(join('proj', '.agents', '..foo', 'x.md'))).toBe(true)
   })
 })
 describe('shell spec mapping', () => {

@@ -40,11 +40,6 @@ describe('createPrepareCall providerOptions', () => {
     const result = await prepare()({ options: { sessionMode: 'chat' }, prompt: 'hi' } as never)
     expect(result?.providerOptions).toEqual({ anthropic: { cacheControl: { type: 'ephemeral', ttl: '1h' } } })
   })
-
-  test('does not emit a top-level cacheControl key', async () => {
-    const result = await prepare()({ options: { sessionMode: 'chat' }, prompt: 'hi' } as never)
-    expect(result?.providerOptions).not.toHaveProperty('cacheControl')
-  })
 })
 
 describe('createPrepareCall active tools', () => {

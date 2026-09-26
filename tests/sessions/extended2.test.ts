@@ -405,22 +405,13 @@ describe('session manager construction', () => {
     initLockDir(originalSystemDir)
     await rm(dir, { recursive: true, force: true })
   })
-  test('exposes cwd and maxAgents', () => {
+  test('construction exposes jobs, cwd, maxAgents and session model', async () => {
     const manager = new SessionManager({ cwd: dir, maxAgents: 2 })
+    expect(manager.jobs()).toEqual([])
     expect(manager.currentCwd).toBe(dir)
     expect(manager.maxAgents).toBe(2)
-  })
-  test('starts with no jobs', () => {
-    const manager = new SessionManager({ cwd: dir, maxAgents: 1 })
-    expect(manager.jobs()).toEqual([])
-  })
-  test('getSessionModel reads the persisted model for a non-live session', async () => {
-    const manager = new SessionManager({ cwd: dir, maxAgents: 1 })
     await writeSessionMeta(folderKeyFor(dir), 'sub', { id: 'sub', state: 'finished', cwd: dir, createdAt: 1, updatedAt: 1, modelKey: 'anthropic/claude-haiku' })
     expect(await manager.getSessionModel('sub')).toBe('anthropic/claude-haiku')
-  })
-  test('getSessionModel is undefined for an unknown session', async () => {
-    const manager = new SessionManager({ cwd: dir, maxAgents: 1 })
     expect(await manager.getSessionModel('missing')).toBeUndefined()
   })
 })
@@ -541,19 +532,13 @@ describe('system prompt builders for loop cache', () => {
   })
 })
 describe('subagent markdown definitions', () => {
-  test('executor defines name tools and input placeholder', () => {
-    expect(executorSubagentMarkdown).toContain('name: Executor')
-    expect(executorSubagentMarkdown).toContain('tools:')
-    expect(executorSubagentMarkdown).toContain('<SPAWN_PROMPT>')
-  })
-  test('explorer defines name tools and input placeholder', () => {
-    expect(explorerSubagentMarkdown).toContain('name: Explorer')
-    expect(explorerSubagentMarkdown).toContain('tools:')
-    expect(explorerSubagentMarkdown).toContain('<SPAWN_PROMPT>')
-  })
-  test('reviewer defines name tools and input placeholder', () => {
-    expect(reviewerSubAgent).toContain('name: Reviewer')
-    expect(reviewerSubAgent).toContain('tools:')
-    expect(reviewerSubAgent).toContain('<SPAWN_PROMPT>')
+  test.each([
+    ['executor', 'Executor', executorSubagentMarkdown],
+    ['explorer', 'Explorer', explorerSubagentMarkdown],
+    ['reviewer', 'Reviewer', reviewerSubAgent],
+  ] as Array<[string, string, string]>)('%s defines name tools and input placeholder', (_id, name, markdown) => {
+    expect(markdown).toContain(`name: ${name}`)
+    expect(markdown).toContain('tools:')
+    expect(markdown).toContain('<SPAWN_PROMPT>')
   })
 })

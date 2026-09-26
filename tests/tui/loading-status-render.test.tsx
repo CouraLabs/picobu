@@ -37,39 +37,17 @@ const mountLines = async (line: Array<SessionStatusItem>) => {
 }
 
 describe('loading status adjacency', () => {
-  test('shows the agent-prefixed verb when placed right after the agent', async () => {
-    const setup = await mount('agent')
+  test.each([
+    ['agent-adjacent direct', 'agent' as const, ['agent'], true],
+    ['agent-adjacent through StatusLines', 'model' as const, ['agent', 'loading'], true],
+    ['non-adjacent direct', 'model' as const, ['model'], false],
+    ['non-adjacent across separator', 'model' as const, ['agent', 'separator', 'loading'], false],
+  ] as Array<[string, 'agent' | 'model', Array<SessionStatusItem>, boolean]>)('loading %s shows the verb only when adjacent', async (_label, previousItem, line, adjacent) => {
+    const setup = line.length === 1 ? await mount(previousItem) : await mountLines(line)
     try {
-      expect(setup.captureCharFrame()).toContain('is ')
-    } finally {
-      setup.renderer.destroy()
-    }
-  })
-
-  test('shows only the spinner when not next to the agent', async () => {
-    const setup = await mount('model')
-    try {
-      expect(setup.captureCharFrame()).not.toContain('is ')
-    } finally {
-      setup.renderer.destroy()
-    }
-  })
-})
-
-describe('loading adjacency through StatusLines', () => {
-  test('renders the verb text when loading directly follows the agent', async () => {
-    const setup = await mountLines(['agent', 'loading'])
-    try {
-      expect(setup.captureCharFrame()).toContain('is ')
-    } finally {
-      setup.renderer.destroy()
-    }
-  })
-
-  test('renders the bare spinner when a separator sits between agent and loading', async () => {
-    const setup = await mountLines(['agent', 'separator', 'loading'])
-    try {
-      expect(setup.captureCharFrame()).not.toContain('is ')
+      const frame = setup.captureCharFrame()
+      if (adjacent) expect(frame).toContain('is ')
+      else expect(frame).not.toContain('is ')
     } finally {
       setup.renderer.destroy()
     }

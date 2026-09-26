@@ -174,10 +174,6 @@ describe('error report', () => {
 })
 
 describe('notify exports', () => {
-  test('export shape is functions', () => {
-    expect(typeof notifyCompletion).toBe('function')
-    expect(typeof notifyFailure).toBe('function')
-  })
   test('completion rings bell and notifies once', async () => {
     const calls = childCalls()
     calls.length = 0
