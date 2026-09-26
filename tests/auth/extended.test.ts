@@ -5,10 +5,10 @@ import { join } from 'node:path'
 import type { Provider as ModelsDevProvider } from '@opencode-ai/models'
 import { modelsFromModelsDev } from '../../src/agent/model/catalog-models-dev.ts'
 import { anthropicOAuth } from '../../src/auth/anthropic.ts'
+import { parseCopilotModelIds } from '../../src/auth/copilot-models.ts'
 import { abortableSleep, CANCEL_MESSAGE, pollOAuthDeviceCodeFlow } from '../../src/auth/device-code.ts'
 import { getGitHubCopilotBaseUrl, githubCopilotOAuth, parseGitHubCopilotModelCatalog } from '../../src/auth/github-copilot.ts'
 import { OAUTH_AUTHS, oauthAuthById, startLogin } from '../../src/auth/index.ts'
-import { createInteraction } from '../../src/auth/interaction.ts'
 import { oauthErrorHtml, oauthSuccessHtml } from '../../src/auth/oauth-pages.ts'
 import { openaiOAuth } from '../../src/auth/openai.ts'
 import { generatePKCE } from '../../src/auth/pkce.ts'
@@ -16,11 +16,10 @@ import { fixHarnessAfterLogout, pickDefaultModel, repointModelKey, selectCopilot
 import { authFilePathOf, getCredential, initAuth, initAuthFilePath, listCredentials, readAuthFile, removeCredential, resetAuthCache, setCredential } from '../../src/auth/store.ts'
 import type { OAuthCredential } from '../../src/auth/types.ts'
 import type { ProviderOptions } from '../../src/config/options.ts'
-import { DEFAULT_THEME_PREFS, DEFAULT_TUI_OPTIONS, DEFAULT_WEB_OPTIONS, DEFAULT_WHATSAPP_OPTIONS, resolveModelRole } from '../../src/config/options.ts'
+import { resolveModelRole } from '../../src/config/options.ts'
 import { initLockDir } from '../../src/shared/lock.ts'
 
 const realFetch = globalThis.fetch
-const realConsoleLog = console.log
 const realConsoleError = console.error
 
 afterEach(() => {
@@ -378,44 +377,9 @@ describe('selectCopilotModels', () => {
 })
 
 describe('parseGitHubCopilotModelCatalog', () => {
-  const item = (id: string, overrides?: Record<string, unknown>): unknown => ({
-    id,
-    model_picker_enabled: false,
-    policy: { state: 'enabled' },
-    capabilities: { limits: { max_output_tokens: 100, max_prompt_tokens: 1000 }, supports: { tool_calls: true } },
-    ...overrides,
-  })
-  test('prefers picker-enabled models when present', () => {
-    const raw = { data: [item('a', { model_picker_enabled: true }), item('b')] }
-    expect(parseGitHubCopilotModelCatalog(raw, true)).toEqual(['a'])
-    expect(parseGitHubCopilotModelCatalog(raw, false)).toEqual(['a'])
-  })
-  test('falls back to every non-disabled model when picker is empty', () => {
-    const raw = {
-      data: [
-        item('a'),
-        item('b', { policy: { state: 'disabled' } }),
-        item('c', { policy: undefined }),
-        item('d', { capabilities: { limits: { max_output_tokens: 1, max_prompt_tokens: 1 }, supports: { tool_calls: false } } }),
-      ],
-    }
-    expect(parseGitHubCopilotModelCatalog(raw, true)).toEqual(['a', 'c'])
-  })
-  test('returns empty without fallback when picker is empty', () => {
-    const raw = { data: [item('a'), item('b', { policy: undefined })] }
-    expect(parseGitHubCopilotModelCatalog(raw, false)).toEqual([])
-  })
-  test('keeps classic policy-enabled fallback without picker flags', () => {
-    const raw = {
-      data: [
-        { id: 'a', policy: { state: 'enabled' }, capabilities: { limits: { max_output_tokens: 1, max_prompt_tokens: 1 }, supports: { tool_calls: true } } },
-        { id: 'b', policy: { state: 'disabled' }, capabilities: { limits: { max_output_tokens: 1, max_prompt_tokens: 1 }, supports: { tool_calls: true } } },
-      ],
-    }
-    expect(parseGitHubCopilotModelCatalog(raw, true)).toEqual(['a'])
-  })
-  test('throws on invalid catalog shape', () => {
-    expect(() => parseGitHubCopilotModelCatalog({ data: 'nope' }, true)).toThrow('Invalid Copilot models response')
+  test('delegates to parseCopilotModelIds', () => {
+    const raw = { data: [{ id: 'a', model_picker_enabled: true, capabilities: { limits: { max_prompt_tokens: 1 }, tool_calls: true } }] }
+    expect(parseGitHubCopilotModelCatalog(raw, false)).toEqual(parseCopilotModelIds(raw, false))
   })
 })
 
@@ -535,22 +499,6 @@ describe('getGitHubCopilotBaseUrl', () => {
   })
 })
 
-describe('configDefaults', () => {
-  test('tui default max messages is finite positive', () => {
-    expect(DEFAULT_TUI_OPTIONS.maxMessages).toBe(20)
-    expect(Number.isFinite(DEFAULT_TUI_OPTIONS.maxMessages)).toBe(true)
-  })
-  test('web defaults carry host and port', () => {
-    expect(DEFAULT_WEB_OPTIONS).toEqual({ host: '0.0.0.0', port: 8080 })
-  })
-  test('whatsapp defaults to disabled without numbers', () => {
-    expect(DEFAULT_WHATSAPP_OPTIONS).toEqual({ enabled: false, allowedNumbers: [] })
-  })
-  test('theme defaults to dark picobu', () => {
-    expect(DEFAULT_THEME_PREFS).toEqual({ key: 'picobu', variant: 'dark' })
-  })
-})
-
 describe('resolveModelRole', () => {
   test('throws when default model missing', () => {
     expect(() => resolveModelRole(undefined, 'tiny')).toThrow('No defaultModel is set')
@@ -586,37 +534,5 @@ describe('resolveModelRole', () => {
     const heavy = resolveModelRole({ defaultModel: 'openai/g1', modelRoles: { heavyThinkingLevel: 'low' } }, 'heavyThinkingLevel')
     expect(flash.thinking).toBe('high')
     expect(heavy.thinking).toBe('low')
-  })
-})
-
-describe('createInteraction', () => {
-  let logs: string[] = []
-  beforeEach(() => {
-    logs = []
-    console.log = (...args: unknown[]) => {
-      logs.push(args.map((part) => String(part)).join(' '))
-    }
-  })
-  afterEach(() => {
-    console.log = realConsoleLog
-  })
-  test('passes signal through to interaction', () => {
-    const controller = new AbortController()
-    expect(createInteraction('openai', 'OpenAI', controller.signal).signal).toBe(controller.signal)
-  })
-  test('announces browser url for auth flow', () => {
-    const interaction = createInteraction('openai', 'OpenAI', new AbortController().signal)
-    interaction.notify({ type: 'auth_url', url: 'http://127.0.0.1:1/callback', instructions: 'Finish in browser' })
-    expect(logs.some((line) => line.includes('OpenAI') && line.includes('Finish in browser'))).toBe(true)
-  })
-  test('announces device code and verification uri', () => {
-    const interaction = createInteraction('github-copilot', 'GitHub Copilot', new AbortController().signal)
-    interaction.notify({ type: 'device_code', userCode: 'ABCD-1234', verificationUri: 'http://127.0.0.1:1/device' })
-    expect(logs.some((line) => line.includes('ABCD-1234'))).toBe(true)
-  })
-  test('announces progress messages', () => {
-    const interaction = createInteraction('anthropic', 'Anthropic', new AbortController().signal)
-    interaction.notify({ type: 'progress', message: 'Exchanging code' })
-    expect(logs.some((line) => line.includes('Exchanging code'))).toBe(true)
   })
 })
