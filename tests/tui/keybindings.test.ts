@@ -33,37 +33,70 @@ describe('shortcut chords', () => {
     expect(isSteerKey(key({ name: 'w', ctrl: true, meta: true }))).toBe(false)
     expect(isCycleEffortKey(key({ name: 'e', ctrl: true, meta: true }))).toBe(false)
   })
-  test('model fires on ctrl+u, ctrl+o, ctrl+shift+u, alt+u on windows, and f2', () => {
-    expect(isModelKey(key({ name: 'u', ctrl: true }))).toBe(true)
-    expect(isModelKey(key({ name: 'o', ctrl: true }))).toBe(true)
-    expect(isModelKey(key({ name: 'u', ctrl: true, shift: true }))).toBe(true)
-    expect(isModelKey(key({ name: 'o', ctrl: true, shift: true }))).toBe(true)
-    expect(isModelKey(key({ name: 'u', meta: true }), 'win32')).toBe(true)
-    expect(isModelKey(key({ name: 'o', meta: true }), 'win32')).toBe(true)
-    expect(isModelKey(key({ name: 'f2' }))).toBe(true)
-    expect(isModelKey(key({ name: 'm', ctrl: true }))).toBe(false)
-    expect(isModelKey(key({ name: 'return', ctrl: true }))).toBe(false)
-  })
-  test('jobs fires on ctrl+k, ctrl+shift+k, alt+k on windows, and f3', () => {
-    expect(isJobsKey(key({ name: 'k', ctrl: true }))).toBe(true)
-    expect(isJobsKey(key({ name: 'k', ctrl: true, shift: true }))).toBe(true)
-    expect(isJobsKey(key({ name: 'k', meta: true }), 'win32')).toBe(true)
-    expect(isJobsKey(key({ name: 'f3' }))).toBe(true)
-    expect(isJobsKey(key({ name: 'j', ctrl: true }))).toBe(false)
-    expect(isJobsKey(key({ name: 'k' }))).toBe(false)
-  })
-  test('steer fires on ctrl+w, ctrl+shift+w, alt+w on windows, and f4', () => {
-    expect(isSteerKey(key({ name: 'w', ctrl: true }))).toBe(true)
-    expect(isSteerKey(key({ name: 'w', ctrl: true, shift: true }))).toBe(true)
-    expect(isSteerKey(key({ name: 'w', meta: true }), 'win32')).toBe(true)
-    expect(isSteerKey(key({ name: 'f4' }))).toBe(true)
-    expect(isSteerKey(key({ name: 'w' }))).toBe(false)
-  })
-  test('effort fires on ctrl+e and ctrl+shift+e', () => {
-    expect(isCycleEffortKey(key({ name: 'e', ctrl: true }))).toBe(true)
-    expect(isCycleEffortKey(key({ name: 'e', ctrl: true, shift: true }))).toBe(true)
-    expect(isCycleEffortKey(key({ name: 'e', meta: true }), 'win32')).toBe(true)
-    expect(isCycleEffortKey(key({ name: 'e' }))).toBe(false)
+  interface ChordCase {
+    label: string
+    predicate: (key: KeyLike, platform?: string) => boolean
+    positives: Array<Partial<KeyLike> & { name: string }>
+    win32Metas: Array<string>
+    negatives: Array<Partial<KeyLike> & { name: string }>
+    fKey: string
+  }
+  const chordCases: Array<ChordCase> = [
+    {
+      label: 'model',
+      predicate: isModelKey,
+      positives: [
+        { name: 'u', ctrl: true },
+        { name: 'o', ctrl: true },
+        { name: 'u', ctrl: true, shift: true },
+        { name: 'o', ctrl: true, shift: true },
+      ],
+      win32Metas: ['u', 'o'],
+      negatives: [
+        { name: 'm', ctrl: true },
+        { name: 'return', ctrl: true },
+      ],
+      fKey: 'f2',
+    },
+    {
+      label: 'jobs',
+      predicate: isJobsKey,
+      positives: [
+        { name: 'k', ctrl: true },
+        { name: 'k', ctrl: true, shift: true },
+      ],
+      win32Metas: ['k'],
+      negatives: [{ name: 'j', ctrl: true }, { name: 'k' }],
+      fKey: 'f3',
+    },
+    {
+      label: 'steer',
+      predicate: isSteerKey,
+      positives: [
+        { name: 'w', ctrl: true },
+        { name: 'w', ctrl: true, shift: true },
+      ],
+      win32Metas: ['w'],
+      negatives: [{ name: 'w' }],
+      fKey: 'f4',
+    },
+    {
+      label: 'effort',
+      predicate: isCycleEffortKey,
+      positives: [
+        { name: 'e', ctrl: true },
+        { name: 'e', ctrl: true, shift: true },
+      ],
+      win32Metas: ['e'],
+      negatives: [{ name: 'e' }],
+      fKey: '',
+    },
+  ]
+  test.each(chordCases)('$label fires on its chord, win32 meta fallback and f-key', (chord) => {
+    for (const positive of chord.positives) expect(chord.predicate(key(positive))).toBe(true)
+    for (const letter of chord.win32Metas) expect(chord.predicate(key({ name: letter, meta: true }), 'win32')).toBe(true)
+    if (chord.fKey) expect(chord.predicate(key({ name: chord.fKey }))).toBe(true)
+    for (const negative of chord.negatives) expect(chord.predicate(key(negative))).toBe(false)
   })
   test('exit fires on ctrl+d, ctrl+shift+d, and f10', () => {
     expect(isExitKey(key({ name: 'd', ctrl: true }))).toBe(true)
