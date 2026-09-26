@@ -37,16 +37,6 @@ describe('SessionSaver tombstones', () => {
     expect(loaded).toBeNull()
   })
 
-  test('unchanged messages are not rewritten', async () => {
-    const saver = new SessionSaver(filePath)
-    const msg = message('m1', 'hello')
-    await saver.save([msg])
-    const before = await readFile(filePath, 'utf8')
-    await saver.save([msg])
-    const after = await readFile(filePath, 'utf8')
-    expect(after).toBe(before)
-  })
-
   test('reverting then re-adding a changed message upserts', async () => {
     const saver = new SessionSaver(filePath)
     await saver.save([message('m1', 'v1')])

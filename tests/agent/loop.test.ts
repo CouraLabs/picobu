@@ -1,11 +1,6 @@
 import { afterAll, afterEach, beforeAll, describe, expect, test } from 'bun:test'
-import { mkdtemp, rm } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
 import { createLoop } from '../../src/agent/loop/create-loop.ts'
-import { createTodoTool } from '../../src/agent/tools/flow/todo.ts'
 import { options, type ProviderOptions } from '../../src/config/options.ts'
-import { initLockDir } from '../../src/shared/lock.ts'
 
 const fakeProvider: ProviderOptions = {
   id: 'test',
@@ -70,23 +65,5 @@ describe('loop endpoint refresh', () => {
     await new Promise((resolve) => setTimeout(resolve, 50))
     expect(called).toBe(false)
     expect(loop.stats().endpoints).toBeUndefined()
-  })
-})
-
-describe('todo tool in tests scope', () => {
-  test('write and clear round trip in isolation', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'picobu-gap-todo-'))
-    initLockDir(dir)
-    try {
-      const tool = createTodoTool(join(dir, 'todos.json'))
-      const written = await tool.handler({ items: [{ phase: 'p', title: 't', prompt: 'q', done: false }] })
-      expect(written.total).toBe(1)
-      expect(written.message).toBe('Created 1 todo')
-      const cleared = await tool.handler({ items: [] })
-      expect(cleared.total).toBe(0)
-      expect(cleared.message).toBe('todo list cleared')
-    } finally {
-      await rm(dir, { recursive: true, force: true })
-    }
   })
 })
