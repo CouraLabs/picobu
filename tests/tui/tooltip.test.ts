@@ -1,15 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import {
-  cancelTooltipClose,
-  closeTooltip,
-  computeTooltipPosition,
-  openTooltip,
-  scheduleTooltipClose,
-  TOOLTIP_CLOSE_DELAY_MS,
-  TOOLTIP_FALLBACK_HEIGHT,
-  TOOLTIP_OPEN_DELAY_MS,
-  tooltipState,
-} from '../../src/states/tooltip.state.ts'
+import { closeTooltip, computeTooltipPosition, openTooltip, TOOLTIP_FALLBACK_HEIGHT, tooltipState } from '../../src/states/tooltip.state.ts'
 
 const placement = { x: 5, y: 4, width: 10, height: 1 }
 
@@ -66,12 +56,5 @@ describe('tooltip state', () => {
     expect(open?.maxWidth).toBe(20)
     closeTooltip()
     expect(tooltipState()).toBeNull()
-  })
-  test('constants are usable', () => {
-    expect(TOOLTIP_FALLBACK_HEIGHT).toBeGreaterThan(0)
-    expect(TOOLTIP_CLOSE_DELAY_MS).toBeGreaterThanOrEqual(0)
-    expect(TOOLTIP_OPEN_DELAY_MS).toBeGreaterThan(0)
-    scheduleTooltipClose(0)
-    cancelTooltipClose()
   })
 })

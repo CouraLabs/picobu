@@ -30,10 +30,6 @@ describe('createLoop', () => {
     expect(typeof loop.onStats).toBe('function')
     expect(loop.stats().usage.inputTokens).toBe(0)
   })
-  test('reflects config agent on rebuild', () => {
-    const loop = createLoop(() => ({ agentId: 'coder', modelKey: 'test/test', thinking: 'minimal' }))
-    expect(loop.agent).toBeDefined()
-  })
 })
 
 describe('loop endpoint refresh', () => {

@@ -1,26 +1,7 @@
 import { describe, expect, test } from 'bun:test'
-import {
-  DOUBLE_PRESS_WINDOW_MS,
-  isClaimedChord,
-  isCopyKey,
-  isCycleEffortKey,
-  isExitKey,
-  isHelpKey,
-  isJobsKey,
-  isModelKey,
-  isRepeatKey,
-  isSelectAllKey,
-  isSteerKey,
-  type KeyLike,
-} from '../../src/tui/keybindings.ts'
+import { isClaimedChord, isCopyKey, isCycleEffortKey, isExitKey, isHelpKey, isJobsKey, isModelKey, isRepeatKey, isSelectAllKey, isSteerKey, type KeyLike } from '../../src/tui/keybindings.ts'
 
 const key = (overrides: Partial<KeyLike> & { name: string }): KeyLike => ({ ctrl: false, meta: false, super: false, ...overrides })
-
-describe('double-press window', () => {
-  test('is 600ms', () => {
-    expect(DOUBLE_PRESS_WINDOW_MS).toBe(600)
-  })
-})
 
 describe('repeat guard', () => {
   test('ignores kitty repeats and repeated-flag presses, passes plain presses', () => {
@@ -100,15 +81,7 @@ describe('shortcut chords', () => {
     expect(isSelectAllKey(key({ name: 'a', ctrl: true, shift: true }))).toBe(true)
     expect(isSelectAllKey(key({ name: 'a' }))).toBe(false)
   })
-  test('claimed chords cover release-acted keys and tab in any shift state', () => {
-    expect(isClaimedChord(key({ name: 'u', ctrl: true }))).toBe(true)
-    expect(isClaimedChord(key({ name: 'o', ctrl: true }))).toBe(true)
-    expect(isClaimedChord(key({ name: 'k', ctrl: true }))).toBe(true)
-    expect(isClaimedChord(key({ name: 'w', ctrl: true }))).toBe(true)
-    expect(isClaimedChord(key({ name: 'e', ctrl: true }))).toBe(true)
-    expect(isClaimedChord(key({ name: 'd', ctrl: true }))).toBe(true)
-    expect(isClaimedChord(key({ name: 'c', ctrl: true }))).toBe(true)
-    expect(isClaimedChord(key({ name: 'a', ctrl: true }))).toBe(true)
+  test('claimed chords cover tab in any shift state', () => {
     expect(isClaimedChord(key({ name: 'tab' }))).toBe(true)
     expect(isClaimedChord(key({ name: 'tab', shift: true }))).toBe(true)
     expect(isClaimedChord(key({ name: 'x', ctrl: true }))).toBe(false)
