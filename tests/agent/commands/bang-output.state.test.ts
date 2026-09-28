@@ -15,22 +15,12 @@ const makeItem = (id: number): BangOutput => ({
 })
 
 describe('bang-output.state', () => {
-  it('initial state is null', () => {
+  it('set, read and clear round-trip', () => {
     clearBangOutput()
     expect(bangOutput()).toBeNull()
-  })
-
-  it('setBangOutput stores the item', () => {
-    clearBangOutput()
     const item = makeItem(1)
     setBangOutput(item)
     expect(bangOutput()).toEqual(item)
-    clearBangOutput()
-  })
-
-  it('clearBangOutput resets to null', () => {
-    setBangOutput(makeItem(2))
-    expect(bangOutput()).not.toBeNull()
     clearBangOutput()
     expect(bangOutput()).toBeNull()
   })

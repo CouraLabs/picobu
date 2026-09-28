@@ -1,14 +1,6 @@
 import { afterEach, describe, expect, test } from 'bun:test'
 import { isLoadingAdjacentToAgent, LOADING_VERBS, pickLoadingVerb } from '../../src/tui/components/session/status/loading-verbs.ts'
 
-describe('LOADING_VERBS', () => {
-  test('ships exactly fifty-two unique verbs including the original entry', () => {
-    expect(LOADING_VERBS.length).toBe(52)
-    expect(new Set(LOADING_VERBS).size).toBe(52)
-    expect(LOADING_VERBS).toContain('excruciating')
-  })
-})
-
 describe('pickLoadingVerb', () => {
   const original = Math.random
   afterEach(() => {

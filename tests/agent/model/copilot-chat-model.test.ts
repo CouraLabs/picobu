@@ -33,15 +33,18 @@ describe('user messages', () => {
     expect(result).toEqual([{ role: 'user', content: 'Hello' }])
   })
 
-  test('should convert messages with image parts', () => {
+  test.each([
+    ['Buffer', 'Hello', Buffer.from([0, 1, 2, 3]).toString('base64')],
+    ['Uint8Array', 'Hi', new Uint8Array([0, 1, 2, 3])],
+  ] as Array<[string, string, string | Uint8Array]>)('should convert messages with image parts from %s', (_kind, text, data) => {
     const result = convertToCopilotMessages([
       {
         role: 'user',
         content: [
-          { type: 'text', text: 'Hello' },
+          { type: 'text', text },
           {
             type: 'file',
-            data: { type: 'data', data: Buffer.from([0, 1, 2, 3]).toString('base64') },
+            data: { type: 'data', data },
             mediaType: 'image/png',
           },
         ],
@@ -52,36 +55,7 @@ describe('user messages', () => {
       {
         role: 'user',
         content: [
-          { type: 'text', text: 'Hello' },
-          {
-            type: 'image_url',
-            image_url: { url: 'data:image/png;base64,AAECAw==' },
-          },
-        ],
-      },
-    ])
-  })
-
-  test('should convert messages with image parts from Uint8Array', () => {
-    const result = convertToCopilotMessages([
-      {
-        role: 'user',
-        content: [
-          { type: 'text', text: 'Hi' },
-          {
-            type: 'file',
-            data: { type: 'data', data: new Uint8Array([0, 1, 2, 3]) },
-            mediaType: 'image/png',
-          },
-        ],
-      },
-    ])
-
-    expect(result).toEqual([
-      {
-        role: 'user',
-        content: [
-          { type: 'text', text: 'Hi' },
+          { type: 'text', text },
           {
             type: 'image_url',
             image_url: { url: 'data:image/png;base64,AAECAw==' },

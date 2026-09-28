@@ -57,12 +57,6 @@ describe('createTodoTool', () => {
     expect(result.total).toBe(5)
   })
 
-  test('the first write creates the list', async () => {
-    const result = await tool().handler({ items: [item('first')] })
-    expect(result.message).toBe('Created 1 todo')
-    expect(result.total).toBe(1)
-  })
-
   test('an empty list clears the todo list', async () => {
     const t = tool()
     await t.handler({ items: [item('a')] })

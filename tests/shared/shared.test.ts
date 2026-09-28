@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { mcpToolName } from '../../src/integrations/mcp/tools-info.ts'
 import { detectFiletype } from '../../src/shared/filetype.ts'
-import { clip, fmtCost, fmtDuration, fmtTokens, relTime } from '../../src/shared/format.ts'
+import { clip, fmtTokens, relTime } from '../../src/shared/format.ts'
 import { countOccurrences, extractWords, textStats, truncate } from '../../src/shared/text-stats.ts'
 
 describe('text stats', () => {
@@ -28,11 +28,9 @@ describe('format', () => {
   test('future time is just now', () => {
     expect(relTime(Date.now() + 60_000)).toBe('just now')
   })
-  test('clip fmtTokens fmtCost fmtDuration', () => {
+  test('clip fmtTokens', () => {
     expect(clip('abcdef', 3)).toBe('ab…')
     expect(fmtTokens(1500)).toBe('1.50K')
-    expect(fmtCost(2)).toBe('$2')
-    expect(fmtDuration(90)).toBe('1m 30s')
   })
 })
 

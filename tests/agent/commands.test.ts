@@ -122,11 +122,14 @@ describe('tokenizeCommandLine', () => {
 })
 
 describe('builtin workflows', () => {
-  test('ships an in-memory init workflow', () => {
-    const init = BUILTIN_WORKFLOWS.find((c) => c.name === 'init')
-    expect(init?.kind).toBe('workflow')
-    expect(init?.description.length).toBeGreaterThan(0)
-    expect(init?.content).toContain('{USER_PROMPT}')
+  test.each([
+    ['init', ['{USER_PROMPT}']],
+    ['review', ['{USER_PROMPT}', 'spawn', 'reviewer']],
+  ] as Array<[string, Array<string>]>)('ships an in-memory %s workflow', (name, snippets) => {
+    const builtin = BUILTIN_WORKFLOWS.find((c) => c.name === name)
+    expect(builtin?.kind).toBe('workflow')
+    expect(builtin?.description.length).toBeGreaterThan(0)
+    for (const snippet of snippets) expect(builtin?.content).toContain(snippet)
   })
   test('a same-name disk workflow replaces the builtin', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'picobu-wf-'))
@@ -137,25 +140,14 @@ describe('builtin workflows', () => {
     expect(inits[0]?.content).toBeUndefined()
     expect(inits[0]?.description).toBe('custom')
   })
-  test('buildCommandPrompt injects args into the builtin', async () => {
-    const init = BUILTIN_WORKFLOWS.find((c) => c.name === 'init')
-    if (!init) throw new Error('missing builtin init')
-    const prompt = await buildCommandPrompt(init, 'focus on tests')
-    expect(prompt).toContain('focus on tests')
-    expect(prompt).not.toContain('{USER_PROMPT}')
-  })
-  test('ships an in-memory review workflow', () => {
-    const review = BUILTIN_WORKFLOWS.find((c) => c.name === 'review')
-    expect(review?.kind).toBe('workflow')
-    expect(review?.content).toContain('{USER_PROMPT}')
-    expect(review?.content).toContain('spawn')
-    expect(review?.content).toContain('reviewer')
-  })
-  test('buildCommandPrompt injects args into the review builtin', async () => {
-    const review = BUILTIN_WORKFLOWS.find((c) => c.name === 'review')
-    if (!review) throw new Error('missing builtin review')
-    const prompt = await buildCommandPrompt(review, 'commit abc123')
-    expect(prompt).toContain('commit abc123')
+  test.each([
+    ['init', 'focus on tests'],
+    ['review', 'commit abc123'],
+  ] as Array<[string, string]>)('buildCommandPrompt injects args into the %s builtin', async (name, args) => {
+    const builtin = BUILTIN_WORKFLOWS.find((c) => c.name === name)
+    if (!builtin) throw new Error(`missing builtin ${name}`)
+    const prompt = await buildCommandPrompt(builtin, args)
+    expect(prompt).toContain(args)
     expect(prompt).not.toContain('{USER_PROMPT}')
   })
 })

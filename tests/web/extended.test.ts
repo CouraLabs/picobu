@@ -122,4 +122,21 @@ describe('parseSearchPage extras', () => {
   test('decodes entities before reading uddg', () => {
     expect(resolveDdgHref('//duckduckgo.com/l/?uddg=https%3A%2F%2Fexample.com%2Fa&amp;rut=x')).toBe('https://example.com/a')
   })
+  test('keeps each snippet with its own result', () => {
+    const html = [
+      `<a class="result__a" href="https://a.example/">A title</a>`,
+      `<a class="result__snippet" href="x">snippet A</a>`,
+      `<a class="result__a" href="https://b.example/">B title</a>`,
+      `<a class="result__snippet" href="x">snippet B</a>`,
+    ].join('')
+    const parsed = parseSearchPage(html)
+    expect(parsed.results).toHaveLength(2)
+    expect(parsed.results[0]?.url).toBe('https://a.example/')
+    expect(parsed.results[0]?.snippet).toContain('snippet A')
+    expect(parsed.results[1]?.snippet).toContain('snippet B')
+  })
+  test('skips ad without uddg', () => {
+    const html = `<a class="result__a" href="//duckduckgo.com/l/?rut=ad">Ad</a>`
+    expect(parseSearchPage(html).results).toHaveLength(0)
+  })
 })

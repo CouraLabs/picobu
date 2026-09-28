@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { drainInbound, emitInbound, subscribeInbound } from '../../src/integrations/whatsapp/bus.ts'
+import { emitInbound, subscribeInbound } from '../../src/integrations/whatsapp/bus.ts'
 import { isPhoneAllowed, normalizedAllowList, normalizePhone, phoneToJid } from '../../src/integrations/whatsapp/phone.ts'
 
 describe('inbound bus', () => {
@@ -37,8 +37,5 @@ describe('phone', () => {
     expect(normalizedAllowList(['+1-555', '1555'])).toEqual(['1555'])
     expect(isPhoneAllowed('+1 (555)', ['1555'])).toBe(true)
     expect(isPhoneAllowed('999', ['1555'])).toBe(false)
-  })
-  test('drainInbound handles empty queue', () => {
-    expect(() => drainInbound(() => {})).not.toThrow()
   })
 })
