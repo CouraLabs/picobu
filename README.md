@@ -116,7 +116,7 @@ Picobu ships six built-in agents:
 
 ### Tools
 
-Agents work with a built-in tool catalog: `read`, `write`, `edit`, `glob`, `grep`, and `shell` (streaming output, background jobs, timeouts; collect with `task_output`, stop with `task_stop`) for the filesystem; `todo`, `skill`, `rule`, `ask`, `plan-write`, `plan-exit`, `grill-exit`, and `spawn` for flow; `websearch` and `webfetch` for the web. MCP servers add namespaced tools at runtime, active for every agent that doesn't declare `tools: none`. See [docs/usage/tools.md](docs/usage/tools.md).
+Agents work with a built-in tool catalog: `read`, `write`, `edit`, `glob`, `grep`, and `shell` (streaming output, background jobs, timeouts; collect with `task-output`, stop with `task-stop`) for the filesystem; `todo`, `skill`, `rule`, `ask`, `plan-write`, `plan-exit`, `grill-exit`, and `spawn` for flow; `websearch` and `webfetch` for the web. MCP servers add namespaced tools at runtime, active for every agent that doesn't declare `tools: none`. See [docs/usage/tools.md](docs/usage/tools.md).
 
 ### Providers and models
 

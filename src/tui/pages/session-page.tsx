@@ -6,6 +6,7 @@ import { listCommands } from '@agent/commands/index.ts'
 import { type ParsedCommandLine, parseCommandLine } from '@agent/commands/parse-command-line.ts'
 import type { LoopMessage, LoopStats } from '@agent/loop/create-loop.ts'
 import { generateSessionTitle } from '@agent/prompts/session-title.ts'
+import { writeLastSession } from '@agent/sessions/last-session.ts'
 import { closePromptHistory, projectKeyFor } from '@agent/sessions/prompt-history.ts'
 import type { QueuedPrompt, Session } from '@agent/sessions/session.ts'
 import { SessionManager } from '@agent/sessions/session-manager.ts'
@@ -23,6 +24,7 @@ import { setConsoleTitle } from '@shared/console-title.ts'
 import { getGitInfo } from '@shared/git-info.ts'
 import { logDebug, logError, logWarn, setLogRunId } from '@shared/logger.ts'
 import { notifyBlocking, notifyCompletion, notifyFailure } from '@shared/notify.ts'
+import { spawnDetachedUpdate } from '@shared/update.ts'
 import { allocBangId, type BangOutput, bangOutput, clearBangOutput, setBangOutput } from '@states/bang-output.state.ts'
 import { bumpCatalog } from '@states/catalog-state.ts'
 import { closeDialog, dialogStatus, openDialog } from '@states/dialog.state.ts'
@@ -783,6 +785,7 @@ export const SessionPage = (props: SessionPageProps) => {
       logDebug('swallowed error', { scope: 'session-page', error })
     }
     await stopAllBackgroundShells().catch(() => {})
+    if (target) writeLastSession({ sessionId: target.id, cwd: target.config.cwd ?? sessionMgr.currentCwd, at: Date.now() })
     setExitStatus(
       target
         ? {
@@ -1060,6 +1063,20 @@ export const SessionPage = (props: SessionPageProps) => {
           break
         }
         pushToast('Reloaded providers, tokens and catalog', 'info')
+        break
+      }
+      case 'update': {
+        if (target.status === 'submitted' || target.status === 'streaming') {
+          showError(new Error('Cannot update while a run is in progress'))
+          break
+        }
+        try {
+          spawnDetachedUpdate({ sessionId: target.id, cwd: target.config.cwd ?? sessionMgr.currentCwd })
+        } catch (error) {
+          showError(error)
+          break
+        }
+        await quitApp()
         break
       }
       case 'export': {

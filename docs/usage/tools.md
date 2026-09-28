@@ -11,7 +11,7 @@ Every tool carries a JSON Schema that is rendered into the system prompt. Agents
 | `edit` | Replace `oldString` with `newString` (exact or whitespace-tolerant match); fails on missing matches, refuses ambiguous single replaces unless `replaceAll` is true, returns a diff |
 | `glob` | Find files by glob pattern; respects `.gitignore` |
 | `grep` | Search files with ripgrep regex; returns matching lines as `path:line: content`; `include` filters by file glob |
-| `shell` | Run a shell command; streams output live, kills on timeout. Large output is tailed near 50KB/2000 lines with the full log spilled to a file. `run_in_background: true` returns a `taskId` immediately; collect with `task_output`, stop with `task_stop` |
+| `shell` | Run a shell command; streams output live, kills on timeout. Large output is tailed near 50KB/2000 lines with the full log spilled to a file. `run_in_background: true` returns a `taskId` immediately; collect with `task-output`, stop with `task-stop` |
 
 `glob`/`grep` always include agent config folders (`.agents`, `~/.agents`, `~/.picobu`) even when gitignored.
 

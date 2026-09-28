@@ -27,6 +27,7 @@ import { folderKeyFor } from '../../src/agent/sessions/session-paths.ts'
 import { deleteSessionCascade, listSessionsFor, listSessionTree } from '../../src/agent/sessions/session-queries.ts'
 import { spawnSubSession } from '../../src/agent/sessions/session-spawn.ts'
 import { listSessions, loadSession, writeSessionFile } from '../../src/agent/sessions/session-store.ts'
+import { startBackgroundShell, stopAllBackgroundShells } from '../../src/agent/tools/filesystem/background-shell.ts'
 import { options } from '../../src/config/options.ts'
 import { initLockDir } from '../../src/shared/lock.ts'
 import { fileToken, nextFileSeq, parseTokenSeqs, retainReferencedFiles } from '../../src/tui/components/session/session-prompt.tsx'
@@ -413,6 +414,19 @@ describe('session manager construction', () => {
     await writeSessionMeta(folderKeyFor(dir), 'sub', { id: 'sub', state: 'finished', cwd: dir, createdAt: 1, updatedAt: 1, modelKey: 'anthropic/claude-haiku' })
     expect(await manager.getSessionModel('sub')).toBe('anthropic/claude-haiku')
     expect(await manager.getSessionModel('missing')).toBeUndefined()
+  })
+  test('does not queue a prompt when a background shell finishes', async () => {
+    const manager = new SessionManager({ cwd: dir, maxAgents: 1 })
+    const session = await manager.startSession({ id: 'owner' })
+    let queued = 0
+    session.queue = () => {
+      queued += 1
+    }
+    const entry = startBackgroundShell({ command: 'echo done', cwd: dir, ownerSessionId: session.id })
+    await entry.done
+    await Bun.sleep(50)
+    await stopAllBackgroundShells().catch(() => {})
+    expect(queued).toBe(0)
   })
 })
 describe('evictLiveSession', () => {

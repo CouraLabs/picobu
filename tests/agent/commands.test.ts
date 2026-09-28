@@ -43,6 +43,7 @@ describe('matchSystemCommand', () => {
     expect(matchSystemCommand('reload')?.name).toBe('reload')
     expect(matchSystemCommand('export')?.name).toBe('export')
     expect(matchSystemCommand('compact')?.name).toBe('compact')
+    expect(matchSystemCommand('update')?.name).toBe('update')
   })
   test('rejects unknown names', () => {
     expect(matchSystemCommand('nope')).toBeUndefined()

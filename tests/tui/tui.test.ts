@@ -29,6 +29,7 @@ import {
   toolAskQuestions,
   toolDiff,
   toolDisplayName,
+  toolOutputText,
   toolProgress,
   toolStateView,
 } from '../../src/tui/components/session/tools/tool-summary.ts'
@@ -210,6 +211,11 @@ describe('summarizeToolInput', () => {
     expect(summarizeToolInput('READ', { path: 'x' })).toBe('x')
     expect(summarizeToolInput('mystery', { path: 'x' })).toBe('?')
   })
+  test('task-output/task-stop summarize the task id', () => {
+    expect(summarizeToolInput('task-output', { taskId: 'bg_1' })).toBe('bg_1')
+    expect(summarizeToolInput('task-stop', { taskId: 'bg_1' })).toBe('bg_1')
+    expect(summarizeToolInput('task-output', {})).toBe('?')
+  })
 })
 
 describe('previewToolInput/summarizeToolOutput', () => {
@@ -276,6 +282,14 @@ describe('previewToolInput/summarizeToolOutput', () => {
     expect(summarizeToolOutput('webfetch', { content: 'a\nb' })).toBe('2 lines')
     expect(summarizeToolOutput('webfetch', {})).toBeUndefined()
     expect(summarizeToolOutput('mystery', { a: 1 })).toBe('{"a":1}')
+  })
+  test('task-output/task-stop render status and plain output', () => {
+    expect(summarizeToolOutput('task-output', { taskId: 'bg_1', status: 'completed', exitCode: 0, output: 'hi' })).toBe('completed · exit 0')
+    expect(summarizeToolOutput('task-output', { taskId: 'bg_1', status: 'stopped' })).toBe('stopped')
+    expect(summarizeToolOutput('task-output', { taskId: 'bg_1' })).toBeUndefined()
+    expect(summarizeToolOutput('task-stop', { taskId: 'bg_1', status: 'stopped', message: 'Task is stopped.' })).toBe('Task is stopped.')
+    expect(toolOutputText('task-output', { taskId: 'bg_1', status: 'completed', output: 'line1\nline2' })).toBe('line1\nline2')
+    expect(toolOutputText('task-stop', { taskId: 'bg_1', status: 'stopped', message: 'Task is stopped.' })).toBe('Task is stopped.')
   })
 })
 

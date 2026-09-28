@@ -261,6 +261,9 @@ export const summarizeToolInput = (name: string, input: unknown): string => {
       const items = Array.isArray(args.items) ? args.items : undefined
       return items ? `${items.length} item(s)` : '?'
     }
+    case 'task-output':
+    case 'task-stop':
+      return field('taskId') ?? '?'
     default:
       return '?'
   }
@@ -330,6 +333,10 @@ export const toolOutputText = (name: string, output: unknown): string | undefine
     case 'shell':
     case 'write':
       return typeof output === 'string' ? output : undefined
+    case 'task-output':
+      return args && typeof args.output === 'string' ? args.output : undefined
+    case 'task-stop':
+      return args && typeof args.message === 'string' ? args.message : undefined
     default:
       return undefined
   }
@@ -419,6 +426,16 @@ export const summarizeToolOutput = (name: string, output: unknown, errorText?: s
     case 'webfetch': {
       const content = args && typeof args.content === 'string' ? args.content : undefined
       return content !== undefined ? `${countLines(content)} lines` : undefined
+    }
+    case 'task-output': {
+      const status = args && typeof args.status === 'string' ? args.status : undefined
+      if (status === undefined) break
+      const exit = args && typeof args.exitCode === 'number' ? ` · exit ${args.exitCode}` : ''
+      return `${status}${exit}`
+    }
+    case 'task-stop': {
+      const message = args && typeof args.message === 'string' ? args.message : undefined
+      return message !== undefined && message.length > 0 ? singleLine(message, OUTPUT_PREVIEW_MAX) : undefined
     }
     default:
       return singleLine(output, OUTPUT_PREVIEW_MAX)

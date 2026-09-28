@@ -41,21 +41,16 @@ export class SessionManager {
   private readonly _maxAgents: number
   private readonly live = new Map<string, Session>()
   private readonly jobTracker = new JobTracker()
-  private readonly shellJobNotified = new Set<string>()
-  private readonly unsubscribeShells: () => void
   private disposed = false
   constructor(init: { cwd?: string; maxAgents?: number } = {}) {
     this.cwd = resolve(init.cwd ?? options.app.cwd)
     this._permissionMode = options.harness.defaultPermissionMode ?? DEFAULT_PERMISSION_MODE
     this._maxAgents = init.maxAgents ?? options.harness.maxAgents ?? DEFAULT_MAX_AGENTS
-    this.unsubscribeShells = onBackgroundShells((entries) => this.handleShellJobUpdates(entries))
   }
 
   dispose(): void {
     if (this.disposed) return
     this.disposed = true
-    this.unsubscribeShells()
-    this.shellJobNotified.clear()
     this.live.clear()
     this.jobTracker.emit()
   }
@@ -78,29 +73,6 @@ export class SessionManager {
   }
   get permissionMode(): PermissionMode {
     return this._permissionMode
-  }
-
-  private handleShellJobUpdates(entries: Array<BackgroundShellEntry>): void {
-    if (entries.length > 0) {
-      const runningIds = new Set(entries.map((entry) => entry.id))
-      for (const notifiedId of this.shellJobNotified) {
-        if (!runningIds.has(notifiedId)) this.shellJobNotified.delete(notifiedId)
-      }
-    }
-    for (const entry of entries) {
-      if (entry.status === 'running' || this.shellJobNotified.has(entry.id)) continue
-      this.shellJobNotified.add(entry.id)
-      const owner = entry.ownerSessionId ? this.live.get(entry.ownerSessionId) : undefined
-      if (!owner) continue
-      const exit = entry.exitCode !== undefined ? `exit ${entry.exitCode}` : entry.status
-      const tail = entry.tail.trimEnd()
-      const preview = tail.length > 2000 ? `${tail.slice(tail.length - 2000)}\n…full log at ${entry.logFile}` : tail
-      try {
-        owner.queue(`Background task ${entry.id} ("${entry.command}") finished (${exit}):\n${preview || '(no output)'}`)
-      } catch (error) {
-        logDebug('swallowed error', { scope: 'session-manager', error })
-      }
-    }
   }
 
   shellJobs(): Array<BackgroundShellEntry> {

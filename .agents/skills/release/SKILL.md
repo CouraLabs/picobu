@@ -18,6 +18,9 @@ description: 'Cut a new Picobu release: bump version, build, publish to npm, tag
 4. `bun publish --access public --cpu=* --os=*`
 5. `git tag vX.Y.Z` + `git push origin vX.Y.Z` (skipped if the tag exists)
 6. create the GitHub release for the tag (see below)
+7. announce the release on Discord (best-effort; see below)
+
+A successful `bun publish` counts as pushed — the script never polls npm for registry availability, so post-publish propagation delay is not treated as a failure.
 
 ## Release mechanism
 - Prefers the GitHub CLI: `gh release create vX.Y.Z --generate-notes --verify-tag`.
@@ -30,6 +33,13 @@ description: 'Cut a new Picobu release: bump version, build, publish to npm, tag
 
 ## Release notes
 GitHub auto-generates notes from commits/PRs since the previous release (`--generate-notes`). No local changelog is written.
+
+## Discord announcement
+After the GitHub release step, `scripts/publish.ts` posts a Discord embed (best-effort — a failed POST is logged and never fails the release):
+- The webhook URL is read from the `PICOBU_DISCORD_WEBHOOK_URL` environment variable. If it is unset/empty the announcement is skipped and the script logs `PICOBU_DISCORD_WEBHOOK_URL not set — Discord announcement skipped`.
+- Release notes are categorized from `git log <prevTag>..<tag> --no-merges --pretty=%s` (previous tag via `git describe --tags --abbrev=0 <tag>^`): `feat:`/`feature:` → **Features**, `fix:` → **Fixes**, the rest → **Other**. Empty buckets render as `—`; buckets are capped and show `…and N more` when truncated.
+- The embed also carries the install command `bun add -g @couralabs/picobu --force --trust` and the GitHub release link.
+- On success the script logs `announced Picobu vX.Y.Z on Discord`. The webhook URL/token is never echoed.
 
 ## Verify
 ```sh

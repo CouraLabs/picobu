@@ -1,5 +1,19 @@
 import { describe, expect, test } from 'bun:test'
-import { createReleaseApi, ensureRelease, type ReleaseDeps, runStep, slugFromUrl, tagFor, tokenFor } from '../../scripts/publish.ts'
+import {
+  type AnnounceDeps,
+  announceRelease,
+  buildDiscordPayload,
+  categorizeNotes,
+  createReleaseApi,
+  ensureRelease,
+  INSTALL_COMMAND,
+  type ReleaseDeps,
+  renderBucket,
+  runStep,
+  slugFromUrl,
+  tagFor,
+  tokenFor,
+} from '../../scripts/publish.ts'
 
 describe('runStep', () => {
   test('passes through when the command succeeds', () => {
@@ -137,6 +151,99 @@ describe('ensureRelease', () => {
     })
     await expect(ensureRelease('owner/repo', 'v1.2.3', deps)).rejects.toThrow('cannot create GitHub release')
     expect(calls).toEqual([])
+  })
+})
+
+describe('categorizeNotes', () => {
+  test('buckets conventional prefixes', () => {
+    const notes = categorizeNotes([
+      'feat: add update command',
+      'feat(tui): confirm dialog',
+      'feature: x',
+      'fix: patch notes',
+      'fix(mcp): keep tools',
+      'chore: bump',
+      'docs: readme',
+      'release: v1',
+      'plain subject',
+    ])
+    expect(notes.features).toEqual(['feat: add update command', 'feat(tui): confirm dialog', 'feature: x'])
+    expect(notes.fixes).toEqual(['fix: patch notes', 'fix(mcp): keep tools'])
+    expect(notes.other).toEqual(['chore: bump', 'docs: readme', 'release: v1', 'plain subject'])
+  })
+
+  test('ignores blank and whitespace-only subjects', () => {
+    expect(categorizeNotes(['', '   ', '\t'])).toEqual({ features: [], fixes: [], other: [] })
+  })
+})
+
+describe('renderBucket', () => {
+  test('renders bullets and truncates past the cap', () => {
+    expect(renderBucket([])).toBe('—')
+    expect(renderBucket(['a', 'b'])).toBe('• a\n• b')
+    expect(renderBucket(Array.from({ length: 10 }, (_, i) => `s${i}`))).toBe('• s0\n• s1\n• s2\n• s3\n• s4\n• s5\n• s6\n• s7\n…and 2 more')
+  })
+})
+
+describe('buildDiscordPayload', () => {
+  test('includes categorized fields, install command and release link', () => {
+    const payload = buildDiscordPayload('0.36.3', 'CouraLabs/picobu', categorizeNotes(['feat: a', 'fix: b', 'chore: c'])) as {
+      content: string
+      embeds: Array<{ url: string; fields: Array<{ name: string; value: string }> }>
+    }
+    expect(payload.content).toContain('Picobu v0.36.3')
+    const embed = payload.embeds[0]
+    expect(embed?.url).toBe('https://github.com/CouraLabs/picobu/releases/tag/v0.36.3')
+    const names = embed?.fields.map((f) => f.name)
+    expect(names).toEqual(['Features', 'Fixes', 'Other', 'Install', 'Release notes'])
+    expect(embed?.fields.find((f) => f.name === 'Install')?.value).toBe(`\`${INSTALL_COMMAND}\``)
+  })
+})
+
+describe('announceRelease', () => {
+  const makeDeps = (overrides: Partial<AnnounceDeps>): AnnounceDeps => ({
+    fetch,
+    env: {},
+    log: () => {},
+    ...overrides,
+  })
+
+  test('skips when the webhook env var is missing', async () => {
+    const calls: Array<string> = []
+    const ok = await announceRelease('owner/repo', '0.1.0', categorizeNotes([]), makeDeps({ env: {}, log: (m) => calls.push(m) }))
+    expect(ok).toBe(false)
+    expect(calls[0]).toContain('PICOBU_DISCORD_WEBHOOK_URL not set')
+  })
+
+  test('posts and reports success', async () => {
+    const calls: Array<string> = []
+    let posted: string | undefined
+    const fakeFetch = async (input: string): Promise<Response> => {
+      posted = input
+      return new Response('', { status: 204 })
+    }
+    const ok = await announceRelease(
+      'owner/repo',
+      '0.1.0',
+      categorizeNotes(['feat: a']),
+      makeDeps({ fetch: fakeFetch, env: { PICOBU_DISCORD_WEBHOOK_URL: 'https://example.test/hook' }, log: (m) => calls.push(m) }),
+    )
+    expect(ok).toBe(true)
+    expect(posted).toBe('https://example.test/hook')
+    expect(calls[0]).toContain('announced Picobu v0.1.0 on Discord')
+  })
+
+  test('reports failure without throwing on a non-ok response', async () => {
+    const calls: Array<string> = []
+    const fakeFetch = async (): Promise<Response> => new Response('bad', { status: 400 })
+    const ok = await announceRelease(
+      'owner/repo',
+      '0.1.0',
+      categorizeNotes([]),
+      makeDeps({ fetch: fakeFetch, env: { PICOBU_DISCORD_WEBHOOK_URL: 'https://example.test/hook' }, log: (m) => calls.push(m) }),
+    )
+    expect(ok).toBe(false)
+    expect(calls[0]).toContain('Discord announcement failed (400)')
   })
 })
 

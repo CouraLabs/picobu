@@ -57,7 +57,7 @@ describe('background shell registry', () => {
 })
 
 describe('task tools', () => {
-  test('task_output blocks until completion', async () => {
+  test('task-output blocks until completion', async () => {
     const tool = createTaskOutputTool()
     const entry = startBackgroundShell({ command: 'echo task-done', cwd: dir })
     const result = await tool.handler({ taskId: entry.id })
@@ -66,20 +66,36 @@ describe('task tools', () => {
     expect(result.output).toContain('task-done')
   })
 
-  test('task_output reports unknown ids', async () => {
+  test('task-output stops a running task it is listening to', async () => {
+    const tool = createTaskOutputTool()
+    const entry = startBackgroundShell({ command: 'sleep 30', cwd: dir })
+    const result = await tool.handler({ taskId: entry.id, block: false })
+    expect(result.status).toBe('stopped')
+    expect(getBackgroundShell(entry.id)?.status).toBe('stopped')
+  })
+
+  test('task-output reports unknown ids', async () => {
     const tool = createTaskOutputTool()
     const result = await tool.handler({ taskId: 'bg_missing' })
     expect(result.status).toBe('unknown')
   })
 
-  test('task_stop stops a running task', async () => {
+  test('task-stop stops a running task', async () => {
     const stop = createTaskStopTool()
     const entry = startBackgroundShell({ command: 'sleep 30', cwd: dir })
     const result = await stop.handler({ taskId: entry.id })
     expect(result.status).toBe('stopped')
   })
 
-  test('task_stop reports unknown ids', async () => {
+  test('task-stop closes a long-running server-style task', async () => {
+    const stop = createTaskStopTool()
+    const entry = startBackgroundShell({ command: 'sleep 30', cwd: dir })
+    const result = await stop.handler({ taskId: entry.id })
+    expect(result.status).toBe('stopped')
+    expect(getBackgroundShell(entry.id)?.status).toBe('stopped')
+  })
+
+  test('task-stop reports unknown ids', async () => {
     const stop = createTaskStopTool()
     const result = await stop.handler({ taskId: 'bg_missing' })
     expect(result.status).toBe('unknown')
@@ -96,12 +112,12 @@ describe('task tools', () => {
       .getTools()
       .map((tool) => tool.name)
     expect(subagentTools).toContain('shell')
-    expect(subagentTools).not.toContain('task_output')
-    expect(subagentTools).not.toContain('task_stop')
+    expect(subagentTools).not.toContain('task-output')
+    expect(subagentTools).not.toContain('task-stop')
     const interactiveTools = buildToolSet({ interactive: true })
       .getTools()
       .map((tool) => tool.name)
-    expect(interactiveTools).toContain('task_output')
-    expect(interactiveTools).toContain('task_stop')
+    expect(interactiveTools).toContain('task-output')
+    expect(interactiveTools).toContain('task-stop')
   })
 })

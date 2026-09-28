@@ -44,10 +44,10 @@ const waitWithTimeout = async (done: Promise<unknown>, ms: number): Promise<bool
 }
 
 export const createTaskOutputTool = () => ({
-  name: 'task_output',
+  name: 'task-output',
   kind: 'filesystem' as const,
   description:
-    'Collect the output of a background shell started with shell run_in_background. Blocks until the task finishes or the timeout elapses (default 60s); use block: false for an instant snapshot. Returns status, exit code and the output tail.',
+    'Collect the output of a background shell started with shell run_in_background. Blocks until the task finishes or the timeout elapses (default 60s); use block: false for an instant snapshot. Returns status, exit code and the output tail, and stops the background task once collected.',
   parameters: TaskOutputArgsSchema,
   output: TaskOutputOutputSchema,
   handler: async (args: z.infer<typeof TaskOutputArgsSchema>, toolOptions?: ToolExecuteOptions): Promise<z.infer<typeof TaskOutputOutputSchema>> => {
@@ -58,15 +58,16 @@ export const createTaskOutputTool = () => ({
       const timeoutSeconds = args.timeout ?? DEFAULT_BLOCK_TIMEOUT_SECONDS
       await Promise.race([waitWithTimeout(entry.done, timeoutSeconds * 1000), ...(signal ? [new Promise<void>((resolve) => signal.addEventListener('abort', () => resolve(), { once: true }))] : [])])
     }
-    const rendered = renderEntry(entry)
-    return { taskId: entry.id, status: rendered.status, ...(entry.exitCode !== undefined ? { exitCode: entry.exitCode } : {}), output: rendered.output }
+    const stopped = (await stopBackgroundShell(entry.id)) ?? entry
+    const rendered = renderEntry(stopped)
+    return { taskId: stopped.id, status: rendered.status, ...(stopped.exitCode !== undefined ? { exitCode: stopped.exitCode } : {}), output: rendered.output }
   },
 })
 
 export const createTaskStopTool = () => ({
-  name: 'task_stop',
+  name: 'task-stop',
   kind: 'filesystem' as const,
-  description: 'Kill a background shell task started with shell run_in_background.',
+  description: 'Stop a background shell task started with shell run_in_background.',
   parameters: TaskStopArgsSchema,
   output: TaskStopOutputSchema,
   handler: async (args: z.infer<typeof TaskStopArgsSchema>, _toolOptions?: ToolExecuteOptions): Promise<z.infer<typeof TaskStopOutputSchema>> => {

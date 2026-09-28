@@ -269,6 +269,16 @@ program
       process.exit(0)
     })()
   })
+program
+  .command('update')
+  .description('Update picobu to the latest published version, then reopen the last session')
+  .action(() => {
+    void (async () => {
+      const { runForegroundUpdate } = await import('@shared/update.ts')
+      const { lastSessionLaunchPlan } = await import('@agent/sessions/last-session.ts')
+      await runForegroundUpdate(lastSessionLaunchPlan())
+    })()
+  })
 interface CliActionOptions {
   server?: boolean
   session?: string | boolean

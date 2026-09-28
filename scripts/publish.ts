@@ -29,6 +29,112 @@ export const versionTagExists = (tag: string): boolean => {
   return result.exitCode === 0
 }
 
+export interface ReleaseNotes {
+  features: Array<string>
+  fixes: Array<string>
+  other: Array<string>
+}
+
+export const INSTALL_COMMAND = 'bun add -g @couralabs/picobu --force --trust'
+export const MAX_BUCKET_LINES = 8
+
+const isFeature = (subject: string): boolean => /^(feat|feature)(\(|:|!)/i.test(subject)
+const isFix = (subject: string): boolean => /^fix(\(|:|!)/i.test(subject)
+
+export const categorizeNotes = (subjects: Array<string>): ReleaseNotes => {
+  const notes: ReleaseNotes = { features: [], fixes: [], other: [] }
+  for (const raw of subjects) {
+    const subject = raw.trim()
+    if (subject.length === 0) continue
+    if (isFeature(subject)) notes.features.push(subject)
+    else if (isFix(subject)) notes.fixes.push(subject)
+    else notes.other.push(subject)
+  }
+  return notes
+}
+
+export const renderBucket = (lines: Array<string>): string => {
+  if (lines.length === 0) return '—'
+  const head = lines.slice(0, MAX_BUCKET_LINES).map((line) => `• ${line}`)
+  const extra = lines.length - MAX_BUCKET_LINES
+  if (extra > 0) head.push(`…and ${extra} more`)
+  return head.join('\n')
+}
+
+export const buildDiscordPayload = (version: string, slug: string, notes: ReleaseNotes): unknown => {
+  const tag = tagFor(version)
+  const releaseUrl = `https://github.com/${slug}/releases/tag/${tag}`
+  return {
+    content: `🚀 **Picobu ${tag}** is out!`,
+    embeds: [
+      {
+        title: `Picobu ${tag}`,
+        url: releaseUrl,
+        color: 5814783,
+        fields: [
+          { name: 'Features', value: renderBucket(notes.features), inline: false },
+          { name: 'Fixes', value: renderBucket(notes.fixes), inline: false },
+          { name: 'Other', value: renderBucket(notes.other), inline: false },
+          { name: 'Install', value: `\`${INSTALL_COMMAND}\``, inline: false },
+          { name: 'Release notes', value: releaseUrl, inline: false },
+        ],
+      },
+    ],
+  }
+}
+
+export const previousReleaseTag = (tag: string): string | undefined => {
+  const result = Bun.spawnSync(['git', 'describe', '--tags', '--abbrev=0', `${tag}^`], { cwd: root, stdio: ['ignore', 'pipe', 'ignore'] })
+  if (result.exitCode !== 0) return undefined
+  const value = result.stdout.toString().trim()
+  return value.length > 0 ? value : undefined
+}
+
+export const releaseSubjects = (tag: string): Array<string> => {
+  const previous = previousReleaseTag(tag)
+  const range = previous ? `${previous}..${tag}` : tag
+  const result = Bun.spawnSync(['git', 'log', '--no-merges', '--pretty=%s', range], { cwd: root, stdio: ['ignore', 'pipe', 'ignore'] })
+  if (result.exitCode !== 0) return []
+  return result.stdout
+    .toString()
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+}
+
+export type AnnounceFetch = (input: string, init?: RequestInit) => Promise<Response>
+
+export interface AnnounceDeps {
+  fetch: AnnounceFetch
+  env: Record<string, string | undefined>
+  log: (message: string) => void
+}
+
+export const announceRelease = async (slug: string, version: string, notes: ReleaseNotes, deps: AnnounceDeps): Promise<boolean> => {
+  const webhook = deps.env.PICOBU_DISCORD_WEBHOOK_URL?.trim()
+  if (!webhook || webhook.length === 0) {
+    deps.log('PICOBU_DISCORD_WEBHOOK_URL not set — Discord announcement skipped')
+    return false
+  }
+  try {
+    const response = await deps.fetch(webhook, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(buildDiscordPayload(version, slug, notes)),
+    })
+    if (!response.ok) {
+      const body = (await response.text()).slice(0, 200)
+      deps.log(`Discord announcement failed (${response.status}): ${body}`)
+      return false
+    }
+    deps.log(`announced Picobu v${version} on Discord`)
+    return true
+  } catch (error) {
+    deps.log(`Discord announcement failed: ${error instanceof Error ? error.message : String(error)}`)
+    return false
+  }
+}
+
 export interface ReleaseDeps {
   hasGh: () => boolean
   exists: (tag: string) => boolean
@@ -120,8 +226,11 @@ const main = async (): Promise<void> => {
     },
   })
 
+  const notes = categorizeNotes(releaseSubjects(tag))
+  await announceRelease(slug, next, notes, { fetch, env: process.env, log: (message) => console.log(message) })
+
   console.log(`released @couralabs/picobu@${next}`)
-  console.log('install: bunx @couralabs/picobu (or bun add -g @couralabs/picobu)')
+  console.log(`install: ${INSTALL_COMMAND}`)
 }
 
 if (import.meta.main) {
