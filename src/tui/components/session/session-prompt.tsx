@@ -272,8 +272,7 @@ export const SessionPrompt = (props: SessionPromptProps) => {
     return map
   })
 
-  const currentToken = (): string | null => {
-    const value = text()
+  const currentToken = (value = text()): string | null => {
     if (!value.startsWith('/')) return null
     const parts = value.split(/\s+/)
     const last = parts[parts.length - 1] ?? ''
@@ -314,12 +313,16 @@ export const SessionPrompt = (props: SessionPromptProps) => {
     ),
   )
 
-  const completeItem = (index: number) => {
+  const completedLine = (value: string, index: number): string => {
     const item = filteredItems()[index]
-    const token = currentToken()
-    if (!item || token === null) return
-    const value = text()
-    const next = `${value.slice(0, value.length - token.length)}${item.label} `
+    const token = currentToken(value)
+    if (!item || token === null) return value
+    return `${value.slice(0, value.length - token.length)}${item.label} `
+  }
+
+  const completeItem = (index: number) => {
+    const next = completedLine(text(), index)
+    if (next === text()) return
     textareaRef?.setText(next)
     setText(next)
     textareaRef?.focus()
@@ -337,6 +340,11 @@ export const SessionPrompt = (props: SessionPromptProps) => {
       key.stopPropagation()
       const len = filteredItems().length
       setHighlight((h) => (h + 1) % Math.max(1, len))
+    } else if (key.name === 'right') {
+      if (!isFlyoutOpen()) return
+      key.preventDefault()
+      key.stopPropagation()
+      completeItem(highlight())
     } else if (key.name === 'tab') {
       if (key.shift) return
       key.preventDefault()
@@ -540,9 +548,10 @@ export const SessionPrompt = (props: SessionPromptProps) => {
 
   const submit = () => {
     if (waitingMode()) return
-    const value = textareaRef?.plainText ?? ''
-    if (value.trim().length === 0) return
-    if (value.trim() === '/') return
+    const raw = textareaRef?.plainText ?? ''
+    if (raw.trim().length === 0) return
+    if (raw.trim() === '/') return
+    const value = isFlyoutOpen() ? completedLine(raw, highlight()) : raw
     const staged = files()
     const seqs = parseTokenSeqs(value)
     const bySeq = new Map(staged.map((f) => [f.seq, f]))
@@ -599,14 +608,7 @@ export const SessionPrompt = (props: SessionPromptProps) => {
               <box flexDirection="column" flexShrink={0}>
                 <For each={filteredItems()}>
                   {(item, index) => (
-                    <box
-                      flexDirection="row"
-                      columnGap={1}
-                      flexShrink={0}
-                      paddingX={1}
-                      backgroundColor={highlight() === index() ? theme().backgroundElement : undefined}
-                      onMouseOver={() => setHighlight(index())}
-                      onMouseUp={() => completeItem(index())}>
+                    <box flexDirection="row" columnGap={1} flexShrink={0} paddingX={1} backgroundColor={highlight() === index() ? theme().backgroundElement : undefined}>
                       <box flexDirection="row" columnGap={1} flexShrink={0}>
                         <text fg={labelColor(item.kind)}>{item.label}</text>
                         <text fg={theme().textMuted}>({item.kind})</text>
@@ -621,7 +623,7 @@ export const SessionPrompt = (props: SessionPromptProps) => {
             </scrollbox>
             <box flexShrink={0} paddingX={1}>
               <text fg={theme().textMuted}>
-                {highlight() + 1}/{filteredItems().length} — arrows to navigate, TAB to complete
+                {highlight() + 1}/{filteredItems().length} — arrows to navigate, →/TAB to complete, ↵ to run
               </text>
             </box>
           </box>

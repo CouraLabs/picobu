@@ -21,7 +21,9 @@ The in-app help (`F1`) is the always-current source; it also lists your discover
 | `CTRL+C` | Copy selected text |
 | `CTRL+A` | Select all text in the prompt |
 | `UP` / `DOWN` (command flyout) | Move the command highlight |
-| `TAB` | Complete command (flyout open) or cycle prompt history (flyout closed) |
+| `→` / `TAB` (command flyout) | Complete the highlighted command |
+| `ENTER` (command flyout) | Complete and run the highlighted command |
+| `TAB` | Cycle prompt history (flyout closed) |
 
 `CTRL+V` is intentionally not a keybinding: pasting into the prompt goes through its paste support, which reads the clipboard service — text is inserted at the cursor and images/PDFs attach as files.
 

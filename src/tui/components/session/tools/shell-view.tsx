@@ -8,6 +8,7 @@ import {
   detailClipWidth,
   EXPANDED_MAX_LINES,
   isErroredTool,
+  isPreliminaryToolResult,
   isToolRunning,
   shellErrorLabel,
   summarizeToolInput,
@@ -24,7 +25,7 @@ export const ShellView = (props: { part: ToolPartLike }) => {
   const [expanded, setExpanded] = createSignal(false)
   const view = createMemo(() => toolStateView(props.part))
   const color = createMemo(() => toneColor(view().tone))
-  const running = createMemo(() => isToolRunning(props.part))
+  const active = createMemo(() => isToolRunning(props.part) || isPreliminaryToolResult(props.part))
   const errored = createMemo(() => isErroredTool(props.part))
   const command = createMemo(() => summarizeToolInput('shell', props.part.input))
   const successSummary = createMemo(() => summarizeToolOutput('shell', props.part.output))
@@ -40,7 +41,7 @@ export const ShellView = (props: { part: ToolPartLike }) => {
   const [tick, setTick] = createSignal(Date.now())
   onMount(() => {
     const timer = setInterval(() => {
-      if (!running()) {
+      if (!active()) {
         clearInterval(timer)
         return
       }
@@ -49,13 +50,13 @@ export const ShellView = (props: { part: ToolPartLike }) => {
     onCleanup(() => clearInterval(timer))
   })
   const elapsed = createMemo(() => {
-    if (!running()) return ''
+    if (!active()) return ''
     const seconds = Math.max(0, Math.floor((tick() - startAt) / 1000))
     if (seconds < 60) return `${seconds}s`
     return `${Math.floor(seconds / 60)}m ${String(seconds % 60).padStart(2, '0')}s`
   })
   const body = createMemo(() => {
-    if (running()) return progress() ?? ''
+    if (active()) return progress() ?? ''
     const text = output()
     if (text === undefined || text.trim().length === 0) return ''
     return truncateLines(text, EXPANDED_MAX_LINES).text
@@ -79,16 +80,16 @@ export const ShellView = (props: { part: ToolPartLike }) => {
           event.stopPropagation()
           toggle()
         }}>
-        <ToolStatusIcon running={running()} color={color()} />
+        <ToolStatusIcon running={active()} color={color()} />
         <text fg={color()} flexShrink={0} selectable={false}>
           SHELL
         </text>
-        <Show when={running()}>
+        <Show when={active()}>
           <text fg={color()} flexShrink={0} selectable={false}>
             {`· running… ${elapsed()}`}
           </text>
         </Show>
-        <Show when={!running() && summaryText().length > 0}>
+        <Show when={!active() && summaryText().length > 0}>
           <text fg={errored() ? theme().error : theme().textMuted} flexShrink={1} selectable={false}>
             {`· ${clip(summaryText(), detailClipWidth(dims().width, false, 5))}`}
           </text>

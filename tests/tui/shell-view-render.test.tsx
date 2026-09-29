@@ -22,6 +22,22 @@ describe('ShellView render', () => {
     }
   })
 
+  test('shows running… and streaming progress for a preliminary result', async () => {
+    const part = { type: 'tool-shell', state: 'output-available', input: { command: 'make' }, output: { progress: 'compiling 12/40' }, preliminary: true } as ToolPartLike
+    const setup = await mount(part)
+    try {
+      const frame = setup.captureCharFrame()
+      expect(frame).toContain('SHELL')
+      expect(frame).toContain('running…')
+      await setup.mockMouse.click(3, 0)
+      await setup.renderOnce()
+      await setup.flush()
+      expect(setup.captureCharFrame()).toContain('compiling 12/40')
+    } finally {
+      setup.renderer.destroy()
+    }
+  })
+
   test('collapses a finished command to SHELL with the output summary', async () => {
     const setup = await mount({ type: 'tool-shell', state: 'output-available', input: { command: 'echo hi' }, output: 'l1\nl2' })
     try {

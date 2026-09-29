@@ -28,7 +28,7 @@ Type `/` at the prompt for the command flyout. Built-ins:
 | `/session-status-view` | `/session-status`, `/status-view` | Configure the session status bar layout |
 | `/session-header-view` | `/session-header`, `/header-view` | Configure the session header layout |
 
-Skills (`/skill:<name>`) and project workflows appear in the flyout dynamically as they're discovered. `TAB` completes the highlighted command; `UP`/`DOWN` move the highlight.
+Skills (`/skill:<name>`) and project workflows appear in the flyout dynamically as they're discovered. `UP`/`DOWN` move the highlight; `→`/`TAB` complete the highlighted command; `ENTER` completes and runs it.
 
 ## Shell prefix
 

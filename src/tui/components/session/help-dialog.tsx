@@ -25,7 +25,8 @@ const shortcuts: Array<{ keys: string; what: string }> = [
   { keys: 'CTRL + E', what: 'Cycle thinking effort' },
   { keys: 'CTRL + P', what: 'Toggle permission mode (YOLO / Ask — saved as the default)' },
   { keys: 'TAB', what: 'Cycle prompt history (disabled while the command flyout is open)' },
-  { keys: 'TAB (in command flyout)', what: 'Complete command in the flyout' },
+  { keys: 'TAB / → (in command flyout)', what: 'Complete the highlighted command in the prompt' },
+  { keys: 'ENTER (in command flyout)', what: 'Complete and run the highlighted command' },
   { keys: 'CTRL + A', what: 'Select all text in the prompt' },
 ]
 

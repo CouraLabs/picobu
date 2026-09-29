@@ -4,8 +4,13 @@
 
 An open-source coding agent for your terminal. Point Picobu at a project and it reads the code, reasons about the task, edits files, runs commands, and verifies its own work — in a fast OpenTUI interface built on the Vercel AI SDK.
 
+## Demo
+
+[▶ Watch the intro video](docs/intro-video.mp4)
+
 ## Table of Contents
 
+- [Demo](#demo)
 - [Background](#background)
 - [Install](#install)
 - [Usage](#usage)

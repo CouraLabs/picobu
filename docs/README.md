@@ -1,6 +1,6 @@
 # Picobu documentation
 
-Modular documentation for Picobu, a terminal coding agent with a headless, UI-agnostic core. Start with [usage](usage.md) for a guided tour, or jump straight to a topic below. The root [README](../README.md) holds the project background and install basics.
+Modular documentation for Picobu, a terminal coding agent with a headless, UI-agnostic core. Start with [usage](usage.md) for a guided tour, or jump straight to a topic below. The root [README](../README.md) holds the project background and install basics. [Intro video](intro-video.mp4).
 
 ## Index
 
