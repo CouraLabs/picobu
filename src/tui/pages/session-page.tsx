@@ -9,6 +9,7 @@ import { generateSessionTitle } from '@agent/prompts/session-title.ts'
 import { writeLastSession } from '@agent/sessions/last-session.ts'
 import { closePromptHistory, projectKeyFor } from '@agent/sessions/prompt-history.ts'
 import type { QueuedPrompt, Session } from '@agent/sessions/session.ts'
+import type { ChatChangeHandler } from '@agent/sessions/session-headless-chat.ts'
 import { SessionManager } from '@agent/sessions/session-manager.ts'
 import { lastAssistantText, type PromptAttachment } from '@agent/sessions/session-messages.ts'
 import { isWaiting } from '@agent/sessions/session-meta.ts'
@@ -659,74 +660,79 @@ export const SessionPage = (props: SessionPageProps) => {
     })
   })
 
+  const buildSessionChange =
+    (holder: { current?: Session }): ChatChangeHandler =>
+    (state) => {
+      const next = holder.current
+      if (!next) return
+      const nextMessages = [...state.messages]
+      const streaming = state.status === 'submitted' || state.status === 'streaming'
+      const shouldClearAnswering = streaming || state.status === 'error'
+      const w = isWaiting(state.messages)
+      batch(() => {
+        setMessages(nextMessages)
+        setIsStreaming(streaming)
+        if (shouldClearAnswering) setAnswering(false)
+        setWaiting(w)
+      })
+      if (streaming) watchdog.recordActivity()
+      const live = session()
+      if (live) {
+        const nextAgentId = live.config.agentId !== agentId() ? live.config.agentId : undefined
+        batch(() => {
+          setTitle(live.title)
+          if (nextAgentId !== undefined) setAgentId(nextAgentId)
+        })
+        syncQueue(live)
+        if (nextAgentId !== undefined) pushToast(`Agent switched to ${live.config.agentId}`, 'info')
+      }
+      const current = session()
+      refreshGit(current?.config.cwd ?? sessionMgr.currentCwd)
+      if (!prevWaiting && w) {
+        const last = state.messages[state.messages.length - 1]
+        const found = last?.role === 'assistant' ? pendingFlowPart(last.parts as Array<unknown>) : undefined
+        if (found) {
+          const waitingMessage = `${flowToolName(found.tool)} - Waiting User Action`
+          pushToast(waitingMessage, 'warning')
+          notifyBlocking(flowToolName(found.tool))
+        } else {
+          pushToast('The agent is asking you questions', 'warning')
+          notifyBlocking('Agent')
+        }
+      }
+      if (prevStreaming && !streaming) {
+        watchdog.reset()
+        if (state.error) {
+          pushToast(`Run did throw an Error: ${state.error.message}`, 'error')
+          notifyFailure(`Run did throw an Error: ${state.error.message}`)
+        } else {
+          pushToast('Run is complete', 'success')
+          const lastRole = state.messages[state.messages.length - 1]?.role
+          if (lastRole === 'assistant') notifyCompletion(live?.title ? `${live.title} — run complete` : 'Run complete')
+          if (live) regenerateTitle(live)
+        }
+        refreshMcp(live)
+      } else if (state.error && state.error.message !== prevErrorMessage) {
+        pushToast(`Run did throw an Error: ${state.error.message}`, 'error')
+        notifyFailure(`Run did throw an Error: ${state.error.message}`)
+      }
+      prevStreaming = streaming
+      prevWaiting = w
+      prevErrorMessage = state.error?.message
+      const statsSource = session()?.id === next.id ? session() : next
+      if (streaming) {
+        if (statsSource?.stats) bufferStats(statsSource.stats, next.id)
+      } else {
+        resetStatsThrottle()
+        syncStats(statsSource?.stats, next.id)
+      }
+    }
+
   const openSession = async (id?: string) => {
     try {
-      const next = await sessionMgr.startSession({
-        id,
-        onChange: (state) => {
-          const nextMessages = [...state.messages]
-          const streaming = state.status === 'submitted' || state.status === 'streaming'
-          const shouldClearAnswering = streaming || state.status === 'error'
-          const w = isWaiting(state.messages)
-          batch(() => {
-            setMessages(nextMessages)
-            setIsStreaming(streaming)
-            if (shouldClearAnswering) setAnswering(false)
-            setWaiting(w)
-          })
-          if (streaming) watchdog.recordActivity()
-          const live = session()
-          if (live) {
-            const nextAgentId = live.config.agentId !== agentId() ? live.config.agentId : undefined
-            batch(() => {
-              setTitle(live.title)
-              if (nextAgentId !== undefined) setAgentId(nextAgentId)
-            })
-            syncQueue(live)
-            if (nextAgentId !== undefined) pushToast(`Agent switched to ${live.config.agentId}`, 'info')
-          }
-          const current = session()
-          refreshGit(current?.config.cwd ?? sessionMgr.currentCwd)
-          if (!prevWaiting && w) {
-            const last = state.messages[state.messages.length - 1]
-            const found = last?.role === 'assistant' ? pendingFlowPart(last.parts as Array<unknown>) : undefined
-            if (found) {
-              const waitingMessage = `${flowToolName(found.tool)} - Waiting User Action`
-              pushToast(waitingMessage, 'warning')
-              notifyBlocking(flowToolName(found.tool))
-            } else {
-              pushToast('The agent is asking you questions', 'warning')
-              notifyBlocking('Agent')
-            }
-          }
-          if (prevStreaming && !streaming) {
-            watchdog.reset()
-            if (state.error) {
-              pushToast(`Run did throw an Error: ${state.error.message}`, 'error')
-              notifyFailure(`Run did throw an Error: ${state.error.message}`)
-            } else {
-              pushToast('Run is complete', 'success')
-              const lastRole = state.messages[state.messages.length - 1]?.role
-              if (lastRole === 'assistant') notifyCompletion(live?.title ? `${live.title} — run complete` : 'Run complete')
-              if (live) regenerateTitle(live)
-            }
-            refreshMcp(live)
-          } else if (state.error && state.error.message !== prevErrorMessage) {
-            pushToast(`Run did throw an Error: ${state.error.message}`, 'error')
-            notifyFailure(`Run did throw an Error: ${state.error.message}`)
-          }
-          prevStreaming = streaming
-          prevWaiting = w
-          prevErrorMessage = state.error?.message
-          const statsSource = session()?.id === next.id ? session() : next
-          if (streaming) {
-            if (statsSource?.stats) bufferStats(statsSource.stats, next.id)
-          } else {
-            resetStatsThrottle()
-            syncStats(statsSource?.stats, next.id)
-          }
-        },
-      })
+      const holder: { current?: Session } = {}
+      const next = await sessionMgr.startSession({ id, onChange: buildSessionChange(holder) })
+      holder.current = next
       attachSession(next)
     } catch (error) {
       logError(error, { scope: 'open-session', ...(id ? { sessionId: id } : {}) })
@@ -828,6 +834,10 @@ export const SessionPage = (props: SessionPageProps) => {
       showError(new Error(`Not a directory: ${next}`))
       return
     }
+    if (next === sessionMgr.currentCwd) {
+      pushToast(`Already in ${next}`, 'info')
+      return
+    }
     try {
       try {
         await target.flush()
@@ -846,12 +856,18 @@ export const SessionPage = (props: SessionPageProps) => {
         setQueueDepth(0)
       })
       resetStats()
-      const fresh = await sessionMgr.changeDirectory(next)
-      if (!fresh) return
+      const holder: { current?: Session } = {}
+      const fresh = await sessionMgr.changeDirectory(next, { onChange: buildSessionChange(holder) })
+      if (!fresh) {
+        await openSession(undefined)
+        return
+      }
+      holder.current = fresh
       bumpCatalog()
       attachSession(fresh)
     } catch (error) {
       showError(error)
+      if (!session()) await openSession(undefined)
     }
   }
 

@@ -11,7 +11,7 @@ Every conversation is a session. Sessions persist incrementally to `~/.picobu/se
 - **History**: `revertToMessage` (truncates + persists), `undo`/`redo` (file-level, no LLM call, refused mid-run; new edits drop the redo tail; shell mutations are not checkpointed), `switchAgent`/`switchModel`/`switchThinking` mid-session, `addToolOutput` (delivers `ask`/`plan-write` answers without a run), `summarize` (read-only one-shot summary).
 - **Catalogs**: `skills`, `workflows`, `rules`, `agents`, `mcp` (snapshots, tool names, `refresh()`).
 
-`SessionManager` rounds it out: `changeDirectory(path)` starts a new session under the new folder key (worktrees run concurrently with separate sandboxes), `forkSession` clones a session, plus `listSessions`, `listSessionTree`, `renameSession`, and `deleteSession` (cascade to sub sessions, refuses running subtrees).
+`SessionManager` rounds it out: `changeDirectory(path, { onChange })` starts a new session under the new folder key (worktrees run concurrently with separate sandboxes), `forkSession` clones a session, plus `listSessions`, `listSessionTree`, `renameSession`, and `deleteSession` (cascade to sub sessions, refuses running subtrees).
 
 ## Sub sessions and spawn
 

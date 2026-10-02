@@ -187,13 +187,13 @@ export class SessionManager {
     }
   }
 
-  async changeDirectory(path: string): Promise<Session | undefined> {
+  async changeDirectory(path: string, init: { onChange?: ChatChangeHandler } = {}): Promise<Session | undefined> {
     const next = resolve(path)
     const info = await stat(next).catch(() => undefined)
     if (!info?.isDirectory()) throw new Error(`Not a directory: ${next}`)
     if (next === this.cwd) return undefined
     this.cwd = next
-    return this.startSession()
+    return this.startSession({ onChange: init.onChange })
   }
 
   async renameSession(id: string, title: string): Promise<void> {
