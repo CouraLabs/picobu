@@ -10,7 +10,7 @@ Picobu talks to any provider the Vercel AI SDK supports. Providers are declared 
 | `name` | Display name |
 | `type` | SDK adapter: `openai`, `openai-compatible`, `openai-responses`, or `anthropic` (aliases: `anthropic-compatible`, `openai-responses-compatible`) |
 | `baseUrl` | API base URL. For `openai-responses`, either the base or the full `/responses` URL |
-| `apiKey` | Literal key or `"env:VAR_NAME"`. Optional for `openai-compatible` / `openai-responses` — omit it for keyless servers (Ollama, LM Studio, local LiteLLM). **Required** for `anthropic`, whose SDK refuses to send a request without one |
+| `apiKey` | Literal key or `"env:VAR_NAME"`. Optional — omit it for keyless servers (Ollama, LM Studio, local LiteLLM). With no `apiKey`, `anthropic`- and `openai`-type providers send the `picobu-keyless` placeholder instead of an empty key; `openai-compatible` / `openai-responses` omit the `Authorization` header entirely |
 | `headers` | Extra HTTP headers |
 | `npm` | The `@ai-sdk/*` factory package used at runtime (catalog autoload sets this) |
 | `models` | Array of model entries |
@@ -153,7 +153,7 @@ Anthropic-compatible and OpenAI-Responses-compatible servers work the same way, 
 
 `type` accepts the aliases `anthropic-compatible` and `openai-responses-compatible`. For `openai-responses`, `baseUrl` may be either the base (`http://localhost:8000/v1`) or the full endpoint (`http://localhost:8000/v1/responses`) — Picobu appends `/responses` only when it is missing.
 
-An `anthropic`-type provider always needs a non-empty `apiKey`: the Anthropic SDK throws `LoadAPIKeyError` before it reaches the network otherwise. Point it at whatever your proxy accepts (the example uses the literal `"local"`), or at a real `env:VAR`. `openai-compatible` and `openai-responses` have no such requirement, so omit `apiKey` entirely for a keyless server — an empty or placeholder key would be sent as a real `Authorization` header.
+An `anthropic`-type provider may omit `apiKey`. Picobu then sends the literal placeholder `picobu-keyless` rather than leaving the field empty, which deliberately shadows any ambient `ANTHROPIC_API_KEY` so a local proxy never receives your real key. Point it at whatever your proxy accepts (the example uses the literal `"local"`), or supply a real key through `env:VAR` — a genuine Anthropic endpoint answers the placeholder with a 401. `openai-compatible` and `openai-responses` behave differently: with no `apiKey` the `Authorization` header is omitted entirely, so omit the field for a keyless server.
 
 You do not have to hand-edit `options.json`: ask the **Picobu Optioneer** agent to add a provider and it writes a validated patch through the `update-options` tool, then reloads. Note that `providers` is replaced wholesale, so the Optioneer always sends the complete array.
 
