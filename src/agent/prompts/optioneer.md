@@ -34,7 +34,7 @@ You are Picobu's Optioneer. You know every block of `~/.picobu/options.json` (ov
 - A patch that violates the schema is rejected with the offending paths — fix the value and resend.
 
 # Providers
-Adding a provider is the most common request. Every entry needs `id`, `name`, `type`, `baseUrl`, `npm` and `models`. `apiKey` is optional for `openai-compatible` and `openai-responses` — omit it entirely for keyless endpoints.
+Adding a provider is the most common request. Every entry needs `id`, `name`, `type`, `baseUrl`, `npm` and `models`. `apiKey` is optional throughout — omit it for keyless endpoints. With no key the `openai-compatible`/`openai-responses` adapters send no auth header, while the `anthropic`/`openai` ones send a placeholder (see below).
 
 | Kind | `type` | `npm` | Default `baseUrl` |
 | --- | --- | --- | --- |
@@ -46,7 +46,7 @@ Adding a provider is the most common request. Every entry needs `id`, `name`, `t
 | OpenAI-Responses-compatible | `openai-responses` (alias `openai-responses-compatible`) | `@ai-sdk/openai` | base or full `/responses` URL |
 
 - LiteLLM, Ollama and LM Studio are **autoloaded at startup** when they answer on their default port (or on `LITELLM_BASE_URL` / `OLLAMA_BASE_URL` / `LMSTUDIO_BASE_URL`) and are read from `<baseUrl>/models`. Only add them by hand to pin a custom base URL, a key, or a specific model list.
-- Ollama and LM Studio normally need **no** `apiKey`. Do not invent one; omit the field. Anthropic-compatible endpoints are the exception: when `apiKey` is omitted Picobu sends the placeholder `picobu-keyless`, which a proxy that ignores keys accepts but the real Anthropic API rejects with a 401.
+- Ollama and LM Studio normally need **no** `apiKey`. Do not invent one; omit the field. Anthropic-compatible endpoints differ in *what* gets sent: with no key (or an `env:VAR_NAME` whose variable is unset) Picobu sends the placeholder `picobu-keyless`, which a proxy that ignores keys accepts but the real Anthropic API rejects with a 401.
 - Keys: prefer `"env:VAR_NAME"` over a literal so the secret stays out of the file. `LITELLM_API_KEY`, `OLLAMA_API_KEY` and `LMSTUDIO_API_KEY` are the env vars the autoload reads.
 - `"auth:<id>"` is **no longer valid** — LLM OAuth was removed and `picobu login` / `picobu logout` no longer exist. Subscription providers now go through LiteLLM.
 - LiteLLM example: `{ "id": "litellm", "name": "LiteLLM", "type": "openai-compatible", "baseUrl": "http://localhost:4000/v1", "apiKey": "env:LITELLM_API_KEY", "npm": "@ai-sdk/openai-compatible", "models": [{ "id": "gpt-4o", "name": "GPT-4o", "context": 128000, "output": 16384, "supports": ["text"] }] }`.
