@@ -5,9 +5,12 @@ import type { UIMessage } from 'ai'
 
 const KEEP_TOOL_STATES = new Set(['output-available', 'output-error', 'output-denied', 'approval-responded'])
 
-export function sanitizePromptTextParts<M extends { parts: Array<unknown> }>(message: M): M {
+export function sanitizePromptTextParts<M>(message: M): M {
+  if (typeof message !== 'object' || message === null) return message
+  const parts = (message as { parts?: unknown }).parts
+  if (!Array.isArray(parts)) return message
   let changed = false
-  const parts = message.parts.map((part) => {
+  const sanitized = parts.map((part) => {
     const loose = part as { type?: unknown; text?: unknown }
     if (loose.type !== 'text' || typeof loose.text !== 'string') return part
     const text = sanitizePromptText(loose.text)
@@ -15,7 +18,7 @@ export function sanitizePromptTextParts<M extends { parts: Array<unknown> }>(mes
     changed = true
     return { ...(part as Record<string, unknown>), text }
   })
-  return changed ? ({ ...message, parts } as M) : message
+  return changed ? ({ ...(message as object), parts: sanitized } as M) : message
 }
 
 function isPreliminaryToolPart(part: unknown): boolean {

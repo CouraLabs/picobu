@@ -121,6 +121,21 @@ describe('sanitizePromptTextParts', () => {
     const input = { id: 'm2', role: 'user' as const, parts: [{ type: 'text' as const, text: 'clean' }] }
     expect(sanitizePromptTextParts(input)).toBe(input)
   })
+
+  test('regression: passes through the `{ text }` shape that Chat.sendMessage accepts', () => {
+    const input = { text: 'hi\u001b[31m' }
+    expect(sanitizePromptTextParts(input)).toBe(input)
+  })
+
+  test('regression: passes through the `{ files }` shape that Chat.sendMessage accepts', () => {
+    const input = { files: [{ type: 'file', mediaType: 'image/png', url: 'data:image/png;base64,AAA' }] }
+    expect(sanitizePromptTextParts(input)).toBe(input)
+  })
+
+  test('regression: passes through an empty message object', () => {
+    const input = {}
+    expect(sanitizePromptTextParts(input)).toBe(input)
+  })
 })
 
 describe('toPromptMessage', () => {
