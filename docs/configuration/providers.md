@@ -1,6 +1,6 @@
-# Providers, models, and login
+# Providers and models
 
-Picobu talks to any provider the Vercel AI SDK supports. Providers are declared in `~/.picobu/options.json` under `providers`, selected via `harness`, and can also be registered automatically from the models.dev catalog or from an OAuth login. Key-value references like `"env:VAR"` are explained in [options.md](options.md).
+Picobu talks to any provider the Vercel AI SDK supports. Providers are declared in `~/.picobu/options.json` under `providers`, selected via `harness`, and can also be registered automatically from the models.dev catalog or by probing local endpoints. Key-value references like `"env:VAR"` are explained in [options.md](options.md).
 
 ## Provider entries
 
@@ -8,9 +8,9 @@ Picobu talks to any provider the Vercel AI SDK supports. Providers are declared 
 | --- | --- |
 | `id` | Identifier used by `harness.defaultModel` and `statusLine` (`"<providerId>/<modelId>"`) |
 | `name` | Display name |
-| `type` | SDK adapter: `openai`, `openai-compatible`, `openai-responses`, or `anthropic` |
-| `baseUrl` | API base URL |
-| `apiKey` | Literal key, `"env:VAR_NAME"`, or `"auth:<id>"` for an OAuth credential |
+| `type` | SDK adapter: `openai`, `openai-compatible`, `openai-responses`, or `anthropic` (aliases: `anthropic-compatible`, `openai-responses-compatible`) |
+| `baseUrl` | API base URL. For `openai-responses`, either the base or the full `/responses` URL |
+| `apiKey` | Literal key or `"env:VAR_NAME"`. Optional for `openai-compatible` / `openai-responses` — omit it for keyless servers (Ollama, LM Studio, local LiteLLM). **Required** for `anthropic`, whose SDK refuses to send a request without one |
 | `headers` | Extra HTTP headers |
 | `npm` | The `@ai-sdk/*` factory package used at runtime (catalog autoload sets this) |
 | `models` | Array of model entries |
@@ -59,7 +59,7 @@ Model fields: `id`, `name`, `context` (token window), `output` (max output token
 
 At startup, Picobu loads every [models.dev](https://models.dev) provider (via `@opencode-ai/models`) whose `env` vars are set — trying the live catalog first and falling back to the bundled snapshot. Each provider's `npm` field selects the `@ai-sdk/*` factory, and provider folders under `src/agent/model/providers/` add special headers where needed (e.g. OpenRouter attribution). Charm Hyper additionally tries a live `/v1/models` fetch before the catalog fallback.
 
-Common autoload keys: `HYPER_API_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GITHUB_TOKEN`, `GOOGLE_API_KEY`, `XAI_API_KEY`, `OPENROUTER_API_KEY` — plus every models.dev provider with an `env` entry (Gemini, Mistral, Groq, DeepSeek, Cerebras, Cohere, Together, Perplexity, Azure, Bedrock, Vertex, and more). Run `picobu --help` for the full list.
+Common autoload keys: `HYPER_API_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GOOGLE_API_KEY`, `XAI_API_KEY`, `OPENROUTER_API_KEY` — plus every models.dev provider with an `env` entry (Gemini, Mistral, Groq, DeepSeek, Cerebras, Cohere, Together, Perplexity, Azure, Bedrock, Vertex, and more). Run `picobu --help` for the full list.
 
 ## Harness and model roles
 
@@ -77,39 +77,88 @@ The conversational agents map to a role (`ask`/`coder` → `flash`, `grill`/`pla
 
 `harness.maxAgents` (default `4`) caps concurrent spawned sub sessions tree-wide. options.json requires it to be ≥ 1; the `SessionManager` library API accepts `0` to disable spawning entirely.
 
-## OAuth login
+## Local and compatible endpoints
 
-Subscription providers can be used without API keys. Credentials live in `~/.picobu/auth.json` (never `options.json`); logging in registers the provider with `apiKey: "auth:<id>"` and models from the models.dev catalog. Tokens refresh automatically at bootstrap, and a first-time login also becomes `harness.defaultModel`.
+LiteLLM, Ollama and LM Studio are probed at startup and registered automatically when they answer on their default port (or on their env override). Models come from `<baseUrl>/models`, and **API keys are optional** for these three — an `openai-compatible` endpoint with no key sends no `Authorization` header at all.
 
-```sh
-picobu login                    # list OAuth provider status
-picobu login --help             # show provider ids
-picobu login <provider> [opts]  # start a login
-picobu logout <provider>        # logout and repoint harness selectors
+| Endpoint | Default `baseUrl` | Env overrides |
+| --- | --- | --- |
+| LiteLLM | `http://localhost:4000/v1` | `LITELLM_BASE_URL`, `LITELLM_API_KEY` (optional) |
+| Ollama | `http://localhost:11434/v1` | `OLLAMA_BASE_URL`, `OLLAMA_API_KEY` (optional) |
+| LM Studio | `http://localhost:1234/v1` | `LMSTUDIO_BASE_URL`, `LMSTUDIO_API_KEY` (optional) |
+
+A preset is skipped when a provider with the same `id` already exists in `options.json`, so declaring one by hand always wins.
+
+LiteLLM is the recommended way to reach subscription providers: it already implements the provider-specific flows (browser and device login, token refresh) that Picobu's own OAuth support used to cover, and it exposes everything behind one OpenAI-compatible endpoint.
+
+To pin a custom base URL, a key, or a specific model list, declare the provider in `options.json` instead. The first two below are keyless `openai-compatible`; the last two show an `anthropic`- and an `openai-responses`-compatible server:
+
+```json
+{
+  "providers": [
+    {
+      "id": "litellm",
+      "name": "LiteLLM",
+      "type": "openai-compatible",
+      "baseUrl": "http://localhost:4000/v1",
+      "apiKey": "env:LITELLM_API_KEY",
+      "npm": "@ai-sdk/openai-compatible",
+      "models": [{ "id": "gpt-4o", "name": "GPT-4o", "context": 128000, "output": 16384, "supports": ["text"] }]
+    },
+    {
+      "id": "ollama",
+      "name": "Ollama",
+      "type": "openai-compatible",
+      "baseUrl": "http://localhost:11434/v1",
+      "npm": "@ai-sdk/openai-compatible",
+      "models": [{ "id": "llama3.2", "name": "Llama 3.2", "context": 131072, "output": 8192, "supports": ["text"] }]
+    },
+    {
+      "id": "lmstudio",
+      "name": "LM Studio",
+      "type": "openai-compatible",
+      "baseUrl": "http://localhost:1234/v1",
+      "npm": "@ai-sdk/openai-compatible",
+      "models": [{ "id": "qwen/qwen3.8-27b", "name": "Qwen3.8 27B", "context": 32768, "output": 8192, "supports": ["text"] }]
+    }
+  ]
+}
 ```
 
-| Provider | `type` | Notes |
-| --- | --- | --- |
-| `openai` | `openai` | ChatGPT browser OAuth (PKCE, local callback), or `picobu login openai headless` for the device flow; live `/v1/models` intersected with the catalog so only accessible models register |
-| `anthropic` | `anthropic` | Claude browser OAuth (PKCE, local callback); live `/v1/models` intersected with the catalog |
-| `github-copilot` | `openai-compatible` | Device-code flow; base URL from the token `proxy-ep`; usable models filtered opencode-style (policy, limits, `tool_calls`) and intersected with the catalog |
-| `xai` | `openai-compatible` | xAI device-code flow (SuperGrok subscription); `@ai-sdk/xai` |
-| `openrouter` | `openai-compatible` | PKCE loopback exchanged for a permanent API key; `@openrouter/ai-sdk-provider` |
-| `kimi-coding` | `openai-compatible` | Kimi Code subscription device flow; base `https://api.kimi.com/coding` |
-| `digitalocean` | `openai-compatible` | Browser OAuth implicit flow; inference base `https://inference.do-ai.run/v1` |
-| `snowflake-cortex` | `openai-compatible` | PKCE; `picobu login snowflake-cortex <account> [role]` |
-| `azure` | `openai-compatible` | Microsoft Entra ID via `az login`; `picobu login azure <resource-name>`; `@ai-sdk/azure` |
+Anthropic-compatible and OpenAI-Responses-compatible servers work the same way, with a different `type`/`npm` pair:
 
-Provider-specific options (`[opts]`): enterprise domain for Copilot, `headless` for OpenAI, `<account> [role]` for Snowflake, `<resource-name>` for Azure.
+```json
+{
+  "providers": [
+    {
+      "id": "local-claude",
+      "name": "Local Claude",
+      "type": "anthropic",
+      "baseUrl": "http://localhost:9000",
+      "apiKey": "local",
+      "npm": "@ai-sdk/anthropic",
+      "models": [{ "id": "claude-sonnet-4-5", "name": "Claude Sonnet 4.5", "context": 200000, "output": 64000, "supports": ["text"] }]
+    },
+    {
+      "id": "local-responses",
+      "name": "Local Responses",
+      "type": "openai-responses",
+      "baseUrl": "http://localhost:8000/v1",
+      "npm": "@ai-sdk/openai",
+      "models": [{ "id": "gpt-5", "name": "GPT-5", "context": 200000, "output": 64000, "supports": ["text"] }]
+    }
+  ]
+}
+```
 
-Aliases: `copilot` → `github-copilot`, `claude` → `anthropic`, `chatgpt`/`codex` → `openai`, `kimi` → `kimi-coding`, `snowflake` → `snowflake-cortex`, `do` → `digitalocean`.
+`type` accepts the aliases `anthropic-compatible` and `openai-responses-compatible`. For `openai-responses`, `baseUrl` may be either the base (`http://localhost:8000/v1`) or the full endpoint (`http://localhost:8000/v1/responses`) — Picobu appends `/responses` only when it is missing.
 
-`openrouter`, `kimi-coding`, `digitalocean`, `snowflake-cortex`, and `azure` were ported from Pi/opencode and are untested end-to-end.
+An `anthropic`-type provider always needs a non-empty `apiKey`: the Anthropic SDK throws `LoadAPIKeyError` before it reaches the network otherwise. Point it at whatever your proxy accepts (the example uses the literal `"local"`), or at a real `env:VAR`. `openai-compatible` and `openai-responses` have no such requirement, so omit `apiKey` entirely for a keyless server — an empty or placeholder key would be sent as a real `Authorization` header.
 
-`picobu login` with an existing valid credential verifies it, refreshes the provider registration, and asks before re-logging in; pass `-f/--force` to skip that check.
+You do not have to hand-edit `options.json`: ask the **Picobu Optioneer** agent to add a provider and it writes a validated patch through the `update-options` tool, then reloads. Note that `providers` is replaced wholesale, so the Optioneer always sends the complete array.
 
 ## See also
 
-- [options.md](options.md) — the file these blocks live in, plus `env:`/`auth:` references
+- [options.md](options.md) — the file these blocks live in, plus `env:` references
 - [status-line.md](status-line.md) — provider status chips
-- [../usage/cli.md](../usage/cli.md) — `login`/`logout` command details
+- [../usage/cli.md](../usage/cli.md) — `mcp login`/`mcp logout` and the other subcommands

@@ -35,7 +35,7 @@ const renderEntry = (entry: ShellEntrySnapshot): { status: 'running' | 'complete
   const tail = tailText(entry.tail, MAX_TOOL_OUTPUT_LINES, MAX_TOOL_OUTPUT_BYTES)
   const header = `[${entry.id}] ${entry.status}${entry.exitCode !== undefined ? ` (exit ${entry.exitCode})` : ''}`
   const logNote = tail.cut ? `…earlier output truncated; full log at ${entry.logFile}` : `full log at ${entry.logFile}`
-  return { status: entry.status as 'running' | 'completed' | 'stopped', output: `${header}\n${logNote}\n\n${tail.text.trimEnd() || '(no output yet)'}` }
+  return { status: entry.status as 'running' | 'completed' | 'stopped', output: `${header}\n${logNote}\n\n${tail.text.trim() || '(no output yet)'}` }
 }
 
 const waitWithTimeout = async (done: Promise<unknown>, ms: number): Promise<boolean> => {

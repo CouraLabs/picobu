@@ -24,7 +24,7 @@ The optional top-level `statusLine` array (a sibling of `providers` in `~/.picob
 | --- | --- | --- |
 | `header` | Response header name (case-insensitive) from the last step | Every step |
 | `step-raw` | Dot-path (e.g. `cost.hypercredits`, `balances.0.total`) inside the last step's `usage.raw` provider payload | Every step |
-| `endpoint` | Dot-path into the JSON returned by `endpoint`, fetched with the provider's own auth (`env:` api key or `auth:<id>` oauth, sent as `Bearer`) | Session start, run start + run end |
+| `endpoint` | Dot-path into the JSON returned by `endpoint`, fetched with the provider's own auth (`env:` api key, sent as `Bearer`; omitted for keyless endpoints) | Session start, run start + run end |
 
 ## Endpoint rules
 

@@ -43,7 +43,7 @@ export const SessionBangOutput = () => {
                 backgroundColor: theme().background,
               },
             }}>
-            <text fg={theme().text}>{current().stdout}</text>
+            <text fg={theme().text}>{current().stdout.trim() || '(no output)'}</text>
             <Show when={showStderr()}>
               <text fg={theme().textMuted}>stderr:</text>
               <text fg={theme().error}>{current().stderr}</text>

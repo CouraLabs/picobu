@@ -10,6 +10,7 @@ import {
   isErroredTool,
   isPreliminaryToolResult,
   isToolRunning,
+  shellBodyText,
   shellErrorLabel,
   summarizeToolInput,
   summarizeToolOutput,
@@ -55,12 +56,7 @@ export const ShellView = (props: { part: ToolPartLike }) => {
     if (seconds < 60) return `${seconds}s`
     return `${Math.floor(seconds / 60)}m ${String(seconds % 60).padStart(2, '0')}s`
   })
-  const body = createMemo(() => {
-    if (active()) return progress() ?? ''
-    const text = output()
-    if (text === undefined || text.trim().length === 0) return ''
-    return truncateLines(text, EXPANDED_MAX_LINES).text
-  })
+  const body = createMemo(() => shellBodyText(active(), progress(), output()))
   const dims = useTerminalDims()
   const summaryText = createMemo(() => {
     if (errored()) return errorLabel()

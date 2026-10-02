@@ -36,6 +36,7 @@ interface Child {
   kill: () => void
 }
 export const truncateLine = (line: string, max: number): string => (line.length > max ? `${line.slice(0, max - 1)}…` : line)
+export const shellOutputText = (text: string): string => text.trim() || '(no output)'
 const drainStream = (stream: ReadableStream<Uint8Array>, sink: (text: string) => void, cancel: Promise<'cancel'>): Promise<void> => {
   const reader = stream.getReader()
   const decoder = new TextDecoder()
@@ -109,7 +110,7 @@ const runStreaming = async function* (label: string, child: Child, toolOptions: 
   const errParts = new BoundedBuffer()
   const tailLines: Array<string> = []
   let tailPending = ''
-  let lastProgress = ''
+  let lastProgress: string | undefined
   const pushText = (text: string) => {
     const parts = text.split('\n')
     tailPending += parts[0]
@@ -146,7 +147,7 @@ const runStreaming = async function* (label: string, child: Child, toolOptions: 
       if (progress !== lastProgress) {
         lastProgress = progress
         lastEmitAt = now
-        if (progress.length > 0) yield { progress }
+        yield { progress: progress.length > 0 ? progress : '(no output yet)' }
         continue
       }
       if (now - startedAt >= 2_000 && now - lastEmitAt >= 3_000) {
@@ -187,11 +188,11 @@ const runStreaming = async function* (label: string, child: Child, toolOptions: 
     }
     const tail = tailText(stdout, MAX_TOOL_OUTPUT_LINES, MAX_TOOL_OUTPUT_BYTES)
     if (!tail.cut) {
-      yield stdout.trimEnd() || '(no output)'
+      yield shellOutputText(stdout)
       return
     }
     const spilled = await spillCombined(label, exitCode ?? 0, stdout, stderr)
-    yield `${spilled ? `...output truncated...\n\nFull output saved to: ${spilled}\n\n` : '...output truncated...\n\n'}${tail.text.trimEnd() || '(no output)'}`
+    yield `${spilled ? `...output truncated...\n\nFull output saved to: ${spilled}\n\n` : '...output truncated...\n\n'}${shellOutputText(tail.text)}`
   } finally {
     clearTimeout(timeoutTimer)
     toolOptions?.abortSignal?.removeEventListener('abort', onAbort)

@@ -29,7 +29,6 @@
     // Path aliases: each src folder is importable as @<folder>
     "paths": {
       "@agent/*": ["./src/agent/*"],
-      "@auth/*": ["./src/auth/*"],
       "@config/*": ["./src/config/*"],
       "@integrations/*": ["./src/integrations/*"],
       "@shared/*": ["./src/shared/*"],

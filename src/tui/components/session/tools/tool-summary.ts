@@ -299,6 +299,12 @@ export const truncateLines = (text: string, max: number = EXPANDED_MAX_LINES): {
 
 export const detailClipWidth = (width: number, running: boolean, nameLength: number): number => Math.max(8, width - 8 - (running ? 2 : 0) - nameLength)
 
+export const shellBodyText = (active: boolean, progress: string | undefined, output: string | undefined): string => {
+  if (active) return progress !== undefined && progress.trim().length > 0 ? progress : '(no output yet)'
+  if (output === undefined || output.trim().length === 0) return '(no output)'
+  return truncateLines(output, EXPANDED_MAX_LINES).text
+}
+
 const mcpOutputText = (output: unknown): string | undefined => {
   if (output === undefined || output === null) return undefined
   if (typeof output === 'string') return output.length > 0 ? output : undefined

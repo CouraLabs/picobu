@@ -6,10 +6,7 @@ import { ALL_PROMPT_FILES, overwritePromptFiles } from '@agent/prompts/prompt-fi
 import { SessionManager } from '@agent/sessions/session-manager.ts'
 import { folderKeyFor } from '@agent/sessions/session-paths.ts'
 import { WORKFLOW_PROMPT_FILES } from '@agent/workflows/builtin.ts'
-import { ensureOAuthModels, listOAuthProviders, oauthAuthById, startLogin } from '@auth/index.ts'
-import { logoutOAuthProvider, registerOAuthProvider } from '@auth/register.ts'
-import { getCredential, initAuth } from '@auth/store.ts'
-import { confirmReLogin, verifyOAuthCredential } from '@auth/verify.ts'
+import { removeLegacyLlmAuthFile } from '@config/legacy-auth-cleanup.ts'
 import { options } from '@config/options.ts'
 import { removeMcpCredential, startMcpLogin } from '@integrations/mcp/auth.ts'
 import { getMcpServer } from '@integrations/mcp/discover.ts'
@@ -35,14 +32,20 @@ program.addHelpText(
   () => `
 
 Supported providers:
-  OAuth login (\`picobu login <provider-id>\`, details in \`picobu login --help\`):
-    openai, anthropic, github-copilot, xai, openrouter, kimi-coding, digitalocean, snowflake-cortex, azure
   API-key autoload (from the @opencode-ai/models catalog when env vars are set):
-    HYPER_API_KEY, ANTHROPIC_API_KEY, OPENAI_API_KEY, GITHUB_TOKEN, plus every
+    HYPER_API_KEY, ANTHROPIC_API_KEY, OPENAI_API_KEY, plus every
     models.dev provider with \`env\` (e.g. GOOGLE/GEMINI, XAI, MISTRAL, GROQ,
     DEEPSEEK, OPENROUTER, CEREBRAS, COHERE, TOGETHER, PERPLEXITY, AZURE,
     AWS/Bedrock, Vertex, Cloudflare, DigitalOcean, Snowflake, Modal, GitLab).
-    The provider \`npm\` field selects the @ai-sdk factory used at runtime.`,
+    The provider \`npm\` field selects the @ai-sdk factory used at runtime.
+
+  Local and compatible endpoints (autoloaded when reachable; env overrides optional):
+    LiteLLM    LITELLM_BASE_URL   (default http://localhost:4000/v1)   LITELLM_API_KEY  (optional)
+    Ollama     OLLAMA_BASE_URL    (default http://localhost:11434/v1)  OLLAMA_API_KEY   (optional)
+    LM Studio  LMSTUDIO_BASE_URL  (default http://localhost:1234/v1)   LMSTUDIO_API_KEY (optional)
+    Models are read from <baseUrl>/models; API keys are optional for keyless endpoints.
+    Custom endpoints go in options.json with type \`openai-compatible\`, \`anthropic\`
+    or \`openai-responses\` (aliases: \`anthropic-compatible\`, \`openai-responses-compatible\`).`,
 )
 const sessions = program
   .command('sessions')
@@ -181,94 +184,13 @@ mcp
 
 const PROVIDER_BOOTSTRAP_TIMEOUT_MS = 15000
 const bootstrapProviders = async (): Promise<void> => {
+  removeLegacyLlmAuthFile()
   try {
-    await withTimeout(Promise.all([autoloadLlmProviders(), ensureOAuthModels()]), PROVIDER_BOOTSTRAP_TIMEOUT_MS, 'provider bootstrap')
+    await withTimeout(autoloadLlmProviders(), PROVIDER_BOOTSTRAP_TIMEOUT_MS, 'provider bootstrap')
   } catch (error) {
     logError(error, { scope: 'provider-bootstrap' })
   }
 }
-const loginCommand = program
-  .command('login')
-  .description('log in to an OAuth provider — no args lists status')
-  .argument('[provider]', 'OAuth provider id (see `picobu login --help` for the list)')
-  .argument('[opts]', 'provider options (e.g. enterprise domain for Copilot, `headless` for OpenAI device flow, `<account> [role]` for Snowflake, `<resource-name>` for Azure)')
-  .option('-f, --force', 'skip the already-logged-in check and log in again')
-loginCommand.addHelpText(
-  'after',
-  () => `
-
-Supported providers (use with \`picobu login <provider-id>\`):
-  openai            OpenAI (browser OAuth, or \`picobu login openai headless\` for device flow)
-  anthropic         Anthropic (browser OAuth, Claude Pro/Max)
-  github-copilot    GitHub Copilot (device-code flow, opts = enterprise domain)
-  xai               xAI (device-code flow, SuperGrok subscription)
-  openrouter        OpenRouter (browser OAuth, exchanges code for API key)
-  kimi-coding       Kimi Coding (device-code flow, subscription)
-  digitalocean      DigitalOcean (browser OAuth, inference routers)
-  snowflake-cortex  Snowflake Cortex (browser OAuth, \`picobu login snowflake-cortex <account> [role]\`)
-  azure             Azure (Microsoft Entra ID via \`az login\`, \`picobu login azure <resource-name>\`)
-
-Aliases: copilot → github-copilot, claude → anthropic, chatgpt/codex → openai, kimi → kimi-coding, snowflake → snowflake-cortex, do → digitalocean.
-
-API-key providers (no login needed) autoload from the @opencode-ai/models catalog when their env vars are set. See \`picobu --help\` for the full list.`,
-)
-loginCommand.action((provider?: string, loginOpts?: string, cmdOpts?: { force?: boolean }) => {
-  void (async () => {
-    try {
-      if (!provider) {
-        for (const row of listOAuthProviders()) {
-          console.log(`${row.id}  ${row.name}  ${row.loggedIn ? 'logged in' : 'logged out'}`)
-        }
-        process.exit(0)
-      }
-      if (!cmdOpts?.force) {
-        await initAuth()
-        const auth = oauthAuthById(provider)
-        const existing = auth ? getCredential(auth.id) : undefined
-        if (auth && existing) {
-          const result = await verifyOAuthCredential(auth, existing)
-          if (result.ok) {
-            console.log(`${auth.name} is already logged in and working (models catalog: ${result.modelCount} models).`)
-            try {
-              await registerOAuthProvider(auth, result.credential)
-            } catch (error) {
-              console.warn(`Could not refresh ${auth.name} credential (${error instanceof Error ? error.message : String(error)})`)
-            }
-            const again = await confirmReLogin(auth.name)
-            if (!again) {
-              console.log(`Keeping the existing ${auth.name} login.`)
-              process.exit(0)
-            }
-          } else {
-            console.warn(`Stored login for ${auth.name} seems invalid (${result.error}) — starting a fresh login…`)
-          }
-        }
-      }
-      await startLogin(provider, loginOpts)
-    } catch (error) {
-      console.error(`Login failed: ${error instanceof Error ? error.message : String(error)}`)
-      process.exit(1)
-    }
-    process.exit(0)
-  })()
-})
-program
-  .command('logout')
-  .description('log out of an OAuth provider and repoint harness selectors')
-  .argument('<provider>', 'OAuth provider id')
-  .action((provider: string) => {
-    void (async () => {
-      try {
-        const current = options.harness.defaultModel ?? ''
-        const result = await logoutOAuthProvider(provider, current)
-        console.log(result.removed ? `Logged out of "${provider}".` : `No stored credential for "${provider}".`)
-      } catch (error) {
-        console.error(`Logout failed: ${error instanceof Error ? error.message : String(error)}`)
-        process.exit(1)
-      }
-      process.exit(0)
-    })()
-  })
 program
   .command('update')
   .description('Update picobu to the latest published version, then reopen the last session')

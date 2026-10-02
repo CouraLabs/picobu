@@ -4,7 +4,7 @@
 - Smoke needs real model in `~/.picobu/options.json`; unit tests use fake keys, tmp dirs.
 
 ## Imports & style
-- Path aliases, never relative imports across `src/` folders: `@agent/*`, `@auth/*`, `@config/*`, `@integrations/*`, `@shared/*`, `@states/*`, `@tui/*`, `@wrappers/*`.
+- Path aliases, never relative imports across `src/` folders: `@agent/*`, `@config/*`, `@integrations/*`, `@shared/*`, `@states/*`, `@tui/*`, `@wrappers/*`.
 - Keep `.ts`/`.tsx` extensions in imports (NodeNext + `allowImportingTsExtensions`). `verbatimModuleSyntax` is on: type-only imports need `import type` / `import { type X }`.
 - Tests import source via relative paths (`../../src/...`), not aliases — aliases are a `src/`-only convention.
 - JSX is OpenTUI + Solid, not DOM (`jsxImportSource: @opentui/solid`): elements are `<box>`, `<text>`, `<input>`, ... with props like `marginTop`/`textColor` — never HTML tags or `class=`.

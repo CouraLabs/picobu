@@ -32,8 +32,13 @@ export function countOccurrences(haystack: string, needle: string): number {
   return count
 }
 
+const dropSplitSurrogate = (text: string, end: number): number => {
+  const last = text.charCodeAt(end - 1)
+  return last >= 0xd800 && last <= 0xdbff ? end - 1 : end
+}
+
 export function truncate(text: string, max = 60): string {
   if (text.length <= max) return text
-  if (max < 3) return text.slice(0, max)
-  return `${text.slice(0, max - 3)}...`
+  if (max < 3) return text.slice(0, dropSplitSurrogate(text, max))
+  return `${text.slice(0, dropSplitSurrogate(text, max - 3))}...`
 }

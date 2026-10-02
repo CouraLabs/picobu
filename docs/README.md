@@ -11,10 +11,10 @@ Modular documentation for Picobu, a terminal coding agent with a headless, UI-ag
 | [install.md](install.md) | Requirements, install methods, uninstall, verification, troubleshooting |
 | [frontends.md](frontends.md) | Reference TUI, host-frontend library kit, project layout, tech stack |
 | [configuration/options.md](configuration/options.md) | `~/.picobu/options.json`: blocks, defaults, env vars, value refs |
-| [configuration/providers.md](configuration/providers.md) | Providers and models, catalog autoload, model roles, OAuth login |
+| [configuration/providers.md](configuration/providers.md) | Providers and models, catalog autoload, local and compatible endpoints, model roles |
 | [configuration/status-line.md](configuration/status-line.md) | Provider status chips on the session footer |
 | [configuration/session-layout.md](configuration/session-layout.md) | Session header and status bar layout |
-| [usage/cli.md](usage/cli.md) | `picobu` flags and subcommands: sessions, mcp, login, logout |
+| [usage/cli.md](usage/cli.md) | `picobu` flags and subcommands: sessions, mcp, update |
 | [usage/sessions.md](usage/sessions.md) | Session persistence, facade APIs, spawn, stats, footer, sandbox, watchdog |
 | [usage/agents.md](usage/agents.md) | Built-in agents, custom agents, skills, rules, workflows |
 | [usage/tools.md](usage/tools.md) | The tool catalog agents run with |
@@ -29,7 +29,6 @@ Everything Picobu persists sits under one system dir, `~/.picobu` by default (ov
 | `options.json` | Settings: providers, harness (permissions, budget), TUI, web, MCP, watchdog |
 | `sessions/<folderKey>/` | `<id>.jsonl` transcripts, `<id>.meta.json` sidecars, `<id>.stats.json` cost files |
 | `prompts.db` | Last 20 prompts and drafts per project (SQLite) |
-| `auth.json` | OAuth credentials for subscription providers |
 | `mcp-auth.json` | OAuth tokens for MCP servers |
 | `logs/` | Runtime logs |
 | `tree-sitter/` | Parser WASMs and highlight queries |

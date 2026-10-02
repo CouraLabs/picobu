@@ -7,7 +7,7 @@ import { createEditTool } from '../../src/agent/tools/filesystem/edit.ts'
 import { GlobToolArgsSchema, globTool } from '../../src/agent/tools/filesystem/glob.ts'
 import { GrepToolArgsSchema, grepTool } from '../../src/agent/tools/filesystem/grep.ts'
 import { ReadToolArgsSchema, readTool } from '../../src/agent/tools/filesystem/read.ts'
-import { createShellTool, progressClipWidth, ShellToolArgsSchema, ShellToolOutputSchema, truncateLine } from '../../src/agent/tools/filesystem/shell.ts'
+import { createShellTool, progressClipWidth, ShellToolArgsSchema, ShellToolOutputSchema, shellOutputText, truncateLine } from '../../src/agent/tools/filesystem/shell.ts'
 import { createWriteTool, WriteToolArgsSchema } from '../../src/agent/tools/filesystem/write.ts'
 import { shellSpec } from '../../src/agent/tools/sandbox.ts'
 import { buildToolSet } from '../../src/agent/tools/toolset.ts'
@@ -204,6 +204,38 @@ describe('shell tool', () => {
       if (typeof chunk === 'string') final = chunk
     }
     expect(final).toBe('(no output)')
+  })
+  test('whitespace-only output reports no output', async () => {
+    const shell = createShellTool()
+    let final = ''
+    for await (const chunk of shell.handler({ command: "printf '  \\n\\n\\t'" })) {
+      if (typeof chunk === 'string') final = chunk
+    }
+    expect(final).toBe('(no output)')
+  })
+  test('leading whitespace is trimmed', async () => {
+    const shell = createShellTool()
+    let final = ''
+    for await (const chunk of shell.handler({ command: "printf '   indented'" })) {
+      if (typeof chunk === 'string') final = chunk
+    }
+    expect(final).toBe('indented')
+  })
+  test('shellOutputText trims and falls back to a placeholder', () => {
+    expect(shellOutputText('  hi  ')).toBe('hi')
+    expect(shellOutputText('\n\t  \n')).toBe('(no output)')
+    expect(shellOutputText('')).toBe('(no output)')
+    expect(shellOutputText('  a\nb  ')).toBe('a\nb')
+  })
+  test('progress chunks are never empty', async () => {
+    const shell = createShellTool()
+    const progressChunks: Array<string> = []
+    for await (const chunk of shell.handler({ command: 'sleep 0.4; echo done' })) {
+      if (typeof chunk === 'object' && chunk !== null && 'progress' in chunk) progressChunks.push(chunk.progress)
+    }
+    expect(progressChunks.length).toBeGreaterThanOrEqual(1)
+    expect(progressChunks[0]).toBe('(no output yet)')
+    for (const progress of progressChunks) expect(progress.trim().length).toBeGreaterThan(0)
   })
   test('failing command throws with exit code', async () => {
     const shell = createShellTool()

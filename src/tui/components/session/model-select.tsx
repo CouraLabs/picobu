@@ -1,4 +1,4 @@
-import { listProviders } from '@auth/oauth-providers.ts'
+import { listProviders } from '@agent/model/provider-list.ts'
 import { type InputRenderable, type ScrollBoxRenderable, TextAttributes } from '@opentui/core'
 import { theme } from '@states/theme-state.ts'
 import { useAppKeyboard } from '@tui/hooks/keyboard-provider.tsx'

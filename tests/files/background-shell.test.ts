@@ -66,6 +66,27 @@ describe('task tools', () => {
     expect(result.output).toContain('task-done')
   })
 
+  test('task-output reports a placeholder for a silent task', async () => {
+    const tool = createTaskOutputTool()
+    const entry = startBackgroundShell({ command: 'sleep 1', cwd: dir })
+    const result = await tool.handler({ taskId: entry.id, block: false })
+    expect(result.output.endsWith('(no output yet)')).toBe(true)
+  })
+
+  test('task-output trims leading and trailing whitespace', async () => {
+    const tool = createTaskOutputTool()
+    const entry = startBackgroundShell({ command: "printf '  padded  \\n\\n'", cwd: dir })
+    const result = await tool.handler({ taskId: entry.id })
+    expect(result.output.split('\n').at(-1)).toBe('padded')
+  })
+
+  test('task-output reports the placeholder for whitespace-only output', async () => {
+    const tool = createTaskOutputTool()
+    const entry = startBackgroundShell({ command: "printf '  \\n\\t\\n'", cwd: dir })
+    const result = await tool.handler({ taskId: entry.id })
+    expect(result.output.endsWith('(no output yet)')).toBe(true)
+  })
+
   test('task-output stops a running task it is listening to', async () => {
     const tool = createTaskOutputTool()
     const entry = startBackgroundShell({ command: 'sleep 30', cwd: dir })

@@ -7,8 +7,7 @@ export const isFullEndpoint = (endpoint: string): boolean => /^https?:\/\//i.tes
 
 export const resolveEndpointUrl = (provider: ProviderOptions, endpoint: string): string => {
   if (isFullEndpoint(endpoint)) return endpoint
-  const auth = resolveAuth(provider)
-  const base = (auth.baseUrl ?? provider.baseUrl).replace(/\/$/, '')
+  const base = provider.baseUrl.replace(/\/$/, '')
   const path = endpoint.startsWith('/') ? endpoint : `/${endpoint}`
   return `${base}${path}`
 }

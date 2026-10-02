@@ -1,8 +1,22 @@
 import type { LoopMessage } from '@agent/loop/create-loop.ts'
 import { isCompactionMarker } from '@agent/sessions/session-compact.ts'
+import { sanitizePromptText } from '@shared/prompt-text.ts'
 import type { UIMessage } from 'ai'
 
 const KEEP_TOOL_STATES = new Set(['output-available', 'output-error', 'output-denied', 'approval-responded'])
+
+export function sanitizePromptTextParts<M extends { parts: Array<unknown> }>(message: M): M {
+  let changed = false
+  const parts = message.parts.map((part) => {
+    const loose = part as { type?: unknown; text?: unknown }
+    if (loose.type !== 'text' || typeof loose.text !== 'string') return part
+    const text = sanitizePromptText(loose.text)
+    if (text === loose.text) return part
+    changed = true
+    return { ...(part as Record<string, unknown>), text }
+  })
+  return changed ? ({ ...message, parts } as M) : message
+}
 
 function isPreliminaryToolPart(part: unknown): boolean {
   return typeof part === 'object' && part !== null && 'preliminary' in part && part.preliminary === true
@@ -25,9 +39,8 @@ export function stripUnreplayableReasoning<M extends UIMessage>(messages: Array<
     let changed = false
     const parts = m.parts.filter((part) => {
       if (part.type !== 'reasoning') return true
-      const meta = (part as { providerMetadata?: { anthropic?: { signature?: unknown; redactedData?: unknown }; copilot?: { reasoningEncryptedContent?: unknown; reasoningOpaque?: unknown } } })
-        .providerMetadata
-      const replayable = Boolean(meta?.anthropic?.signature || meta?.anthropic?.redactedData || meta?.copilot?.reasoningEncryptedContent || meta?.copilot?.reasoningOpaque)
+      const meta = (part as { providerMetadata?: { anthropic?: { signature?: unknown; redactedData?: unknown } } }).providerMetadata
+      const replayable = Boolean(meta?.anthropic?.signature || meta?.anthropic?.redactedData)
       if (!replayable) changed = true
       return replayable
     })

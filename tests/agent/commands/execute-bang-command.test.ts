@@ -14,6 +14,27 @@ describe('executeBangCommand', () => {
     }
   })
 
+  it('trims surrounding whitespace from stdout', async () => {
+    const tmpDir = await mkdtemp(join(tmpdir(), 'picobu-bang-'))
+    try {
+      const result = await executeBangCommand("printf '  x  \\n\\n'", tmpDir)
+      expect(result.stdout).toBe('x')
+    } finally {
+      await rm(tmpDir, { recursive: true, force: true })
+    }
+  })
+
+  it('returns empty strings for a silent command', async () => {
+    const tmpDir = await mkdtemp(join(tmpdir(), 'picobu-bang-'))
+    try {
+      const result = await executeBangCommand('true', tmpDir)
+      expect(result.stdout).toBe('')
+      expect(result.stderr).toBe('')
+    } finally {
+      await rm(tmpDir, { recursive: true, force: true })
+    }
+  })
+
   it('successful command returns exit code 0 and stdout', async () => {
     const tmpDir = await mkdtemp(join(tmpdir(), 'picobu-bang-'))
     try {
@@ -73,6 +94,22 @@ describe('executeBangCommand', () => {
       expect(outputPath === undefined ? 0 : (await readFile(outputPath, 'utf8')).length).toBeGreaterThan(0)
       expect(result.stdout).toContain('truncated')
       expect(result.stdout).toContain('Full output saved to:')
+    } finally {
+      await rm(tmpDir, { recursive: true, force: true })
+      if (outputPath) await rm(outputPath, { force: true })
+    }
+  })
+
+  it('does not glue trimmed stdout onto stderr in the spill file', async () => {
+    const tmpDir = await mkdtemp(join(tmpdir(), 'picobu-bang-'))
+    let outputPath: string | undefined
+    try {
+      const result = await executeBangCommand('seq 1 50000; printf STDERR_MARK >&2', tmpDir)
+      outputPath = result.outputPath
+      expect(outputPath).toBeDefined()
+      const spilled = outputPath === undefined ? '' : await readFile(outputPath, 'utf8')
+      expect(spilled).toContain('\nSTDERR_MARK')
+      expect(spilled).not.toContain('50000STDERR_MARK')
     } finally {
       await rm(tmpDir, { recursive: true, force: true })
       if (outputPath) await rm(outputPath, { force: true })

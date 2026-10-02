@@ -152,19 +152,19 @@ describe('session message helpers', () => {
     const out = stripUnreplayableReasoning([message])
     expect(out[0]?.parts?.map((p) => (p as { text?: string }).text)).toEqual(['signed', 'done'])
   })
-  test('stripUnreplayableReasoning keeps copilot reasoning with encrypted content or opaque', () => {
+  test('stripUnreplayableReasoning drops reasoning without an anthropic signature', () => {
     const message = {
       id: 'r',
       role: 'assistant',
       parts: [
-        { type: 'reasoning', text: 'responses', providerMetadata: { copilot: { reasoningEncryptedContent: 'enc' } } },
-        { type: 'reasoning', text: 'chat', providerMetadata: { copilot: { reasoningOpaque: 'opq' } } },
+        { type: 'reasoning', text: 'signed', providerMetadata: { anthropic: { signature: 'sig' } } },
+        { type: 'reasoning', text: 'redacted', providerMetadata: { anthropic: { redactedData: 'red' } } },
         { type: 'reasoning', text: 'unsigned' },
         { type: 'text', text: 'done' },
       ],
     } as unknown as UIMessage
     const out = stripUnreplayableReasoning([message])
-    expect(out[0]?.parts?.map((p) => (p as { text?: string }).text)).toEqual(['responses', 'chat', 'done'])
+    expect(out[0]?.parts?.map((p) => (p as { text?: string }).text)).toEqual(['signed', 'redacted', 'done'])
   })
 })
 

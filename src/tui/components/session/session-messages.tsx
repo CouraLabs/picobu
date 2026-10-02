@@ -95,7 +95,6 @@ export const SessionMessages = (props: SessionMessagesProps) => {
           return (
             <box
               marginTop={entry().wasToolPrevious ? 0 : 1}
-              paddingX={1}
               {...borderProps()}
               onMouseOver={(e) => onMouseOver(e.currentTarget as BoxRenderable, entry())}
               onMouseOut={(e) => onMouseOut(e.currentTarget as BoxRenderable, entry())}>

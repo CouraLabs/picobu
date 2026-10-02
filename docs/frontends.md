@@ -28,7 +28,6 @@ No UI logic lives in the agent loop.
 - `src/cli.ts` — entry + bootstrap
 - `src/agent/` — `loop/`, `sessions/`, `model/`, `agents/` + `subagent/`, `prompts/`, `tools/filesystem|flow|web/`, `commands/`, `rules/`, `workflows/`
 - `src/config/options.ts` — `~/.picobu/options.json`
-- `src/auth/` — OAuth
 - `src/integrations/` — MCP
 - `src/tui/`, `src/states/`, `src/wrappers/` — host-frontend kit
 - `src/shared/` — cross-cutting utilities

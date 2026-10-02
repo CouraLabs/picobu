@@ -21,13 +21,6 @@ export const xai: ProviderSpec = {
   id: 'xai',
 }
 
-export const githubCopilot: ProviderSpec = {
-  id: 'github-copilot',
-  headers: {
-    'X-GitHub-Api-Version': '2026-06-01',
-  },
-}
-
 export const openrouter: ProviderSpec = {
   id: 'openrouter',
   headers: {
@@ -121,10 +114,6 @@ export const googleVertex: ProviderSpec = {
 
 export const kimiCoding: ProviderSpec = {
   id: 'kimi-coding',
-}
-
-export const openrouterOAuth: ProviderSpec = {
-  id: 'openrouter',
 }
 
 export const radius: ProviderSpec = {

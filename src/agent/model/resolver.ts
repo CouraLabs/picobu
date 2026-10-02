@@ -1,5 +1,5 @@
 import { withResponsesFallback } from '@agent/model/openai-fallback.ts'
-import { createCopilotProvider } from '@agent/model/providers/copilot/copilot-provider.ts'
+import { listProviders } from '@agent/model/provider-list.ts'
 import { headersForProviderId } from '@agent/model/providers/index.ts'
 import { createAmazonBedrock } from '@ai-sdk/amazon-bedrock'
 import { createAnthropic } from '@ai-sdk/anthropic'
@@ -20,10 +20,6 @@ import type { LanguageModelV4 } from '@ai-sdk/provider'
 import { createTogetherAI } from '@ai-sdk/togetherai'
 import { createVercel } from '@ai-sdk/vercel'
 import { createXai } from '@ai-sdk/xai'
-import { COPILOT_HEADERS } from '@auth/github-copilot.ts'
-import { oauthAuthById } from '@auth/index.ts'
-import { listProviders } from '@auth/oauth-providers.ts'
-import { getCredential } from '@auth/store.ts'
 import { options, type ProviderModelBilling, type ProviderModelCapability, type ProviderModelOptions, type ProviderOptions } from '@config/options.ts'
 import { createOpenRouter } from '@openrouter/ai-sdk-provider'
 import { initLockDir } from '@shared/lock.ts'
@@ -54,20 +50,16 @@ const resolveProviderHeader = (providerId: string, key: string, value: string): 
   return resolved
 }
 
-export const resolveAuth = (provider: ProviderOptions): { apiKey?: string; baseUrl?: string } => {
-  const ref = provider.apiKey
-  if (!ref?.startsWith('auth:')) return { apiKey: resolveApiKey(ref) }
-  const id = ref.slice('auth:'.length)
-  const credential = getCredential(id)
-  if (!credential) {
-    throw new Error(`No saved login for "${id}". Run /login ${id} to authenticate.`)
-  }
-  const auth = oauthAuthById(id)
-  return auth ? auth.toAuth(credential) : { apiKey: credential.access }
+export const resolveAuth = (provider: ProviderOptions): { apiKey?: string } => ({ apiKey: resolveApiKey(provider.apiKey) })
+
+export const normalizeProviderType = (type: string): ProviderOptions['type'] => {
+  if (type === 'anthropic-compatible') return 'anthropic'
+  if (type === 'openai-responses-compatible') return 'openai-responses'
+  return type
 }
 
 export const npmForProviderType = (type: ProviderOptions['type']): string => {
-  switch (type) {
+  switch (normalizeProviderType(type)) {
     case 'openai':
       return '@ai-sdk/openai'
     case 'anthropic':
@@ -77,6 +69,23 @@ export const npmForProviderType = (type: ProviderOptions['type']): string => {
     default:
       return '@ai-sdk/openai-compatible'
   }
+}
+
+export const KEYLESS_API_KEY = 'picobu-keyless'
+
+const keylessSafeApiKey = (apiKey: string | undefined): string => apiKey ?? KEYLESS_API_KEY
+
+export const responsesEndpointUrl = (baseUrl: string | undefined): string => {
+  const trimmed = (baseUrl ?? '').trim()
+  if (trimmed.length === 0) return ''
+  const [path, suffix] = splitUrlSuffix(trimmed)
+  const normalized = path.replace(/\/$/, '')
+  return `${normalized.endsWith('/responses') ? normalized : `${normalized}/responses`}${suffix}`
+}
+
+const splitUrlSuffix = (url: string): [string, string] => {
+  const index = url.search(/[?#]/)
+  return index === -1 ? [url, ''] : [url.slice(0, index), url.slice(index)]
 }
 
 export interface ModelInstanceOptions {
@@ -100,13 +109,6 @@ export const opencodeGoBaseUrl = (baseUrl: string | undefined): string | undefin
   return suffix ? trimmed.slice(0, -suffix.length) : baseUrl
 }
 
-export const copilotEndpoint = (endpoint: ProviderModelOptions['endpoint'], npm: string | undefined): 'chat' | 'responses' | 'messages' => {
-  if (endpoint) return endpoint
-  if (npm === '@ai-sdk/anthropic') return 'messages'
-  if (npm === '@ai-sdk/openai') return 'responses'
-  return 'chat'
-}
-
 export const npmForModel = (provider: ProviderOptions, modelMeta?: Pick<ProviderModelOptions, 'id' | 'npm'>): string => {
   if (modelMeta?.npm && modelMeta.npm.length > 0) return modelMeta.npm
   if (isOpencodeGoProvider(provider) && modelMeta) {
@@ -121,29 +123,22 @@ export const createModelInstance = (provider: ProviderOptions, modelId: string, 
   const auth = resolveAuth(provider)
   const apiKey = auth.apiKey
   const npm = npmForModel(provider, { id: modelId, ...(opts?.modelNpm ? { npm: opts.modelNpm } : {}) })
-  const rawBaseUrl = auth.baseUrl ?? (provider.baseUrl || undefined)
-  const goBaseUrl = isOpencodeGoProvider(provider) && provider.type !== 'openai-responses' ? opencodeGoBaseUrl(rawBaseUrl) : rawBaseUrl
-  const baseUrl = provider.id === 'github-copilot' && npm === '@ai-sdk/anthropic' && goBaseUrl && !goBaseUrl.replace(/\/$/, '').endsWith('/v1') ? `${goBaseUrl.replace(/\/$/, '')}/v1` : goBaseUrl
-  const baseHeaders = headersForProvider(provider, opts?.sessionId ? { sessionId: opts.sessionId } : undefined)
-  const isCopilot = provider.id === 'github-copilot'
-  const headers = isCopilot && npm === '@ai-sdk/anthropic' ? { ...baseHeaders, 'anthropic-beta': 'interleaved-thinking-2025-05-14' } : baseHeaders
+  const rawBaseUrl = provider.baseUrl || undefined
+  const baseUrl = isOpencodeGoProvider(provider) && normalizeProviderType(provider.type) !== 'openai-responses' ? opencodeGoBaseUrl(rawBaseUrl) : rawBaseUrl
+  const headers = headersForProvider(provider, opts?.sessionId ? { sessionId: opts.sessionId } : undefined)
   const createOpenAIModel = (mode: 'responses' | 'chat'): LanguageModelV4 => {
-    const instance = createOpenAI({ baseURL: baseUrl, apiKey, headers })
+    const instance = createOpenAI({ baseURL: baseUrl, apiKey: keylessSafeApiKey(apiKey), headers })
     if (mode === 'responses') return instance.responses(modelId)
     return withResponsesFallback(instance(modelId), () => instance.chat(modelId), {
       onFallback: () => console.error('picobu: OpenAI key is missing the api.responses.write scope; falling back to the Chat Completions API.'),
     })
   }
-  if (isCopilot) {
-    if (copilotEndpoint(opts?.endpoint, npm) === 'messages') return createAnthropic({ baseURL: baseUrl, authToken: apiKey, headers })(modelId)
-    const copilot = createCopilotProvider({ baseURL: baseUrl ?? '', ...(apiKey ? { apiKey } : {}), ...(headers ? { headers } : {}), name: 'github-copilot' })
-    return copilotEndpoint(opts?.endpoint, npm) === 'responses' ? copilot.responses(modelId) : copilot.chat(modelId)
-  }
   switch (npm) {
     case '@ai-sdk/anthropic':
-      return createAnthropic({ baseURL: baseUrl, apiKey, headers })(modelId)
+      return createAnthropic({ baseURL: baseUrl, apiKey: keylessSafeApiKey(apiKey), headers })(modelId)
     case '@ai-sdk/openai':
-      if (provider.type === 'openai-responses') return createOpenResponses({ url: baseUrl ?? '', name: provider.name, apiKey, headers })(modelId)
+      if (normalizeProviderType(provider.type) === 'openai-responses')
+        return createOpenResponses({ url: responsesEndpointUrl(baseUrl), name: provider.name, ...(apiKey ? { apiKey } : {}), headers })(modelId)
       if (isOpencodeGoProvider(provider)) return createOpenAIModel('responses')
       return createOpenAIModel('chat')
     case '@ai-sdk/google':
@@ -179,19 +174,17 @@ export const createModelInstance = (provider: ProviderOptions, modelId: string, 
     default:
       break
   }
-  switch (provider.type) {
+  switch (normalizeProviderType(provider.type)) {
     case 'openai':
-      if (isCopilot) return createOpenAIModel('responses')
       return createOpenAIModel('chat')
     case 'anthropic':
-      if (isCopilot) return createAnthropic({ baseURL: baseUrl, authToken: apiKey, headers })(modelId)
-      return createAnthropic({ baseURL: baseUrl, apiKey, headers })(modelId)
+      return createAnthropic({ baseURL: baseUrl, apiKey: keylessSafeApiKey(apiKey), headers })(modelId)
     case 'openai-compatible':
-      return createOpenAICompatible({ baseURL: baseUrl ?? '', name: provider.name, apiKey, headers })(modelId)
+      return createOpenAICompatible({ baseURL: baseUrl ?? '', name: provider.name, ...(apiKey ? { apiKey } : {}), headers })(modelId)
     case 'openai-responses':
-      return createOpenResponses({ url: baseUrl ?? '', name: provider.name, apiKey, headers })(modelId)
+      return createOpenResponses({ url: responsesEndpointUrl(baseUrl), name: provider.name, ...(apiKey ? { apiKey } : {}), headers })(modelId)
     default:
-      return createOpenAICompatible({ baseURL: baseUrl ?? '', name: provider.name, apiKey, headers })(modelId)
+      return createOpenAICompatible({ baseURL: baseUrl ?? '', name: provider.name, ...(apiKey ? { apiKey } : {}), headers })(modelId)
   }
 }
 
@@ -200,14 +193,6 @@ export const headersForProvider = (provider: ProviderOptions, opts?: { sessionId
   const headers: Record<string, string> = {}
   for (const [key, value] of Object.entries(base ?? {})) {
     headers[key] = resolveProviderHeader(provider.id, key, value)
-  }
-  if (provider.id === 'github-copilot') {
-    const merged: Record<string, string> = { ...COPILOT_HEADERS, ...headers }
-    const configuredKey = Object.keys(merged).find((key) => key.toLowerCase() === 'x-interaction-id')
-    const interactionId = (configuredKey ? merged[configuredKey] : undefined)?.trim() || opts?.sessionId?.trim()
-    if (configuredKey) delete merged[configuredKey]
-    if (interactionId) merged['X-Interaction-Id'] = interactionId
-    return merged
   }
   if (isOpencodeGoProvider(provider)) {
     if (!headers['User-Agent']) headers['User-Agent'] = `picobu/${getVersion()}`

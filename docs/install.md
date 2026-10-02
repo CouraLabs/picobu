@@ -4,7 +4,7 @@
 
 - [Bun](https://bun.sh) ≥ 1.3.0
 - A terminal font with current programmer-glyph coverage (e.g. an up-to-date Source Code Pro, JetBrains Mono, or equivalent Nerd Fonts coverage) — the TUI status icons assume it
-- A model: an API key (any `@opencode-ai/models` provider `env` var, e.g. `HYPER_API_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GITHUB_TOKEN`, `GOOGLE_API_KEY`, `XAI_API_KEY`, `OPENROUTER_API_KEY`) or an OAuth login — see [configuration/providers.md](configuration/providers.md)
+- A model: an API key (any `@opencode-ai/models` provider `env` var, e.g. `HYPER_API_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GOOGLE_API_KEY`, `XAI_API_KEY`, `OPENROUTER_API_KEY`), a local LiteLLM/Ollama/LM Studio endpoint, or any OpenAI/Anthropic/Responses-compatible server — see [configuration/providers.md](configuration/providers.md)
 
 ## From source
 
@@ -35,7 +35,7 @@ The web tools (`webfetch`/`websearch`) need Puppeteer's Chrome; the installers p
 
 ## Uninstall
 
-Removes the global `@couralabs/picobu` package, then deletes `~/.picobu` entirely — sessions, settings, and OAuth credentials — and strips any legacy `~/.picobu/bin` PATH entry:
+Removes the global `@couralabs/picobu` package, then deletes `~/.picobu` entirely — sessions, settings, and MCP credentials — and strips any legacy `~/.picobu/bin` PATH entry:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/CouraLabs/picobu/refs/heads/master/scripts/uninstall.sh | bash

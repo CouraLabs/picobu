@@ -19,7 +19,7 @@ fi
 
 if [ -d "$PICOBU_HOME" ]; then
   echo "==> deleting $PICOBU_HOME"
-  echo "    (sessions, options.json, auth.json, WhatsApp auth)"
+  echo "    (sessions, options.json, mcp-auth.json, WhatsApp auth)"
   rm -rf "$PICOBU_HOME"
 else
   echo "==> $PICOBU_HOME not found; nothing to delete"

@@ -14,7 +14,6 @@ import { lastAssistantText, type PromptAttachment } from '@agent/sessions/sessio
 import { isWaiting } from '@agent/sessions/session-meta.ts'
 import { createSessionWatchdog } from '@agent/sessions/session-watchdog.ts'
 import { stopAllBackgroundShells } from '@agent/tools/filesystem/background-shell.ts'
-import { resetAuthCache } from '@auth/store.ts'
 import { cyclePermissionMode, type PermissionMode } from '@config/harness-options.ts'
 import type { ProviderModelReasoningEffort } from '@config/options.ts'
 import { options } from '@config/options.ts'
@@ -1054,7 +1053,6 @@ export const SessionPage = (props: SessionPageProps) => {
         } catch (error) {
           logDebug('swallowed error', { scope: 'session-page', error })
         }
-        resetAuthCache()
         resetMcpAuthCache()
         try {
           await requestAppReload()

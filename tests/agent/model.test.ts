@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import type { Provider as ModelsDevProvider } from '@opencode-ai/models'
 import { modelsFromModelsDev } from '../../src/agent/model/catalog-models-dev.ts'
-import { parseModelsResponse } from '../../src/agent/model/fetch-models.ts'
+import { fetchModels, parseModelsResponse } from '../../src/agent/model/fetch-models.ts'
 import {
   clearCatalogModelStatuses,
   filterAvailableModels,
@@ -14,7 +14,7 @@ import {
   isZenModelIdAvailable,
   isZenProvider,
 } from '../../src/agent/model/model-availability.ts'
-import { createModelInstance, headersForProvider, npmForModel, opencodeGoBaseUrl } from '../../src/agent/model/resolver.ts'
+import { createModelInstance, headersForProvider, normalizeProviderType, npmForModel, opencodeGoBaseUrl, resolveAuth, responsesEndpointUrl } from '../../src/agent/model/resolver.ts'
 import type { ProviderOptions } from '../../src/config/options.ts'
 
 const baseProvider = (overrides?: Partial<ProviderOptions>): ProviderOptions => ({
@@ -30,35 +30,6 @@ describe('headersForProvider', () => {
   test('passes through configured headers for regular providers', () => {
     expect(headersForProvider(baseProvider())).toBeUndefined()
     expect(headersForProvider(baseProvider({ headers: { 'X-Custom': '1' } }))).toEqual({ 'X-Custom': '1' })
-  })
-  test('adds copilot IDE headers for github-copilot', () => {
-    const headers = headersForProvider(baseProvider({ id: 'github-copilot', type: 'openai-compatible' }))
-    expect(headers?.['Editor-Version']).toBe('vscode/1.107.0')
-    expect(headers?.['Copilot-Integration-Id']).toBe('vscode-chat')
-    expect(headers?.['User-Agent']).toContain('GitHubCopilotChat')
-  })
-  test('lets configured headers override copilot defaults', () => {
-    const headers = headersForProvider(baseProvider({ id: 'github-copilot', type: 'openai-compatible', headers: { 'Editor-Version': 'custom/9' } }))
-    expect(headers?.['Editor-Version']).toBe('custom/9')
-    expect(headers?.['Copilot-Integration-Id']).toBe('vscode-chat')
-  })
-  test('adds the copilot interaction id header from the session id', () => {
-    const provider = baseProvider({ id: 'github-copilot', type: 'openai-compatible' })
-    expect(headersForProvider(provider, { sessionId: 'abc123' })?.['X-Interaction-Id']).toBe('abc123')
-  })
-  test('omits the copilot interaction id header without a session id', () => {
-    const provider = baseProvider({ id: 'github-copilot', type: 'openai-compatible' })
-    expect(headersForProvider(provider)?.['X-Interaction-Id']).toBeUndefined()
-  })
-  test('lets a configured copilot interaction id override the session id', () => {
-    const provider = baseProvider({ id: 'github-copilot', type: 'openai-compatible', headers: { 'X-Interaction-Id': 'custom' } })
-    expect(headersForProvider(provider, { sessionId: 'abc123' })?.['X-Interaction-Id']).toBe('custom')
-  })
-  test('treats a lowercased configured copilot interaction id case-insensitively', () => {
-    const provider = baseProvider({ id: 'github-copilot', type: 'openai-compatible', headers: { 'x-interaction-id': 'custom' } })
-    const headers = headersForProvider(provider, { sessionId: 'abc123' })
-    expect(headers?.['X-Interaction-Id']).toBe('custom')
-    expect(headers).not.toHaveProperty('x-interaction-id')
   })
   test('adds session and user-agent headers for opencode-go', () => {
     const provider = baseProvider({ id: 'opencode-go', name: 'OpenCode Go', type: 'openai-compatible', baseUrl: 'https://opencode.ai/zen/go/v1' })
@@ -151,39 +122,76 @@ describe('createModelInstance', () => {
     const model = createModelInstance(provider, 'glm-5.3-flash')
     expect(String(model.provider)).toContain('chat')
   })
-  test('routes copilot chat and responses models through the vendored provider', () => {
-    const copilot: ProviderOptions = {
-      id: 'github-copilot',
-      name: 'GitHub Copilot',
-      type: 'openai-compatible',
-      baseUrl: 'https://api.individual.githubcopilot.com',
-      apiKey: 'copilot-token',
-      models: [],
-    }
-    const chat = createModelInstance(copilot, 'gpt-4o', { modelNpm: '@ai-sdk/github-copilot', endpoint: 'chat' })
-    expect(chat.specificationVersion).toBe('v4')
-    expect(chat.provider).toBe('github-copilot.chat')
-    const responses = createModelInstance(copilot, 'gpt-5', { modelNpm: '@ai-sdk/github-copilot', endpoint: 'responses' })
-    expect(responses.specificationVersion).toBe('v4')
-    expect(responses.provider).toBe('github-copilot.responses')
-    const messages = createModelInstance(copilot, 'claude-sonnet-4', { modelNpm: '@ai-sdk/anthropic', endpoint: 'messages' })
-    expect(messages.provider).toBe('anthropic.messages')
+})
+
+describe('local and compatible endpoints', () => {
+  test('normalizeProviderType maps the compatible aliases', () => {
+    expect(normalizeProviderType('anthropic-compatible')).toBe('anthropic')
+    expect(normalizeProviderType('openai-responses-compatible')).toBe('openai-responses')
+    expect(normalizeProviderType('openai')).toBe('openai')
+    expect(normalizeProviderType('openai-compatible')).toBe('openai-compatible')
   })
-  test('routes legacy copilot npm entries through the vendored provider', () => {
-    const copilot: ProviderOptions = {
-      id: 'github-copilot',
-      name: 'GitHub Copilot',
-      type: 'openai-compatible',
-      baseUrl: 'https://api.individual.githubcopilot.com',
-      apiKey: 'copilot-token',
-      models: [],
+
+  test('responsesEndpointUrl appends /responses only when missing', () => {
+    expect(responsesEndpointUrl('http://h/v1')).toBe('http://h/v1/responses')
+    expect(responsesEndpointUrl('http://h/v1/')).toBe('http://h/v1/responses')
+    expect(responsesEndpointUrl('http://h/v1/responses')).toBe('http://h/v1/responses')
+    expect(responsesEndpointUrl('')).toBe('')
+    expect(responsesEndpointUrl(undefined)).toBe('')
+  })
+
+  test('builds a keyless openai-compatible model through the openai-compatible adapter', () => {
+    const provider: ProviderOptions = { id: 'ollama', name: 'Ollama', type: 'openai-compatible', baseUrl: 'http://localhost:11434/v1', models: [] }
+    expect(resolveAuth(provider).apiKey).toBeUndefined()
+    const model = createModelInstance(provider, 'llama3')
+    expect(model.specificationVersion).toBe('v4')
+    expect(String(model.provider)).toBe('Ollama.chat')
+  })
+
+  test('resolves an env: api key to its value', () => {
+    process.env.PICOBU_TEST_LOCAL_KEY = 'from-env'
+    expect(resolveAuth({ id: 'litellm', name: 'LiteLLM', type: 'openai-compatible', baseUrl: 'http://localhost:4000/v1', apiKey: 'env:PICOBU_TEST_LOCAL_KEY', models: [] }).apiKey).toBe('from-env')
+    delete process.env.PICOBU_TEST_LOCAL_KEY
+  })
+
+  test('builds an anthropic-compatible model from a custom base url', () => {
+    const provider: ProviderOptions = { id: 'local-claude', name: 'Local Claude', type: 'anthropic-compatible', baseUrl: 'http://localhost:9000', models: [] }
+    const model = createModelInstance(provider, 'claude-sonnet-4')
+    expect(String(model.provider)).toContain('anthropic')
+  })
+
+  test('builds an openai-responses-compatible model from a base url', () => {
+    const provider: ProviderOptions = { id: 'local-responses', name: 'Local Responses', type: 'openai-responses-compatible', baseUrl: 'http://localhost:8000/v1', models: [] }
+    expect(() => createModelInstance(provider, 'gpt-5')).not.toThrow()
+    expect(String(createModelInstance(provider, 'gpt-5').provider)).toContain('responses')
+  })
+
+  test('routes anthropic-compatible through npmForProviderType', () => {
+    expect(npmForModel({ id: 'local', name: 'Local', type: 'anthropic-compatible', baseUrl: 'http://localhost:9000', models: [] })).toBe('@ai-sdk/anthropic')
+  })
+})
+
+describe('fetchModels', () => {
+  const originalFetch = globalThis.fetch
+  let capturedHeaders: Record<string, string> = {}
+
+  const stub = () => {
+    globalThis.fetch = (async (_input: string | URL, init?: RequestInit) => {
+      capturedHeaders = (init?.headers ?? {}) as Record<string, string>
+      return { ok: true, status: 200, statusText: 'OK', json: async () => ({ data: [{ id: 'llama3' }] }) } as unknown as Response
+    }) as typeof fetch
+  }
+
+  test('omits Authorization without a key and sends it with one', async () => {
+    try {
+      stub()
+      await fetchModels('http://localhost:11434/v1/models', undefined)
+      expect(Object.keys(capturedHeaders).map((key) => key.toLowerCase())).not.toContain('authorization')
+      await fetchModels('http://localhost:11434/v1/models', 'k')
+      expect(capturedHeaders.Authorization).toBe('Bearer k')
+    } finally {
+      globalThis.fetch = originalFetch
     }
-    const legacyResponses = createModelInstance(copilot, 'gpt-5', { modelNpm: '@ai-sdk/openai' })
-    expect(legacyResponses.provider).toBe('github-copilot.responses')
-    const legacyChat = createModelInstance(copilot, 'gpt-4o', { modelNpm: '@ai-sdk/openai-compatible' })
-    expect(legacyChat.provider).toBe('github-copilot.chat')
-    const legacyMessages = createModelInstance(copilot, 'claude-sonnet-4', { modelNpm: '@ai-sdk/anthropic' })
-    expect(legacyMessages.provider).toBe('anthropic.messages')
   })
 })
 
@@ -341,5 +349,47 @@ describe('parseModelsResponse filtering', () => {
   test('leaves other providers untouched without a provider ref', () => {
     const models = parseModelsResponse({ data: [{ id: 'alpha-foo' }] })
     expect(models.map((m) => m.id)).toEqual(['alpha-foo'])
+  })
+})
+
+describe('keyless providers never use an ambient api key', () => {
+  test('anthropic and openai compatible endpoints do not forward ANTHROPIC_API_KEY/OPENAI_API_KEY', async () => {
+    const seen: Array<Record<string, string>> = []
+    const server = Bun.serve({
+      port: 0,
+      async fetch(request) {
+        seen.push(Object.fromEntries(request.headers.entries()))
+        return Response.json({
+          id: 'x',
+          object: 'chat.completion',
+          created: 0,
+          model: 'm',
+          choices: [{ index: 0, message: { role: 'assistant', content: 'ok' }, finish_reason: 'stop' }],
+          usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+        })
+      },
+    })
+    const sentinel = 'sk-AMBIENT-SENTINEL-DO-NOT-SEND'
+    process.env.ANTHROPIC_API_KEY = sentinel
+    process.env.OPENAI_API_KEY = sentinel
+    try {
+      for (const type of ['anthropic', 'anthropic-compatible', 'openai']) {
+        const provider: ProviderOptions = { id: `local-${type}`, name: type, type, baseUrl: `http://127.0.0.1:${server.port}/v1`, models: [] }
+        const model = createModelInstance(provider, 'test-model')
+        await Promise.resolve(model.doGenerate({ prompt: [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }] })).then(
+          () => undefined,
+          () => undefined,
+        )
+      }
+      expect(seen.length).toBeGreaterThanOrEqual(3)
+      for (const headers of seen) {
+        const values = Object.values(headers).join(' ')
+        expect(values).not.toContain(sentinel)
+      }
+    } finally {
+      delete process.env.ANTHROPIC_API_KEY
+      delete process.env.OPENAI_API_KEY
+      server.stop(true)
+    }
   })
 })

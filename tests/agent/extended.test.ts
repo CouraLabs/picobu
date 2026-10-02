@@ -277,14 +277,13 @@ describe('model resolver helpers', () => {
     expect(resolveApiKey(undefined)).toBeUndefined()
     expect(resolveApiKey('')).toBeUndefined()
   })
-  test('resolveAuth resolves env keys and throws on missing login', () => {
+  test('resolveAuth resolves env keys and plain keys', () => {
     process.env.PICOBU_TEST_AUTH_KEY = 'abc'
     const provider: ProviderOptions = { id: 'p', name: 'P', type: 'openai-compatible', baseUrl: 'https://x', apiKey: 'env:PICOBU_TEST_AUTH_KEY', models: [] }
     expect(resolveAuth(provider)).toEqual({ apiKey: 'abc' })
     delete process.env.PICOBU_TEST_AUTH_KEY
     expect(resolveAuth({ ...provider, apiKey: undefined }).apiKey).toBeUndefined()
-    const locked: ProviderOptions = { ...provider, apiKey: 'auth:missing-cred-xyz' }
-    expect(() => resolveAuth(locked)).toThrow('No saved login')
+    expect(resolveAuth({ ...provider, apiKey: 'plain' }).apiKey).toBe('plain')
   })
   test('createModelInstance falls back to openai-compatible for unknown provider types', () => {
     const bad: ProviderOptions = { id: 'bad', name: 'Bad', type: 'bogus', baseUrl: 'https://bad', models: [] }

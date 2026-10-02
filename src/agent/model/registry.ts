@@ -1,6 +1,7 @@
 import { hyper } from '@agent/model/catalog-hyper.ts'
 import { fetchModelsDevProvider, listAllModelsDevProviders, modelsFromModelsDev } from '@agent/model/catalog-models-dev.ts'
 import { fetchModels } from '@agent/model/fetch-models.ts'
+import { LOCAL_PRESET_PROBE_TIMEOUT_MS, LOCAL_PROVIDER_PRESETS, localPresetApiKey, localPresetBaseUrl, modelsUrlForBaseUrl } from '@agent/model/local-presets.ts'
 import { indexCatalogModelStatuses } from '@agent/model/model-availability.ts'
 import { headersForProviderId } from '@agent/model/providers/index.ts'
 import { getRuntimeApiKeyProviders, setRuntimeApiKeyProviders } from '@agent/model/runtime-providers.ts'
@@ -20,6 +21,8 @@ const typeForModelsDevNpm = (npm?: string): ProviderOptions['type'] => {
 }
 
 export const LLM_PROVIDERS: Array<LlmProviderDefinition> = [hyper]
+
+const SKIPPED_AUTOLOAD_PROVIDER_IDS: ReadonlySet<string> = new Set(['github-copilot'])
 
 export const upsertProvider = (providers: Array<ProviderOptions>, provider: ProviderOptions): Array<ProviderOptions> => [...providers.filter((p) => p.id !== provider.id), provider]
 
@@ -82,13 +85,13 @@ const loadProviderFromDefinition = async (definition: LlmProviderDefinition): Pr
   }
 }
 
-const loadApiKeyProviders = async (devProviders: Array<ModelsDevProvider>): Promise<Array<ProviderOptions>> => {
+export const loadApiKeyProviders = async (devProviders: Array<ModelsDevProvider>): Promise<Array<ProviderOptions>> => {
   const configured = new Set(options.providers.map((provider) => provider.id))
   const runtime: Array<ProviderOptions> = []
   for (const dev of devProviders) {
     if (!dev || typeof dev.id !== 'string') continue
     if (!Array.isArray(dev.env) || dev.env.length === 0) continue
-    if (dev.id === 'github-copilot') continue
+    if (SKIPPED_AUTOLOAD_PROVIDER_IDS.has(dev.id)) continue
     if (configured.has(dev.id)) continue
     const envName = (dev.env ?? []).find((name) => typeof process.env[name] === 'string' && (process.env[name]?.length ?? 0) > 0)
     if (!envName) continue
@@ -98,6 +101,26 @@ const loadApiKeyProviders = async (devProviders: Array<ModelsDevProvider>): Prom
     runtime.push(provider)
   }
   return runtime
+}
+
+export const loadLocalPresetProviders = async (): Promise<Array<ProviderOptions>> => {
+  const configured = new Set(options.providers.map((provider) => provider.id))
+  const probed = await Promise.all(
+    LOCAL_PROVIDER_PRESETS.map(async (preset): Promise<ProviderOptions | undefined> => {
+      if (configured.has(preset.id)) return undefined
+      const baseUrl = localPresetBaseUrl(preset)
+      const apiKey = localPresetApiKey(preset)
+      let models: Array<ProviderModelOptions> = []
+      try {
+        models = await fetchModels(modelsUrlForBaseUrl(baseUrl), apiKey, { id: preset.id, baseUrl }, { timeoutMs: LOCAL_PRESET_PROBE_TIMEOUT_MS })
+      } catch {
+        models = []
+      }
+      if (models.length === 0) return undefined
+      return { id: preset.id, name: preset.name, type: preset.type, baseUrl, ...(apiKey ? { apiKey } : {}), npm: preset.npm, models }
+    }),
+  )
+  return probed.flatMap((provider) => (provider ? [provider] : []))
 }
 
 const loadCatalogModelStatuses = async (): Promise<Array<ModelsDevProvider>> => {
@@ -110,8 +133,9 @@ export const autoloadApiKeyProviders = async (): Promise<void> => {
   const devProviders = await loadCatalogModelStatuses()
   const apiKeyProviders = await loadApiKeyProviders(devProviders).catch(() => [] as Array<ProviderOptions>)
   const preserved = getRuntimeApiKeyProviders().filter((provider) => LLM_PROVIDERS.some((definition) => definition.id === provider.id))
+  const localProviders = await loadLocalPresetProviders().catch(() => [] as Array<ProviderOptions>)
   const merged = [...preserved]
-  for (const provider of apiKeyProviders) {
+  for (const provider of [...apiKeyProviders, ...localProviders]) {
     if (merged.some((item) => item.id === provider.id)) continue
     merged.push(provider)
   }
@@ -128,7 +152,8 @@ export const autoloadLlmProviders = async (): Promise<void> => {
   await backfillStatusLine().catch(() => {})
   const devProviders = await loadCatalogModelStatuses()
   const apiKeyProviders = await loadApiKeyProviders(devProviders).catch(() => [] as Array<ProviderOptions>)
-  for (const provider of apiKeyProviders) {
+  const localProviders = await loadLocalPresetProviders().catch(() => [] as Array<ProviderOptions>)
+  for (const provider of [...apiKeyProviders, ...localProviders]) {
     if (collected.some((item) => item.id === provider.id)) continue
     collected.push(provider)
   }

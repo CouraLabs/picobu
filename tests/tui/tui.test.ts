@@ -19,6 +19,7 @@ import {
   planText,
   previewToolInput,
   rawToolName,
+  shellBodyText,
   shellErrorLabel,
   summarizeMcpInput,
   summarizeToolInput,
@@ -316,6 +317,28 @@ describe('hasRenderableOutput', () => {
     expect(hasRenderableOutput(part({ type: 'tool-reload-options', state: 'output-available', output: { ok: true } }))).toBe(false)
     expect(hasRenderableOutput(part({ type: 'tool-reload-options', state: 'output-available', output: { ok: false } }))).toBe(false)
     expect(hasRenderableOutput(part({ type: 'tool-reload-options', state: 'input-available' }))).toBe(false)
+  })
+})
+
+describe('shellBodyText', () => {
+  test('running shells always show a body', () => {
+    expect(shellBodyText(true, undefined, undefined)).toBe('(no output yet)')
+    expect(shellBodyText(true, '   ', undefined)).toBe('(no output yet)')
+    expect(shellBodyText(true, 'loading', undefined)).toBe('loading')
+  })
+  test('finished shells never render an empty body', () => {
+    expect(shellBodyText(false, undefined, undefined)).toBe('(no output)')
+    expect(shellBodyText(false, undefined, '   ')).toBe('(no output)')
+    expect(shellBodyText(false, undefined, '')).toBe('(no output)')
+  })
+  test('finished shells keep their output', () => {
+    expect(shellBodyText(false, undefined, 'a\nb')).toBe('a\nb')
+  })
+  test('finished shells still cap long output', () => {
+    const long = Array.from({ length: 30 }, (_, index) => `line ${index}`).join('\n')
+    const body = shellBodyText(false, undefined, long)
+    expect(body).toContain('… +10 more')
+    expect(body.split('\n')).toHaveLength(21)
   })
 })
 

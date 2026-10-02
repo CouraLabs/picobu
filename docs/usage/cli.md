@@ -1,6 +1,6 @@
 # CLI reference
 
-`picobu` is the single entry point: it bootstraps the app (autoloads providers, refreshes OAuth tokens) and then opens the TUI or runs a subcommand. `bun dev` from a clone does the same as `picobu`.
+`picobu` is the single entry point: it bootstraps the app (autoloads providers, probes local endpoints) and then opens the TUI or runs a subcommand. `bun dev` from a clone does the same as `picobu`.
 
 ## Global flags
 
@@ -45,17 +45,9 @@ picobu mcp logout <serverId>    # drop stored tokens
 
 Server configuration lives in `~/.picobu/options.json` or the project `.mcp.json` — see [mcp.md](mcp.md).
 
-## login / logout
+## Providers
 
-```sh
-picobu login                    # list OAuth provider status
-picobu login --help             # show provider ids
-picobu login <provider> [opts]  # start login
-picobu login -f <provider>      # force re-login, skipping the already-logged-in check
-picobu logout <provider>        # logout and repoint harness selectors
-```
-
-Providers, options, and flows are documented in [../configuration/providers.md](../configuration/providers.md).
+There is no login subcommand: LLM OAuth was removed in favor of API keys, local endpoints, and LiteLLM. Providers autoload from the models.dev catalog when their `env` vars are set, and LiteLLM/Ollama/LM Studio autoload when they answer on their default ports. Everything else is declared in `options.json` — see [../configuration/providers.md](../configuration/providers.md), or ask the Picobu Optioneer agent to add it for you.
 
 ## Direct TUI entry
 
@@ -67,6 +59,6 @@ bun run src/tui/init.tsx [--session <id>] [--cd <folder>] [--debug]
 
 ## See also
 
-- [../configuration/providers.md](../configuration/providers.md) — login providers and flows
+- [../configuration/providers.md](../configuration/providers.md) — provider entries, local and compatible endpoints
 - [mcp.md](mcp.md) — MCP server configuration
 - [../usage.md](../usage.md) — the interactive session tour and slash commands

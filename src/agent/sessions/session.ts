@@ -16,6 +16,7 @@ import {
   messageFileParts,
   messageTextParts,
   planRevert,
+  sanitizePromptTextParts,
   settleAbortedToolParts,
   stripAnalysedImages,
   stripUnreplayableReasoning,
@@ -120,7 +121,7 @@ const flowOutputStatus = (part: LooseFlowPart): string | undefined => {
 }
 
 export const toPromptMessage = (prompt: SessionPrompt): CreateUIMessage<LoopMessage> =>
-  typeof prompt === 'string' ? ({ parts: [{ type: 'text', text: prompt }] } as CreateUIMessage<LoopMessage>) : prompt
+  sanitizePromptTextParts(typeof prompt === 'string' ? ({ parts: [{ type: 'text', text: prompt }] } as CreateUIMessage<LoopMessage>) : prompt)
 
 export const queuedTextFromMessage = (message: CreateUIMessage<LoopMessage>): string => messageTextParts(message as UIMessage)
 
@@ -599,14 +600,15 @@ export async function createSession(init: CreateSessionInit): Promise<Session> {
       return prompt ? { prompt } : {}
     },
     sendMessage: ((message, requestOptions) => {
-      if (message !== undefined && (resuming || isWaiting(chat.messages))) {
+      const sanitized = message === undefined ? undefined : toPromptMessage(message as SessionPrompt)
+      if (sanitized !== undefined && (resuming || isWaiting(chat.messages))) {
         return new Promise<void>((resolve, reject) => {
-          pendingPrompts.push({ id: randomUUID(), queuedAt: Date.now(), steered: false, message: toPromptMessage(message as SessionPrompt), resolve, reject })
+          pendingPrompts.push({ id: randomUUID(), queuedAt: Date.now(), steered: false, message: sanitized, resolve, reject })
           emitQueue()
           void drain()
         })
       }
-      return chat.sendMessage(message, requestOptions)
+      return chat.sendMessage(sanitized ?? message, requestOptions)
     }) as Chat['sendMessage'],
     regenerate: (options) => chat.regenerate(options),
     stop: () => {

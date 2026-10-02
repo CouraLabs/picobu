@@ -1,11 +1,9 @@
 import { beforeEach, describe, expect, test } from 'bun:test'
 import { resolveAgentModel, resolveHarnessAgentOverride } from '../../src/agent/agents/registry.ts'
-import { resetAuthCache } from '../../src/auth/store.ts'
 import { mockOptions, resetMockOptions } from '../helpers/mock-options.ts'
 
 beforeEach(() => {
   resetMockOptions()
-  resetAuthCache()
 })
 
 describe('resolveAgentModel', () => {

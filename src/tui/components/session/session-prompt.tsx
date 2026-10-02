@@ -3,6 +3,7 @@ import { SYSTEM_COMMANDS, toKebab, tokenizeCommandLine } from '@agent/commands/p
 import type { CommandKind } from '@agent/commands/types.ts'
 import { addPrompt, clearDraft, loadDraft, loadPromptHistory, saveDraft } from '@agent/sessions/prompt-history.ts'
 import type { MouseEvent, RGBA, ScrollBoxRenderable, TextareaRenderable } from '@opentui/core'
+import { sanitizePromptText } from '@shared/prompt-text.ts'
 import { catalogVersion } from '@states/catalog-state.ts'
 import { theme } from '@states/theme-state.ts'
 import { pushToast } from '@states/toast.state.ts'
@@ -480,8 +481,11 @@ export const SessionPrompt = (props: SessionPromptProps) => {
         }
         if (!textareaRef) return
         if (result.representation.mimeType === 'text/plain') {
-          const pasted = new TextDecoder().decode(result.representation.bytes)
-          if (!pasted) return
+          const pasted = sanitizePromptText(new TextDecoder().decode(result.representation.bytes))
+          if (!pasted) {
+            pushToast('Paste ignored: nothing left after stripping control characters', 'warning')
+            return
+          }
           textareaRef.insertText(pasted)
           const next = textareaRef.plainText ?? ''
           pruneStaleFiles(next)
@@ -551,7 +555,7 @@ export const SessionPrompt = (props: SessionPromptProps) => {
     const raw = textareaRef?.plainText ?? ''
     if (raw.trim().length === 0) return
     if (raw.trim() === '/') return
-    const value = isFlyoutOpen() ? completedLine(raw, highlight()) : raw
+    const value = sanitizePromptText(isFlyoutOpen() ? completedLine(raw, highlight()) : raw)
     const staged = files()
     const seqs = parseTokenSeqs(value)
     const bySeq = new Map(staged.map((f) => [f.seq, f]))
@@ -633,7 +637,6 @@ export const SessionPrompt = (props: SessionPromptProps) => {
         flexDirection="row"
         columnGap={1}
         flexShrink={0}
-        paddingX={1}
         border={['top', 'bottom']}
         borderStyle={queueMode() || waitingMode() ? 'double' : steeringMode() ? 'heavy' : 'single'}
         borderColor={borderColor()}

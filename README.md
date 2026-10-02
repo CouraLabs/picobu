@@ -29,7 +29,7 @@ An open-source coding agent for your terminal. Point Picobu at a project and it 
 
 Picobu started from frustration. I used Claude Code, Codex, GitHub Copilot, Opencode, and Pi extensively — and each of them got something right. Claude Code's agentic loop, Codex's task focus, Copilot's editor presence and model access, Opencode's openness and provider flexibility, Pi's minimalism. But none of them put the whole package together: every tool locked the agent to its own interface, its own provider deals, its own opinions about how you should work. Switching tools meant relearning workflows and losing session history.
 
-Picobu is that package: a coding agent for your terminal, with the best ideas from each of those tools built in. Point it at a project and it reads the code, reasons about the task, edits files, runs commands, and verifies its own work — with a rich OpenTUI interface for streaming runs, reviewing plans, and steering mid-flight. Underneath, the agent runtime stays headless and UI-agnostic, so the CLI, the headless server, and anything you build on the session facade drive the exact same loop, skills, and history. That core owns the agent loop (`ToolLoopAgent` from the `ai` SDK), session persistence, model resolution, tool execution, subagent delegation, MCP clients, OAuth credentials, and checkpointed undo/redo.
+Picobu is that package: a coding agent for your terminal, with the best ideas from each of those tools built in. Point it at a project and it reads the code, reasons about the task, edits files, runs commands, and verifies its own work — with a rich OpenTUI interface for streaming runs, reviewing plans, and steering mid-flight. Underneath, the agent runtime stays headless and UI-agnostic, so the CLI, the headless server, and anything you build on the session facade drive the exact same loop, skills, and history. That core owns the agent loop (`ToolLoopAgent` from the `ai` SDK), session persistence, model resolution, tool execution, subagent delegation, MCP clients, MCP OAuth credentials, and checkpointed undo/redo.
 
 The ideas worth keeping: strong plan-then-execute flows, an interview-first design agent, interruptible `ask` steps, delegating subagents, model-role routing, MCP extensibility, and persistent sessions with undo.
 
@@ -41,7 +41,7 @@ Requirements:
 
 - [Bun](https://bun.sh) ≥ 1.3.0
 - A terminal font with current programmer-glyph coverage (e.g. an up-to-date Source Code Pro, JetBrains Mono, or equivalent Nerd Fonts coverage) — the TUI status icons assume it
-- A model: an API key (any `@opencode-ai/models` provider `env` var, e.g. `HYPER_API_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GITHUB_TOKEN`, `GOOGLE_API_KEY`, `XAI_API_KEY`, `OPENROUTER_API_KEY`) or an OAuth login — see [Providers and models](#providers-and-models)
+- A model: an API key (any `@opencode-ai/models` provider `env` var, e.g. `HYPER_API_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GOOGLE_API_KEY`, `XAI_API_KEY`, `OPENROUTER_API_KEY`), a local endpoint (LiteLLM, Ollama, LM Studio), or any OpenAI/Anthropic/Responses-compatible server — see [Providers and models](#providers-and-models)
 
 Install with [Bun](https://bun.sh) from npm (puts `picobu` on your PATH; installs `bun` and provisions Chrome for the web tools when missing):
 
@@ -125,13 +125,15 @@ Agents work with a built-in tool catalog: `read`, `write`, `edit`, `glob`, `grep
 
 ### Providers and models
 
-Picobu talks to any provider the Vercel AI SDK supports. Providers autoload from the [models.dev](https://models.dev) catalog when their API-key env vars are set, or you can log in to a subscription provider with OAuth:
+Picobu talks to any provider the Vercel AI SDK supports. Providers autoload from the [models.dev](https://models.dev) catalog when their API-key env vars are set, and local endpoints autoload when they answer:
 
-```sh
-picobu login                    # list OAuth provider status
-picobu login <provider>         # start a login (openai, anthropic, github-copilot, xai, …)
-picobu logout <provider>        # log out and repoint harness selectors
-```
+| Endpoint | Default | Env overrides |
+| --- | --- | --- |
+| LiteLLM | `http://localhost:4000/v1` | `LITELLM_BASE_URL`, `LITELLM_API_KEY` (optional) |
+| Ollama | `http://localhost:11434/v1` | `OLLAMA_BASE_URL`, `OLLAMA_API_KEY` (optional) |
+| LM Studio | `http://localhost:1234/v1` | `LMSTUDIO_BASE_URL`, `LMSTUDIO_API_KEY` (optional) |
+
+Models are read from `<baseUrl>/models`, and API keys are optional for keyless endpoints. LiteLLM is the recommended way to reach subscription providers, since it already implements the provider-specific flows that OAuth used to cover. Custom endpoints (including Anthropic- and Responses-compatible servers) go in `options.json` under `providers` — ask the Picobu Optioneer agent to add them for you.
 
 Model access is organized into roles (`tiny`, `flash`, `heavy`) that agents map onto, editable in `options.json`. See [docs/configuration/providers.md](docs/configuration/providers.md).
 

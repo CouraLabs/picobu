@@ -1,6 +1,6 @@
 # Using Picobu
 
-Launch `picobu` (or `bun dev` from a clone). Bootstrap runs first — providers autoload, OAuth tokens refresh — then the TUI opens on a session for the current folder.
+Launch `picobu` (or `bun dev` from a clone). Bootstrap runs first — providers autoload, local endpoints are probed — then the TUI opens on a session for the current folder.
 
 ## A session, end to end
 

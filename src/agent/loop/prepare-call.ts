@@ -5,7 +5,7 @@ import { buildToolApproval } from '@agent/loop/permissions.ts'
 import { buildStopWhen } from '@agent/loop/stop-conditions.ts'
 import { buildToolOrder } from '@agent/loop/tool-order.ts'
 import type { AgentReasoning, LoopCallOptions, LoopConfig } from '@agent/loop/types.ts'
-import { copilotEndpoint, resolveModel } from '@agent/model/resolver.ts'
+import { resolveModel } from '@agent/model/resolver.ts'
 import type { AgentTool } from '@agent/tools/toolset.ts'
 import { options as appOptions } from '@config/options.ts'
 import type { McpManager } from '@integrations/mcp/client.ts'
@@ -30,16 +30,6 @@ export const createPrepareCall = (deps: PrepareCallDeps): ToolLoopAgentSettings<
     const agentDef = config.agentOverride ?? getAgent(persistent ? 'persistent' : config.agentId)
     const resolved = resolveModel(config.modelKey, config.sessionId ? { sessionId: config.sessionId } : undefined)
     const mcpTools = await mcp.tools()
-    const isCopilot = resolved.provider.id === 'github-copilot'
-    const copilot = isCopilot ? copilotEndpoint(resolved.modelMeta.endpoint, resolved.modelMeta.npm) : undefined
-    const copilotMessages = copilot === 'messages'
-    const copilotResponses = copilot === 'responses'
-    const copilotEffort = config.thinking === 'none' || config.thinking === 'provider-default' ? undefined : config.thinking
-    const copilotCacheKey = isCopilot && !copilotMessages ? config.sessionId?.trim() : undefined
-    const copilotOptions = {
-      ...(copilotResponses && copilotEffort ? { reasoningEffort: copilotEffort } : {}),
-      ...(copilotCacheKey ? { promptCacheKey: copilotCacheKey } : {}),
-    }
     const nativeTools = toolSet.getToolSet()
     const tools = { ...nativeTools, ...mcpTools }
     const mcpNames = Object.keys(mcpTools)
@@ -61,8 +51,7 @@ export const createPrepareCall = (deps: PrepareCallDeps): ToolLoopAgentSettings<
       instructions: await buildSystem(persistent ? 'persistent' : config.agentId),
       reasoning: config.thinking as AgentReasoning,
       providerOptions: {
-        anthropic: { cacheControl: { type: 'ephemeral', ttl: '1h' }, ...(copilotMessages ? { toolStreaming: false } : {}) },
-        ...(Object.keys(copilotOptions).length > 0 ? { copilot: copilotOptions } : {}),
+        anthropic: { cacheControl: { type: 'ephemeral', ttl: '1h' } },
       },
       ...(agentDef.temperature !== undefined ? { temperature: agentDef.temperature } : {}),
       ...(agentDef.topP !== undefined ? { topP: agentDef.topP } : {}),

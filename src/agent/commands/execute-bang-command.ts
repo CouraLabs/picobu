@@ -55,9 +55,11 @@ export const executeBangCommand = async (command: string, cwd: string, opts?: Ba
     try {
       const [stdout, stderr, exitCode] = await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text(), proc.exited])
       const durationMs = Date.now() - startedAt
-      const stderrWithNote = timedOut ? `${stderr}${stderr.length > 0 && !stderr.endsWith('\n') ? '\n' : ''}(timed out after ${timeoutSeconds}s)` : stderr
-      const spilled = await truncateTextWithSpill(`${stdout}${stderrWithNote}`, { direction: 'tail' })
-      const truncatedStdout = spilled.truncated ? spilled.text : stdout
+      const stdoutText = stdout.trim()
+      const stderrText = stderr.trim()
+      const stderrWithNote = timedOut ? `${stderrText}${stderrText.length > 0 ? '\n' : ''}(timed out after ${timeoutSeconds}s)` : stderrText
+      const spilled = await truncateTextWithSpill(`${stdoutText}${stdoutText.length > 0 && stderrWithNote.length > 0 ? '\n' : ''}${stderrWithNote}`, { direction: 'tail' })
+      const truncatedStdout = spilled.truncated ? spilled.text : stdoutText
       const truncatedStderr = spilled.truncated ? '' : stderrWithNote
       return {
         exitCode: timedOut ? 124 : exitCode,
